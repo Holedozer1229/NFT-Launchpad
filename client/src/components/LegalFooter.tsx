@@ -1,59 +1,71 @@
-import { AlertTriangle, Rocket, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Rocket, ShieldAlert, BookOpen } from "lucide-react";
+import warpDivider from "@/assets/warp-divider.png";
 
 export function LegalFooter() {
   return (
-    <footer className="border-t bg-muted/30 py-12 mt-20">
-      <div className="container mx-auto px-4 grid md:grid-cols-4 gap-8">
-        <div className="col-span-2">
-          <div className="flex items-center gap-2 mb-4">
-            <Rocket className="w-6 h-6 text-primary" />
-            <span className="font-heading font-bold text-xl tracking-tight">MissionMint</span>
+    <footer className="relative mt-20 bg-black/80 backdrop-blur-lg border-t border-white/5">
+      <img src={warpDivider} className="absolute top-0 left-0 w-full h-1 object-cover opacity-50" />
+      
+      <div className="container mx-auto px-4 py-16 grid md:grid-cols-4 gap-12 font-mono text-xs">
+        <div className="col-span-2 space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 border border-primary/20 rounded-sm">
+              <Rocket className="w-5 h-5 text-primary" />
+            </div>
+            <span className="font-heading font-bold text-xl tracking-widest text-white uppercase">MissionMint</span>
           </div>
-          <p className="text-muted-foreground text-sm max-w-md leading-relaxed">
-            The premier platform for commemorative mission patches and launch collectibles. 
-            Preserving aerospace history on the blockchain.
+          <p className="text-muted-foreground leading-relaxed max-w-md">
+            GALACTIC REGISTRY NODE 7. 
+            Archiving human aerospace achievements on the immutable ledger. 
+            Honoring the explorers of the void.
           </p>
-          <div className="mt-6 p-4 border border-yellow-500/20 bg-yellow-500/5 rounded-lg">
-             <p className="text-xs text-yellow-600/90 font-medium flex items-start gap-2">
-               <AlertTriangle className="w-4 h-4 shrink-0" />
-               <span>
-                 <strong>Non-Affiliation Disclaimer:</strong> This project is an independent commemorative art collection. 
-                 It is NOT affiliated with, endorsed by, or connected to SpaceX, NASA, Blue Origin, ULA, or any other government or private aerospace entity. 
-                 All mission names and vehicle designations are used for factual descriptive purposes only.
-               </span>
+          
+          <div className="p-4 border border-destructive/30 bg-destructive/5 rounded-sm relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-1 opacity-20">
+               <ShieldAlert className="w-12 h-12 text-destructive" />
+             </div>
+             <p className="text-destructive font-bold mb-1 uppercase tracking-wider flex items-center gap-2">
+               <AlertTriangle className="w-3 h-3" /> Non-Affiliation Protocol
+             </p>
+             <p className="text-destructive/80 leading-relaxed">
+               This database is an independent artistic tribute. It is NOT affiliated with SpaceX, NASA, or any terrestrial launch provider. 
+               All designations are used for historical cataloging only.
              </p>
           </div>
         </div>
         
         <div>
-          <h4 className="font-heading font-semibold mb-4">Mission Control</h4>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex items-center gap-2">
-              <ShieldCheck className="w-3 h-3" /> Terms of Mission
+          <h4 className="font-heading text-white font-bold mb-6 tracking-widest uppercase text-sm border-l-2 border-primary pl-3">Protocols</h4>
+          <ul className="space-y-3 text-muted-foreground">
+            <li className="flex items-center gap-2 hover:text-primary transition-colors cursor-pointer">
+              <BookOpen className="w-3 h-3" /> Terms of Engagement
             </li>
-            <li className="flex items-center gap-2">
-              <ShieldCheck className="w-3 h-3" /> Privacy Policy
+            <li className="flex items-center gap-2 hover:text-primary transition-colors cursor-pointer">
+              <BookOpen className="w-3 h-3" /> Data Privacy Codex
             </li>
-            <li className="flex items-center gap-2">
-              <ShieldCheck className="w-3 h-3" /> Collector Rights
+            <li className="flex items-center gap-2 hover:text-primary transition-colors cursor-pointer">
+              <BookOpen className="w-3 h-3" /> Ownership Rights
             </li>
           </ul>
         </div>
 
         <div>
-          <h4 className="font-heading font-semibold mb-4">Flight Safety</h4>
-          <div className="text-xs text-muted-foreground space-y-2 leading-relaxed opacity-80">
+          <h4 className="font-heading text-white font-bold mb-6 tracking-widest uppercase text-sm border-l-2 border-primary pl-3">Advisories</h4>
+          <div className="text-muted-foreground space-y-4 leading-relaxed opacity-70">
             <p>
-              NFTs are speculative collectibles. No guarantees of future value are made.
+              WARNING: Crypto-assets are unregulated and volatile. Capital at risk.
             </p>
             <p>
-              Mission outcomes (Success/Failure) in metadata are historical records and do not affect token ownership rights.
+              Historical data is finalized at block confirmation. 
+              No temporal reverts possible.
             </p>
           </div>
         </div>
       </div>
-      <div className="container mx-auto px-4 mt-12 pt-8 border-t text-center text-xs text-muted-foreground/50 font-mono uppercase tracking-widest">
-        © 2024 MissionMint Commemorative. All Rights Reserved.
+      <div className="border-t border-white/5 bg-black py-4">
+        <div className="container mx-auto px-4 text-center text-[10px] text-muted-foreground/40 font-mono uppercase tracking-[0.2em]">
+          SYSTEM ID: MM-2024-X // TRANSMISSION END // © MISSIONMINT
+        </div>
       </div>
     </footer>
   );

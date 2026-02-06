@@ -4,8 +4,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Inter", sans-serif;
-  --font-heading: "Space Grotesk", sans-serif;
+  --font-sans: "Rajdhani", sans-serif;
+  --font-heading: "Orbitron", sans-serif;
+  --font-gothic: "Cinzel", serif;
+  --font-retro: "Audiowide", display;
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -31,6 +33,10 @@
 
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-neon-blue: hsl(180 100% 50%);
+  --color-neon-purple: hsl(280 100% 60%);
+  --color-plasma-red: hsl(0 100% 60%);
   
   --radius-sm: 0.2rem;
   --radius-md: 0.4rem;
@@ -38,66 +44,36 @@
 }
 
 :root {
-  /* Swiss Digital Palette: Clean, High Contrast, "International Blue" */
-  --background: 210 20% 98%;
-  --foreground: 220 40% 10%;
+  /* Sci-Fi Palette: Deep Space, Neon, Grunge */
+  --background: 240 30% 5%; /* Deep Void */
+  --foreground: 180 20% 90%; /* Ice White */
 
-  --card: 0 0% 100%;
-  --card-foreground: 220 40% 10%;
+  --card: 240 25% 10%; /* Dark Hull */
+  --card-foreground: 180 20% 90%;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 220 40% 10%;
+  --popover: 240 25% 10%;
+  --popover-foreground: 180 20% 90%;
 
-  --primary: 220 90% 45%; /* International Blue */
-  --primary-foreground: 0 0% 100%;
+  --primary: 180 100% 50%; /* Neon Cyan */
+  --primary-foreground: 240 30% 5%;
 
-  --secondary: 210 20% 90%;
-  --secondary-foreground: 220 40% 10%;
+  --secondary: 280 80% 20%; /* Deep Purple */
+  --secondary-foreground: 280 100% 85%;
 
-  --muted: 210 20% 94%;
-  --muted-foreground: 220 20% 40%;
+  --muted: 240 20% 15%;
+  --muted-foreground: 240 20% 60%;
 
-  --accent: 220 90% 96%;
-  --accent-foreground: 220 90% 45%;
+  --accent: 320 100% 50%; /* Hot Pink/Magenta */
+  --accent-foreground: 0 0% 100%;
 
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 98%;
+  --destructive: 0 100% 50%; /* Plasma Red */
+  --destructive-foreground: 0 0% 100%;
 
-  --border: 220 15% 85%;
-  --input: 220 15% 90%;
-  --ring: 220 90% 45%;
+  --border: 240 30% 25%;
+  --input: 240 30% 20%;
+  --ring: 180 100% 50%;
 
-  --radius: 0.5rem;
-}
-
-.dark {
-  --background: 220 40% 10%;
-  --foreground: 210 20% 98%;
-
-  --card: 220 40% 13%;
-  --card-foreground: 210 20% 98%;
-
-  --popover: 220 40% 13%;
-  --popover-foreground: 210 20% 98%;
-
-  --primary: 220 90% 55%;
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 220 30% 20%;
-  --secondary-foreground: 210 20% 98%;
-
-  --muted: 220 30% 20%;
-  --muted-foreground: 215 20% 65%;
-
-  --accent: 220 30% 20%;
-  --accent-foreground: 210 20% 98%;
-
-  --destructive: 0 62% 30%;
-  --destructive-foreground: 0 0% 98%;
-
-  --border: 220 30% 25%;
-  --input: 220 30% 25%;
-  --ring: 220 90% 55%;
+  --radius: 0px; /* Sharp edges for sci-fi feel */
 }
 
 @layer base {
@@ -106,21 +82,74 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    background-image: 
+      radial-gradient(circle at 50% 0%, hsl(280 100% 20% / 0.3), transparent 70%),
+      radial-gradient(circle at 0% 100%, hsl(180 100% 20% / 0.2), transparent 50%);
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heading tracking-tight;
+    @apply font-heading tracking-wider uppercase;
+    text-shadow: 0 0 10px hsl(var(--primary) / 0.5);
   }
 }
 
-/* Custom Grid Background Pattern */
-.bg-grid-pattern {
-  background-image: 
-    linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px);
-  background-size: 40px 40px;
+/* Custom Effects */
+.text-glow {
+  text-shadow: 0 0 10px currentColor;
 }
-.dark .bg-grid-pattern {
-  background-image: 
-    linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
+
+.border-glow {
+  box-shadow: 0 0 10px hsl(var(--primary) / 0.3), inset 0 0 10px hsl(var(--primary) / 0.1);
+}
+
+.holo-card {
+  background: linear-gradient(135deg, hsl(var(--card) / 0.8), hsl(var(--card) / 0.4));
+  backdrop-filter: blur(8px);
+  border: 1px solid hsl(var(--primary) / 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.holo-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
+  opacity: 0.5;
+}
+
+.holo-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  border-bottom: 2px solid hsl(var(--primary));
+  border-right: 2px solid hsl(var(--primary));
+}
+
+.scanline {
+  background: linear-gradient(to bottom, transparent 50%, rgba(0, 255, 255, 0.02) 50%);
+  background-size: 100% 4px;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.gothic-text {
+  font-family: var(--font-gothic);
+  letter-spacing: 0.05em;
+}
+
+.retro-title {
+  font-family: var(--font-retro);
+  background: linear-gradient(to bottom, #ff00de, #00f3ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 5px rgba(0, 243, 255, 0.5));
 }
