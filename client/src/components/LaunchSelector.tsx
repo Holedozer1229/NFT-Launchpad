@@ -1,7 +1,7 @@
 import { LaunchMission } from "@/lib/mock-web3";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Rocket, Disc, Activity } from "lucide-react";
+import { Rocket, Disc, Activity, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LaunchSelectorProps {
@@ -17,15 +17,15 @@ export function LaunchSelector({ launches, selectedId, onSelect }: LaunchSelecto
         <Card 
           key={launch.id}
           className={cn(
-            "cursor-pointer transition-all duration-300 holo-card group relative overflow-hidden",
+            "cursor-pointer transition-all duration-300 sphinx-card group relative overflow-hidden",
             selectedId === launch.id 
               ? "border-primary bg-primary/10 shadow-[0_0_15px_hsl(var(--primary)/0.2)]" 
-              : "border-white/10 hover:border-primary/50 bg-black/40 hover:bg-primary/5"
+              : "border-primary/20 hover:border-primary/50 bg-black/40 hover:bg-primary/5"
           )}
           onClick={() => onSelect(launch)}
         >
           {/* Scanline effect on hover */}
-          <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,243,255,0.02)_50%)] bg-[length:100%_4px] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity"></div>
+          <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(255,215,0,0.02)_50%)] bg-[length:100%_4px] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity"></div>
 
           <CardContent className="p-5 space-y-4 relative z-10">
             <div className="flex justify-between items-start">
@@ -44,7 +44,7 @@ export function LaunchSelector({ launches, selectedId, onSelect }: LaunchSelecto
             <div>
               <h4 className={cn(
                 "font-heading font-bold text-lg leading-tight transition-colors",
-                selectedId === launch.id ? "text-primary text-glow" : "text-foreground group-hover:text-primary"
+                selectedId === launch.id ? "text-primary oracle-glow" : "text-foreground group-hover:text-primary"
               )}>
                 {launch.missionName}
               </h4>
@@ -54,14 +54,14 @@ export function LaunchSelector({ launches, selectedId, onSelect }: LaunchSelecto
               </div>
             </div>
 
-            <div className="pt-3 flex items-center justify-between border-t border-white/5 text-xs font-mono uppercase">
+            <div className="pt-3 flex items-center justify-between border-t border-primary/20 text-xs font-mono uppercase">
                <span className="text-muted-foreground/70">{launch.type}</span>
                <span className={cn(
                  "font-bold flex items-center gap-1",
                  launch.outcome === 'Success' ? "text-green-500" : "text-yellow-500"
                )}>
-                 <Activity className="w-3 h-3" />
-                 {launch.outcome}
+                 <Eye className="w-3 h-3" />
+                 {launch.outcome === 'Success' ? 'VERIFIED' : 'PENDING'}
                </span>
             </div>
           </CardContent>

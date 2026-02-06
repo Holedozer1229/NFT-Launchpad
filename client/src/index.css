@@ -8,6 +8,7 @@
   --font-heading: "Orbitron", sans-serif;
   --font-gothic: "Cinzel", serif;
   --font-retro: "Audiowide", display;
+  --font-mono: "Space Mono", monospace;
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -37,6 +38,7 @@
   --color-neon-blue: hsl(180 100% 50%);
   --color-neon-purple: hsl(280 100% 60%);
   --color-plasma-red: hsl(0 100% 60%);
+  --color-sphinx-gold: hsl(45 100% 50%);
   
   --radius-sm: 0.2rem;
   --radius-md: 0.4rem;
@@ -44,36 +46,36 @@
 }
 
 :root {
-  /* Sci-Fi Palette: Deep Space, Neon, Grunge */
-  --background: 240 30% 5%; /* Deep Void */
-  --foreground: 180 20% 90%; /* Ice White */
+  /* SphinxOS Palette: Void, Gold, Cyan */
+  --background: 240 30% 3%; /* Darker Void */
+  --foreground: 45 20% 90%; /* Pale Gold/White */
 
-  --card: 240 25% 10%; /* Dark Hull */
-  --card-foreground: 180 20% 90%;
+  --card: 240 25% 7%;
+  --card-foreground: 45 20% 90%;
 
-  --popover: 240 25% 10%;
-  --popover-foreground: 180 20% 90%;
+  --popover: 240 25% 7%;
+  --popover-foreground: 45 20% 90%;
 
-  --primary: 180 100% 50%; /* Neon Cyan */
+  --primary: 45 100% 50%; /* Sphinx Gold */
   --primary-foreground: 240 30% 5%;
 
-  --secondary: 280 80% 20%; /* Deep Purple */
-  --secondary-foreground: 280 100% 85%;
+  --secondary: 180 100% 30%; /* Deep Cyan */
+  --secondary-foreground: 180 100% 90%;
 
-  --muted: 240 20% 15%;
-  --muted-foreground: 240 20% 60%;
+  --muted: 240 20% 12%;
+  --muted-foreground: 240 20% 50%;
 
-  --accent: 320 100% 50%; /* Hot Pink/Magenta */
-  --accent-foreground: 0 0% 100%;
+  --accent: 180 100% 50%; /* Bright Cyan */
+  --accent-foreground: 240 30% 5%;
 
-  --destructive: 0 100% 50%; /* Plasma Red */
+  --destructive: 0 100% 50%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 240 30% 25%;
-  --input: 240 30% 20%;
-  --ring: 180 100% 50%;
+  --border: 45 30% 20%;
+  --input: 240 30% 15%;
+  --ring: 45 100% 50%;
 
-  --radius: 0px; /* Sharp edges for sci-fi feel */
+  --radius: 2px;
 }
 
 @layer base {
@@ -83,73 +85,60 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
     background-image: 
-      radial-gradient(circle at 50% 0%, hsl(280 100% 20% / 0.3), transparent 70%),
-      radial-gradient(circle at 0% 100%, hsl(180 100% 20% / 0.2), transparent 50%);
+      radial-gradient(circle at 50% 0%, hsl(45 100% 10% / 0.1), transparent 70%),
+      radial-gradient(circle at 0% 100%, hsl(280 100% 10% / 0.1), transparent 50%);
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading tracking-wider uppercase;
-    text-shadow: 0 0 10px hsl(var(--primary) / 0.5);
+    text-shadow: 0 0 10px hsl(var(--primary) / 0.3);
   }
 }
 
-/* Custom Effects */
-.text-glow {
-  text-shadow: 0 0 10px currentColor;
+/* Sphinx Effects */
+.oracle-glow {
+  text-shadow: 0 0 8px hsl(var(--primary) / 0.6);
 }
 
-.border-glow {
-  box-shadow: 0 0 10px hsl(var(--primary) / 0.3), inset 0 0 10px hsl(var(--primary) / 0.1);
-}
-
-.holo-card {
-  background: linear-gradient(135deg, hsl(var(--card) / 0.8), hsl(var(--card) / 0.4));
-  backdrop-filter: blur(8px);
+.oracle-border {
   border: 1px solid hsl(var(--primary) / 0.3);
+  box-shadow: 0 0 15px hsl(var(--primary) / 0.1), inset 0 0 10px hsl(var(--primary) / 0.05);
+}
+
+.sphinx-card {
+  background: linear-gradient(135deg, hsl(var(--card) / 0.9), hsl(var(--card) / 0.6));
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--primary) / 0.2);
   position: relative;
   overflow: hidden;
 }
 
-.holo-card::before {
+.sphinx-card::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  height: 1px;
+  width: 100%;
+  height: 2px;
   background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
-  opacity: 0.5;
+  opacity: 0.8;
 }
 
-.holo-card::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 20px;
-  height: 20px;
-  border-bottom: 2px solid hsl(var(--primary));
-  border-right: 2px solid hsl(var(--primary));
+/* Typing animation for Oracle Text */
+.typing-cursor::after {
+  content: '▋';
+  animation: blink 1s step-start infinite;
+  color: hsl(var(--primary));
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
 }
 
 .scanline {
-  background: linear-gradient(to bottom, transparent 50%, rgba(0, 255, 255, 0.02) 50%);
-  background-size: 100% 4px;
+  background: linear-gradient(to bottom, transparent 50%, rgba(45, 255, 255, 0.02) 50%);
+  background-size: 100% 3px;
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 50;
-}
-
-.gothic-text {
-  font-family: var(--font-gothic);
-  letter-spacing: 0.05em;
-}
-
-.retro-title {
-  font-family: var(--font-retro);
-  background: linear-gradient(to bottom, #ff00de, #00f3ff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 0 5px rgba(0, 243, 255, 0.5));
 }
