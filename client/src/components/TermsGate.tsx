@@ -18,37 +18,33 @@ export function TermsGate({ onAccept, open, onOpenChange }: TermsGateProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="font-heading text-2xl">Terms of Mint</DialogTitle>
+          <DialogTitle className="font-heading text-2xl">Flight Manifest Agreement</DialogTitle>
           <DialogDescription>
-            Please review and accept the legal conditions before proceeding with the transaction.
+            Confirm your understanding of this commemorative mission artifact.
           </DialogDescription>
         </DialogHeader>
 
         <div className="border rounded-md p-4 bg-muted/10 my-4">
           <ScrollArea className="h-[200px] pr-4 text-sm text-muted-foreground leading-relaxed">
-            <h4 className="font-semibold text-foreground mb-2">1. Nature of Asset</h4>
+            <h4 className="font-semibold text-foreground mb-2">1. Commemorative Artifact</h4>
             <p className="mb-4">
-              You acknowledge that you are purchasing a digital collectible (NFT) on the Ethereum blockchain. 
-              This token represents a limited license to the associated artwork as defined herein.
+              You are acquiring a digital mission patch. This is an artistic representation and holds no official status with any aerospace agency.
             </p>
 
-            <h4 className="font-semibold text-foreground mb-2">2. No Investment Advice</h4>
+            <h4 className="font-semibold text-foreground mb-2">2. Non-Affiliation</h4>
             <p className="mb-4">
-              This digital collectible is intended for consumer enjoyment, use, and consumption only. 
-              It is not a security, financial instrument, or investment contract. You agree that you are not purchasing 
-              with the expectation of profit.
+              <strong>CRITICAL:</strong> This project is NOT affiliated with, sponsored by, or endorsed by SpaceX, NASA, or any launch provider. 
+              Trademarks are used nominatively for historical accuracy.
             </p>
 
-            <h4 className="font-semibold text-foreground mb-2">3. Intellectual Property</h4>
+            <h4 className="font-semibold text-foreground mb-2">3. Flight Data</h4>
             <p className="mb-4">
-              Subject to your continued compliance with these Terms, LegalMint grants you a worldwide, royalty-free license to use, 
-              copy, and display the purchased Art for your purchased NFTs, solely for the following purposes: (i) for your own personal, 
-              non-commercial use; (ii) as part of a marketplace that permits the purchase and sale of your NFTs.
+              Metadata regarding launch outcome, orbit, and vehicle telemetry is finalized based on public records at the time of minting.
             </p>
 
-            <h4 className="font-semibold text-foreground mb-2">4. Jurisdiction</h4>
+            <h4 className="font-semibold text-foreground mb-2">4. Final Sale</h4>
             <p className="mb-4">
-              These terms are governed by the laws of the State of Delaware, without regard to conflict of law principles.
+              All flight manifest slots (mints) are final. No refunds for aborted launches or scrubbed missions once minted.
             </p>
           </ScrollArea>
         </div>
@@ -56,14 +52,14 @@ export function TermsGate({ onAccept, open, onOpenChange }: TermsGateProps) {
         <div className="flex items-center space-x-2 py-4">
           <Checkbox id="terms" checked={agreed} onCheckedChange={(c) => setAgreed(!!c)} />
           <Label htmlFor="terms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-            I have read and agree to the Terms of Service and Disclaimer.
+            I acknowledge this is an unofficial commemorative collectible.
           </Label>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Abort</Button>
           <Button disabled={!agreed} onClick={() => { onAccept(); onOpenChange(false); }} className="bg-primary text-primary-foreground hover:bg-primary/90">
-            Confirm & Proceed to Wallet
+            Sign Manifest & Mint
           </Button>
         </DialogFooter>
       </DialogContent>
