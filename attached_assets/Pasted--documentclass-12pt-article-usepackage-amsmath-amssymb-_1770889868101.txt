@@ -1,0 +1,145 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb, amsfonts, algorithm, algpseudocode, geometry, hyperref}
+\geometry{margin=1in}
+
+\title{StarLord 2 × SKYNT LaunchNFT \\ Mainnet SOP with Cross-Chain Mining}
+\author{SphinxOS Protocol Team}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Overview}
+This document defines all algebraic formulas, constraints, algorithms, and cross-chain integration required for mainnet launch of StarLord 2 × SKYNT LaunchNFT. It covers:
+\begin{itemize}
+    \item Integrated information (\(\Phi\)) computation
+    \item Tokenomics and staking
+    \item Boss attack mechanics
+    \item NFT rarity and seasonal raids
+    \item Zero-knowledge verification
+    \item Cross-chain mining and verification
+\end{itemize}
+
+\section{Integrated Information (\(\Phi\))}
+
+\subsection{Adjacency and Density Matrix}
+\begin{align}
+A &= [A_{ij}]_{N \times N}, \quad A_{ij} = \text{causal influence of miner $i$ on $j$} \\
+\rho &= \frac{A}{\mathrm{Tr}(A)} \quad \text{or} \quad \rho = \frac{A}{\sum_{i,j} A_{ij}}
+\end{align}
+
+\subsection{Eigendecomposition and Entropy}
+\begin{align}
+\rho &= V \Lambda V^{-1}, \quad \Lambda = \mathrm{diag}(\lambda_1, \dots, \lambda_N) \\
+\Phi &= - \sum_{k=1}^{N} \lambda_k \log_2 \lambda_k
+\end{align}
+
+\subsection{Normalization and Maximal \(\Phi\)}
+\begin{align}
+\Phi_{\max} &= \log_2 N \\
+\Phi_{\text{norm}} &= \frac{\Phi}{\Phi_{\max}}
+\end{align}
+
+\section{Tokenomics Algebra}
+\subsection{Player Contribution Weight}
+\begin{align}
+T &= \text{total token supply} \\
+t_i &= \text{tokens staked by player $i$} \\
+w_i &= \frac{t_i}{\sum_{j=1}^{M} t_j} \cdot \Phi
+\end{align}
+
+\subsection{NFT Minting and Token Burn}
+\begin{align}
+C_{\text{mint}}^{(i)} &= C_{\text{base}} \cdot (1 - d_i) \\
+t_i^{\text{new}} &= t_i - B_i, \quad B_i = \text{tokens burned for loot}
+\end{align}
+
+\section{Boss Attack Algebra}
+\begin{align}
+H_B &= \text{boss health} \\
+D_B &= \text{boss defense} \\
+a_i &= \text{player attack power} \\
+P_{\text{hit}}^{(i)} &= \frac{a_i \cdot w_i}{H_B + D_B} \\
+E[\text{damage}_i] &= P_{\text{hit}}^{(i)} \cdot a_i \\
+H_B^{\text{new}} &= H_B - \sum_i E[\text{damage}_i]
+\end{align}
+
+\section{NFT Rarity and Seasonal Passes}
+\begin{align}
+R_k &= \text{rarity score of NFT $k$} \\
+P_{\text{loot}}(k) &= \frac{R_k}{\sum_{j \in \mathcal{L}} R_j} \\
+P_{\text{loot}}^{\text{eff}}(k) &= P_{\text{loot}}(k) \cdot \left(1 + \frac{\Phi}{\Phi_{\max}}\right) \cdot S_{\text{season}} \\
+W_i &= t_i \cdot \alpha_{\text{season}} \\
+R_i &= \frac{W_i}{\sum_j W_j} \cdot R_{\text{season}}
+\end{align}
+
+\section{Zero-Knowledge Verification}
+\begin{align}
+\text{Verify}_{\text{ZK}}(state_{\text{old}}, state_{\text{new}}, proof) &= 
+\begin{cases} 
+\text{accept} & \text{if proof valid} \\
+\text{reject} & \text{otherwise}
+\end{cases}
+\end{align}
+
+\section{Cross-Chain Mining Algebra}
+
+\subsection{Cross-Chain Contribution Weight}
+Let each chain be indexed \(c = 1,\dots,C\):
+\begin{align}
+t_i^{(c)} &= \text{tokens staked by player $i$ on chain $c$} \\
+w_i^{(c)} &= \frac{t_i^{(c)}}{\sum_{j=1}^{M} t_j^{(c)}} \cdot \Phi^{(c)} \\
+w_i^{\text{total}} &= \sum_{c=1}^{C} w_i^{(c)}
+\end{align}
+
+\subsection{Cross-Chain Loot and Rewards}
+\begin{align}
+R_i^{\text{cross}} &= \sum_{c=1}^{C} \frac{w_i^{(c)}}{\sum_j w_j^{(c)}} \cdot R_{\text{chain}}^{(c)} \\
+\Phi^{\text{cross}} &= \sum_{c=1}^{C} \Phi^{(c)}
+\end{align}
+
+\subsection{Cross-Chain Verification Constraint}
+All cross-chain transactions must satisfy:
+\begin{align}
+\text{Verify}_{\text{ZK-cross}}(state_{\text{old}}^{(c)}, state_{\text{new}}^{(c)}, proof) &= 
+\begin{cases} 
+\text{accept} & \forall c \in \{1..C\} \text{ proof valid} \\
+\text{reject} & \text{otherwise}
+\end{cases}
+\end{align}
+
+\section{Algorithms with Cross-Chain Integration}
+
+\begin{algorithm}
+\caption{Cross-Chain Player Attack and Loot Distribution}
+\begin{algorithmic}[1]
+\State \textbf{Input:} Player $i$, Boss $B$, chains $C$, NFT loot tables $\mathcal{L}^{(c)}$
+\For{each chain $c$}
+    \State Compute $w_i^{(c)}$, $P_{\text{hit}}^{(i,c)}$
+    \If{random() < $P_{\text{hit}}^{(i,c)}$}
+        \State Apply damage $H_B^{(c)} \gets H_B^{(c)} - a_i$
+        \State Update $\Phi^{(c)} \gets \Phi^{(c)} + w_i^{(c)}$
+        \For{NFT $k \in \mathcal{L}^{(c)}$}
+            \State Compute $P_{\text{loot}}^{\text{eff}}(k)$
+            \If{random() < $P_{\text{loot}}^{\text{eff}}(k)$}
+                \State Award NFT $k$
+            \EndIf
+        \EndFor
+    \EndIf
+\EndFor
+\State Aggregate cross-chain weight: $w_i^{\text{total}} = \sum_c w_i^{(c)}$
+\State Aggregate cross-chain Φ: $\Phi^{\text{cross}} = \sum_c \Phi^{(c)}$
+\end{algorithmic}
+\end{algorithm}
+
+\section{Mainnet Considerations with Cross-Chain}
+
+\begin{itemize}
+    \item Each chain must maintain deterministic \(\Phi^{(c)}\) computation.
+    \item ZK proofs must be verified on each chain before state updates propagate cross-chain.
+    \item Emergency rollback hooks to revert mainnet state if any cross-chain verification fails.
+    \item Seasonal raid passes and NFT rarity analytics must be reconciled across chains before reward distribution.
+    \item All token emissions and burns are synchronized across chains using oracle bridges.
+\end{itemize}
+
+\end{document}
