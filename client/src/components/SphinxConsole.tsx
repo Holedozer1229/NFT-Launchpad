@@ -18,7 +18,7 @@ export function SphinxConsole() {
           </div>
           <Progress value={98} className="h-1 bg-primary/10 [&>div]:bg-primary" />
           <p className="mt-2 text-[10px] font-mono text-muted-foreground italic">
-            Φ = - Σ λₖ log₂ λₖ | Causal density matrix verified.
+            Φ(t) = Σ wᵢ · aᵢ(t) | Active node telemetry verified.
           </p>
         </CardContent>
       </Card>
