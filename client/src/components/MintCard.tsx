@@ -134,10 +134,16 @@ export function MintCard({ mission }: MintCardProps) {
               <Progress value={(mission.minted / mission.supply) * 100} className="h-1 bg-white/5 [&>div]:bg-primary [&>div]:shadow-[0_0_10px_currentColor]" />
             </div>
 
-            <div className="p-4 bg-primary/5 border border-primary/10 rounded-sm text-xs leading-relaxed font-mono text-primary/80 relative overflow-hidden group/text">
-              <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(transparent_50%,rgba(255,215,0,0.02)_50%)] bg-[length:100%_4px] pointer-events-none"></div>
-              <p className="line-clamp-3 relative z-10 italic">"{mission.description}"</p>
+          <div className="p-4 bg-primary/5 border border-primary/10 rounded-sm text-xs leading-relaxed font-mono text-primary/80 relative overflow-hidden group/text">
+            <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(transparent_50%,rgba(255,215,0,0.02)_50%)] bg-[length:100%_4px] pointer-events-none"></div>
+            <div className="relative z-10 space-y-2">
+              <p className="italic">"{mission.description}"</p>
+              <div className="pt-2 border-t border-primary/10 flex justify-between text-[10px]">
+                <span>RARITY_INDEX (Rⱼ)</span>
+                <span className="text-primary">Σ fₖ / mⱼ</span>
+              </div>
             </div>
+          </div>
 
             {isMinting && (
                <div className="space-y-2">

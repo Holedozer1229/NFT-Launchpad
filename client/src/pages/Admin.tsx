@@ -130,12 +130,12 @@ export default function Admin() {
                <CardContent className="space-y-4">
                  <div className="grid grid-cols-2 gap-4">
                    <div className="p-4 border rounded-lg bg-black/40 font-mono text-xs space-y-1">
-                     <span className="text-muted-foreground">TOTAL_CHAIN_COUNT:</span>
-                     <span className="text-primary block">3 ACTIVE NODES</span>
+                     <span className="text-muted-foreground">EMISSION_RATE (Eₜ):</span>
+                     <span className="text-primary block">α·Gₜ + β·Sₜ</span>
                    </div>
                    <div className="p-4 border rounded-lg bg-black/40 font-mono text-xs space-y-1">
-                     <span className="text-muted-foreground">TOTAL_MINING_WEIGHT:</span>
-                     <span className="text-primary block">Σ wᵢ⁽ᶜ⁾ = 42.1k</span>
+                     <span className="text-muted-foreground">CHAIN_STATE (S_c,t):</span>
+                     <span className="text-primary block">Σ 1_chain(i)=c · aᵢ(t)</span>
                    </div>
                  </div>
                  <div className="h-40 flex items-center justify-center text-muted-foreground border border-dashed rounded-lg bg-primary/5">
