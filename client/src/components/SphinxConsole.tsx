@@ -52,16 +52,20 @@ export function SphinxConsole() {
         </CardHeader>
         <CardContent className="pt-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-mono">
-            <span className="text-muted-foreground">ZK-Proof Status</span>
-            <span className="text-green-500">ACCEPT</span>
+            <span className="text-muted-foreground">Mainnet Status</span>
+            <span className="text-green-500">UNIFIED_LIVE</span>
           </div>
           <div className="flex justify-between items-center text-xs font-mono">
             <span className="text-muted-foreground">Cross-Chain Φ</span>
             <span className="text-primary">Σ Φ⁽ᶜ⁾</span>
           </div>
           <div className="flex justify-between items-center text-xs font-mono">
-            <span className="text-muted-foreground">Entropy</span>
-            <span className="text-green-500">OPTIMAL</span>
+            <span className="text-muted-foreground">Loot Eff.</span>
+            <span className="text-accent">Pₗₒₒₜ(k)·(1+Φ/Φₘₐₓ)</span>
+          </div>
+          <div className="flex justify-between items-center text-xs font-mono border-t border-primary/10 pt-1 mt-1">
+            <span className="text-muted-foreground/60">Node Sync</span>
+            <span className="text-primary/60 animate-pulse">DH-PROXIMAL</span>
           </div>
         </CardContent>
       </Card>

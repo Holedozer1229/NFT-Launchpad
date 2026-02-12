@@ -27,9 +27,11 @@ export function OracleOverlay() {
                 <span className="text-accent">{">>>"}</span> INITIATING SEQUENTIAL LOG...
               </p>
               <p className="opacity-80">Scanning temporal artifacts.</p>
-              <p className="opacity-80">Launch ID [L-001] confirmed in immutable ledger.</p>
+              <p className="opacity-80">StarLord 2 × SKYNT: Unified Launch Node Active.</p>
               <p className="opacity-80">Causal influence matrix: A = [Aij] detected.</p>
-              <p className="text-accent/80">Prophecy: Cross-chain Φ reconciliation in progress.</p>
+              <p className="text-accent/80">Prophecy: Mainnet SOP with Cross-Chain Mining online.</p>
+              <p className="text-sphinx-gold/60 text-[9px]">Rollback Hook: EMERGENCY_READY</p>
+              <p className="text-primary/40 text-[8px] animate-pulse">Σ tᵢ⁽ᶜ⁾ weight distribution verified.</p>
             </div>
           </ScrollArea>
         </CardContent>
