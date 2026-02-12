@@ -1,0 +1,177 @@
+name: StarLord 2 Unified Launch
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: 20
+  REACT_APP_CONTRACT_ADDRESS: ${{ secrets.CONTRACT_ADDRESS }}
+  DIGITALOCEAN_SSH: ${{ secrets.DO_SSH_KEY }}
+  DIGITALOCEAN_HOST: ${{ secrets.DO_HOST }}
+  LOVEABLE_API_KEY: ${{ secrets.LOVEABLE_API_KEY }}
+  ETH_PRIVATE_KEY: ${{ secrets.ETH_PRIVATE_KEY }}
+  ETH_RPC_URL: ${{ secrets.ETH_RPC_URL }}
+
+jobs:
+  setup:
+    name: Setup Node and Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Dependencies
+        run: |
+          cd frontend && npm ci
+          cd ../ && npm ci
+
+  deploy_contracts:
+    name: Deploy Smart Contracts with ZK Verification
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install Hardhat & ZK Tools
+        run: |
+          npm install --save-dev hardhat
+          npm install --save-dev snarkjs circom
+
+      - name: Backup Existing Contract (Rollback Point)
+        run: |
+          echo "Backing up existing contract address..."
+          echo ${{ env.REACT_APP_CONTRACT_ADDRESS }} > contract_backup.txt
+          cat contract_backup.txt
+
+      - name: Deploy Contracts to Network
+        id: deploy
+        run: |
+          set -e
+          echo "Deploying contracts..."
+          npx hardhat run scripts/deployUnified.js --network ${{ github.event.inputs.network || 'mainnet' }}
+          
+          echo "Running ZK verification for deployed contracts..."
+          node scripts/zkVerifyDeployment.js --network ${{ github.event.inputs.network || 'mainnet' }}
+        env:
+          PRIVATE_KEY: ${{ secrets.ETH_PRIVATE_KEY }}
+          RPC_URL: ${{ secrets.ETH_RPC_URL }}
+
+  build_frontend:
+    name: Build React Frontend
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install Frontend Dependencies
+        run: cd frontend && npm ci
+
+      - name: Build Frontend
+        run: cd frontend && npm run build
+
+  deploy_frontend_do:
+    name: Deploy Frontend to DigitalOcean
+    runs-on: ubuntu-latest
+    needs: build_frontend
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Copy Build to DigitalOcean
+        uses: appleboy/scp-action@v0.1.2
+        with:
+          host: ${{ env.DIGITALOCEAN_HOST }}
+          username: root
+          key: ${{ env.DIGITALOCEAN_SSH }}
+          source: "frontend/build/*"
+          target: "/var/www/starlord2/"
+
+      - name: Restart Nginx
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ env.DIGITALOCEAN_HOST }}
+          username: root
+          key: ${{ env.DIGITALOCEAN_SSH }}
+          script: |
+            sudo systemctl restart nginx
+            echo "Frontend deployed!"
+
+  update_phi_service:
+    name: Update Φ Analytics & Seasonal Passes
+    runs-on: ubuntu-latest
+    needs: deploy_contracts
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Update Φ Analytics
+        run: node scripts/updatePhiAnalytics.js
+        env:
+          CONTRACT_ADDRESS: ${{ env.REACT_APP_CONTRACT_ADDRESS }}
+          ETH_PRIVATE_KEY: ${{ secrets.ETH_PRIVATE_KEY }}
+          ETH_RPC_URL: ${{ secrets.ETH_RPC_URL }}
+
+      - name: Push Seasonal Raid Passes
+        run: node scripts/updateSeasonalPasses.js
+        env:
+          CONTRACT_ADDRESS: ${{ env.REACT_APP_CONTRACT_ADDRESS }}
+
+      - name: Update NFT Rarity Analytics
+        run: node scripts/updateNFTRarity.js
+        env:
+          CONTRACT_ADDRESS: ${{ env.REACT_APP_CONTRACT_ADDRESS }}
+
+  notify_team:
+    name: Notify Team
+    runs-on: ubuntu-latest
+    needs: [deploy_frontend_do, update_phi_service]
+    steps:
+      - name: Send Deployment Notification
+        run: |
+          curl -X POST https://api.loveable.dev/deployments \
+          -H "Authorization: Bearer ${{ env.LOVEABLE_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d '{
+                "project": "StarLord2-SKYNT",
+                "environment": "mainnet",
+                "status": "success",
+                "message": "Frontend deployed, smart contracts live, Φ analytics and seasonal passes updated."
+              }'
+
+  rollback:
+    name: Auto Rollback on Failure
+    runs-on: ubuntu-latest
+    if: failure()
+    needs: [deploy_contracts, build_frontend, deploy_frontend_do, update_phi_service]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Restore Previous Contract
+        run: |
+          echo "Rolling back contract..."
+          PREV_ADDR=$(cat contract_backup.txt)
+          echo "Restoring contract to $PREV_ADDR"
+          node scripts/rollbackContract.js --address $PREV_ADDR --network ${{ github.event.inputs.network || 'mainnet' }}
+
+      - name: Notify Team of Rollback
+        run: |
+          curl -X POST https://api.loveable.dev/deployments \
+          -H "Authorization: Bearer ${{ env.LOVEABLE_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d '{
+                "project": "StarLord2-SKYNT",
+                "environment": "mainnet",
+                "status": "rollback",
+                "message": "Deployment failed. Contract restored to previous state."
+              }'

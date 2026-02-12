@@ -39,11 +39,12 @@ export default function Admin() {
             <TabsTrigger value="overview">Flight Status</TabsTrigger>
             <TabsTrigger value="mint">Mission Config</TabsTrigger>
             <TabsTrigger value="metadata">Payload (Metadata)</TabsTrigger>
+            <TabsTrigger value="cross-chain">Mining (StarLord 2)</TabsTrigger>
             <TabsTrigger value="legal">Legal Telemetry</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-4 gap-6">
                <Card>
                  <CardHeader className="pb-2">
                    <CardDescription>Total Fuel (Revenue)</CardDescription>
@@ -59,7 +60,7 @@ export default function Admin() {
                    <CardTitle className="text-3xl font-heading">2,100 / 2,500</CardTitle>
                  </CardHeader>
                  <CardContent>
-                   <div className="text-xs text-muted-foreground">Active Mission: Starlink G6-12</div>
+                   <div className="text-xs text-muted-foreground">Unified Mainnet Live</div>
                  </CardContent>
                </Card>
                <Card>
@@ -68,7 +69,16 @@ export default function Admin() {
                    <CardTitle className="text-3xl font-heading">1,842</CardTitle>
                  </CardHeader>
                  <CardContent>
-                   <div className="text-xs text-muted-foreground">High distribution</div>
+                   <div className="text-xs text-muted-foreground">StarLord 2 Distributed</div>
+                 </CardContent>
+               </Card>
+               <Card>
+                 <CardHeader className="pb-2">
+                   <CardDescription>ZK-Proof Chain</CardDescription>
+                   <CardTitle className="text-3xl font-heading">VERIFIED</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                   <div className="text-xs text-green-500 font-mono">State Root Valid</div>
                  </CardContent>
                </Card>
             </div>
@@ -111,7 +121,31 @@ export default function Admin() {
              </Card>
           </TabsContent>
           
-           <TabsContent value="legal">
+           <TabsContent value="cross-chain">
+             <Card>
+               <CardHeader>
+                 <CardTitle>Unified Mining Analytics</CardTitle>
+                 <CardDescription>Cross-chain contribution weight and rewards reconciliation.</CardDescription>
+               </CardHeader>
+               <CardContent className="space-y-4">
+                 <div className="grid grid-cols-2 gap-4">
+                   <div className="p-4 border rounded-lg bg-black/40 font-mono text-xs space-y-1">
+                     <span className="text-muted-foreground">TOTAL_CHAIN_COUNT:</span>
+                     <span className="text-primary block">3 ACTIVE NODES</span>
+                   </div>
+                   <div className="p-4 border rounded-lg bg-black/40 font-mono text-xs space-y-1">
+                     <span className="text-muted-foreground">TOTAL_MINING_WEIGHT:</span>
+                     <span className="text-primary block">Σ wᵢ⁽ᶜ⁾ = 42.1k</span>
+                   </div>
+                 </div>
+                 <div className="h-40 flex items-center justify-center text-muted-foreground border border-dashed rounded-lg bg-primary/5">
+                   <Activity className="w-8 h-8 animate-pulse text-primary/20" />
+                 </div>
+               </CardContent>
+             </Card>
+          </TabsContent>
+          
+          <TabsContent value="legal">
              <Card>
                <CardHeader>
                  <CardTitle>Compliance Telemetry</CardTitle>
