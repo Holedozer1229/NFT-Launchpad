@@ -43,13 +43,13 @@ export function MintCard({ mission }: MintCardProps) {
 
     const steps = [
       "CONSULTING THE ORACLE...",
-      "WEAVING CAUSAL THREADS...",
-      "LOCKING PROVENANCE...",
+      "CALCULATING Φ ALGEBRA...",
+      "VERIFYING ZK-CROSS CHAIN...",
       "ARTIFACT MATERIALIZED..."
     ];
 
     for (let i = 0; i < steps.length; i++) {
-      toast({ title: `PROPHECY PHASE ${i+1}/4`, description: steps[i] });
+      toast({ title: `SYNA-PHASE ${i+1}/4`, description: steps[i] });
       await new Promise(r => setTimeout(r, 1500));
       setProgress((i + 1) * 25);
     }

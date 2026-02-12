@@ -23,11 +23,13 @@ export function OracleOverlay() {
         <CardContent className="p-0">
           <ScrollArea className="h-32 px-4 py-3 font-mono text-[10px] leading-relaxed text-primary/80">
             <div className="space-y-2">
-              <p className="typing-cursor"><span className="text-accent">{">>>"}</span> INITIATING SEQUENTIAL LOG...</p>
+              <p className="typing-cursor">
+                <span className="text-accent">{">>>"}</span> INITIATING SEQUENTIAL LOG...
+              </p>
               <p className="opacity-80">Scanning temporal artifacts.</p>
               <p className="opacity-80">Launch ID [L-001] confirmed in immutable ledger.</p>
-              <p className="opacity-80">Awaiting user interaction for provenance lock.</p>
-              <p className="text-accent/80">Prophecy: High probability of mint completion.</p>
+              <p className="opacity-80">Causal influence matrix: A = [Aij] detected.</p>
+              <p className="text-accent/80">Prophecy: Cross-chain Φ reconciliation in progress.</p>
             </div>
           </ScrollArea>
         </CardContent>
