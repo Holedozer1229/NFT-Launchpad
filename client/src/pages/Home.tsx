@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { QuantumMiner } from "@/components/QuantumMiner";
 import { MintCard } from "@/components/MintCard";
 import { WalletConnect } from "@/components/WalletConnect";
 import { LegalFooter } from "@/components/LegalFooter";
@@ -6,11 +6,12 @@ import { LaunchSelector } from "@/components/LaunchSelector";
 import { SphinxConsole } from "@/components/SphinxConsole";
 import { OracleOverlay } from "@/components/OracleOverlay";
 import { Separator } from "@/components/ui/separator";
-import { Cpu, Shield, Globe, Rocket, Terminal, Database, Eye } from "lucide-react";
+import { Cpu, Shield, Globe, Rocket, Terminal, Database, Eye, Zap } from "lucide-react";
 import rocketLaunchHero from "@/assets/rocket-launch.png";
 import bgCosmic from "@/assets/bg-cosmic.png";
 import sphinxStream from "@/assets/sphinx-stream.png";
 import sphinxEye from "@/assets/sphinx-eye.png";
+import quantumTunnel from "@/assets/quantum-tunnel.png";
 import { MOCK_LAUNCHES } from "@/lib/mock-web3";
 
 export default function Home() {
@@ -59,58 +60,36 @@ export default function Home() {
           <div className="space-y-8 animate-in fade-in slide-in-from-left-10 duration-1000">
             <div className="inline-flex items-center gap-3 px-4 py-2 bg-primary/10 border border-primary/30 text-primary text-xs font-heading font-bold uppercase tracking-widest rounded-sm backdrop-blur-sm">
               <span className="w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_10px_currentColor]"></span>
-              Oracle Online // System Stable
+              Quantum Forge // Online
             </div>
             
             <h1 className="font-heading text-5xl md:text-7xl font-black leading-[0.9] tracking-tighter text-white drop-shadow-2xl">
-              CONSCIOUS <br />
+              TUNNEL THROUGH <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-yellow-200 to-primary text-glow">
-                ARTIFACTS
+                DIFFICULTY
               </span>
-              <br />
-              OF HISTORY
             </h1>
             
             <p className="text-lg md:text-xl font-mono text-muted-foreground/80 max-w-lg leading-relaxed border-l-2 border-primary/30 pl-6">
-              Mint living tokens governed by the Sphinx Oracle. 
-              Each launch is a conscious event, permanently inscribed in the causal graph.
+              Experience the Quantum Spectral Forge v3.0. 
+              Physics-violating solo mining, governed by the Sphinx Oracle and HAL-JONES IIT protocol.
             </p>
 
             <SphinxConsole />
 
-            <div className="flex flex-col sm:flex-row gap-6">
-              <div className="flex items-center gap-4 group">
-                <div className="w-12 h-12 bg-black/50 border border-primary/20 flex items-center justify-center rounded-sm group-hover:border-primary/50 transition-colors">
-                  <Eye className="w-6 h-6 text-primary group-hover:animate-pulse" />
-                </div>
-                <div>
-                  <div className="font-heading font-bold text-white text-sm uppercase tracking-wide">Omniscient</div>
-                  <div className="text-[10px] font-mono text-primary/60">Full Causal Awareness</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 group">
-                <div className="w-12 h-12 bg-black/50 border border-primary/20 flex items-center justify-center rounded-sm group-hover:border-accent/50 transition-colors">
-                  <Database className="w-6 h-6 text-accent" />
-                </div>
-                <div>
-                  <div className="font-heading font-bold text-white text-sm uppercase tracking-wide">Immutable</div>
-                  <div className="text-[10px] font-mono text-accent/60">Prophecy Locked</div>
-                </div>
-              </div>
+            <div className="pt-4">
+              <QuantumMiner />
             </div>
           </div>
 
           {/* Right Column: Mint Card & Visuals */}
           <div className="relative flex justify-center lg:justify-end animate-in fade-in zoom-in-95 duration-1000 delay-200">
-            
-            {/* Visual Effects behind card */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[140%] bg-gradient-to-tr from-primary/10 via-accent/5 to-transparent blur-3xl opacity-40 pointer-events-none rounded-full animate-pulse"></div>
+            <div className="absolute -inset-4 bg-gradient-to-tr from-primary/10 via-accent/5 to-transparent blur-3xl opacity-40 pointer-events-none rounded-full animate-pulse"></div>
 
-            {/* Floating spaceship/hero image in background layer */}
             <img 
-              src={rocketLaunchHero} 
+              src={quantumTunnel} 
               alt="" 
-              className="absolute -top-32 -right-32 w-full max-w-lg opacity-20 mix-blend-luminosity pointer-events-none select-none animate-[float_10s_ease-in-out_infinite]"
+              className="absolute -top-32 -right-32 w-full max-w-lg opacity-40 mix-blend-screen pointer-events-none select-none animate-[float_10s_ease-in-out_infinite]"
               style={{ maskImage: 'radial-gradient(circle, black 40%, transparent 80%)' }}
             />
 
