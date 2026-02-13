@@ -1,3 +1,4 @@
+import { EmbeddedWallet } from "@/components/EmbeddedWallet";
 import { QuantumMiner } from "@/components/QuantumMiner";
 import { MintCard } from "@/components/MintCard";
 import { WalletConnect } from "@/components/WalletConnect";
@@ -6,7 +7,7 @@ import { LaunchSelector } from "@/components/LaunchSelector";
 import { SphinxConsole } from "@/components/SphinxConsole";
 import { OracleOverlay } from "@/components/OracleOverlay";
 import { Separator } from "@/components/ui/separator";
-import { Cpu, Shield, Globe, Rocket, Terminal, Database, Eye, Zap } from "lucide-react";
+import { Cpu, Shield, Globe, Rocket, Terminal, Database, Eye, Zap, Key } from "lucide-react";
 import rocketLaunchHero from "@/assets/rocket-launch.png";
 import bgCosmic from "@/assets/bg-cosmic.png";
 import sphinxStream from "@/assets/sphinx-stream.png";
@@ -60,22 +61,17 @@ export default function Home() {
           <div className="space-y-8 animate-in fade-in slide-in-from-left-10 duration-1000">
             <div className="inline-flex items-center gap-3 px-4 py-2 bg-primary/10 border border-primary/30 text-primary text-xs font-heading font-bold uppercase tracking-widest rounded-sm backdrop-blur-sm">
               <span className="w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_10px_currentColor]"></span>
-              Quantum Forge // Online
+              Identity Module // Secured
             </div>
             
             <h1 className="font-heading text-5xl md:text-7xl font-black leading-[0.9] tracking-tighter text-white drop-shadow-2xl">
-              TUNNEL THROUGH <br />
+              SECURE YOUR <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-yellow-200 to-primary text-glow">
-                DIFFICULTY
+                IDENTITY
               </span>
             </h1>
             
-            <p className="text-lg md:text-xl font-mono text-muted-foreground/80 max-w-lg leading-relaxed border-l-2 border-primary/30 pl-6">
-              Experience the Quantum Spectral Forge v3.0. 
-              Physics-violating solo mining, governed by the Sphinx Oracle and HAL-JONES IIT protocol.
-            </p>
-
-            <SphinxConsole />
+            <EmbeddedWallet />
 
             <div className="pt-4">
               <QuantumMiner />

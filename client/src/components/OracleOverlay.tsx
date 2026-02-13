@@ -30,6 +30,7 @@ export function OracleOverlay() {
               <p className="opacity-80">Quantum Spectral Forge v3.0: HAL-JONES protocol initialized.</p>
               <p className="opacity-80">WKB tunnel probability: Pₜ = exp(-2∫√(2m(V-E)/ħ²) dx)</p>
               <p className="text-accent/80">Prophecy: Solo mining through difficulty barrier detected.</p>
+              <p className="text-sphinx-gold/60 text-[9px]">Identity: SECURE_GATEWAY // CRYPTO_CHALLENGE_ACTIVE</p>
               <p className="text-sphinx-gold/60 text-[9px]">Born Rule: Probability |Ψ|² = 1.0</p>
             </div>
           </ScrollArea>
