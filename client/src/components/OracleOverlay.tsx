@@ -27,11 +27,10 @@ export function OracleOverlay() {
                 <span className="text-accent">{">>>"}</span> INITIATING SEQUENTIAL LOG...
               </p>
               <p className="opacity-80">Scanning temporal artifacts.</p>
-              <p className="opacity-80">StarLord 2 × SKYNT: Unified Launch Node Active.</p>
-              <p className="opacity-80">Causal influence matrix: A = [Aij] detected.</p>
-              <p className="text-accent/80">Prophecy: Mainnet SOP with Cross-Chain Mining online.</p>
-              <p className="text-sphinx-gold/60 text-[9px]">Rollback Hook: EMERGENCY_READY</p>
-              <p className="text-primary/40 text-[8px] animate-pulse">Σ tᵢ⁽ᶜ⁾ weight distribution verified.</p>
+              <p className="opacity-80">Quantum Spectral Forge v3.0: HAL-JONES protocol initialized.</p>
+              <p className="opacity-80">WKB tunnel probability: Pₜ = exp(-2∫√(2m(V-E)/ħ²) dx)</p>
+              <p className="text-accent/80">Prophecy: Solo mining through difficulty barrier detected.</p>
+              <p className="text-sphinx-gold/60 text-[9px]">Born Rule: Probability |Ψ|² = 1.0</p>
             </div>
           </ScrollArea>
         </CardContent>
