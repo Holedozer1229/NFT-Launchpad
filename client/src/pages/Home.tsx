@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { EmbeddedWallet } from "@/components/EmbeddedWallet";
 import { QuantumMiner } from "@/components/QuantumMiner";
 import { MintCard } from "@/components/MintCard";
