@@ -43,15 +43,17 @@ export function MintCard({ mission }: MintCardProps) {
 
     const steps = [
       "CONSULTING THE ORACLE...",
+      "SYNCING CROSS-CHANNEL STX YIELD...",
+      "MERGE MINING PROOF GENERATED...",
       "CALCULATING Φ ALGEBRA...",
       "VERIFYING ZK-CROSS CHAIN...",
       "ARTIFACT MATERIALIZED..."
     ];
 
     for (let i = 0; i < steps.length; i++) {
-      toast({ title: `SYNA-PHASE ${i+1}/4`, description: steps[i] });
-      await new Promise(r => setTimeout(r, 1500));
-      setProgress((i + 1) * 25);
+      toast({ title: `SYNA-PHASE ${i+1}/${steps.length}`, description: steps[i] });
+      await new Promise(r => setTimeout(r, 1200));
+      setProgress(Math.floor(((i + 1) / steps.length) * 100));
     }
 
     setIsMinting(false);
@@ -113,9 +115,14 @@ export function MintCard({ mission }: MintCardProps) {
                 <h3 className="text-2xl font-heading font-bold text-primary oracle-glow">
                   {mission.missionName}
                 </h3>
-                <p className="text-xs font-mono text-primary/60 flex items-center gap-2 mt-1">
-                  <span className="text-accent">ID:</span> {mission.id.toUpperCase()}
-                </p>
+                <div className="flex flex-col gap-1 mt-1">
+                  <p className="text-xs font-mono text-primary/60 flex items-center gap-2">
+                    <span className="text-accent">ID:</span> {mission.id.toUpperCase()}
+                  </p>
+                  <p className="text-[10px] font-mono text-accent flex items-center gap-2">
+                    <Zap className="w-2 h-2" /> MERGE MINING ACTIVE
+                  </p>
+                </div>
               </div>
               <div className="text-right">
                 <span className="text-xl font-heading font-bold text-foreground drop-shadow-[0_0_5px_rgba(255,215,0,0.5)]">

@@ -10,6 +10,7 @@ export function QuantumMiner() {
   const [hashRate, setHashRate] = useState(0);
   const [tunnelProb, setTunnelProb] = useState(0);
   const [blocksFound, setBlocksFound] = useState(0);
+  const [stxEarnings, setStxEarnings] = useState(0);
   const [phi, setPhi] = useState(0);
 
   useEffect(() => {
@@ -22,6 +23,7 @@ export function QuantumMiner() {
         
         if (Math.random() < 0.05) {
           setBlocksFound(prev => prev + 1);
+          setStxEarnings(prev => prev + (Math.random() * 0.5));
         }
       }, 2000);
     } else {
@@ -52,14 +54,18 @@ export function QuantumMiner() {
       </CardHeader>
 
       <CardContent className="pt-6 space-y-6">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-2">
           <div className="space-y-1">
             <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-tighter">Spectral Hashrate</span>
-            <div className="text-xl font-heading font-bold text-white">{hashRate} <span className="text-xs text-primary/60">PH/s</span></div>
+            <div className="text-sm font-heading font-bold text-white">{hashRate} <span className="text-[8px] text-primary/60">PH/s</span></div>
+          </div>
+          <div className="space-y-1 text-center border-x border-primary/10">
+            <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-tighter">STX Merge Yield</span>
+            <div className="text-sm font-heading font-bold text-accent">{stxEarnings.toFixed(2)} STX</div>
           </div>
           <div className="space-y-1 text-right">
             <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-tighter">Tunnel Prob. (Pₜ)</span>
-            <div className="text-xl font-heading font-bold text-accent">{tunnelProb.toExponential(2)}</div>
+            <div className="text-sm font-heading font-bold text-primary">{tunnelProb.toExponential(1)}</div>
           </div>
         </div>
 
@@ -80,9 +86,15 @@ export function QuantumMiner() {
             {isMining ? (
               <div className="space-y-1 animate-in fade-in slide-in-from-bottom-2">
                 <p>{">>>"} ∫𝒟[n(t)] exp(iS[n]/ħ) sampled</p>
+                <p>{">>>"} Stacks Merge Mining: Channel Sync @ {Math.floor(Math.random() * 1000)}ms</p>
                 <p>{">>>"} Quantum state superposition: |Ψ⟩ initialized</p>
                 <p>{">>>"} WKB approximation: barrier width 1.0ℓₚ</p>
-                {blocksFound > 0 && <p className="text-accent">{"!!!"} TUNNEL COLLAPSE: BLOCK_FOUND_ID_{blocksFound}</p>}
+                {blocksFound > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-accent">{"!!!"} TUNNEL COLLAPSE: BLOCK_FOUND_ID_{blocksFound}</p>
+                    <p className="text-primary animate-pulse">{">>>"} STX EARNINGS INJECTED TO ORACLE MINTER</p>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="opacity-40 italic">Waiting for quantum ignition...</p>
