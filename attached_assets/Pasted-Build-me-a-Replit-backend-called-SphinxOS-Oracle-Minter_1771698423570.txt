@@ -1,0 +1,53 @@
+Build me a Replit backend called **“SphinxOS Oracle Minter (Polygon zkEVM)”** that exposes a secure HTTP API for minting an ERC-721 NFT via **thirdweb** when my Python game reports an **EPIC** or **LEGENDARY** treasure.
+
+**Requirements**
+- Runtime: **Node.js + TypeScript** (Express).
+- Chain: **Polygon zkEVM (chainId 1101)**.
+- Minting: Use `thirdweb` SDK and **server-side** credentials (use `THIRDWEB_SECRET_KEY` in secrets; do NOT mint with a clientId-only setup).
+- Contract: Use env `NFT_CONTRACT_ADDRESS` (existing deployed ERC721).
+- Endpoint:
+  - `POST /claim`
+  - JSON body:
+    ```json
+    {
+      "type": "TREASURE_CLAIM",
+      "ts": 0,
+      "player_wallet": "0x...",
+      "rarity": "EPIC",
+      "treasure_id": 0,
+      "value": 0,
+      "phase_score": 0,
+      "wormholes_active": 0,
+      "live_txid": "",
+      "score_total": 0,
+      "commit": ""
+    }
+    ```
+- Security:
+  - Verify an HMAC-style commitment:
+    - `commit = sha256(ORACLE_HMAC_SECRET + canonical_json_without_commit)`
+    - canonical JSON = keys sorted, no extra whitespace (stable serialization).
+  - Reject if `commit` invalid.
+  - Only mint if `rarity` is `EPIC` or `LEGENDARY`.
+  - Add simple rate limiting per IP (even basic in-memory).
+- Mint metadata:
+  - name: `Oracle Proof (RARITY)`
+  - description: `"Immutable proof of a SphinxOS Oracle decision."`
+  - image: env `ORACLE_IMAGE_URI` (fallback to a placeholder string)
+  - attributes include: `decision=Approved`, `rarity`, `treasure_id`, `score_total`, `wormholes_active`, `live_txid`, `oracle_proof` (sha256 of decision payload), `commit`, `timestamp`.
+- Response:
+  - `{ ok: true, minted: true, tx: <thirdweb result> }` when minted
+  - `{ ok: true, minted: false, reason: "rarity_not_high_enough" }` when not minted
+  - `{ ok: false, error: "..." }` on failure
+- Add a `GET /health` returning `{ ok: true }`.
+
+**Deliverables**
+- Provide all necessary files (`package.json`, `tsconfig.json`, `src/index.ts` etc.)
+- Include clear instructions to set Replit Secrets:
+  - `THIRDWEB_SECRET_KEY`
+  - `NFT_CONTRACT_ADDRESS`
+  - `ORACLE_HMAC_SECRET`
+  - `ORACLE_IMAGE_URI` (optional)
+- Include example `curl` request to `/claim`.
+
+Implement the full working code and keep it minimal and readable.
