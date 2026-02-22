@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Activity, GitCommit, GitPullRequest, Eye, Database } from "lucide-react";
+import { Activity, GitCommit, GitPullRequest, Eye, Database, Zap } from "lucide-react";
 
 export function SphinxConsole() {
   return (
@@ -35,6 +35,19 @@ export function SphinxConsole() {
             <div className="text-[10px] font-mono text-white break-all bg-primary/5 p-1 rounded border border-primary/5 select-all">
               6h5M7PrUjy6tJ9gC4FTwGne1y4VJydKk9MELgNgBb5Do
             </div>
+          </div>
+          <div className="p-2 bg-accent/5 border border-accent/20 rounded-sm space-y-1">
+            <div className="text-[9px] font-mono text-accent/60 uppercase tracking-tighter">Yield Optimizer</div>
+            <a 
+              href="https://claimfreesol.com/XBu7EmHG" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-[10px] font-mono text-accent hover:text-white transition-colors flex items-center gap-2 group"
+            >
+              <Zap className="w-3 h-3 animate-pulse" />
+              CFS_SYNC_PROTOCOL (ACTIVE)
+              <span className="opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+            </a>
           </div>
           <div className="flex justify-between items-center text-[10px] font-mono">
             <span className="text-primary/60">Asset Reserve</span>
