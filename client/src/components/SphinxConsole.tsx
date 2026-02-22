@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Activity, GitCommit, GitPullRequest, Eye } from "lucide-react";
+import { Activity, GitCommit, GitPullRequest, Eye, Database } from "lucide-react";
 
 export function SphinxConsole() {
   return (
@@ -25,22 +25,25 @@ export function SphinxConsole() {
 
       <Card className="sphinx-card bg-black/60 border-primary/20">
         <CardHeader className="py-3 border-b border-primary/10">
-          <CardTitle className="font-heading text-xs text-primary/80 flex items-center gap-2">
-            <GitCommit className="w-3 h-3" /> Cross-Chain Mining
+          <CardTitle className="font-heading text-xs text-primary/80 flex items-center gap-2 uppercase tracking-widest">
+            <Database className="w-3 h-3 text-accent" /> Solana Treasury
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-4 relative h-24 overflow-hidden">
-           {/* Mock Visualization */}
-           <div className="absolute inset-0 flex items-center justify-around opacity-50">
-             <div className="w-1 h-16 bg-primary/20 rounded-full animate-pulse"></div>
-             <div className="w-1 h-12 bg-primary/40 rounded-full animate-pulse delay-75"></div>
-             <div className="w-1 h-20 bg-primary/60 rounded-full animate-pulse delay-150"></div>
-             <div className="w-1 h-14 bg-accent/30 rounded-full animate-pulse delay-100"></div>
-             <div className="w-1 h-10 bg-primary/10 rounded-full animate-pulse delay-200"></div>
-           </div>
-           <div className="absolute bottom-2 left-4 right-4 flex justify-between text-[10px] font-mono text-primary/40">
-             <span>wᵢ⁽ᶜ⁾ = (tᵢ⁽ᶜ⁾/Σtⱼ⁽ᶜ⁾)·Φ⁽ᶜ⁾</span>
-           </div>
+        <CardContent className="pt-4 space-y-3">
+          <div className="p-2 bg-black/40 border border-primary/10 rounded-sm">
+            <div className="text-[9px] font-mono text-primary/40 mb-1 uppercase tracking-tighter">Vault Address</div>
+            <div className="text-[10px] font-mono text-white break-all bg-primary/5 p-1 rounded border border-primary/5 select-all">
+              6h5M7PrUjy6tJ9gC4FTwGne1y4VJydKk9MELgNgBb5Do
+            </div>
+          </div>
+          <div className="flex justify-between items-center text-[10px] font-mono">
+            <span className="text-primary/60">Asset Reserve</span>
+            <span className="text-accent font-bold">4,209.42 SOL</span>
+          </div>
+          <div className="flex justify-between items-center text-[10px] font-mono">
+            <span className="text-primary/60">Treasury Status</span>
+            <span className="text-green-500 animate-pulse">SECURED_VAULT</span>
+          </div>
         </CardContent>
       </Card>
 
