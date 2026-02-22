@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Activity, GitCommit, GitPullRequest, Eye, Database, Zap } from "lucide-react";
+import { Activity, GitCommit, GitPullRequest, Eye, Database, Zap, Cpu } from "lucide-react";
 
 export function SphinxConsole() {
   return (
