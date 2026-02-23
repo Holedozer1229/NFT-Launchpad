@@ -1,13 +1,13 @@
-import { LaunchMission } from "@/lib/mock-web3";
+import { Launch } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Rocket, Disc, Activity, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LaunchSelectorProps {
-  launches: LaunchMission[];
-  selectedId: string;
-  onSelect: (launch: LaunchMission) => void;
+  launches: Launch[];
+  selectedId: number;
+  onSelect: (launch: Launch) => void;
 }
 
 export function LaunchSelector({ launches, selectedId, onSelect }: LaunchSelectorProps) {
@@ -33,12 +33,12 @@ export function LaunchSelector({ launches, selectedId, onSelect }: LaunchSelecto
                 variant="outline" 
                 className={cn(
                   "font-mono text-[10px] tracking-widest uppercase border-opacity-50",
-                  launch.status === 'live' ? "border-primary text-primary animate-pulse" : "border-muted-foreground text-muted-foreground"
+                  launch.status === 'active' ? "border-primary text-primary animate-pulse" : "border-muted-foreground text-muted-foreground"
                 )}
               >
                 {launch.status}
               </Badge>
-              <span className="font-mono text-xs text-primary/60">{launch.date}</span>
+              <span className="font-mono text-xs text-primary/60">ID: {launch.id}</span>
             </div>
             
             <div>
@@ -46,22 +46,22 @@ export function LaunchSelector({ launches, selectedId, onSelect }: LaunchSelecto
                 "font-heading font-bold text-lg leading-tight transition-colors",
                 selectedId === launch.id ? "text-primary oracle-glow" : "text-foreground group-hover:text-primary"
               )}>
-                {launch.missionName}
+                {launch.title}
               </h4>
               <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2 font-mono">
                 <Rocket className="w-3 h-3 text-secondary-foreground" />
-                <span>{launch.vehicle}</span>
+                <span>{launch.type}</span>
               </div>
             </div>
 
             <div className="pt-3 flex items-center justify-between border-t border-primary/20 text-xs font-mono uppercase">
-               <span className="text-muted-foreground/70">{launch.type}</span>
+               <span className="text-muted-foreground/70">{launch.price}</span>
                <span className={cn(
                  "font-bold flex items-center gap-1",
-                 launch.outcome === 'Success' ? "text-green-500" : "text-yellow-500"
+                 launch.status === 'active' ? "text-green-500" : "text-yellow-500"
                )}>
                  <Eye className="w-3 h-3" />
-                 {launch.outcome === 'Success' ? 'VERIFIED' : 'PENDING'}
+                 {launch.status === 'active' ? 'VERIFIED' : 'PENDING'}
                </span>
             </div>
           </CardContent>

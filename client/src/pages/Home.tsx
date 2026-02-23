@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Launch } from "@shared/schema";
+import { useState, useEffect } from "react";
 import { EmbeddedWallet } from "@/components/EmbeddedWallet";
 import { QuantumMiner } from "@/components/QuantumMiner";
 import { MintCard } from "@/components/MintCard";
@@ -14,10 +16,27 @@ import bgCosmic from "@/assets/bg-cosmic.png";
 import sphinxStream from "@/assets/sphinx-stream.png";
 import sphinxEye from "@/assets/sphinx-eye.png";
 import quantumTunnel from "@/assets/quantum-tunnel.png";
-import { MOCK_LAUNCHES } from "@/lib/mock-web3";
 
 export default function Home() {
-  const [selectedLaunch, setSelectedLaunch] = useState(MOCK_LAUNCHES[0]);
+  const { data: launches, isLoading } = useQuery<Launch[]>({
+    queryKey: ["/api/launches"],
+  });
+
+  const [selectedLaunch, setSelectedLaunch] = useState<Launch | null>(null);
+
+  useEffect(() => {
+    if (launches && launches.length > 0 && !selectedLaunch) {
+      setSelectedLaunch(launches[0]);
+    }
+  }, [launches, selectedLaunch]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen text-foreground overflow-x-hidden relative">
@@ -39,7 +58,7 @@ export default function Home() {
             <div className="w-10 h-10 bg-primary/10 border border-primary text-primary flex items-center justify-center rounded-sm group-hover:bg-primary group-hover:text-black transition-all duration-300 shadow-[0_0_15px_rgba(255,215,0,0.3)]">
               <Eye className="w-5 h-5" />
             </div>
-            <div className="flex flex-col">
+            <div className="flex f-col">
               <span className="font-heading font-bold text-2xl tracking-widest text-primary oracle-glow">SPHINX<span className="text-white">OS</span></span>
               <span className="font-mono text-[10px] text-primary/60 tracking-[0.3em] uppercase">Powered LaunchNFT</span>
             </div>
@@ -90,7 +109,7 @@ export default function Home() {
               style={{ maskImage: 'radial-gradient(circle, black 40%, transparent 80%)' }}
             />
 
-            <MintCard mission={selectedLaunch} />
+            {selectedLaunch && <MintCard mission={selectedLaunch} />}
           </div>
         </div>
       </main>
@@ -113,11 +132,13 @@ export default function Home() {
           </div>
         </div>
         
-        <LaunchSelector 
-          launches={MOCK_LAUNCHES} 
-          selectedId={selectedLaunch.id} 
-          onSelect={setSelectedLaunch} 
-        />
+        {launches && selectedLaunch && (
+          <LaunchSelector 
+            launches={launches} 
+            selectedId={selectedLaunch.id} 
+            onSelect={setSelectedLaunch} 
+          />
+        )}
       </section>
 
       <div className="container mx-auto px-4 py-12">

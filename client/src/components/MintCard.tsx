@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { useWallet, LaunchMission } from "@/lib/mock-web3";
+import { useWallet } from "@/lib/mock-web3";
+import { Launch } from "@shared/schema";
 import { Loader2, Rocket, Cpu, Radio, ShieldAlert, Eye, Brain, Zap } from "lucide-react";
 import { TermsGate } from "./TermsGate";
 import { useToast } from "@/hooks/use-toast";
@@ -12,7 +13,7 @@ import holoFrame from "../assets/holo-frame.png";
 import sphinxEye from "@/assets/sphinx-eye.png";
 
 interface MintCardProps {
-  mission: LaunchMission;
+  mission: Launch;
 }
 
 export function MintCard({ mission }: MintCardProps) {
@@ -59,7 +60,7 @@ export function MintCard({ mission }: MintCardProps) {
     setIsMinting(false);
     toast({ 
       title: "DESTINY FULFILLED", 
-      description: `Artifact [${mission.missionName}] permanently inscribed.`,
+      description: `Artifact [${mission.title}] permanently inscribed.`,
       variant: "default" 
     });
   };
@@ -91,7 +92,7 @@ export function MintCard({ mission }: MintCardProps) {
               className="w-full h-full object-contain drop-shadow-[0_0_25px_rgba(255,215,0,0.2)] transition-transform duration-700 hover:scale-105 z-10"
             />
             <div className="absolute top-4 right-4 z-20">
-               {mission.status === 'live' ? (
+               {mission.status === 'active' ? (
                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary animate-pulse font-heading tracking-widest text-[10px]">
                    <Eye className="w-3 h-3 mr-1" /> ORACLE ACTIVE
                  </Badge>
@@ -113,11 +114,11 @@ export function MintCard({ mission }: MintCardProps) {
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="text-2xl font-heading font-bold text-primary oracle-glow">
-                  {mission.missionName}
+                  {mission.title}
                 </h3>
                 <div className="flex flex-col gap-1 mt-1">
                   <p className="text-xs font-mono text-primary/60 flex items-center gap-2">
-                    <span className="text-accent">ID:</span> {mission.id.toUpperCase()}
+                    <span className="text-accent">ID:</span> {mission.id}
                   </p>
                   <p className="text-[10px] font-mono text-accent flex items-center gap-2">
                     <Zap className="w-2 h-2" /> MERGE MINING ACTIVE
@@ -126,7 +127,7 @@ export function MintCard({ mission }: MintCardProps) {
               </div>
               <div className="text-right">
                 <span className="text-xl font-heading font-bold text-foreground drop-shadow-[0_0_5px_rgba(255,215,0,0.5)]">
-                  {mission.price} ETH
+                  {mission.price}
                 </span>
               </div>
             </div>
@@ -188,10 +189,10 @@ export function MintCard({ mission }: MintCardProps) {
                 <Button 
                   className="w-full text-lg py-7 font-heading font-bold bg-primary hover:bg-primary/80 text-black tracking-wider transition-all hover:shadow-[0_0_20px_rgba(255,215,0,0.4)] relative overflow-hidden group" 
                   onClick={handleMintClick}
-                  disabled={isMinting || mission.status !== 'live'}
+                  disabled={isMinting || mission.status !== 'active'}
                 >
                   <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 skew-y-12"></div>
-                  {mission.status !== 'live' ? 'LINK OFFLINE' : 
+                  {mission.status !== 'active' ? 'LINK OFFLINE' : 
                     (isMinting ? "PROCESSING..." : `INVOKE ORACLE`)
                   }
                 </Button>
