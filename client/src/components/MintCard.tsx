@@ -4,7 +4,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useWallet, LaunchMission } from "@/lib/mock-web3";
-import { Loader2, Rocket, Cpu, Radio, ShieldAlert, Eye, Brain } from "lucide-react";
+import { Loader2, Rocket, Cpu, Radio, ShieldAlert, Eye, Brain, Zap } from "lucide-react";
 import { TermsGate } from "./TermsGate";
 import { useToast } from "@/hooks/use-toast";
 import missionPatch from "../assets/mission-patch.png";
