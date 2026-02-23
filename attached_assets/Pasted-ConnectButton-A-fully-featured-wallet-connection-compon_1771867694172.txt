@@ -1,0 +1,246 @@
+ConnectButton
+
+A fully featured wallet connection component that allows to:
+
+Connect to 500+ external wallets
+Connect with email, phone, passkey or socials
+Convert any wallet to a ERC4337 smart wallet for gasless transactions
+Sign in with ethereum (Auth)
+Once connected, the component allows to:
+
+Resolve ENS names and avatars
+Manage multiple connected wallets
+Send and receive native tokens and ERC20 tokens
+View ERC20 tokens and NFTs
+Onramp, bridge and swap tokens
+Switch chains
+Connect to another app with WalletConnect
+Example
+Default setup
+import { createThirdwebClient } from "thirdweb";
+import { ConnectButton } from "thirdweb/react";
+ 
+const client = createThirdwebClient({ clientId: "YOUR_CLIENT_ID" });
+ 
+<ConnectButton client={client} />;
+
+View all available config options
+
+Customization options
+Customizing wallet options
+<ConnectButton
+  client={client}
+  wallets={[
+    createWallet("io.metamask"),
+    createWallet("com.coinbase.wallet"),
+    createWallet("me.rainbow"),
+  ]}
+/>;
+
+View all available wallets
+
+Customizing the default chain to connect to
+import { sepolia } from "thirdweb/chains";
+ 
+<ConnectButton client={client} chain={sepolia} />;
+
+Enabling Account Abstraction
+By passing the accountAbstraction prop, ALL connected wallets will be converted to smart accounts. And by setting sponsorGas to true, all transactions done with those smart accounts will be sponsored.
+
+<ConnectButton
+  client={client}
+  accountAbstraction={{
+    chain: sepolia,
+    sponsorGas: true,
+  }}
+/>;
+
+Note that this prop doesn't affect ecosystem wallets. Ecosystem wallets will only be converted to smart accounts if the ecosystem owner has enabled account abstraction.
+
+Enabling sign in with ethereum (Auth)
+<ConnectButton
+  client={client}
+  auth={{
+    isLoggedIn: async (address) => {
+      console.log("checking if logged in!", { address });
+      return await isLoggedIn();
+    },
+    doLogin: async (params) => {
+      console.log("logging in!");
+      await login(params);
+    },
+    getLoginPayload: async ({ address }) =>
+      generatePayload({ address }),
+    doLogout: async () => {
+      console.log("logging out!");
+      await logout();
+    },
+  }}
+/>;
+
+Customizing the theme
+<ConnectButton client={client} theme="light" />;
+
+For more granular control, you can also pass a custom theme object:
+
+<ConnectButton
+  client={client}
+  theme={lightTheme({
+    colors: {
+      modalBg: "red",
+    },
+  })}
+/>;
+
+View all available themes properties
+
+Overriding styles using class names
+Some elements in this component have classes with a tw- prefix. You can target these classes in your own CSS stylesheet to override their styles.
+
+In some cases, you may need to use the !important flag for the override to take effect. Do not use on auto-generated class names, as they may change between builds.
+
+.tw-back-button {
+  background-color: red !important;
+}
+
+Changing the display language
+<ConnectEmbed client={client} locale="ja_JP" />;
+
+View all available locales
+
+Customizing the connect button UI
+<ConnectButton
+  client={client}
+  connectButton={{
+    label: "Sign in to MyApp",
+  }}
+/>;
+
+Customizing the modal UI
+<ConnectButton
+  client={client}
+  connectModal={{
+    title: "Sign in to MyApp",
+    titleIcon: "https://example.com/logo.png",
+    size: "compact",
+  }}
+/>;
+
+Customizing details button UI (after connecting)
+<ConnectButton
+  client={client}
+  detailsButton={{
+    displayBalanceToken: {
+      [sepolia.id]: "0x...", // token address to display balance for
+      [ethereum.id]: "0x...", // token address to display balance for
+    },
+  }}
+/>;
+
+View all available auth helper functions
+
+Customizing the Auth sign in button (after connecting, but before authenticating)
+<ConnectButton
+  client={client}
+  auth={{ ... }}
+  signInButton: {
+    label: "Authenticate with MyApp",
+  },
+}}
+/>;
+
+Customizing supported Tokens and NFTs
+These tokens and NFTs will be shown in the modal when the user clicks "View Assets", as well as the send token screen.
+
+<ConnectButton
+  client={client}
+  supportedTokens={{
+    [ethereum.id]: [
+      {
+        address: "0x...",
+        name: "MyToken",
+        symbol: "MT",
+        icon: "https://example.com/icon.png",
+      },
+    ],
+  }}
+  supportedNFTs={{
+    [ethereum.id]: [
+      "0x...", // nft contract address
+    ],
+  }}
+/>;
+
+Customizing the orders of the tabs in the [View Funds] screen
+When you click on "View Assets", by default the "Tokens" tab is shown first. If you want to show the "NFTs" tab first, change the order of the asset tabs to: ["nft", "token"] Note: If an empty array is passed, the [View Funds] button will be hidden
+
+<ConnectButton
+  client={client}
+  detailsModal={{
+    assetTabs: ["nft", "token"],
+  }}
+/>;
+
+Callback for when the details modal is closed
+<ConnectButton
+  detailsModal={{
+    onClose: (screen: string) => {
+      console.log({ screen });
+    },
+  }}
+/>;
+
+
+Signature
+function ConnectButton(props: ConnectButtonProps): Element;
+
+Parameters
+
+props
+Props for the ConnectButton component
+
+Refer to ConnectButtonProps to see the available props.
+
+Type
+let props: {
+  accountAbstraction?: SmartWalletOptions;
+  appMetadata?: AppMetadata;
+  auth?: SiweAuthOptions;
+  autoConnect?: { timeout: number } | boolean;
+  chain?: Chain;
+  chains?: Array<Chain>;
+  client: ThirdwebClient;
+  connectButton?: ConnectButton_connectButtonOptions;
+  connectModal?: ConnectButton_connectModalOptions;
+  detailsButton?: ConnectButton_detailsButtonOptions;
+  detailsModal?: ConnectButton_detailsModalOptions;
+  hiddenWallets?: Array<WalletId>;
+  locale?: LocaleId;
+  onConnect?: OnConnectCallback;
+  onDisconnect?: (info: { account: Account; wallet: Wallet }) => void;
+  recommendedWallets?: Array<Wallet>;
+  showAllWallets?: boolean;
+  signInButton?: {
+    className?: string;
+    label?: string;
+    style?: React.CSSProperties;
+  };
+  supportedNFTs?: SupportedNFTs;
+  supportedTokens?: SupportedTokens;
+  switchButton?: {
+    className?: string;
+    label?: string;
+    style?: React.CSSProperties;
+  };
+  theme?: "dark" | "light" | Theme;
+  walletConnect?: { projectId?: string };
+  wallets?: Array<Wallet>;
+};
+
+Returns
+
+Return Type
+let returnType: Element;
+
+A JSX element that renders the <ConnectButton> component.
+
