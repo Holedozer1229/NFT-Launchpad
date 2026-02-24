@@ -13,7 +13,7 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
 export const RARITY_TIERS = {
-  mythic: { label: "Mythic", supply: 1, color: "magenta", price: "2.5 ETH" },
+  mythic: { label: "Mythic", supply: 1, color: "magenta", price: "100 ETH" },
   legendary: { label: "Legendary", supply: 3, color: "orange", price: "1.0 ETH" },
   rare: { label: "Rare", supply: 6, color: "cyan", price: "0.5 ETH" },
   common: { label: "Common", supply: 90, color: "green", price: "0.1 ETH" },
