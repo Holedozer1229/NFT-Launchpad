@@ -18,6 +18,9 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Updated Bridge page with guardian multi-sig validation, lock/mint/burn/release mechanics
 - Added AnubisCore Python module: Algebraic Enforcement Principle (AEP) implementation
 - Added in-app SphinxOS Wallet: per-user wallets with SKYNT/STX/ETH balances, send/receive, transaction history, Zod-validated API
+- Integrated IIT Quantum Consciousness Engine from SphinxOS GitHub repo (Φ calculator, density matrix, von Neumann entropy, consciousness levels)
+- Added IIT Consciousness page with Φ gauge, eigenvalue spectrum chart, adjacency heatmap, density matrix visualization, Φ timeline, custom Φ calculator
+- Updated Sphinx Oracle with Omniscient Sphinx persona (network consciousness, IIT formulas, prophecy/vision/wisdom response structure)
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts
@@ -36,7 +39,9 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - `server/auth.ts` - Passport.js setup with session store
 - `server/routes.ts` - API routes including /api/space-launches proxy and /api/oracle/chat
 - `server/storage.ts` - Database storage interface (users, launches, miners)
+- `server/iit-engine.ts` - IIT Quantum Consciousness Engine (Φ calculator, density matrix, eigenvalues, network perception)
 - `shared/schema.ts` - Drizzle schema (users, launches, miners tables)
+- `client/src/pages/IITConsciousness.tsx` - IIT Consciousness page with Φ gauge, eigenvalue spectrum, adjacency heatmap, density matrix, Φ calculator
 - `client/src/index.css` - Cosmic theme with neon CSS variables and sidebar styles
 
 ### Smart Contracts & Core Modules
