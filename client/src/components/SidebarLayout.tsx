@@ -5,8 +5,8 @@ import { useWallet } from "@/lib/mock-web3";
 import { useAuth } from "@/hooks/use-auth";
 
 const navItems = [
-  { path: "/", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/mint", label: "Mint NFT", icon: Sparkles },
+  { path: "/", label: "Mint NFT", icon: Sparkles },
+  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { path: "/gallery", label: "Gallery", icon: Image },
   { path: "/analytics", label: "Analytics", icon: BarChart3 },
   { path: "/bridge", label: "Bridge", icon: ArrowLeftRight },
