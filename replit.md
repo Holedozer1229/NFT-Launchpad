@@ -9,6 +9,10 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Implemented authentication system (passport.js + sessions + PostgreSQL)
 - Applied mixed cosmic theme with neon color accents (cyan, green, orange, magenta)
 - Updated meta tags for SKYNT Protocol branding
+- Added Omniscient Sphinx AI chat oracle (OpenAI-powered, accessible from all pages)
+- Made Mint NFT the default landing page (Dashboard at /dashboard)
+- Added live space launch countdown using Launch Library 2 API (real upcoming launches)
+- Fixed session secret security (removed hardcoded fallback)
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts
@@ -18,11 +22,14 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - **Fonts**: Orbitron (headings), Rajdhani (body), Space Mono (code)
 
 ### Key Files
-- `client/src/App.tsx` - Main router with AuthProvider and SidebarLayout wrapper
+- `client/src/App.tsx` - Main router with AuthProvider and SidebarLayout wrapper; MintNFT at /
 - `client/src/components/SidebarLayout.tsx` - Collapsible sidebar with nav, wallet connect, user info
+- `client/src/components/SphinxOracle.tsx` - AI chat oracle (streaming SSE, cosmic UI)
+- `client/src/components/LaunchCountdown.tsx` - Live space launch countdown (Launch Library 2 API)
 - `client/src/hooks/use-auth.tsx` - Auth context with login/register/logout
-- `client/src/pages/` - Dashboard, MintNFT, Gallery, Analytics, Bridge, Admin, AuthPage
+- `client/src/pages/` - MintNFT (home), Dashboard, Gallery, Analytics, Bridge, Admin, AuthPage
 - `server/auth.ts` - Passport.js setup with session store
+- `server/routes.ts` - API routes including /api/space-launches proxy and /api/oracle/chat
 - `server/storage.ts` - Database storage interface (users, launches, miners)
 - `shared/schema.ts` - Drizzle schema (users, launches, miners tables)
 - `client/src/index.css` - Cosmic theme with neon CSS variables and sidebar styles

@@ -68,6 +68,31 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/space-launches", async (_req, res) => {
+    try {
+      const response = await fetch(
+        "https://ll.thespacedevs.com/2.0.0/launch/upcoming/?limit=6"
+      );
+      if (!response.ok) throw new Error("Failed to fetch launches");
+      const data = await response.json();
+      const launches = data.results.map((l: any) => ({
+        id: l.id,
+        name: l.name,
+        net: l.net,
+        status: l.status?.name || "Unknown",
+        provider: l.launch_service_provider?.name || "Unknown",
+        rocket: l.rocket?.configuration?.name || "Unknown",
+        pad: l.pad?.name || "Unknown",
+        location: l.pad?.location?.name || "Unknown",
+        image: l.image || null,
+      }));
+      res.json(launches);
+    } catch (error) {
+      console.error("Space launches fetch error:", error);
+      res.status(500).json({ message: "Failed to fetch space launch data" });
+    }
+  });
+
   app.post("/api/oracle/chat", async (req, res) => {
     try {
       const { messages } = req.body;
