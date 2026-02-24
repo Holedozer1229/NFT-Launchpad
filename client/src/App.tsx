@@ -14,7 +14,21 @@ import Admin from "@/pages/Admin";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/not-found";
 import SphinxOracle from "@/components/SphinxOracle";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldAlert } from "lucide-react";
+
+function AdminGuard() {
+  const { user } = useAuth();
+  if (!user?.isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4" data-testid="admin-denied">
+        <ShieldAlert className="w-12 h-12 text-red-400" />
+        <h2 className="font-heading text-xl font-bold text-foreground">Access Restricted</h2>
+        <p className="font-mono text-xs text-muted-foreground">Admin clearance required to access Mission Control.</p>
+      </div>
+    );
+  }
+  return <Admin />;
+}
 
 function AppRouter() {
   const { user, isLoading } = useAuth();
@@ -42,7 +56,7 @@ function AppRouter() {
         <Route path="/gallery" component={Gallery} />
         <Route path="/analytics" component={Analytics} />
         <Route path="/bridge" component={Bridge} />
-        <Route path="/admin" component={Admin} />
+        <Route path="/admin" component={AdminGuard} />
         <Route component={NotFound} />
       </Switch>
       <SphinxOracle />

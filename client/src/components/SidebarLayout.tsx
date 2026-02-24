@@ -5,12 +5,12 @@ import { useWallet } from "@/lib/mock-web3";
 import { useAuth } from "@/hooks/use-auth";
 
 const navItems = [
-  { path: "/", label: "Mint NFT", icon: Sparkles },
-  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/gallery", label: "Gallery", icon: Image },
-  { path: "/analytics", label: "Analytics", icon: BarChart3 },
-  { path: "/bridge", label: "Bridge", icon: ArrowLeftRight },
-  { path: "/admin", label: "Admin", icon: Shield },
+  { path: "/", label: "Mint NFT", icon: Sparkles, adminOnly: false },
+  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
+  { path: "/gallery", label: "Gallery", icon: Image, adminOnly: false },
+  { path: "/analytics", label: "Analytics", icon: BarChart3, adminOnly: false },
+  { path: "/bridge", label: "Bridge", icon: ArrowLeftRight, adminOnly: false },
+  { path: "/admin", label: "Admin", icon: Shield, adminOnly: true },
 ];
 
 function StarField() {
@@ -82,7 +82,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex-1 py-4 space-y-1 overflow-y-auto" data-testid="sidebar-nav">
-          {navItems.map((item) => {
+          {navItems.filter((item) => !item.adminOnly || user?.isAdmin).map((item) => {
             const isActive = location === item.path;
             const Icon = item.icon;
             return (
