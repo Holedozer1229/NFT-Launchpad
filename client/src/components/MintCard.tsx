@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useWallet } from "@/lib/mock-web3";
 import { Launch, RARITY_TIERS, RarityTier, SUPPORTED_CHAINS, ChainId } from "@shared/schema";
-import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink } from "lucide-react";
+import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink, ShoppingBag } from "lucide-react";
 import { TermsGate } from "./TermsGate";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -34,6 +34,7 @@ export function MintCard({ mission }: MintCardProps) {
   const [selectedChain, setSelectedChain] = useState<ChainId>("ethereum");
   const [showTerms, setShowTerms] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [lastOpenseaUrl, setLastOpenseaUrl] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const chain = SUPPORTED_CHAINS[selectedChain];
@@ -72,12 +73,14 @@ export function MintCard({ mission }: MintCardProps) {
       "MERGE MINING PROOF GENERATED...",
       "CALCULATING Φ ALGEBRA...",
       `DEPLOYING TO ${chain.name.toUpperCase()} (Chain ${chain.chainId})...`,
-      `${tier.label.toUpperCase()} ARTIFACT MATERIALIZED ON ${chain.name.toUpperCase()}...`
+      `${tier.label.toUpperCase()} ARTIFACT MATERIALIZED ON ${chain.name.toUpperCase()}...`,
+      "SUBMITTING TO OPENSEA SEAPORT PROTOCOL...",
+      "LISTING ON OPENSEA MARKETPLACE..."
     ];
 
     for (let i = 0; i < steps.length; i++) {
       toast({ title: `SYNA-PHASE ${i+1}/${steps.length}`, description: steps[i] });
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 900));
       setProgress(Math.floor(((i + 1) / steps.length) * 100));
     }
 
@@ -86,7 +89,7 @@ export function MintCard({ mission }: MintCardProps) {
       const tokenId = `0x${tokenHex.slice(0, 4)}...${tokenHex.slice(-4)}`;
       const ownerAddr = address || `0x${tokenHex.slice(0, 4)}...${tokenHex.slice(-4)}`;
 
-      await apiRequest("POST", "/api/nfts", {
+      const response = await apiRequest("POST", "/api/nfts", {
         title: `${mission.title} — ${tier.label}`,
         image: "/assets/mission-patch.png",
         rarity: tier.label,
@@ -99,13 +102,27 @@ export function MintCard({ mission }: MintCardProps) {
         launchId: mission.id,
       });
 
+      const nftResult = await response.json();
+
       queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
 
-      toast({
-        title: "DESTINY FULFILLED",
-        description: `${tier.label} Artifact [${mission.title}] inscribed on ${chain.name}.`,
-        variant: "default",
-      });
+      const openseaUrl = nftResult.openseaUrl;
+      const openseaSupported = nftResult.openseaSupported;
+
+      if (openseaSupported && openseaUrl) {
+        toast({
+          title: "ARTIFACT MINTED — SENT TO OPENSEA",
+          description: `${tier.label} Artifact [${mission.title}] inscribed on ${chain.name} → submitted to OpenSea Seaport.`,
+          variant: "default",
+        });
+        setLastOpenseaUrl(openseaUrl);
+      } else {
+        toast({
+          title: "ARTIFACT MINTED",
+          description: `${tier.label} Artifact [${mission.title}] inscribed on ${chain.name}.${!openseaSupported ? ` OpenSea does not support ${chain.name}.` : ""}`,
+          variant: "default",
+        });
+      }
     } catch (err) {
       toast({
         title: "MINT FAILED",
@@ -304,6 +321,25 @@ export function MintCard({ mission }: MintCardProps) {
                     (isMinting ? "PROCESSING..." : `INVOKE ORACLE — ${RARITY_TIERS[selectedRarity].label}`)
                   }
                 </Button>
+
+                {lastOpenseaUrl && !isMinting && (
+                  <a
+                    href={lastOpenseaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="link-opensea"
+                    className="flex items-center justify-center gap-2 w-full py-3 rounded-md border border-[#2081E2]/50 bg-[#2081E2]/10 text-[#2081E2] hover:bg-[#2081E2]/20 transition-all font-heading text-sm tracking-wider"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    VIEW ON OPENSEA
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+
+                <div className="flex items-center justify-center gap-1.5 text-[9px] font-mono text-muted-foreground/50">
+                  <ShoppingBag className="w-2.5 h-2.5" />
+                  <span>Powered by OpenSea Seaport Protocol</span>
+                </div>
               </div>
             ) : (
               <Button
