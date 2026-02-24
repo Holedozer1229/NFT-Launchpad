@@ -86,16 +86,16 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
             const isActive = location === item.path;
             const Icon = item.icon;
             return (
-              <Link key={item.path} href={item.path}>
-                <a
-                  data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
-                  className={`sidebar-nav-item ${isActive ? "active" : ""} ${collapsed ? "justify-center px-2" : ""}`}
-                  onClick={() => setMobileOpen(false)}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  {!collapsed && <span>{item.label}</span>}
-                </a>
+              <Link
+                key={item.path}
+                href={item.path}
+                data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+                className={`sidebar-nav-item ${isActive ? "active" : ""} ${collapsed ? "justify-center px-2" : ""}`}
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? item.label : undefined}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                {!collapsed && <span>{item.label}</span>}
               </Link>
             );
           })}

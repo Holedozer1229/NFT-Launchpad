@@ -48,3 +48,5 @@ export const insertMinerSchema = createInsertSchema(miners).omit({
 
 export type Miner = typeof miners.$inferSelect;
 export type InsertMiner = z.infer<typeof insertMinerSchema>;
+
+export { conversations, messages } from "./models/chat";
