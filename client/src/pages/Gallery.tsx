@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2 } from "lucide-react";
+import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2 } from "lucide-react";
 import { SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
 
@@ -37,10 +37,20 @@ const statusColors: Record<string, string> = {
 
 type FilterRarity = "All" | Rarity;
 type FilterStatus = "all" | "minted" | "staked" | "listed";
+type FilterChain = "all" | ChainId;
+
+function getExplorerUrl(chain: string, tokenId: string): string | null {
+  const chainData = SUPPORTED_CHAINS[chain as ChainId];
+  if (!chainData) return null;
+  if (chain === "stacks") return `${chainData.explorer}/txid/${chainData.contractAddress}`;
+  if (chain === "solana") return `${chainData.explorer}/address/${chainData.contractAddress}`;
+  return `${chainData.explorer}/token/${chainData.contractAddress}`;
+}
 
 export default function Gallery() {
   const [filterRarity, setFilterRarity] = useState<FilterRarity>("All");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
+  const [filterChain, setFilterChain] = useState<FilterChain>("all");
 
   const { data: nfts = [], isLoading } = useQuery<NFTItem[]>({
     queryKey: ["/api/nfts"],
@@ -49,8 +59,16 @@ export default function Gallery() {
   const filtered = nfts.filter((nft) => {
     if (filterRarity !== "All" && nft.rarity !== filterRarity) return false;
     if (filterStatus !== "all" && nft.status !== filterStatus) return false;
+    if (filterChain !== "all" && nft.chain !== filterChain) return false;
     return true;
   });
+
+  const chainCounts: Record<string, number> = {};
+  for (const nft of nfts) {
+    chainCounts[nft.chain] = (chainCounts[nft.chain] || 0) + 1;
+  }
+
+  const chainIds = Object.keys(SUPPORTED_CHAINS) as ChainId[];
 
   return (
     <div className="space-y-8" data-testid="gallery-page">
@@ -59,8 +77,34 @@ export default function Gallery() {
           NFT Gallery
         </h1>
         <p className="text-sm font-mono text-muted-foreground mt-1">
-          Browse your minted artifacts from the SphinxOS Oracle
+          Browse your minted artifacts across all chains
         </p>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2" data-testid="chain-distribution">
+        {chainIds.map((cid) => {
+          const c = SUPPORTED_CHAINS[cid];
+          const count = chainCounts[cid] || 0;
+          const isActive = filterChain === cid;
+          return (
+            <button
+              key={cid}
+              data-testid={`button-chain-stat-${cid}`}
+              onClick={() => setFilterChain(isActive ? "all" : cid)}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-sm border text-left transition-all ${
+                isActive
+                  ? "border-white/40 bg-white/10"
+                  : "border-white/[0.06] bg-white/[0.02] hover:border-white/15"
+              }`}
+            >
+              <span className="text-base" style={{ color: c.color }}>{c.icon}</span>
+              <div className="min-w-0">
+                <div className="font-heading text-[10px] uppercase tracking-wider text-foreground truncate">{c.name}</div>
+                <div className="font-mono text-[10px] text-muted-foreground">{count} NFT{count !== 1 ? "s" : ""}</div>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex flex-wrap gap-3 items-center">
@@ -91,10 +135,24 @@ export default function Gallery() {
             {s}
           </Button>
         ))}
+
+        {filterChain !== "all" && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs font-mono text-neon-cyan ml-2"
+            onClick={() => setFilterChain("all")}
+            data-testid="button-clear-chain-filter"
+          >
+            <Link2 className="w-3 h-3 mr-1" />
+            {SUPPORTED_CHAINS[filterChain].name} &times;
+          </Button>
+        )}
       </div>
 
       <div className="text-xs font-mono text-muted-foreground" data-testid="text-gallery-count">
         Showing {filtered.length} of {nfts.length} artifacts
+        {filterChain !== "all" && ` on ${SUPPORTED_CHAINS[filterChain].name}`}
       </div>
 
       {isLoading ? (
@@ -106,6 +164,7 @@ export default function Gallery() {
           {filtered.map((nft) => {
             const rConf = rarityConfig[nft.rarity] || rarityConfig.Common;
             const chainData = SUPPORTED_CHAINS[nft.chain as ChainId];
+            const explorerUrl = getExplorerUrl(nft.chain, nft.tokenId);
             return (
               <div
                 key={nft.id}
@@ -140,7 +199,20 @@ export default function Gallery() {
                     )}
                   </div>
 
-                  <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <div className="absolute bottom-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    {explorerUrl && (
+                      <a
+                        href={explorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-7 px-2.5 rounded-sm text-[10px] font-heading flex items-center gap-1 bg-white/10 border border-white/20 text-foreground hover:bg-white/20 transition-colors backdrop-blur-md"
+                        data-testid={`link-explorer-${nft.id}`}
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        {chainData?.name}
+                      </a>
+                    )}
                     <Button size="sm" className="connect-wallet-btn text-[10px] font-heading h-7 px-3" data-testid={`button-view-nft-${nft.id}`}>
                       <Eye className="w-3 h-3 mr-1" /> View
                     </Button>
@@ -175,7 +247,7 @@ export default function Gallery() {
         <div className="text-center py-20 space-y-4" data-testid="text-gallery-empty">
           <Sparkles className="w-12 h-12 mx-auto text-muted-foreground/30" />
           <p className="font-heading text-muted-foreground">No artifacts match your filters</p>
-          <Button variant="ghost" className="text-primary text-xs" onClick={() => { setFilterRarity("All"); setFilterStatus("all"); }} data-testid="button-clear-filters">
+          <Button variant="ghost" className="text-primary text-xs" onClick={() => { setFilterRarity("All"); setFilterStatus("all"); setFilterChain("all"); }} data-testid="button-clear-filters">
             Clear Filters
           </Button>
         </div>

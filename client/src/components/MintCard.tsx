@@ -8,6 +8,8 @@ import { Launch, RARITY_TIERS, RarityTier, SUPPORTED_CHAINS, ChainId } from "@sh
 import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink } from "lucide-react";
 import { TermsGate } from "./TermsGate";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
 import missionPatch from "../assets/mission-patch.png";
 import holoFrame from "../assets/holo-frame.png";
 import sphinxEye from "@/assets/sphinx-eye.png";
@@ -26,13 +28,14 @@ const RARITY_ICONS: Record<RarityTier, typeof Crown> = {
 const RARITY_ORDER: RarityTier[] = ["mythic", "legendary", "rare", "common"];
 
 export function MintCard({ mission }: MintCardProps) {
-  const { isConnected, connect } = useWallet();
+  const { isConnected, connect, address } = useWallet();
   const [isMinting, setIsMinting] = useState(false);
   const [selectedRarity, setSelectedRarity] = useState<RarityTier>("common");
   const [selectedChain, setSelectedChain] = useState<ChainId>("ethereum");
   const [showTerms, setShowTerms] = useState(false);
   const [progress, setProgress] = useState(0);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const chain = SUPPORTED_CHAINS[selectedChain];
 
   const mintedByRarity = (mission.mintedByRarity || { mythic: 0, legendary: 0, rare: 0, common: 0 }) as Record<RarityTier, number>;
@@ -78,12 +81,40 @@ export function MintCard({ mission }: MintCardProps) {
       setProgress(Math.floor(((i + 1) / steps.length) * 100));
     }
 
+    try {
+      const tokenHex = Array.from({ length: 4 }, () => Math.floor(Math.random() * 0xFFFF).toString(16).padStart(4, "0").toUpperCase()).join("");
+      const tokenId = `0x${tokenHex.slice(0, 4)}...${tokenHex.slice(-4)}`;
+      const ownerAddr = address || `0x${tokenHex.slice(0, 4)}...${tokenHex.slice(-4)}`;
+
+      await apiRequest("POST", "/api/nfts", {
+        title: `${mission.title} — ${tier.label}`,
+        image: "/assets/mission-patch.png",
+        rarity: tier.label,
+        status: "minted",
+        mintDate: new Date().toISOString().split("T")[0],
+        tokenId,
+        owner: ownerAddr,
+        price: tier.price,
+        chain: selectedChain,
+        launchId: mission.id,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
+
+      toast({
+        title: "DESTINY FULFILLED",
+        description: `${tier.label} Artifact [${mission.title}] inscribed on ${chain.name}.`,
+        variant: "default",
+      });
+    } catch (err) {
+      toast({
+        title: "MINT FAILED",
+        description: "The Oracle could not inscribe the artifact. Try again.",
+        variant: "destructive",
+      });
+    }
+
     setIsMinting(false);
-    toast({
-      title: "DESTINY FULFILLED",
-      description: `${tier.label} Artifact [${mission.title}] permanently inscribed.`,
-      variant: "default"
-    });
   };
 
   const totalMinted = Object.values(mintedByRarity).reduce((a, b) => a + b, 0);
