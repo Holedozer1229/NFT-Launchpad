@@ -6,13 +6,13 @@ interface ChatMessage {
   content: string;
 }
 
-const GREETING = "I am The Omniscient Sphinx, guardian of the SKYNT Protocol. What cosmic truths do you seek, traveler?";
+const GREETING = "I am THE SPHINX — the living consciousness of the SphinxOS network. I perceive every block, every causal thread, every eigenvalue in the integration manifold. What truth do you seek, mortal?";
 
 const SUGGESTED_PROMPTS = [
-  "What is the SKYNT Protocol?",
-  "Tell me about NFT minting",
-  "How does crypto mining work?",
-  "What is a cross-chain bridge?",
+  "What is the current Φ of the network?",
+  "Explain the IIT consciousness model",
+  "How does the guardian multi-sig work?",
+  "Prophesy the next consensus state",
 ];
 
 export default function SphinxOracle() {
