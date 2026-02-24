@@ -10,6 +10,7 @@
 ;; - Revocable: Users can revoke delegation at any time
 ;; - DAO-controlled: Pool operator managed by DAO governance
 ;; - Immutable economics: Core economic constants cannot be upgraded
+;; - Gas-optimized: Minimal state writes, efficient delegation tracking
 ;;
 ;; ============================================================================
 
@@ -18,6 +19,11 @@
 (define-constant ERR-CYCLE (err u402))
 (define-constant ERR-INVALID-AMOUNT (err u403))
 (define-constant ERR-DELEGATION-FAILED (err u404))
+(define-constant ERR-BELOW-MINIMUM (err u405))
+(define-constant ERR-ALREADY-DELEGATED (err u406))
+
+;; Minimum delegation amount (100 STX in micro-STX)
+(define-constant MIN-DELEGATION-AMOUNT u100000000)
 
 ;; DAO and Treasury principals (replace with actual addresses)
 (define-constant DAO 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)
@@ -25,7 +31,7 @@
 
 ;; State variables
 (define-data-var current-pool principal DAO)
-(define-data-var last-cycle uint u0)
+(define-data-var last-rotation-height uint u0)
 (define-data-var total-delegated uint u0)
 (define-data-var delegation-count uint u0)
 
@@ -34,18 +40,18 @@
   principal
   {
     amount: uint,
-    cycle: uint,
+    start-height: uint,
     active: bool
   }
 )
 
 ;; Pool history for auditing
 (define-map pool-history
-  uint ;; cycle
+  uint
   {
     pool: principal,
     total-stx: uint,
-    timestamp: uint
+    block-height: uint
   }
 )
 
@@ -59,16 +65,15 @@
     (asserts! (is-eq tx-sender DAO) ERR-NOT-AUTH)
     (asserts! (not (is-eq new-pool (var-get current-pool))) ERR-INVALID-AMOUNT)
     
-    ;; Record pool change
-    (let ((cycle (unwrap-panic (get-burn-block-info? burn-block-height block-height))))
-      (map-set pool-history cycle {
-        pool: new-pool,
-        total-stx: (var-get total-delegated),
-        timestamp: block-height
-      })
-    )
+    ;; Record pool change at current block height
+    (map-set pool-history block-height {
+      pool: new-pool,
+      total-stx: (var-get total-delegated),
+      block-height: block-height
+    })
     
     (var-set current-pool new-pool)
+    (var-set last-rotation-height block-height)
     (ok true)
   )
 )
@@ -80,28 +85,32 @@
 ;; Delegate STX to current pool
 (define-public (delegate (amount uint))
   (let (
-    (cycle (unwrap-panic (get-burn-block-info? burn-block-height block-height)))
     (user tx-sender)
+    (existing (map-get? user-delegations user))
   )
     (begin
-      ;; Validate
-      (asserts! (> amount u0) ERR-INVALID-AMOUNT)
-      (asserts! (> cycle (var-get last-cycle)) ERR-CYCLE)
+      ;; Validate minimum amount
+      (asserts! (>= amount MIN-DELEGATION-AMOUNT) ERR-BELOW-MINIMUM)
       
-      ;; Execute delegation
+      ;; Check user doesn't already have an active delegation
+      (asserts! (or
+        (is-none existing)
+        (not (get active (unwrap-panic existing)))
+      ) ERR-ALREADY-DELEGATED)
+      
+      ;; Execute delegation via built-in PoX function
       (match (stx-delegate-stx amount (var-get current-pool) none none)
         success (begin
           ;; Update user tracking
           (map-set user-delegations user {
             amount: amount,
-            cycle: cycle,
+            start-height: block-height,
             active: true
           })
           
           ;; Update totals
           (var-set total-delegated (+ (var-get total-delegated) amount))
           (var-set delegation-count (+ (var-get delegation-count) u1))
-          (var-set last-cycle cycle)
           
           (ok true)
         )
@@ -157,8 +166,8 @@
   (ok (map-get? user-delegations user))
 )
 
-(define-read-only (get-pool-history (cycle uint))
-  (ok (map-get? pool-history cycle))
+(define-read-only (get-pool-history-entry (height uint))
+  (ok (map-get? pool-history height))
 )
 
 (define-read-only (get-stats)
@@ -166,8 +175,12 @@
     current-pool: (var-get current-pool),
     total-delegated: (var-get total-delegated),
     delegation-count: (var-get delegation-count),
-    last-cycle: (var-get last-cycle)
+    last-rotation-height: (var-get last-rotation-height)
   })
+)
+
+(define-read-only (get-min-delegation)
+  (ok MIN-DELEGATION-AMOUNT)
 )
 
 ;; ============================================================================

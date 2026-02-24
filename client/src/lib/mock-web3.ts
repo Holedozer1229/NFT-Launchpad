@@ -19,12 +19,13 @@ let mmSDK: MetaMaskSDK | null = null;
 
 function getMetaMaskSDK() {
   if (!mmSDK) {
+    const infuraKey = (import.meta as any).env?.VITE_INFURA_API_KEY || undefined;
     mmSDK = new MetaMaskSDK({
       dappMetadata: {
         name: "SKYNT Protocol",
         url: window.location.href,
       },
-      infuraAPIKey: "12a0ef604cec454d929aa225c94a9d41",
+      ...(infuraKey ? { infuraAPIKey: infuraKey } : {}),
     });
   }
   return mmSDK;
