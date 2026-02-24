@@ -1,55 +1,55 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, Lock, Unlock, Wallet, Coins, Percent, Clock, Zap, Shield, Gift, ArrowRight, ChevronDown } from "lucide-react";
+import { TrendingUp, Lock, Unlock, Wallet, Coins, Percent, Clock, Zap, Shield, Gift, ArrowRight, Activity, CheckCircle, Fingerprint, Gauge } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
 
-const POOLS = [
+const STRATEGIES = [
   {
-    id: "skynt-eth",
-    name: "SKYNT / ETH",
-    apy: 42.8,
+    id: "sphinx-lp",
+    name: "SphinxSkynet LP",
+    contract: "0x7a3...f2e1",
+    apr: 42.8,
+    riskScore: 25,
     tvl: "2,450,000",
     staked: "1,200",
-    lockPeriod: "Flexible",
     color: "cyan",
-    risk: "Low",
-    rewards: "SKYNT",
-    minStake: 100,
+    active: true,
+    description: "Automated liquidity provision across SphinxSkynet hypercube network",
   },
   {
-    id: "skynt-sol",
-    name: "SKYNT / SOL",
-    apy: 68.5,
+    id: "cross-chain",
+    name: "Cross-Chain Routing",
+    contract: "0x4b1...a8c3",
+    apr: 68.5,
+    riskScore: 55,
     tvl: "1,180,000",
     staked: "800",
-    lockPeriod: "30 Days",
     color: "green",
-    risk: "Medium",
-    rewards: "SKYNT + SOL",
-    minStake: 250,
+    active: true,
+    description: "Multi-chain yield optimization via SphinxBridge guardian network",
   },
   {
-    id: "skynt-matic",
-    name: "SKYNT / MATIC",
-    apy: 95.2,
+    id: "pox-delegation",
+    name: "PoX STX Delegation",
+    contract: "ST1PQ...PGZGM",
+    apr: 95.2,
+    riskScore: 40,
     tvl: "620,000",
     staked: "0",
-    lockPeriod: "90 Days",
     color: "orange",
-    risk: "High",
-    rewards: "SKYNT + MATIC",
-    minStake: 500,
+    active: true,
+    description: "Non-custodial STX delegation with BTC yield routing to treasury",
   },
   {
-    id: "skynt-single",
+    id: "single-stake",
     name: "SKYNT Single Stake",
-    apy: 24.6,
+    contract: "0x9d2...b4f7",
+    apr: 24.6,
+    riskScore: 10,
     tvl: "5,800,000",
     staked: "3,500",
-    lockPeriod: "Flexible",
     color: "magenta",
-    risk: "Low",
-    rewards: "SKYNT",
-    minStake: 50,
+    active: true,
+    description: "Simple staking with zk-SNARK verified yield distribution",
   },
 ];
 
@@ -70,14 +70,26 @@ function AnimatedCounter({ target, decimals = 2 }: { target: number; decimals?: 
   return <>{value.toFixed(decimals)}</>;
 }
 
+function calculatePhiBoost(phi: number): number {
+  const clamped = Math.max(200, Math.min(1000, phi));
+  return (10000 + (clamped - 500) * 5) / 10000;
+}
+
+function calculateTreasuryRate(phi: number): number {
+  const rate = 0.05 + phi / 2000;
+  return Math.min(0.30, rate);
+}
+
 export default function YieldGenerator() {
   const { isConnected, address, connect, isConnecting } = useWallet();
-  const [selectedPool, setSelectedPool] = useState<string | null>(null);
+  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
   const [stakeAmount, setStakeAmount] = useState("");
   const [staking, setStaking] = useState(false);
   const [stakeSuccess, setStakeSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState<"stake" | "unstake">("stake");
   const [earnedRewards, setEarnedRewards] = useState(12.847);
+  const [phiScore, setPhiScore] = useState(650);
+  const [zkVerified, setZkVerified] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -87,7 +99,9 @@ export default function YieldGenerator() {
   }, []);
 
   const skyntBalance = "10,000";
-  const totalStaked = POOLS.reduce((sum, p) => sum + parseFloat(p.staked.replace(/,/g, "")), 0);
+  const totalStaked = STRATEGIES.reduce((sum, s) => sum + parseFloat(s.staked.replace(/,/g, "")), 0);
+  const phiBoost = calculatePhiBoost(phiScore);
+  const treasuryRate = calculateTreasuryRate(phiScore);
 
   const handleStake = async () => {
     if (!stakeAmount || parseFloat(stakeAmount) <= 0) return;
@@ -100,14 +114,14 @@ export default function YieldGenerator() {
     setTimeout(() => setStakeSuccess(false), 4000);
   };
 
-  const pool = selectedPool ? POOLS.find((p) => p.id === selectedPool) : null;
+  const strategy = selectedStrategy ? STRATEGIES.find((s) => s.id === selectedStrategy) : null;
 
   const colorClass = (c: string) => ({
-    cyan: { text: "text-neon-cyan", bg: "bg-neon-cyan/10", border: "cosmic-card-cyan", glow: "neon-glow-cyan" },
-    green: { text: "text-neon-green", bg: "bg-neon-green/10", border: "cosmic-card-green", glow: "neon-glow-green" },
-    orange: { text: "text-neon-orange", bg: "bg-neon-orange/10", border: "cosmic-card-orange", glow: "neon-glow-orange" },
-    magenta: { text: "text-neon-magenta", bg: "bg-neon-magenta/10", border: "cosmic-card-magenta", glow: "neon-glow-magenta" },
-  }[c] || { text: "text-primary", bg: "bg-primary/10", border: "cosmic-card", glow: "" });
+    cyan: { text: "text-neon-cyan", bg: "bg-neon-cyan/10", border: "cosmic-card-cyan" },
+    green: { text: "text-neon-green", bg: "bg-neon-green/10", border: "cosmic-card-green" },
+    orange: { text: "text-neon-orange", bg: "bg-neon-orange/10", border: "cosmic-card-orange" },
+    magenta: { text: "text-neon-magenta", bg: "bg-neon-magenta/10", border: "cosmic-card-magenta" },
+  }[c] || { text: "text-primary", bg: "bg-primary/10", border: "cosmic-card" });
 
   return (
     <div className="space-y-6" data-testid="yield-page">
@@ -116,7 +130,13 @@ export default function YieldGenerator() {
           <h1 className="text-2xl font-heading neon-glow-cyan flex items-center gap-2" data-testid="text-yield-title">
             <TrendingUp className="w-6 h-6" /> SKYNT Yield Generator
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Stake SKYNT tokens to earn passive rewards</p>
+          <p className="text-sm text-muted-foreground mt-1">SphinxYieldAggregator — zk-verified multi-chain yield optimization</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-heading uppercase ${zkVerified ? "bg-neon-green/10 text-neon-green" : "bg-red-500/10 text-red-400"}`}>
+            <Fingerprint className="w-3 h-3" />
+            zk-Proof {zkVerified ? "Verified" : "Pending"}
+          </span>
         </div>
       </div>
 
@@ -124,7 +144,7 @@ export default function YieldGenerator() {
         <div className="cosmic-card cosmic-card-magenta p-6 text-center space-y-3">
           <Wallet className="w-10 h-10 text-neon-magenta mx-auto" />
           <p className="text-sm font-heading">Connect MetaMask to Start Earning</p>
-          <p className="text-xs text-muted-foreground">Link your wallet to stake SKYNT and generate yield.</p>
+          <p className="text-xs text-muted-foreground">Link your wallet to stake SKYNT and generate yield via the SphinxYieldAggregator.</p>
           <button
             data-testid="button-yield-connect"
             onClick={connect}
@@ -153,108 +173,128 @@ export default function YieldGenerator() {
               </div>
               <p className="text-lg font-heading text-neon-green">{earnedRewards.toFixed(3)} SKYNT</p>
             </div>
-            <div className="cosmic-card cosmic-card-orange p-4" data-testid="stat-avg-apy">
+            <div className="cosmic-card cosmic-card-orange p-4" data-testid="stat-phi-boost">
               <div className="flex items-center gap-2 mb-2">
-                <Percent className="w-4 h-4 text-neon-orange" />
-                <span className="stat-label">Avg. APY</span>
+                <Gauge className="w-4 h-4 text-neon-orange" />
+                <span className="stat-label">Phi Boost</span>
               </div>
-              <p className="text-lg font-heading text-neon-orange"><AnimatedCounter target={57.8} />%</p>
+              <p className="text-lg font-heading text-neon-orange">{phiBoost.toFixed(2)}x</p>
+              <p className="font-mono text-[9px] text-muted-foreground mt-0.5">Score: {phiScore}</p>
             </div>
             <div className="cosmic-card cosmic-card-magenta p-4" data-testid="stat-wallet-balance">
               <div className="flex items-center gap-2 mb-2">
                 <Coins className="w-4 h-4 text-neon-magenta" />
-                <span className="stat-label">Wallet Balance</span>
+                <span className="stat-label">Wallet</span>
               </div>
               <p className="text-lg font-heading text-neon-magenta">{skyntBalance} SKYNT</p>
-              <p className="font-mono text-[10px] text-muted-foreground mt-1 truncate">{address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ""}</p>
+              <p className="font-mono text-[9px] text-muted-foreground mt-0.5 truncate">{address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ""}</p>
+            </div>
+          </div>
+
+          <div className="cosmic-card p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-heading text-xs uppercase tracking-wider flex items-center gap-2">
+                <Activity className="w-3.5 h-3.5 text-primary" /> Phi Score (200-1000)
+              </h3>
+              <span className="font-mono text-xs text-primary">{phiScore}</span>
+            </div>
+            <input
+              data-testid="input-phi-score"
+              type="range"
+              min="200"
+              max="1000"
+              value={phiScore}
+              onChange={(e) => setPhiScore(parseInt(e.target.value))}
+              className="w-full accent-primary h-1.5"
+            />
+            <div className="flex justify-between mt-2 text-[10px] font-mono text-muted-foreground">
+              <span>Boost: {phiBoost.toFixed(2)}x</span>
+              <span>Treasury: {(treasuryRate * 100).toFixed(1)}%</span>
+              <span>R_T = min(0.30, 0.05 + Phi/2000)</span>
             </div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <h2 className="font-heading text-sm uppercase tracking-wider flex items-center gap-2">
-                <Zap className="w-4 h-4 text-primary" /> Yield Pools
+                <Zap className="w-4 h-4 text-primary" /> Yield Strategies
               </h2>
-              {POOLS.map((p) => {
-                const cc = colorClass(p.color);
-                const isSelected = selectedPool === p.id;
+              {STRATEGIES.map((s) => {
+                const cc = colorClass(s.color);
+                const isSelected = selectedStrategy === s.id;
+                const riskLabel = s.riskScore <= 25 ? "Low" : s.riskScore <= 50 ? "Medium" : "High";
                 return (
                   <button
-                    key={p.id}
-                    data-testid={`pool-${p.id}`}
-                    onClick={() => setSelectedPool(p.id)}
+                    key={s.id}
+                    data-testid={`strategy-${s.id}`}
+                    onClick={() => setSelectedStrategy(s.id)}
                     className={`cosmic-card ${cc.border} p-4 w-full text-left transition-all ${isSelected ? "ring-1 ring-primary/60 scale-[1.01]" : "hover:scale-[1.005]"}`}
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="font-heading text-sm">{p.name}</span>
-                      <span className={`${cc.text} ${cc.bg} px-2 py-0.5 rounded-full text-[10px] font-heading uppercase`}>{p.risk} Risk</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-heading text-sm">{s.name}</span>
+                      <span className={`${cc.text} ${cc.bg} px-2 py-0.5 rounded-full text-[10px] font-heading uppercase`}>{riskLabel} Risk</span>
                     </div>
+                    <p className="text-[10px] text-muted-foreground mb-3">{s.description}</p>
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <p className="text-[10px] text-muted-foreground">APY</p>
-                        <p className={`font-heading text-sm ${cc.text}`}>{p.apy}%</p>
+                        <p className="text-[10px] text-muted-foreground">APR</p>
+                        <p className={`font-heading text-sm ${cc.text}`}>{s.apr}%</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-muted-foreground">TVL</p>
-                        <p className="font-mono text-xs">${p.tvl}</p>
+                        <p className="font-mono text-xs">${s.tvl}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-muted-foreground">Lock</p>
-                        <p className="font-mono text-xs flex items-center gap-1">
-                          {p.lockPeriod === "Flexible" ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-                          {p.lockPeriod}
-                        </p>
+                        <p className="text-[10px] text-muted-foreground">Risk Score</p>
+                        <p className="font-mono text-xs">{s.riskScore}/100</p>
                       </div>
                     </div>
-                    {parseFloat(p.staked.replace(/,/g, "")) > 0 && (
-                      <div className="mt-3 pt-3 border-t border-border/30 flex justify-between items-center">
-                        <span className="text-[10px] text-muted-foreground">Your Stake</span>
-                        <span className="font-mono text-xs text-primary">{p.staked} SKYNT</span>
-                      </div>
-                    )}
+                    <div className="mt-2 pt-2 border-t border-border/30 flex justify-between items-center">
+                      <span className="font-mono text-[10px] text-muted-foreground truncate">{s.contract}</span>
+                      {parseFloat(s.staked.replace(/,/g, "")) > 0 && (
+                        <span className="font-mono text-xs text-primary">{s.staked} SKYNT</span>
+                      )}
+                    </div>
                   </button>
                 );
               })}
             </div>
 
             <div className="space-y-4">
-              {pool ? (
+              {strategy ? (
                 <>
                   <h2 className="font-heading text-sm uppercase tracking-wider flex items-center gap-2">
-                    <ArrowRight className="w-4 h-4 text-primary" /> {pool.name}
+                    <ArrowRight className="w-4 h-4 text-primary" /> {strategy.name}
                   </h2>
 
                   {stakeSuccess && (
                     <div className="cosmic-card cosmic-card-green p-4 text-center space-y-1">
-                      <p className="text-sm font-heading text-neon-green">Stake Successful</p>
-                      <p className="text-xs text-muted-foreground">Your SKYNT tokens are now generating yield.</p>
+                      <CheckCircle className="w-5 h-5 text-neon-green mx-auto" />
+                      <p className="text-sm font-heading text-neon-green">Transaction Submitted</p>
+                      <p className="text-xs text-muted-foreground">Your SKYNT tokens are now generating yield with {phiBoost.toFixed(2)}x Phi boost.</p>
                     </div>
                   )}
 
-                  <div className={`cosmic-card ${colorClass(pool.color).border} p-5 space-y-5`}>
+                  <div className={`cosmic-card ${colorClass(strategy.color).border} p-5 space-y-5`}>
                     <div className="flex gap-2">
                       <button
                         data-testid="tab-stake"
                         onClick={() => setActiveTab("stake")}
-                        className={`flex-1 py-2 rounded-sm text-xs font-heading uppercase tracking-wider transition-all ${
-                          activeTab === "stake" ? "bg-primary/20 text-primary border border-primary/40" : "bg-black/20 text-muted-foreground border border-border/30"
-                        }`}
+                        className={`flex-1 py-2 rounded-sm text-xs font-heading uppercase tracking-wider transition-all ${activeTab === "stake" ? "bg-primary/20 text-primary border border-primary/40" : "bg-black/20 text-muted-foreground border border-border/30"}`}
                       >
-                        Stake
+                        Deposit
                       </button>
                       <button
                         data-testid="tab-unstake"
                         onClick={() => setActiveTab("unstake")}
-                        className={`flex-1 py-2 rounded-sm text-xs font-heading uppercase tracking-wider transition-all ${
-                          activeTab === "unstake" ? "bg-primary/20 text-primary border border-primary/40" : "bg-black/20 text-muted-foreground border border-border/30"
-                        }`}
+                        className={`flex-1 py-2 rounded-sm text-xs font-heading uppercase tracking-wider transition-all ${activeTab === "unstake" ? "bg-primary/20 text-primary border border-primary/40" : "bg-black/20 text-muted-foreground border border-border/30"}`}
                       >
-                        Unstake
+                        Withdraw
                       </button>
                     </div>
 
                     <div className="space-y-2">
-                      <label className="stat-label">{activeTab === "stake" ? "Stake Amount" : "Unstake Amount"} (SKYNT)</label>
+                      <label className="stat-label">{activeTab === "stake" ? "Deposit" : "Withdraw"} Amount (SKYNT)</label>
                       <div className="relative">
                         <input
                           data-testid="input-stake-amount"
@@ -267,10 +307,10 @@ export default function YieldGenerator() {
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-heading">SKYNT</span>
                       </div>
                       <div className="flex justify-between text-[10px] font-mono text-muted-foreground px-1">
-                        <span>{activeTab === "stake" ? `Balance: ${skyntBalance}` : `Staked: ${pool.staked}`} SKYNT</span>
+                        <span>{activeTab === "stake" ? `Balance: ${skyntBalance}` : `Deposited: ${strategy.staked}`} SKYNT</span>
                         <button
                           data-testid="button-max-stake"
-                          onClick={() => setStakeAmount(activeTab === "stake" ? "10000" : pool.staked.replace(/,/g, ""))}
+                          onClick={() => setStakeAmount(activeTab === "stake" ? "10000" : strategy.staked.replace(/,/g, ""))}
                           className="text-primary hover:text-primary/80"
                         >
                           MAX
@@ -280,32 +320,44 @@ export default function YieldGenerator() {
 
                     <div className="space-y-2 p-3 bg-black/20 border border-border/50 rounded-sm text-xs">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground flex items-center gap-1"><Percent className="w-3 h-3" /> APY</span>
-                        <span className={`font-mono ${colorClass(pool.color).text}`}>{pool.apy}%</span>
+                        <span className="text-muted-foreground flex items-center gap-1"><Percent className="w-3 h-3" /> Base APR</span>
+                        <span className={`font-mono ${colorClass(strategy.color).text}`}>{strategy.apr}%</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /> Lock Period</span>
-                        <span className="font-mono">{pool.lockPeriod}</span>
+                        <span className="text-muted-foreground flex items-center gap-1"><Gauge className="w-3 h-3" /> Phi Boosted APR</span>
+                        <span className="font-mono text-neon-green">{(strategy.apr * phiBoost).toFixed(1)}%</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground flex items-center gap-1"><Gift className="w-3 h-3" /> Rewards</span>
-                        <span className="font-mono">{pool.rewards}</span>
+                        <span className="text-muted-foreground flex items-center gap-1"><Activity className="w-3 h-3" /> Risk Score</span>
+                        <span className="font-mono">{strategy.riskScore}/100</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground flex items-center gap-1"><Coins className="w-3 h-3" /> Min Stake</span>
-                        <span className="font-mono">{pool.minStake} SKYNT</span>
+                        <span className="text-muted-foreground flex items-center gap-1"><Coins className="w-3 h-3" /> Treasury Split</span>
+                        <span className="font-mono">{(treasuryRate * 100).toFixed(1)}%</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground flex items-center gap-1"><Shield className="w-3 h-3" /> Security</span>
-                        <span className="font-mono text-neon-green">Audited</span>
+                        <span className="text-muted-foreground flex items-center gap-1"><Fingerprint className="w-3 h-3" /> zk-Proof</span>
+                        <span className="font-mono text-neon-green">{zkVerified ? "Verified" : "Pending"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground flex items-center gap-1"><Shield className="w-3 h-3" /> Cooldown</span>
+                        <span className="font-mono">1 min</span>
                       </div>
                       {stakeAmount && parseFloat(stakeAmount) > 0 && (
-                        <div className="flex justify-between pt-2 border-t border-border/30">
-                          <span className="text-muted-foreground flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Est. Daily Yield</span>
-                          <span className="font-mono text-neon-green">
-                            {((parseFloat(stakeAmount) * pool.apy) / 365 / 100).toFixed(4)} SKYNT
-                          </span>
-                        </div>
+                        <>
+                          <div className="flex justify-between pt-2 border-t border-border/30">
+                            <span className="text-muted-foreground flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Est. Daily Yield</span>
+                            <span className="font-mono text-neon-green">
+                              {((parseFloat(stakeAmount) * strategy.apr * phiBoost) / 365 / 100).toFixed(4)} SKYNT
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground flex items-center gap-1"><Gift className="w-3 h-3" /> Your Share</span>
+                            <span className="font-mono text-neon-cyan">
+                              {((parseFloat(stakeAmount) * strategy.apr * phiBoost * (1 - treasuryRate)) / 365 / 100).toFixed(4)} SKYNT/day
+                            </span>
+                          </div>
+                        </>
                       )}
                     </div>
 
@@ -319,13 +371,13 @@ export default function YieldGenerator() {
                         {staking ? (
                           <>
                             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            {activeTab === "stake" ? "Staking..." : "Unstaking..."}
+                            {activeTab === "stake" ? "Depositing..." : "Withdrawing..."}
                           </>
                         ) : (
                           <>
                             {activeTab === "stake" ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
                             {stakeAmount && parseFloat(stakeAmount) > 0
-                              ? `${activeTab === "stake" ? "Stake" : "Unstake"} ${stakeAmount} SKYNT`
+                              ? `${activeTab === "stake" ? "Deposit" : "Withdraw"} ${stakeAmount} SKYNT`
                               : "Enter Amount"}
                           </>
                         )}
@@ -333,34 +385,48 @@ export default function YieldGenerator() {
                     </button>
                   </div>
 
-                  <div className={`cosmic-card ${colorClass(pool.color).border} p-4`}>
+                  <div className={`cosmic-card ${colorClass(strategy.color).border} p-4`}>
                     <h3 className="font-heading text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
-                      <TrendingUp className="w-3.5 h-3.5 text-primary" /> Projected Returns
+                      <TrendingUp className="w-3.5 h-3.5 text-primary" /> Projected Returns (Phi-Boosted)
                     </h3>
                     <div className="grid grid-cols-3 gap-3">
                       {[
-                        { label: "30 Days", multiplier: 30 },
-                        { label: "90 Days", multiplier: 90 },
-                        { label: "1 Year", multiplier: 365 },
+                        { label: "30 Days", days: 30 },
+                        { label: "90 Days", days: 90 },
+                        { label: "1 Year", days: 365 },
                       ].map((period) => {
-                        const base = parseFloat(stakeAmount || pool.staked.replace(/,/g, "") || "1000");
-                        const earned = (base * pool.apy * period.multiplier) / 365 / 100;
+                        const base = parseFloat(stakeAmount || strategy.staked.replace(/,/g, "") || "1000");
+                        const grossYield = (base * strategy.apr * phiBoost * period.days) / 365 / 100;
+                        const netYield = grossYield * (1 - treasuryRate);
                         return (
                           <div key={period.label} className="p-3 bg-black/30 border border-border/30 rounded-sm text-center">
                             <p className="text-[10px] text-muted-foreground">{period.label}</p>
-                            <p className={`font-mono text-sm ${colorClass(pool.color).text} mt-1`}>+{earned.toFixed(2)}</p>
-                            <p className="text-[9px] text-muted-foreground">SKYNT</p>
+                            <p className={`font-mono text-sm ${colorClass(strategy.color).text} mt-1`}>+{netYield.toFixed(2)}</p>
+                            <p className="text-[9px] text-muted-foreground">SKYNT (net)</p>
                           </div>
                         );
                       })}
+                    </div>
+                  </div>
+
+                  <div className="cosmic-card p-4">
+                    <h3 className="font-heading text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <Shield className="w-3.5 h-3.5 text-primary" /> Contract Details
+                    </h3>
+                    <div className="space-y-2 text-xs font-mono">
+                      <div className="flex justify-between"><span className="text-muted-foreground">Contract</span><span className="text-primary">{strategy.contract}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Aggregator</span><span>SphinxYieldAggregator v1.0</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Solidity</span><span>^0.8.20</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Security</span><span className="text-neon-green">ReentrancyGuard + Pausable</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Access</span><span>AccessControl (RBAC)</span></div>
                     </div>
                   </div>
                 </>
               ) : (
                 <div className="cosmic-card p-8 text-center space-y-3 min-h-[300px] flex flex-col items-center justify-center">
                   <TrendingUp className="w-10 h-10 text-muted-foreground/30" />
-                  <p className="font-heading text-sm text-muted-foreground">Select a Pool</p>
-                  <p className="text-xs text-muted-foreground/60">Choose a yield pool from the left to stake your SKYNT tokens.</p>
+                  <p className="font-heading text-sm text-muted-foreground">Select a Strategy</p>
+                  <p className="text-xs text-muted-foreground/60">Choose a yield strategy to deposit SKYNT tokens and start earning.</p>
                 </div>
               )}
             </div>
