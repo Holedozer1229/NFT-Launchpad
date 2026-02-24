@@ -10,6 +10,7 @@ import MintNFT from "@/pages/MintNFT";
 import Gallery from "@/pages/Gallery";
 import Analytics from "@/pages/Analytics";
 import Bridge from "@/pages/Bridge";
+import YieldGenerator from "@/pages/YieldGenerator";
 import Admin from "@/pages/Admin";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/not-found";
@@ -56,6 +57,7 @@ function AppRouter() {
         <Route path="/gallery" component={Gallery} />
         <Route path="/analytics" component={Analytics} />
         <Route path="/bridge" component={Bridge} />
+        <Route path="/yield" component={YieldGenerator} />
         <Route path="/admin" component={AdminGuard} />
         <Route component={NotFound} />
       </Switch>
