@@ -4,6 +4,7 @@ import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shiel
 import { useWallet } from "@/lib/mock-web3";
 import { WalletPicker } from "@/components/WalletPicker";
 import { useAuth } from "@/hooks/use-auth";
+import DynamicBackground from "@/components/DynamicBackground";
 
 const navItems = [
   { path: "/", label: "Mint NFT", icon: Sparkles, adminOnly: false },
@@ -50,6 +51,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden cosmic-bg">
+      <DynamicBackground />
       <StarField />
 
       <button

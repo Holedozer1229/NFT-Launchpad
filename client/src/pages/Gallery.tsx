@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag } from "lucide-react";
+import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2 } from "lucide-react";
 import { SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import NFTPreview3D from "@/components/NFTPreview3D";
 
 type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic";
 
@@ -57,6 +58,7 @@ export default function Gallery() {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [filterChain, setFilterChain] = useState<FilterChain>("all");
   const [listingNftId, setListingNftId] = useState<number | null>(null);
+  const [previewNft, setPreviewNft] = useState<NFTItem | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -225,6 +227,17 @@ export default function Gallery() {
                     )}
                   </div>
 
+                  <div className="absolute bottom-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setPreviewNft(nft); }}
+                      className="h-8 px-3 rounded-sm text-[10px] font-heading flex items-center gap-1.5 bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 transition-colors backdrop-blur-md"
+                      data-testid={`button-3d-preview-${nft.id}`}
+                    >
+                      <Maximize2 className="w-3 h-3" />
+                      3D View
+                    </button>
+                  </div>
+
                   <div className="absolute bottom-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     {nft.openseaUrl && (
                       <a
@@ -312,6 +325,10 @@ export default function Gallery() {
             Clear Filters
           </Button>
         </div>
+      )}
+
+      {previewNft && (
+        <NFTPreview3D nft={previewNft} onClose={() => setPreviewNft(null)} />
       )}
     </div>
   );

@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle, Loader2 } from "lucide-react";
+import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle, Loader2, Smartphone } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
 
 const chains = [
   { id: "ethereum", name: "Ethereum", symbol: "ETH", icon: "⟠", color: "hsl(210 100% 55%)" },
@@ -127,18 +128,43 @@ export default function Bridge() {
       </div>
 
       {!isConnected && (
-        <div className="cosmic-card cosmic-card-magenta p-5 text-center space-y-3">
-          <Wallet className="w-8 h-8 text-neon-magenta mx-auto" />
-          <p className="text-sm font-heading">Connect Wallet to Bridge</p>
-          <p className="text-xs text-muted-foreground">Link your wallet to bridge SKYNT tokens across chains via SphinxBridge.</p>
-          <button
-            data-testid="button-bridge-connect"
-            onClick={() => connect()}
-            disabled={isConnecting}
-            className="connect-wallet-btn px-6 py-2.5 rounded-sm font-heading text-sm tracking-wider mx-auto"
-          >
-            {isConnecting ? "Connecting..." : "Connect Wallet"}
-          </button>
+        <div className="cosmic-card cosmic-card-magenta p-5 text-center space-y-4">
+          <Lock className="w-8 h-8 text-neon-orange mx-auto" />
+          <p className="text-sm font-heading">External Wallet Required for Bridging</p>
+          <p className="text-xs text-muted-foreground">
+            {isMobileDevice()
+              ? "Connect your MetaMask or Phantom mobile wallet to sign bridge transactions. Your SKYNT wallet verifies identity, but bridging requires an external wallet."
+              : "Connect MetaMask or Phantom to sign bridge transactions. Your SKYNT wallet verifies identity, but bridging requires an external wallet to authorize transfers."}
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button
+              data-testid="button-bridge-connect-metamask"
+              onClick={() => {
+                if (isMobileDevice()) { openWalletApp("metamask"); return; }
+                connect("metamask");
+              }}
+              disabled={isConnecting}
+              className="px-5 py-2.5 rounded-sm font-heading text-xs tracking-wider flex items-center gap-2 border border-[#E2761B]/40 bg-[#E2761B]/10 text-[#E2761B] hover:bg-[#E2761B]/20 transition-colors"
+            >
+              🦊 {isMobileDevice() ? "Open MetaMask" : "MetaMask"}
+            </button>
+            <button
+              data-testid="button-bridge-connect-phantom"
+              onClick={() => {
+                if (isMobileDevice()) { openWalletApp("phantom"); return; }
+                connect("phantom");
+              }}
+              disabled={isConnecting}
+              className="px-5 py-2.5 rounded-sm font-heading text-xs tracking-wider flex items-center gap-2 border border-[#AB9FF2]/40 bg-[#AB9FF2]/10 text-[#AB9FF2] hover:bg-[#AB9FF2]/20 transition-colors"
+            >
+              👻 {isMobileDevice() ? "Open Phantom" : "Phantom"}
+            </button>
+          </div>
+          {isMobileDevice() && (
+            <div className="flex items-center gap-1.5 text-[9px] font-mono text-muted-foreground/60 justify-center">
+              <Smartphone className="w-3 h-3" /> Opens wallet app for transaction signing
+            </div>
+          )}
         </div>
       )}
 
