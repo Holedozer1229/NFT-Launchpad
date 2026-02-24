@@ -1,4 +1,4 @@
-import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy } from "@shared/schema";
+import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -44,6 +44,10 @@ export interface IStorage {
   getYieldStrategies(): Promise<YieldStrategy[]>;
   createYieldStrategy(strategy: InsertYieldStrategy): Promise<YieldStrategy>;
   updateYieldStrategy(strategyId: string, tvl: string, totalStaked: string): Promise<void>;
+
+  getDeploymentsByWallet(walletAddress: string): Promise<ContractDeployment[]>;
+  getDeploymentsByWalletId(walletId: number): Promise<ContractDeployment[]>;
+  createDeployment(deployment: InsertContractDeployment): Promise<ContractDeployment>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -197,6 +201,19 @@ export class DatabaseStorage implements IStorage {
 
   async updateYieldStrategy(strategyId: string, tvl: string, totalStaked: string): Promise<void> {
     await db.update(yieldStrategies).set({ tvl, totalStaked }).where(eq(yieldStrategies.strategyId, strategyId));
+  }
+
+  async getDeploymentsByWallet(walletAddress: string): Promise<ContractDeployment[]> {
+    return await db.select().from(contractDeployments).where(eq(contractDeployments.walletAddress, walletAddress)).orderBy(desc(contractDeployments.createdAt));
+  }
+
+  async getDeploymentsByWalletId(walletId: number): Promise<ContractDeployment[]> {
+    return await db.select().from(contractDeployments).where(eq(contractDeployments.walletId, walletId)).orderBy(desc(contractDeployments.createdAt));
+  }
+
+  async createDeployment(deployment: InsertContractDeployment): Promise<ContractDeployment> {
+    const [d] = await db.insert(contractDeployments).values(deployment).returning();
+    return d;
   }
 }
 
