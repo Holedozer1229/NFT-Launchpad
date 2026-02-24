@@ -39,7 +39,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isConnected, address, connect } = useWallet();
+  const { isConnected, address, connect, isConnecting, disconnect } = useWallet();
   const { user, logout } = useAuth();
 
   return (
@@ -106,7 +106,19 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
             <div className={`${collapsed ? "" : "px-1"}`}>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-neon-green animate-pulse shrink-0" style={{ boxShadow: "0 0 6px hsl(145 100% 50% / 0.6)" }} />
-                {!collapsed && <span className="font-mono text-[11px] text-foreground truncate">{address}</span>}
+                {!collapsed && (
+                  <span className="font-mono text-[11px] text-foreground truncate flex-1">
+                    {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ""}
+                  </span>
+                )}
+                <button
+                  data-testid="button-disconnect-wallet"
+                  onClick={disconnect}
+                  className="text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+                  title="Disconnect Wallet"
+                >
+                  <X className="w-3 h-3" />
+                </button>
               </div>
             </div>
           ) : (
@@ -114,9 +126,10 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
               data-testid="button-connect-wallet"
               className={`connect-wallet-btn w-full flex items-center justify-center gap-2 py-2.5 rounded-sm text-xs ${collapsed ? "px-2" : "px-4"}`}
               onClick={connect}
+              disabled={isConnecting}
             >
-              <Wallet className="w-4 h-4 shrink-0" />
-              {!collapsed && <span>Connect Wallet</span>}
+              <Wallet className={`w-4 h-4 shrink-0 ${isConnecting ? "animate-pulse" : ""}`} />
+              {!collapsed && <span>{isConnecting ? "Connecting..." : "Connect Wallet"}</span>}
             </button>
           )}
         </div>

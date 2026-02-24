@@ -1,19 +1,71 @@
 import { create } from 'zustand';
+import { MetaMaskSDK } from '@metamask/sdk';
 
 type WalletState = {
   isConnected: boolean;
   address: string | null;
   balance: number;
-  connect: () => void;
+  isConnecting: boolean;
+  connect: () => Promise<void>;
   disconnect: () => void;
 };
+
+let mmSDK: MetaMaskSDK | null = null;
+
+function getSDK() {
+  if (!mmSDK) {
+    mmSDK = new MetaMaskSDK({
+      dappMetadata: {
+        name: "SKYNT Protocol",
+        url: window.location.href,
+      },
+      infuraAPIKey: "12a0ef604cec454d929aa225c94a9d41",
+    });
+  }
+  return mmSDK;
+}
 
 export const useWallet = create<WalletState>((set) => ({
   isConnected: false,
   address: null,
   balance: 0,
-  connect: () => set({ isConnected: true, address: '0x71C...9A21', balance: 1.45 }),
-  disconnect: () => set({ isConnected: false, address: null, balance: 0 }),
+  isConnecting: false,
+  connect: async () => {
+    set({ isConnecting: true });
+    try {
+      const sdk = getSDK();
+      const accounts = await sdk.connect();
+      if (accounts && accounts.length > 0) {
+        const addr = accounts[0];
+        const ethereum = sdk.getProvider();
+        let balance = 0;
+        if (ethereum) {
+          try {
+            const rawBal = await ethereum.request({
+              method: 'eth_getBalance',
+              params: [addr, 'latest'],
+            });
+            balance = parseInt(rawBal as string, 16) / 1e18;
+          } catch {
+            balance = 0;
+          }
+        }
+        set({ isConnected: true, address: addr, balance, isConnecting: false });
+      } else {
+        set({ isConnecting: false });
+      }
+    } catch (err) {
+      console.error("MetaMask connection failed", err);
+      set({ isConnecting: false });
+    }
+  },
+  disconnect: () => {
+    set({ isConnected: false, address: null, balance: 0 });
+    if (mmSDK) {
+      mmSDK.terminate();
+      mmSDK = null;
+    }
+  },
 }));
 
 export interface LaunchMission {
