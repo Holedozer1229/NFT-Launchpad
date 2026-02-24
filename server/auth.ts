@@ -28,7 +28,7 @@ export function setupAuth(app: Express) {
   const PostgresSessionStore = connectPg(session);
 
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "sphinx-os-cosmos-launchpad-secret-key",
+    secret: process.env.SESSION_SECRET || randomBytes(32).toString("hex"),
     resave: false,
     saveUninitialized: false,
     store: new PostgresSessionStore({
