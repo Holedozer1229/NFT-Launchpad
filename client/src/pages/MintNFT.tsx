@@ -7,6 +7,7 @@ import { MintCard } from "@/components/MintCard";
 import { LaunchSelector } from "@/components/LaunchSelector";
 import { OracleOverlay } from "@/components/OracleOverlay";
 import { Cpu, Eye, Database } from "lucide-react";
+import LaunchCountdown from "@/components/LaunchCountdown";
 
 export default function MintNFT() {
   const { data: launches, isLoading } = useQuery<Launch[]>({
@@ -60,6 +61,10 @@ export default function MintNFT() {
             {selectedLaunch && <MintCard mission={selectedLaunch} />}
           </div>
         </div>
+
+        <section>
+          <LaunchCountdown />
+        </section>
 
         <section className="relative">
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
