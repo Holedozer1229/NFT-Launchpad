@@ -4,8 +4,8 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useWallet } from "@/lib/mock-web3";
-import { Launch } from "@shared/schema";
-import { Loader2, Rocket, Cpu, Radio, ShieldAlert, Eye, Brain, Zap } from "lucide-react";
+import { Launch, RARITY_TIERS, RarityTier } from "@shared/schema";
+import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem } from "lucide-react";
 import { TermsGate } from "./TermsGate";
 import { useToast } from "@/hooks/use-toast";
 import missionPatch from "../assets/mission-patch.png";
@@ -16,16 +16,26 @@ interface MintCardProps {
   mission: Launch;
 }
 
+const RARITY_ICONS: Record<RarityTier, typeof Crown> = {
+  mythic: Crown,
+  legendary: Flame,
+  rare: Diamond,
+  common: Gem,
+};
+
+const RARITY_ORDER: RarityTier[] = ["mythic", "legendary", "rare", "common"];
+
 export function MintCard({ mission }: MintCardProps) {
   const { isConnected, connect } = useWallet();
   const [isMinting, setIsMinting] = useState(false);
-  const [mintCount, setMintCount] = useState(1);
+  const [selectedRarity, setSelectedRarity] = useState<RarityTier>("common");
   const [showTerms, setShowTerms] = useState(false);
   const [progress, setProgress] = useState(0);
   const { toast } = useToast();
 
+  const mintedByRarity = (mission.mintedByRarity || { mythic: 0, legendary: 0, rare: 0, common: 0 }) as Record<RarityTier, number>;
+
   useEffect(() => {
-    setMintCount(1);
     setIsMinting(false);
     setProgress(0);
   }, [mission.id]);
@@ -35,6 +45,12 @@ export function MintCard({ mission }: MintCardProps) {
       connect();
       return;
     }
+    const tier = RARITY_TIERS[selectedRarity];
+    const minted = mintedByRarity[selectedRarity] || 0;
+    if (minted >= tier.supply) {
+      toast({ title: "TIER EXHAUSTED", description: `All ${tier.label} artifacts have been claimed.`, variant: "destructive" });
+      return;
+    }
     setShowTerms(true);
   };
 
@@ -42,53 +58,55 @@ export function MintCard({ mission }: MintCardProps) {
     setIsMinting(true);
     setProgress(0);
 
+    const tier = RARITY_TIERS[selectedRarity];
     const steps = [
       "CONSULTING THE ORACLE...",
+      `VERIFYING ${tier.label.toUpperCase()} RARITY SHARD...`,
       "SYNCING CROSS-CHANNEL STX YIELD...",
       "MERGE MINING PROOF GENERATED...",
       "CALCULATING Φ ALGEBRA...",
       "VERIFYING ZK-CROSS CHAIN...",
-      "ARTIFACT MATERIALIZED..."
+      `${tier.label.toUpperCase()} ARTIFACT MATERIALIZED...`
     ];
 
     for (let i = 0; i < steps.length; i++) {
       toast({ title: `SYNA-PHASE ${i+1}/${steps.length}`, description: steps[i] });
-      await new Promise(r => setTimeout(r, 1200));
+      await new Promise(r => setTimeout(r, 1000));
       setProgress(Math.floor(((i + 1) / steps.length) * 100));
     }
 
     setIsMinting(false);
-    toast({ 
-      title: "DESTINY FULFILLED", 
-      description: `Artifact [${mission.title}] permanently inscribed.`,
-      variant: "default" 
+    toast({
+      title: "DESTINY FULFILLED",
+      description: `${tier.label} Artifact [${mission.title}] permanently inscribed.`,
+      variant: "default"
     });
   };
+
+  const totalMinted = Object.values(mintedByRarity).reduce((a, b) => a + b, 0);
+  const totalSupply = Object.values(RARITY_TIERS).reduce((a, t) => a + t.supply, 0);
 
   return (
     <>
       <TermsGate open={showTerms} onOpenChange={setShowTerms} onAccept={executeMint} />
-      
+
       <div className="relative w-full max-w-md group">
         <div className="absolute -inset-1 bg-gradient-to-r from-primary via-accent to-primary rounded-lg blur opacity-20 group-hover:opacity-40 transition duration-1000 animate-pulse"></div>
-        
+
         <Card className="relative sphinx-card border-none bg-black/40 text-foreground overflow-hidden">
-          
           <div className="absolute inset-0 pointer-events-none z-20 opacity-30 mix-blend-screen">
              <img src={holoFrame} alt="" className="w-full h-full object-fill" />
           </div>
 
           <div className="relative aspect-square overflow-hidden bg-black/50 flex items-center justify-center p-8 border-b border-primary/20">
             <div className="absolute inset-0 bg-[url('/src/assets/texture-metal.png')] opacity-20 mix-blend-overlay"></div>
-            
-            {/* Oracle Eye Overlay Background */}
             <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
               <img src={sphinxEye} className="w-64 h-64 animate-[spin_60s_linear_infinite]" />
             </div>
 
-            <img 
-              src={missionPatch} 
-              alt="Mission Patch" 
+            <img
+              src={missionPatch}
+              alt="Mission Patch"
               className="w-full h-full object-contain drop-shadow-[0_0_25px_rgba(255,215,0,0.2)] transition-transform duration-700 hover:scale-105 z-10"
             />
             <div className="absolute top-4 right-4 z-20">
@@ -102,7 +120,7 @@ export function MintCard({ mission }: MintCardProps) {
                  </Badge>
                )}
             </div>
-            
+
             <div className="absolute bottom-4 left-4 z-20">
                <Badge variant="outline" className="bg-black/60 text-accent border-accent/50 font-mono text-[10px] backdrop-blur-md">
                  <Brain className="w-3 h-3 mr-1" /> Φ: 0.982
@@ -110,48 +128,86 @@ export function MintCard({ mission }: MintCardProps) {
             </div>
           </div>
 
-          <CardHeader className="space-y-1 pb-4 border-b border-white/5 bg-black/20">
+          <CardHeader className="space-y-1 pb-3 border-b border-white/5 bg-black/20">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="text-2xl font-heading font-bold text-primary oracle-glow">
+                <h3 className="text-2xl font-heading font-bold text-primary oracle-glow" data-testid="text-mint-title">
                   {mission.title}
                 </h3>
                 <div className="flex flex-col gap-1 mt-1">
-                  <p className="text-xs font-mono text-primary/60 flex items-center gap-2">
-                    <span className="text-accent">ID:</span> {mission.id}
-                  </p>
                   <p className="text-[10px] font-mono text-accent flex items-center gap-2">
                     <Zap className="w-2 h-2" /> MERGE MINING ACTIVE
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-xl font-heading font-bold text-foreground drop-shadow-[0_0_5px_rgba(255,215,0,0.5)]">
-                  {mission.price}
+                <span className="text-xl font-heading font-bold text-foreground drop-shadow-[0_0_5px_rgba(255,215,0,0.5)]" data-testid="text-tier-price">
+                  {RARITY_TIERS[selectedRarity].price}
                 </span>
               </div>
             </div>
           </CardHeader>
 
-          <CardContent className="space-y-6 pt-6">
+          <CardContent className="space-y-4 pt-4">
             <div className="space-y-2">
-              <div className="flex justify-between text-xs font-mono uppercase tracking-widest text-primary/60">
-                <span>Consciousness Distribution</span>
-                <span className="text-primary">{mission.minted} / {mission.supply}</span>
+              <div className="flex justify-between text-[10px] font-mono uppercase tracking-widest text-primary/60">
+                <span>Total Distribution</span>
+                <span className="text-primary">{totalMinted} / {totalSupply}</span>
               </div>
-              <Progress value={(mission.minted / mission.supply) * 100} className="h-1 bg-white/5 [&>div]:bg-primary [&>div]:shadow-[0_0_10px_currentColor]" />
+              <Progress value={(totalMinted / totalSupply) * 100} className="h-1 bg-white/5 [&>div]:bg-primary [&>div]:shadow-[0_0_10px_currentColor]" />
             </div>
 
-          <div className="p-4 bg-primary/5 border border-primary/10 rounded-sm text-xs leading-relaxed font-mono text-primary/80 relative overflow-hidden group/text">
-            <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(transparent_50%,rgba(255,215,0,0.02)_50%)] bg-[length:100%_4px] pointer-events-none"></div>
-            <div className="relative z-10 space-y-2">
-              <p className="italic">"{mission.description}"</p>
-              <div className="pt-2 border-t border-primary/10 flex justify-between text-[10px]">
-                <span>RARITY_INDEX (Rⱼ)</span>
-                <span className="text-primary">Σ fₖ / mⱼ</span>
+            <div className="space-y-1.5" data-testid="rarity-tier-selector">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-primary/60">Select Rarity Tier</span>
+              <div className="grid grid-cols-2 gap-2">
+                {RARITY_ORDER.map((tier) => {
+                  const config = RARITY_TIERS[tier];
+                  const Icon = RARITY_ICONS[tier];
+                  const minted = mintedByRarity[tier] || 0;
+                  const isSoldOut = minted >= config.supply;
+                  const isSelected = selectedRarity === tier;
+
+                  return (
+                    <button
+                      key={tier}
+                      data-testid={`button-tier-${tier}`}
+                      onClick={() => !isSoldOut && setSelectedRarity(tier)}
+                      disabled={isSoldOut || isMinting}
+                      className={`relative p-2.5 rounded-md border text-left transition-all ${
+                        isSelected
+                          ? `border-neon-${config.color}/60 bg-neon-${config.color}/10 shadow-[0_0_12px_hsl(var(--neon-${config.color === 'magenta' ? 'magenta' : config.color})/0.15)]`
+                          : "border-white/10 bg-white/[0.02] hover:border-white/20"
+                      } ${isSoldOut ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                      style={isSelected ? {
+                        borderColor: `var(--color-neon-${config.color})`,
+                        backgroundColor: `color-mix(in srgb, var(--color-neon-${config.color}) 8%, transparent)`,
+                        boxShadow: `0 0 12px color-mix(in srgb, var(--color-neon-${config.color}) 20%, transparent)`,
+                      } : undefined}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Icon className={`w-3.5 h-3.5 text-neon-${config.color}`} style={{ color: `var(--color-neon-${config.color})` }} />
+                        <span className={`font-heading text-xs font-bold uppercase tracking-wider`} style={{ color: isSelected ? `var(--color-neon-${config.color})` : 'var(--foreground)' }}>
+                          {config.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          {minted}/{config.supply}
+                        </span>
+                        <span className="font-mono text-[10px] text-primary/80">
+                          {config.price}
+                        </span>
+                      </div>
+                      {isSoldOut && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-md">
+                          <span className="font-heading text-[10px] font-bold text-red-400 tracking-widest">CLAIMED</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          </div>
 
             {isMinting && (
                <div className="space-y-2">
@@ -169,37 +225,22 @@ export function MintCard({ mission }: MintCardProps) {
           <CardFooter className="pt-2 pb-6">
             {isConnected ? (
               <div className="w-full space-y-3">
-                <div className="flex items-center justify-between gap-4 p-1 border border-primary/20 rounded bg-black/40 backdrop-blur-md">
-                   <Button 
-                     variant="ghost" 
-                     size="sm"
-                     onClick={() => setMintCount(Math.max(1, mintCount - 1))}
-                     disabled={isMinting || mintCount <= 1}
-                     className="text-primary hover:text-white hover:bg-primary/20"
-                   >-</Button>
-                   <span className="font-heading font-bold w-8 text-center text-primary">{mintCount}</span>
-                   <Button 
-                     variant="ghost" 
-                     size="sm"
-                     onClick={() => setMintCount(Math.min(5, mintCount + 1))}
-                     disabled={isMinting || mintCount >= 5}
-                     className="text-primary hover:text-white hover:bg-primary/20"
-                   >+</Button>
-                </div>
-                <Button 
-                  className="w-full text-lg py-7 font-heading font-bold bg-primary hover:bg-primary/80 text-black tracking-wider transition-all hover:shadow-[0_0_20px_rgba(255,215,0,0.4)] relative overflow-hidden group" 
+                <Button
+                  data-testid="button-mint"
+                  className="w-full text-lg py-7 font-heading font-bold bg-primary hover:bg-primary/80 text-black tracking-wider transition-all hover:shadow-[0_0_20px_rgba(255,215,0,0.4)] relative overflow-hidden group"
                   onClick={handleMintClick}
                   disabled={isMinting || mission.status !== 'active'}
                 >
                   <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 skew-y-12"></div>
-                  {mission.status !== 'active' ? 'LINK OFFLINE' : 
-                    (isMinting ? "PROCESSING..." : `INVOKE ORACLE`)
+                  {mission.status !== 'active' ? 'LINK OFFLINE' :
+                    (isMinting ? "PROCESSING..." : `INVOKE ORACLE — ${RARITY_TIERS[selectedRarity].label}`)
                   }
                 </Button>
               </div>
             ) : (
-              <Button 
-                className="w-full text-lg py-7 font-heading font-bold bg-transparent border border-primary text-primary hover:bg-primary hover:text-black transition-all hover:shadow-[0_0_15px_rgba(255,215,0,0.3)]" 
+              <Button
+                data-testid="button-connect"
+                className="w-full text-lg py-7 font-heading font-bold bg-transparent border border-primary text-primary hover:bg-primary hover:text-black transition-all hover:shadow-[0_0_15px_rgba(255,215,0,0.3)]"
                 onClick={connect}
               >
                 CONNECT TERMINAL

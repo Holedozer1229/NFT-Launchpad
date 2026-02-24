@@ -12,6 +12,15 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
+export const RARITY_TIERS = {
+  mythic: { label: "Mythic", supply: 1, color: "magenta", price: "2.5 ETH" },
+  legendary: { label: "Legendary", supply: 3, color: "orange", price: "1.0 ETH" },
+  rare: { label: "Rare", supply: 6, color: "cyan", price: "0.5 ETH" },
+  common: { label: "Common", supply: 90, color: "green", price: "0.1 ETH" },
+} as const;
+
+export type RarityTier = keyof typeof RARITY_TIERS;
+
 export const launches = pgTable("launches", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   title: text("title").notNull(),
@@ -20,10 +29,11 @@ export const launches = pgTable("launches", {
   supply: integer("supply").notNull(),
   minted: integer("minted").notNull().default(0),
   image: text("image").notNull(),
-  status: text("status").notNull().default("upcoming"), // upcoming, active, ended
+  status: text("status").notNull().default("upcoming"),
   type: text("type").notNull().default("standard"),
   contractAddress: text("contract_address"),
   features: jsonb("features").notNull().default([]),
+  mintedByRarity: jsonb("minted_by_rarity").notNull().default({ mythic: 0, legendary: 0, rare: 0, common: 0 }),
 });
 
 export const insertLaunchSchema = createInsertSchema(launches).omit({ 
