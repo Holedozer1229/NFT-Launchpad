@@ -74,7 +74,10 @@ export default function Admin() {
             <h3 className="font-heading text-lg text-primary mb-2">Launch Parameters</h3>
             <p className="text-xs text-muted-foreground font-mono mb-6">Configure mission details, pricing, and orbital supply.</p>
             <div className="h-40 flex items-center justify-center text-muted-foreground border border-dashed border-border/50 rounded-lg">
-              Mock Mission Config Panel
+              <div className="text-center space-y-2">
+                <Settings className="w-8 h-8 mx-auto text-primary/20" />
+                <p className="text-xs">Mission configuration panel — connect to deploy</p>
+              </div>
             </div>
           </div>
         </TabsContent>
@@ -84,7 +87,10 @@ export default function Admin() {
             <h3 className="font-heading text-lg text-primary mb-2">Payload Integration</h3>
             <p className="text-xs text-muted-foreground font-mono mb-6">Verify IPFS pinning status and reveal timestamps.</p>
             <div className="h-40 flex items-center justify-center text-muted-foreground border border-dashed border-border/50 rounded-lg">
-              Mock Metadata Panel
+              <div className="text-center space-y-2">
+                <Download className="w-8 h-8 mx-auto text-primary/20" />
+                <p className="text-xs">IPFS metadata verification — awaiting pin</p>
+              </div>
             </div>
           </div>
         </TabsContent>
@@ -114,7 +120,10 @@ export default function Admin() {
             <h3 className="font-heading text-lg text-primary mb-2">Compliance Telemetry</h3>
             <p className="text-xs text-muted-foreground font-mono mb-6">Review disclaimers and royalty enforcement settings.</p>
             <div className="h-40 flex items-center justify-center text-muted-foreground border border-dashed border-border/50 rounded-lg">
-              Mock Legal Panel
+              <div className="text-center space-y-2">
+                <Activity className="w-8 h-8 mx-auto text-primary/20" />
+                <p className="text-xs">Compliance telemetry — monitoring active</p>
+              </div>
             </div>
           </div>
         </TabsContent>

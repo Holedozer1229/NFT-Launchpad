@@ -4,47 +4,51 @@ import {
   XAxis, YAxis, Tooltip, CartesianGrid
 } from "recharts";
 import {
-  Activity, Cpu, Box, DollarSign, Clock, TrendingUp,
-  TrendingDown, Zap, ChevronUp, ChevronDown
+  Activity, Cpu, Box, DollarSign, Clock,
+  ChevronUp, ChevronDown, Loader2, Zap
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
-function generateHashrateData() {
-  const data = [];
-  const now = new Date();
-  for (let i = 23; i >= 0; i--) {
-    const t = new Date(now.getTime() - i * 3600000);
-    data.push({
-      time: `${t.getHours().toString().padStart(2, "0")}:00`,
-      hashrate: 900 + Math.random() * 600,
-    });
-  }
-  return data;
+interface MempoolStats {
+  mempoolSize: number;
+  mempoolVSize: number;
+  totalFee: number;
+  fees: {
+    fastest: number;
+    halfHour: number;
+    hour: number;
+    economy: number;
+    minimum: number;
+  };
+  blockHeight: number;
 }
 
-function generateBlocksData() {
-  const data = [];
-  const now = new Date();
-  for (let i = 23; i >= 0; i--) {
-    const t = new Date(now.getTime() - i * 3600000);
-    data.push({
-      time: `${t.getHours().toString().padStart(2, "0")}:00`,
-      blocks: Math.floor(Math.random() * 12) + 2,
-    });
-  }
-  return data;
+interface DifficultyData {
+  progressPercent: number;
+  difficultyChange: number;
+  estimatedRetargetDate: number;
+  remainingBlocks: number;
+  remainingTime: number;
+  previousRetarget: number;
+  nextRetargetHeight: number;
+  timeAvg: number;
+  timeOffset: number;
 }
 
-const MINERS = [
-  { id: "miner-alpha", lang: "Rust", status: "online", hashrate: 542, blocks: 89, accepted: 1247, rejected: 3 },
-  { id: "miner-beta", lang: "Python", status: "online", hashrate: 318, blocks: 41, accepted: 876, rejected: 12 },
-  { id: "miner-gamma", lang: "Rust", status: "idle", hashrate: 0, blocks: 17, accepted: 423, rejected: 1 },
-];
+interface HashrateData {
+  hashrates: Array<{ timestamp: number; avgHashrate: number }>;
+  difficulty: Array<{ timestamp: number; difficulty: number }>;
+  currentHashrate: number;
+  currentDifficulty: number;
+}
 
-const EMISSION_TABLE = [
-  { epoch: "Current", reward: "6.25 ETH", rate: "~900/day" },
-  { epoch: "Next", reward: "3.125 ETH", rate: "~900/day" },
-  { epoch: "Future", reward: "1.5625 ETH", rate: "~900/day" },
-];
+interface MinerData {
+  id: number;
+  walletAddress: string;
+  hashRate: number;
+  shards: number;
+  lastUpdate: string | null;
+}
 
 interface StatCardProps {
   label: string;
@@ -52,94 +56,69 @@ interface StatCardProps {
   change: number;
   icon: React.ReactNode;
   accent: string;
+  loading?: boolean;
 }
 
-function StatCard({ label, value, change, icon, accent }: StatCardProps) {
+function StatCard({ label, value, change, icon, accent, loading }: StatCardProps) {
   const positive = change >= 0;
   return (
     <div className={`cosmic-card cosmic-card-${accent} p-5`} data-testid={`stat-card-${label.toLowerCase().replace(/\s/g, "-")}`}>
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <span className="stat-label">{label}</span>
-          <div className="stat-value">{value}</div>
+          <div className="stat-value">
+            {loading ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : value}
+          </div>
         </div>
         <div className={`p-2 rounded-sm bg-neon-${accent}/10`}>{icon}</div>
       </div>
       <div className={`stat-change ${positive ? "positive" : "negative"} flex items-center gap-1 mt-2`}>
         {positive ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-        {Math.abs(change).toFixed(1)}% from last hour
+        {Math.abs(change).toFixed(1)}% from last epoch
       </div>
     </div>
   );
 }
 
 export default function Dashboard() {
-  const [hashrate, setHashrate] = useState(1.2);
-  const [blocksFound, setBlocksFound] = useState(147);
-  const [revenue, setRevenue] = useState(2.84);
-  const [uptimeSeconds, setUptimeSeconds] = useState(45240);
-  const [hashrateData, setHashrateData] = useState(generateHashrateData);
-  const [blocksData, setBlocksData] = useState(generateBlocksData);
-  const [difficulty, setDifficulty] = useState(4218);
-  const [halvingDays, setHalvingDays] = useState(42);
-  const [halvingHours, setHalvingHours] = useState(18);
-  const [halvingMinutes, setHalvingMinutes] = useState(33);
-  const [miners, setMiners] = useState(MINERS);
+  const [uptimeSeconds, setUptimeSeconds] = useState(() => Math.floor((Date.now() - new Date().setHours(0, 0, 0, 0)) / 1000));
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setHashrate(prev => +(prev + (Math.random() - 0.48) * 0.05).toFixed(2));
-      setBlocksFound(prev => prev + (Math.random() < 0.3 ? 1 : 0));
-      setRevenue(prev => +(prev + Math.random() * 0.01).toFixed(3));
-      setUptimeSeconds(prev => prev + 3);
-      setDifficulty(prev => Math.min(6000, Math.max(3000, prev + Math.floor((Math.random() - 0.5) * 20))));
+  const { data: mempoolStats, isLoading: statsLoading } = useQuery<MempoolStats>({
+    queryKey: ["/api/mempool/stats"],
+    refetchInterval: 30000,
+  });
 
-      setHashrateData(prev => {
-        const next = [...prev.slice(1)];
-        const now = new Date();
-        next.push({
-          time: `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`,
-          hashrate: 900 + Math.random() * 600,
-        });
-        return next;
-      });
+  const { data: difficultyData, isLoading: diffLoading } = useQuery<DifficultyData>({
+    queryKey: ["/api/mempool/difficulty"],
+    refetchInterval: 60000,
+  });
 
-      setBlocksData(prev => {
-        const next = [...prev];
-        next[next.length - 1] = {
-          ...next[next.length - 1],
-          blocks: next[next.length - 1].blocks + (Math.random() < 0.2 ? 1 : 0),
-        };
-        return next;
-      });
+  const { data: hashrateData, isLoading: hashrateLoading } = useQuery<HashrateData>({
+    queryKey: ["/api/mempool/hashrate"],
+    refetchInterval: 60000,
+  });
 
-      setMiners(prev =>
-        prev.map(m => ({
-          ...m,
-          hashrate: m.status === "online" ? Math.max(0, m.hashrate + Math.floor((Math.random() - 0.5) * 30)) : 0,
-          accepted: m.status === "online" ? m.accepted + (Math.random() < 0.3 ? 1 : 0) : m.accepted,
-        }))
+  const { data: recentBlocks } = useQuery<any[]>({
+    queryKey: ["/api/mempool/blocks"],
+    refetchInterval: 30000,
+  });
+
+  const { data: miners, isLoading: minersLoading } = useQuery<MinerData[]>({
+    queryKey: ["/api/miners/all"],
+    queryFn: async () => {
+      const addresses = ["miner-alpha", "miner-beta", "miner-gamma"];
+      const results = await Promise.all(
+        addresses.map(addr =>
+          fetch(`/api/miners/${addr}`).then(r => r.ok ? r.json() : null)
+        )
       );
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+      return results.filter(Boolean);
+    },
+    refetchInterval: 15000,
+  });
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setHalvingMinutes(prev => {
-        if (prev <= 0) {
-          setHalvingHours(h => {
-            if (h <= 0) {
-              setHalvingDays(d => Math.max(0, d - 1));
-              return 23;
-            }
-            return h - 1;
-          });
-          return 59;
-        }
-        return prev - 1;
-      });
-    }, 60000);
+    const interval = setInterval(() => setUptimeSeconds(prev => prev + 1), 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -149,8 +128,34 @@ export default function Dashboard() {
     return `${h}h ${m.toString().padStart(2, "0")}m`;
   }, [uptimeSeconds]);
 
-  const difficultyPercent = (difficulty / 6000) * 100;
-  const halvingProgress = ((42 - halvingDays) / 42) * 100;
+  const hashrateChartData = hashrateData?.hashrates?.slice(-24).map((h) => ({
+    time: new Date(h.timestamp * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+    hashrate: h.avgHashrate / 1e18,
+  })) || [];
+
+  const blocksChartData = recentBlocks?.map((b: any) => ({
+    time: new Date(b.timestamp * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+    txCount: b.tx_count || 0,
+    size: ((b.size || 0) / 1e6).toFixed(2),
+  })).reverse() || [];
+
+  const currentHashrateEH = hashrateData?.currentHashrate
+    ? (hashrateData.currentHashrate / 1e18).toFixed(1)
+    : "—";
+
+  const diffPercent = difficultyData?.progressPercent ?? 0;
+  const remainingBlocks = difficultyData?.remainingBlocks ?? 0;
+  const diffChange = difficultyData?.difficultyChange ?? 0;
+
+  const retargetDate = difficultyData?.estimatedRetargetDate
+    ? new Date(difficultyData.estimatedRetargetDate)
+    : null;
+  const retargetDaysLeft = retargetDate
+    ? Math.max(0, Math.floor((retargetDate.getTime() - Date.now()) / 86400000))
+    : 0;
+  const retargetHoursLeft = retargetDate
+    ? Math.max(0, Math.floor(((retargetDate.getTime() - Date.now()) % 86400000) / 3600000))
+    : 0;
 
   return (
     <div className="space-y-6 p-6" data-testid="dashboard-page">
@@ -160,36 +165,39 @@ export default function Dashboard() {
         </h1>
         <span className="text-xs font-mono text-muted-foreground" data-testid="text-live-indicator">
           <Activity className="w-3 h-3 inline mr-1 text-neon-green animate-pulse" />
-          LIVE
+          LIVE — mempool.space
         </span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Hashrate"
-          value={`${hashrate.toFixed(1)} KH/s`}
-          change={3.2}
+          label="Network Hashrate"
+          value={`${currentHashrateEH} EH/s`}
+          change={diffChange}
           icon={<Cpu className="w-5 h-5 text-neon-cyan" />}
           accent="cyan"
+          loading={hashrateLoading}
         />
         <StatCard
-          label="Blocks Found"
-          value={blocksFound.toString()}
-          change={12.5}
+          label="Block Height"
+          value={mempoolStats?.blockHeight?.toLocaleString() || "—"}
+          change={0.1}
           icon={<Box className="w-5 h-5 text-neon-green" />}
           accent="green"
+          loading={statsLoading}
         />
         <StatCard
-          label="Revenue"
-          value={`${revenue.toFixed(2)} ETH`}
-          change={5.8}
+          label="Fastest Fee"
+          value={mempoolStats ? `${mempoolStats.fees.fastest} sat/vB` : "—"}
+          change={mempoolStats ? ((mempoolStats.fees.fastest - mempoolStats.fees.hour) / mempoolStats.fees.hour * 100) : 0}
           icon={<DollarSign className="w-5 h-5 text-neon-orange" />}
           accent="orange"
+          loading={statsLoading}
         />
         <StatCard
           label="Uptime"
           value={formatUptime()}
-          change={-0.3}
+          change={0}
           icon={<Clock className="w-5 h-5 text-neon-magenta" />}
           accent="magenta"
         />
@@ -197,51 +205,60 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="cosmic-card cosmic-card-cyan p-5" data-testid="chart-hashrate">
-          <h3 className="stat-label mb-4">Live Hashrate</h3>
+          <h3 className="stat-label mb-4">Network Hashrate (EH/s) — Live from mempool.space</h3>
           <div className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={hashrateData}>
-                <defs>
-                  <linearGradient id="hashGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(185,100%,50%)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(185,100%,50%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210,20%,15%)" />
-                <XAxis dataKey="time" stroke="#555" fontSize={10} tickLine={false} axisLine={false} interval={3} />
-                <YAxis stroke="#555" fontSize={10} tickLine={false} axisLine={false} />
-                <Tooltip
-                  contentStyle={{ background: "hsl(220,25%,7%)", border: "1px solid hsl(185,100%,50%,0.3)", borderRadius: "4px", fontSize: "12px" }}
-                  labelStyle={{ color: "hsl(185,100%,50%)" }}
-                />
-                <Area type="monotone" dataKey="hashrate" stroke="hsl(185,100%,50%)" fill="url(#hashGrad)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
+            {hashrateLoading ? (
+              <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-neon-cyan" /></div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={hashrateChartData}>
+                  <defs>
+                    <linearGradient id="hashGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(185,100%,50%)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(185,100%,50%)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(210,20%,15%)" />
+                  <XAxis dataKey="time" stroke="#555" fontSize={10} tickLine={false} axisLine={false} interval={3} />
+                  <YAxis stroke="#555" fontSize={10} tickLine={false} axisLine={false} />
+                  <Tooltip
+                    contentStyle={{ background: "hsl(220,25%,7%)", border: "1px solid hsl(185,100%,50%,0.3)", borderRadius: "4px", fontSize: "12px" }}
+                    labelStyle={{ color: "hsl(185,100%,50%)" }}
+                    formatter={(value: number) => [`${value.toFixed(2)} EH/s`, "Hashrate"]}
+                  />
+                  <Area type="monotone" dataKey="hashrate" stroke="hsl(185,100%,50%)" fill="url(#hashGrad)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
         <div className="cosmic-card cosmic-card-green p-5" data-testid="chart-blocks">
-          <h3 className="stat-label mb-4">Blocks Found (24h)</h3>
+          <h3 className="stat-label mb-4">Recent Blocks — Transaction Count</h3>
           <div className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={blocksData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210,20%,15%)" />
-                <XAxis dataKey="time" stroke="#555" fontSize={10} tickLine={false} axisLine={false} interval={3} />
-                <YAxis stroke="#555" fontSize={10} tickLine={false} axisLine={false} />
-                <Tooltip
-                  contentStyle={{ background: "hsl(220,25%,7%)", border: "1px solid hsl(145,100%,50%,0.3)", borderRadius: "4px", fontSize: "12px" }}
-                  labelStyle={{ color: "hsl(145,100%,50%)" }}
-                />
-                <Bar dataKey="blocks" fill="hsl(145,100%,50%)" radius={[4, 4, 0, 0]} opacity={0.8} />
-              </BarChart>
-            </ResponsiveContainer>
+            {!recentBlocks ? (
+              <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-neon-green" /></div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={blocksChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(210,20%,15%)" />
+                  <XAxis dataKey="time" stroke="#555" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#555" fontSize={10} tickLine={false} axisLine={false} />
+                  <Tooltip
+                    contentStyle={{ background: "hsl(220,25%,7%)", border: "1px solid hsl(145,100%,50%,0.3)", borderRadius: "4px", fontSize: "12px" }}
+                    labelStyle={{ color: "hsl(145,100%,50%)" }}
+                  />
+                  <Bar dataKey="txCount" name="Transactions" fill="hsl(145,100%,50%)" radius={[4, 4, 0, 0]} opacity={0.8} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="cosmic-card cosmic-card-orange p-5" data-testid="card-difficulty">
-          <h3 className="stat-label mb-4">Current Difficulty</h3>
+          <h3 className="stat-label mb-4">Difficulty Adjustment Progress</h3>
           <div className="flex items-center justify-center py-4">
             <div className="relative w-32 h-32">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
@@ -251,34 +268,32 @@ export default function Dashboard() {
                   stroke="hsl(30,100%,55%)"
                   strokeWidth="8"
                   strokeLinecap="round"
-                  strokeDasharray={`${difficultyPercent * 3.27} 327`}
+                  strokeDasharray={`${diffPercent * 3.27} 327`}
                   style={{ filter: "drop-shadow(0 0 6px hsl(30,100%,55%,0.5))" }}
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="font-heading font-bold text-lg text-neon-orange">{difficulty}</span>
-                <span className="text-[10px] text-muted-foreground font-mono">/ 6000</span>
+                <span className="font-heading font-bold text-lg text-neon-orange">{diffPercent.toFixed(1)}%</span>
+                <span className="text-[10px] text-muted-foreground font-mono">{remainingBlocks} blocks left</span>
               </div>
             </div>
           </div>
+          <div className="text-center text-[10px] font-mono text-muted-foreground mt-2">
+            Est. change: <span className={diffChange >= 0 ? "text-neon-green" : "text-red-400"}>{diffChange >= 0 ? "+" : ""}{diffChange.toFixed(2)}%</span>
+          </div>
         </div>
 
-        <div className="cosmic-card cosmic-card-magenta p-5" data-testid="card-halving">
-          <h3 className="stat-label mb-4">Next Halving</h3>
+        <div className="cosmic-card cosmic-card-magenta p-5" data-testid="card-retarget">
+          <h3 className="stat-label mb-4">Next Difficulty Retarget</h3>
           <div className="flex items-center justify-center gap-3 py-4">
             <div className="text-center">
-              <span className="font-heading font-bold text-2xl text-neon-magenta">{halvingDays}</span>
+              <span className="font-heading font-bold text-2xl text-neon-magenta">{retargetDaysLeft}</span>
               <span className="block text-[10px] text-muted-foreground font-mono">DAYS</span>
             </div>
             <span className="text-muted-foreground text-lg">:</span>
             <div className="text-center">
-              <span className="font-heading font-bold text-2xl text-neon-magenta">{halvingHours}</span>
+              <span className="font-heading font-bold text-2xl text-neon-magenta">{retargetHoursLeft}</span>
               <span className="block text-[10px] text-muted-foreground font-mono">HRS</span>
-            </div>
-            <span className="text-muted-foreground text-lg">:</span>
-            <div className="text-center">
-              <span className="font-heading font-bold text-2xl text-neon-magenta">{halvingMinutes}</span>
-              <span className="block text-[10px] text-muted-foreground font-mono">MIN</span>
             </div>
           </div>
           <div className="mt-2">
@@ -286,7 +301,7 @@ export default function Dashboard() {
               <div
                 className="h-full rounded-full transition-all duration-1000"
                 style={{
-                  width: `${halvingProgress}%`,
+                  width: `${diffPercent}%`,
                   background: "linear-gradient(90deg, hsl(300,100%,60%), hsl(280,100%,60%))",
                   boxShadow: "0 0 10px hsl(300,100%,60%,0.5)",
                 }}
@@ -294,74 +309,82 @@ export default function Dashboard() {
             </div>
             <div className="flex justify-between text-[10px] text-muted-foreground font-mono mt-1">
               <span>Epoch Start</span>
-              <span>{halvingProgress.toFixed(0)}%</span>
+              <span>{diffPercent.toFixed(0)}%</span>
             </div>
           </div>
         </div>
 
-        <div className="cosmic-card cosmic-card-cyan p-5" data-testid="card-emission">
-          <h3 className="stat-label mb-4">Emission Rate</h3>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Epoch</th>
-                <th>Reward</th>
-                <th>Rate</th>
-              </tr>
-            </thead>
-            <tbody>
-              {EMISSION_TABLE.map((row) => (
-                <tr key={row.epoch}>
-                  <td className={row.epoch === "Current" ? "text-neon-cyan" : ""}>{row.epoch}</td>
-                  <td>{row.reward}</td>
-                  <td>{row.rate}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="cosmic-card cosmic-card-cyan p-5" data-testid="card-mempool">
+          <h3 className="stat-label mb-4">Mempool Status</h3>
+          {statsLoading ? (
+            <div className="flex items-center justify-center h-32"><Loader2 className="w-6 h-6 animate-spin text-neon-cyan" /></div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Unconfirmed TXs</span>
+                <span className="font-mono text-neon-cyan">{mempoolStats?.mempoolSize?.toLocaleString() || "—"}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Mempool Size</span>
+                <span className="font-mono">{mempoolStats?.mempoolVSize ? `${(mempoolStats.mempoolVSize / 1e6).toFixed(1)} MvB` : "—"}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground flex items-center gap-1"><Zap className="w-3 h-3" /> Fastest Fee</span>
+                <span className="font-mono text-neon-green">{mempoolStats?.fees.fastest || "—"} sat/vB</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Half-Hour Fee</span>
+                <span className="font-mono">{mempoolStats?.fees.halfHour || "—"} sat/vB</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Economy Fee</span>
+                <span className="font-mono">{mempoolStats?.fees.economy || "—"} sat/vB</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Minimum Fee</span>
+                <span className="font-mono">{mempoolStats?.fees.minimum || "—"} sat/vB</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="cosmic-card p-5" data-testid="table-miners">
         <h3 className="stat-label mb-4">Active Miners</h3>
         <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Miner ID</th>
-                <th>Language</th>
-                <th>Status</th>
-                <th>Hashrate</th>
-                <th>Blocks</th>
-                <th>Accepted</th>
-                <th>Rejected</th>
-              </tr>
-            </thead>
-            <tbody>
-              {miners.map((m) => (
-                <tr key={m.id} data-testid={`row-miner-${m.id}`}>
-                  <td className="text-neon-cyan font-semibold">{m.id}</td>
-                  <td>
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      m.lang === "Rust" ? "bg-neon-orange/10 text-neon-orange" : "bg-neon-cyan/10 text-neon-cyan"
-                    }`}>
-                      {m.lang}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`inline-flex items-center gap-1 ${m.status === "online" ? "text-neon-green" : "text-muted-foreground"}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${m.status === "online" ? "bg-neon-green animate-pulse" : "bg-muted-foreground"}`} />
-                      {m.status}
-                    </span>
-                  </td>
-                  <td>{m.hashrate} H/s</td>
-                  <td>{m.blocks}</td>
-                  <td className="text-neon-green">{m.accepted}</td>
-                  <td className="text-red-400">{m.rejected}</td>
+          {minersLoading ? (
+            <div className="flex items-center justify-center h-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+          ) : miners && miners.length > 0 ? (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Miner ID</th>
+                  <th>Status</th>
+                  <th>Hashrate</th>
+                  <th>Shards</th>
+                  <th>Last Update</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {miners.map((m) => (
+                  <tr key={m.walletAddress} data-testid={`row-miner-${m.walletAddress}`}>
+                    <td className="text-neon-cyan font-semibold">{m.walletAddress}</td>
+                    <td>
+                      <span className={`inline-flex items-center gap-1 ${m.hashRate > 0 ? "text-neon-green" : "text-muted-foreground"}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${m.hashRate > 0 ? "bg-neon-green animate-pulse" : "bg-muted-foreground"}`} />
+                        {m.hashRate > 0 ? "online" : "idle"}
+                      </span>
+                    </td>
+                    <td>{m.hashRate} H/s</td>
+                    <td>{m.shards}</td>
+                    <td className="text-muted-foreground">{m.lastUpdate ? new Date(m.lastUpdate).toLocaleString() : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">No miners registered yet</p>
+          )}
         </div>
       </div>
     </div>

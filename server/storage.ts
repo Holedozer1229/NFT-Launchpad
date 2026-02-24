@@ -1,4 +1,4 @@
-import { launches, miners, users, wallets, walletTransactions, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction } from "@shared/schema";
+import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -27,6 +27,23 @@ export interface IStorage {
   updateWalletBalance(id: number, token: string, amount: string): Promise<void>;
   createTransaction(tx: InsertWalletTransaction): Promise<WalletTransaction>;
   getTransactionsByWallet(walletId: number): Promise<WalletTransaction[]>;
+
+  getNfts(): Promise<Nft[]>;
+  getNft(id: number): Promise<Nft | undefined>;
+  createNft(nft: InsertNft): Promise<Nft>;
+  updateNftStatus(id: number, status: string): Promise<void>;
+
+  getBridgeTransactions(): Promise<BridgeTransaction[]>;
+  createBridgeTransaction(tx: InsertBridgeTransaction): Promise<BridgeTransaction>;
+  updateBridgeStatus(id: number, status: string, signatures: string): Promise<void>;
+
+  getGuardians(): Promise<Guardian[]>;
+  createGuardian(guardian: InsertGuardian): Promise<Guardian>;
+  updateGuardianStatus(guardianIndex: number, status: string): Promise<void>;
+
+  getYieldStrategies(): Promise<YieldStrategy[]>;
+  createYieldStrategy(strategy: InsertYieldStrategy): Promise<YieldStrategy>;
+  updateYieldStrategy(strategyId: string, tvl: string, totalStaked: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -123,6 +140,63 @@ export class DatabaseStorage implements IStorage {
 
   async getTransactionsByWallet(walletId: number): Promise<WalletTransaction[]> {
     return await db.select().from(walletTransactions).where(eq(walletTransactions.walletId, walletId)).orderBy(desc(walletTransactions.createdAt));
+  }
+
+  async getNfts(): Promise<Nft[]> {
+    return await db.select().from(nfts).orderBy(desc(nfts.id));
+  }
+
+  async getNft(id: number): Promise<Nft | undefined> {
+    const [nft] = await db.select().from(nfts).where(eq(nfts.id, id));
+    return nft;
+  }
+
+  async createNft(insertNft: InsertNft): Promise<Nft> {
+    const [nft] = await db.insert(nfts).values(insertNft).returning();
+    return nft;
+  }
+
+  async updateNftStatus(id: number, status: string): Promise<void> {
+    await db.update(nfts).set({ status }).where(eq(nfts.id, id));
+  }
+
+  async getBridgeTransactions(): Promise<BridgeTransaction[]> {
+    return await db.select().from(bridgeTransactions).orderBy(desc(bridgeTransactions.createdAt));
+  }
+
+  async createBridgeTransaction(tx: InsertBridgeTransaction): Promise<BridgeTransaction> {
+    const [btx] = await db.insert(bridgeTransactions).values(tx).returning();
+    return btx;
+  }
+
+  async updateBridgeStatus(id: number, status: string, signatures: string): Promise<void> {
+    await db.update(bridgeTransactions).set({ status, signatures }).where(eq(bridgeTransactions.id, id));
+  }
+
+  async getGuardians(): Promise<Guardian[]> {
+    return await db.select().from(guardians).orderBy(guardians.guardianIndex);
+  }
+
+  async createGuardian(guardian: InsertGuardian): Promise<Guardian> {
+    const [g] = await db.insert(guardians).values(guardian).returning();
+    return g;
+  }
+
+  async updateGuardianStatus(guardianIndex: number, status: string): Promise<void> {
+    await db.update(guardians).set({ status, lastSignature: new Date() }).where(eq(guardians.guardianIndex, guardianIndex));
+  }
+
+  async getYieldStrategies(): Promise<YieldStrategy[]> {
+    return await db.select().from(yieldStrategies);
+  }
+
+  async createYieldStrategy(strategy: InsertYieldStrategy): Promise<YieldStrategy> {
+    const [s] = await db.insert(yieldStrategies).values(strategy).returning();
+    return s;
+  }
+
+  async updateYieldStrategy(strategyId: string, tvl: string, totalStaked: string): Promise<void> {
+    await db.update(yieldStrategies).set({ tvl, totalStaked }).where(eq(yieldStrategies.strategyId, strategyId));
   }
 }
 

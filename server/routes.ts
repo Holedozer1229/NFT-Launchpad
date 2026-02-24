@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMinerSchema } from "@shared/schema";
+import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema } from "@shared/schema";
 import { randomBytes } from "crypto";
 import { z } from "zod";
 import OpenAI from "openai";
@@ -226,6 +226,208 @@ export async function registerRoutes(
       res.json({ transaction, newBalance });
     } catch (error) {
       res.status(500).json({ message: "Failed to send transaction" });
+    }
+  });
+
+  // ========== NFT ROUTES ==========
+
+  app.get("/api/nfts", async (_req, res) => {
+    try {
+      const allNfts = await storage.getNfts();
+      res.json(allNfts);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch NFTs" });
+    }
+  });
+
+  app.get("/api/nfts/:id", async (req, res) => {
+    try {
+      const nft = await storage.getNft(parseInt(req.params.id));
+      if (!nft) return res.status(404).json({ message: "NFT not found" });
+      res.json(nft);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch NFT" });
+    }
+  });
+
+  app.post("/api/nfts", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const parsed = insertNftSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json(parsed.error);
+      const nft = await storage.createNft(parsed.data);
+      res.json(nft);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create NFT" });
+    }
+  });
+
+  // ========== BRIDGE ROUTES ==========
+
+  app.get("/api/bridge/transactions", async (_req, res) => {
+    try {
+      const txs = await storage.getBridgeTransactions();
+      res.json(txs);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch bridge transactions" });
+    }
+  });
+
+  app.post("/api/bridge/transactions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const parsed = insertBridgeTransactionSchema.safeParse({
+        ...req.body,
+        userId: req.user!.id,
+        txHash: "0x" + randomBytes(32).toString("hex"),
+      });
+      if (!parsed.success) return res.status(400).json(parsed.error);
+      const tx = await storage.createBridgeTransaction(parsed.data);
+      res.json(tx);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create bridge transaction" });
+    }
+  });
+
+  app.get("/api/bridge/guardians", async (_req, res) => {
+    try {
+      const gs = await storage.getGuardians();
+      res.json(gs);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch guardians" });
+    }
+  });
+
+  // ========== YIELD STRATEGY ROUTES ==========
+
+  app.get("/api/yield/strategies", async (_req, res) => {
+    try {
+      const strategies = await storage.getYieldStrategies();
+      res.json(strategies);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch yield strategies" });
+    }
+  });
+
+  // ========== MEMPOOL LIVE DATA ROUTES ==========
+
+  app.get("/api/mempool/stats", async (_req, res) => {
+    try {
+      const [mempoolInfo, fees, blockTip] = await Promise.all([
+        fetch("https://mempool.space/api/mempool").then(r => r.json()),
+        fetch("https://mempool.space/api/v1/fees/recommended").then(r => r.json()),
+        fetch("https://mempool.space/api/blocks/tip/height").then(r => r.text()),
+      ]);
+      res.json({
+        mempoolSize: mempoolInfo.count || 0,
+        mempoolVSize: mempoolInfo.vsize || 0,
+        totalFee: mempoolInfo.total_fee || 0,
+        fees: {
+          fastest: fees.fastestFee || 0,
+          halfHour: fees.halfHourFee || 0,
+          hour: fees.hourFee || 0,
+          economy: fees.economyFee || 0,
+          minimum: fees.minimumFee || 0,
+        },
+        blockHeight: parseInt(blockTip) || 0,
+      });
+    } catch (error) {
+      console.error("Mempool fetch error:", error);
+      res.status(500).json({ message: "Failed to fetch mempool data" });
+    }
+  });
+
+  app.get("/api/mempool/hashrate", async (_req, res) => {
+    try {
+      const data = await fetch("https://mempool.space/api/v1/mining/hashrate/1m").then(r => r.json());
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch hashrate data" });
+    }
+  });
+
+  app.get("/api/mempool/difficulty", async (_req, res) => {
+    try {
+      const data = await fetch("https://mempool.space/api/v1/difficulty-adjustment").then(r => r.json());
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch difficulty data" });
+    }
+  });
+
+  app.get("/api/mempool/blocks", async (_req, res) => {
+    try {
+      const data = await fetch("https://mempool.space/api/v1/blocks").then(r => r.json());
+      res.json(data.slice(0, 10));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch blocks data" });
+    }
+  });
+
+  // ========== SEED DATA ROUTE (admin only) ==========
+
+  app.post("/api/admin/seed", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user!.isAdmin) return res.status(403).json({ message: "Forbidden" });
+    try {
+      const existingNfts = await storage.getNfts();
+      if (existingNfts.length === 0) {
+        const nftSeedData = [
+          { title: "Oracle Genesis Fragment", image: "/assets/sphinx-eye.png", rarity: "Mythic", status: "minted", mintDate: "2025-01-15", tokenId: "0x7A3F...E1D9", owner: "0xDEAD...BEEF", price: "100 ETH", chain: "ethereum" },
+          { title: "Mission Patch Alpha", image: "/assets/mission-patch.png", rarity: "Legendary", status: "staked", mintDate: "2025-02-03", tokenId: "0x9B2C...A4F7", owner: "0xCAFE...BABE", price: "1.0 ETH", chain: "polygon" },
+          { title: "Quantum Tunnel Passage", image: "/assets/quantum-tunnel.png", rarity: "Rare", status: "listed", mintDate: "2025-02-18", tokenId: "0x4E8D...C3B2", owner: "0xFACE...D00D", price: "0.5 ETH", chain: "arbitrum" },
+          { title: "Rocket Launch Sequence", image: "/assets/rocket-launch.png", rarity: "Rare", status: "minted", mintDate: "2025-03-01", tokenId: "0x1F6A...D8E5", owner: "0xBEEF...CAFE", price: "0.5 ETH", chain: "base" },
+          { title: "Forge HUD Interface", image: "/assets/forge-hud.png", rarity: "Common", status: "minted", mintDate: "2025-03-12", tokenId: "0x3C9E...B7A1", owner: "0xDEAD...FACE", price: "0.1 ETH", chain: "solana" },
+          { title: "Sphinx Data Stream", image: "/assets/sphinx-stream.png", rarity: "Rare", status: "staked", mintDate: "2025-03-20", tokenId: "0x6D4B...F2C8", owner: "0xBABE...DEAD", price: "0.5 ETH", chain: "ethereum" },
+          { title: "NFT Preview Core", image: "/assets/nft-preview.png", rarity: "Common", status: "listed", mintDate: "2025-04-01", tokenId: "0x8A5F...E9D3", owner: "0xD00D...BEEF", price: "0.1 ETH", chain: "stacks" },
+          { title: "Abstract Cosmos Shard", image: "/assets/hero-abstract.png", rarity: "Common", status: "minted", mintDate: "2025-04-10", tokenId: "0x2B7C...A1F6", owner: "0xCAFE...FACE", price: "0.1 ETH", chain: "polygon" },
+        ];
+        for (const nft of nftSeedData) {
+          await storage.createNft(nft);
+        }
+      }
+
+      const existingGuardians = await storage.getGuardians();
+      if (existingGuardians.length === 0) {
+        for (let i = 1; i <= 9; i++) {
+          await storage.createGuardian({
+            guardianIndex: i,
+            status: i === 7 ? "offline" : "online",
+            publicKey: "0x" + randomBytes(20).toString("hex"),
+          });
+        }
+      }
+
+      const existingStrategies = await storage.getYieldStrategies();
+      if (existingStrategies.length === 0) {
+        const strategySeedData = [
+          { strategyId: "sphinx-lp", name: "SphinxSkynet LP", contract: "0x7a3F...f2e1", apr: "42.8", riskScore: 25, tvl: "2450000", totalStaked: "1200", color: "cyan", active: true, description: "Automated liquidity provision across SphinxSkynet hypercube network" },
+          { strategyId: "cross-chain", name: "Cross-Chain Routing", contract: "0x4b1C...a8c3", apr: "68.5", riskScore: 55, tvl: "1180000", totalStaked: "800", color: "green", active: true, description: "Multi-chain yield optimization via SphinxBridge guardian network" },
+          { strategyId: "pox-delegation", name: "PoX STX Delegation", contract: "ST1PQ...PGZGM", apr: "95.2", riskScore: 40, tvl: "620000", totalStaked: "0", color: "orange", active: true, description: "Non-custodial STX delegation with BTC yield routing to treasury" },
+          { strategyId: "single-stake", name: "SKYNT Single Stake", contract: "0x9d2B...b4f7", apr: "24.6", riskScore: 10, tvl: "5800000", totalStaked: "3500", color: "magenta", active: true, description: "Simple staking with zk-SNARK verified yield distribution" },
+        ];
+        for (const s of strategySeedData) {
+          await storage.createYieldStrategy(s);
+        }
+      }
+
+      const existingBridgeTxs = await storage.getBridgeTransactions();
+      if (existingBridgeTxs.length === 0) {
+        const bridgeSeedData = [
+          { fromChain: "Ethereum", toChain: "SphinxSkynet", amount: "500", token: "SKYNT", status: "Released", signatures: "5/5", mechanism: "Lock → Mint", txHash: "0x" + randomBytes(32).toString("hex") },
+          { fromChain: "Polygon", toChain: "Ethereum", amount: "1200", token: "SKYNT", status: "Minted", signatures: "5/5", mechanism: "Lock → Mint", txHash: "0x" + randomBytes(32).toString("hex") },
+          { fromChain: "SphinxSkynet", toChain: "Arbitrum", amount: "250", token: "SKYNT", status: "Locked", signatures: "3/5", mechanism: "Burn → Release", txHash: "0x" + randomBytes(32).toString("hex") },
+          { fromChain: "Base", toChain: "Ethereum", amount: "800", token: "SKYNT", status: "Released", signatures: "5/5", mechanism: "Lock → Mint", txHash: "0x" + randomBytes(32).toString("hex") },
+          { fromChain: "Ethereum", toChain: "SphinxSkynet", amount: "2000", token: "SKYNT", status: "Burned", signatures: "4/5", mechanism: "Burn → Release", txHash: "0x" + randomBytes(32).toString("hex") },
+        ];
+        for (const tx of bridgeSeedData) {
+          await storage.createBridgeTransaction(tx);
+        }
+      }
+
+      res.json({ message: "Seed data applied successfully" });
+    } catch (error) {
+      console.error("Seed error:", error);
+      res.status(500).json({ message: "Failed to seed data" });
     }
   });
 

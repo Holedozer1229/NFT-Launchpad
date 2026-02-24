@@ -2,6 +2,7 @@ import { ReactNode, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
+import { WalletPicker } from "@/components/WalletPicker";
 import { useAuth } from "@/hooks/use-auth";
 
 const navItems = [
@@ -41,7 +42,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isConnected, address, connect, isConnecting, disconnect } = useWallet();
+  const { isConnected, address, connect, isConnecting, disconnect, provider } = useWallet();
   const { user, logout } = useAuth();
 
   return (
@@ -107,7 +108,9 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
           {isConnected ? (
             <div className={`${collapsed ? "" : "px-1"}`}>
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-neon-green animate-pulse shrink-0" style={{ boxShadow: "0 0 6px hsl(145 100% 50% / 0.6)" }} />
+                <span className="shrink-0" title={provider === "phantom" ? "Phantom" : "MetaMask"}>
+                  {provider === "phantom" ? "👻" : "🦊"}
+                </span>
                 {!collapsed && (
                   <span className="font-mono text-[11px] text-foreground truncate flex-1">
                     {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ""}
@@ -122,12 +125,17 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
                   <X className="w-3 h-3" />
                 </button>
               </div>
+              {!collapsed && (
+                <div className="mt-1 text-[9px] font-mono text-muted-foreground/60 pl-5">
+                  {provider === "phantom" ? "Solana" : "EVM"} Network
+                </div>
+              )}
             </div>
           ) : (
             <button
               data-testid="button-connect-wallet"
               className={`connect-wallet-btn w-full flex items-center justify-center gap-2 py-2.5 rounded-sm text-xs ${collapsed ? "px-2" : "px-4"}`}
-              onClick={connect}
+              onClick={() => connect()}
               disabled={isConnecting}
             >
               <Wallet className={`w-4 h-4 shrink-0 ${isConnecting ? "animate-pulse" : ""}`} />
@@ -167,6 +175,8 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
       <main className="flex-1 overflow-y-auto relative z-10 p-6 md:p-8" data-testid="main-content">
         {children}
       </main>
+
+      <WalletPicker />
     </div>
   );
 }

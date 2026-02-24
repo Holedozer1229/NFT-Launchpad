@@ -13,6 +13,77 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
+export const SUPPORTED_CHAINS = {
+  ethereum: {
+    id: "ethereum",
+    name: "Ethereum",
+    symbol: "ETH",
+    icon: "⟠",
+    color: "#627EEA",
+    chainId: 1,
+    explorer: "https://etherscan.io",
+    contractAddress: "0x7A3F...SpaceFlightNFT",
+    gasEstimate: "~0.008 ETH",
+  },
+  polygon: {
+    id: "polygon",
+    name: "Polygon",
+    symbol: "MATIC",
+    icon: "⬡",
+    color: "#8247E5",
+    chainId: 137,
+    explorer: "https://polygonscan.com",
+    contractAddress: "0x4E8D...SpaceFlightNFT",
+    gasEstimate: "~0.01 MATIC",
+  },
+  arbitrum: {
+    id: "arbitrum",
+    name: "Arbitrum",
+    symbol: "ETH",
+    icon: "◈",
+    color: "#28A0F0",
+    chainId: 42161,
+    explorer: "https://arbiscan.io",
+    contractAddress: "0x9B2C...SpaceFlightNFT",
+    gasEstimate: "~0.0003 ETH",
+  },
+  stacks: {
+    id: "stacks",
+    name: "Stacks",
+    symbol: "STX",
+    icon: "⟐",
+    color: "#FC6432",
+    chainId: 0,
+    explorer: "https://explorer.stacks.co",
+    contractAddress: "SP2...sphinx-nft",
+    gasEstimate: "~0.5 STX",
+  },
+  base: {
+    id: "base",
+    name: "Base",
+    symbol: "ETH",
+    icon: "◉",
+    color: "#0052FF",
+    chainId: 8453,
+    explorer: "https://basescan.org",
+    contractAddress: "0x1F6A...SpaceFlightNFT",
+    gasEstimate: "~0.0002 ETH",
+  },
+  solana: {
+    id: "solana",
+    name: "Solana",
+    symbol: "SOL",
+    icon: "◎",
+    color: "#9945FF",
+    chainId: 0,
+    explorer: "https://explorer.solana.com",
+    contractAddress: "Sphnx...NftProgram",
+    gasEstimate: "~0.00025 SOL",
+  },
+} as const;
+
+export type ChainId = keyof typeof SUPPORTED_CHAINS;
+
 export const RARITY_TIERS = {
   mythic: { label: "Mythic", supply: 1, color: "magenta", price: "100 ETH" },
   legendary: { label: "Legendary", supply: 3, color: "orange", price: "1.0 ETH" },
@@ -91,5 +162,72 @@ export const insertMinerSchema = createInsertSchema(miners).omit({
 
 export type Miner = typeof miners.$inferSelect;
 export type InsertMiner = z.infer<typeof insertMinerSchema>;
+
+export const nfts = pgTable("nfts", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  title: text("title").notNull(),
+  image: text("image").notNull(),
+  rarity: text("rarity").notNull(),
+  status: text("status").notNull().default("minted"),
+  mintDate: text("mint_date").notNull(),
+  tokenId: text("token_id").notNull(),
+  owner: text("owner").notNull(),
+  price: text("price").notNull(),
+  chain: text("chain").notNull().default("ethereum"),
+  launchId: integer("launch_id"),
+  mintedBy: integer("minted_by"),
+});
+
+export const insertNftSchema = createInsertSchema(nfts).omit({ id: true });
+export type Nft = typeof nfts.$inferSelect;
+export type InsertNft = z.infer<typeof insertNftSchema>;
+
+export const bridgeTransactions = pgTable("bridge_transactions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  fromChain: text("from_chain").notNull(),
+  toChain: text("to_chain").notNull(),
+  amount: text("amount").notNull(),
+  token: text("token").notNull().default("SKYNT"),
+  status: text("status").notNull().default("Locked"),
+  signatures: text("signatures").notNull().default("0/5"),
+  mechanism: text("mechanism").notNull().default("Lock → Mint"),
+  txHash: text("tx_hash"),
+  userId: integer("user_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertBridgeTransactionSchema = createInsertSchema(bridgeTransactions).omit({ id: true, createdAt: true });
+export type BridgeTransaction = typeof bridgeTransactions.$inferSelect;
+export type InsertBridgeTransaction = z.infer<typeof insertBridgeTransactionSchema>;
+
+export const guardians = pgTable("guardians", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  guardianIndex: integer("guardian_index").notNull().unique(),
+  status: text("status").notNull().default("online"),
+  lastSignature: timestamp("last_signature").defaultNow(),
+  publicKey: text("public_key"),
+});
+
+export const insertGuardianSchema = createInsertSchema(guardians).omit({ id: true });
+export type Guardian = typeof guardians.$inferSelect;
+export type InsertGuardian = z.infer<typeof insertGuardianSchema>;
+
+export const yieldStrategies = pgTable("yield_strategies", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  strategyId: text("strategy_id").notNull().unique(),
+  name: text("name").notNull(),
+  contract: text("contract").notNull(),
+  apr: text("apr").notNull(),
+  riskScore: integer("risk_score").notNull().default(25),
+  tvl: text("tvl").notNull().default("0"),
+  totalStaked: text("total_staked").notNull().default("0"),
+  color: text("color").notNull().default("cyan"),
+  active: boolean("active").notNull().default(true),
+  description: text("description").notNull(),
+});
+
+export const insertYieldStrategySchema = createInsertSchema(yieldStrategies).omit({ id: true });
+export type YieldStrategy = typeof yieldStrategies.$inferSelect;
+export type InsertYieldStrategy = z.infer<typeof insertYieldStrategySchema>;
 
 export { conversations, messages } from "./models/chat";

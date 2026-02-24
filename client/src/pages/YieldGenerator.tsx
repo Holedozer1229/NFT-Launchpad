@@ -1,57 +1,29 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, Lock, Unlock, Wallet, Coins, Percent, Clock, Zap, Shield, Gift, ArrowRight, Activity, CheckCircle, Fingerprint, Gauge } from "lucide-react";
+import { TrendingUp, Lock, Unlock, Wallet, Coins, Percent, Clock, Zap, Shield, Gift, ArrowRight, Activity, CheckCircle, Fingerprint, Gauge, Loader2 } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
+import { useQuery } from "@tanstack/react-query";
 
-const STRATEGIES = [
-  {
-    id: "sphinx-lp",
-    name: "SphinxSkynet LP",
-    contract: "0x7a3...f2e1",
-    apr: 42.8,
-    riskScore: 25,
-    tvl: "2,450,000",
-    staked: "1,200",
-    color: "cyan",
-    active: true,
-    description: "Automated liquidity provision across SphinxSkynet hypercube network",
-  },
-  {
-    id: "cross-chain",
-    name: "Cross-Chain Routing",
-    contract: "0x4b1...a8c3",
-    apr: 68.5,
-    riskScore: 55,
-    tvl: "1,180,000",
-    staked: "800",
-    color: "green",
-    active: true,
-    description: "Multi-chain yield optimization via SphinxBridge guardian network",
-  },
-  {
-    id: "pox-delegation",
-    name: "PoX STX Delegation",
-    contract: "ST1PQ...PGZGM",
-    apr: 95.2,
-    riskScore: 40,
-    tvl: "620,000",
-    staked: "0",
-    color: "orange",
-    active: true,
-    description: "Non-custodial STX delegation with BTC yield routing to treasury",
-  },
-  {
-    id: "single-stake",
-    name: "SKYNT Single Stake",
-    contract: "0x9d2...b4f7",
-    apr: 24.6,
-    riskScore: 10,
-    tvl: "5,800,000",
-    staked: "3,500",
-    color: "magenta",
-    active: true,
-    description: "Simple staking with zk-SNARK verified yield distribution",
-  },
-];
+interface StrategyData {
+  id: number;
+  strategyId: string;
+  name: string;
+  contract: string;
+  apr: string;
+  riskScore: number;
+  tvl: string;
+  totalStaked: string;
+  color: string;
+  active: boolean;
+  description: string;
+}
+
+interface WalletData {
+  id: number;
+  balanceSkynt: string;
+  balanceStx: string;
+  balanceEth: string;
+  address: string;
+}
 
 function AnimatedCounter({ target, decimals = 2 }: { target: number; decimals?: number }) {
   const [value, setValue] = useState(0);
@@ -87,9 +59,21 @@ export default function YieldGenerator() {
   const [staking, setStaking] = useState(false);
   const [stakeSuccess, setStakeSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState<"stake" | "unstake">("stake");
-  const [earnedRewards, setEarnedRewards] = useState(12.847);
+  const [earnedRewards, setEarnedRewards] = useState(0);
   const [phiScore, setPhiScore] = useState(650);
   const [zkVerified, setZkVerified] = useState(true);
+
+  const { data: strategies = [], isLoading: strategiesLoading } = useQuery<StrategyData[]>({
+    queryKey: ["/api/yield/strategies"],
+  });
+
+  const { data: wallets = [] } = useQuery<WalletData[]>({
+    queryKey: ["/api/wallet/list"],
+    enabled: isConnected,
+  });
+
+  const primaryWallet = wallets[0];
+  const skyntBalance = primaryWallet?.balanceSkynt || "0";
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -98,8 +82,7 @@ export default function YieldGenerator() {
     return () => clearInterval(interval);
   }, []);
 
-  const skyntBalance = "10,000";
-  const totalStaked = STRATEGIES.reduce((sum, s) => sum + parseFloat(s.staked.replace(/,/g, "")), 0);
+  const totalStaked = strategies.reduce((sum, s) => sum + parseFloat(s.totalStaked || "0"), 0);
   const phiBoost = calculatePhiBoost(phiScore);
   const treasuryRate = calculateTreasuryRate(phiScore);
 
@@ -114,7 +97,7 @@ export default function YieldGenerator() {
     setTimeout(() => setStakeSuccess(false), 4000);
   };
 
-  const strategy = selectedStrategy ? STRATEGIES.find((s) => s.id === selectedStrategy) : null;
+  const strategy = selectedStrategy ? strategies.find((s) => s.strategyId === selectedStrategy) : null;
 
   const colorClass = (c: string) => ({
     cyan: { text: "text-neon-cyan", bg: "bg-neon-cyan/10", border: "cosmic-card-cyan" },
@@ -143,15 +126,15 @@ export default function YieldGenerator() {
       {!isConnected && (
         <div className="cosmic-card cosmic-card-magenta p-6 text-center space-y-3">
           <Wallet className="w-10 h-10 text-neon-magenta mx-auto" />
-          <p className="text-sm font-heading">Connect MetaMask to Start Earning</p>
+          <p className="text-sm font-heading">Connect Wallet to Start Earning</p>
           <p className="text-xs text-muted-foreground">Link your wallet to stake SKYNT and generate yield via the SphinxYieldAggregator.</p>
           <button
             data-testid="button-yield-connect"
-            onClick={connect}
+            onClick={() => connect()}
             disabled={isConnecting}
             className="connect-wallet-btn px-6 py-2.5 rounded-sm font-heading text-sm tracking-wider mx-auto"
           >
-            {isConnecting ? "Connecting..." : "Connect MetaMask"}
+            {isConnecting ? "Connecting..." : "Connect Wallet"}
           </button>
         </div>
       )}
@@ -186,7 +169,7 @@ export default function YieldGenerator() {
                 <Coins className="w-4 h-4 text-neon-magenta" />
                 <span className="stat-label">Wallet</span>
               </div>
-              <p className="text-lg font-heading text-neon-magenta">{skyntBalance} SKYNT</p>
+              <p className="text-lg font-heading text-neon-magenta">{parseFloat(skyntBalance).toLocaleString()} SKYNT</p>
               <p className="font-mono text-[9px] text-muted-foreground mt-0.5 truncate">{address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ""}</p>
             </div>
           </div>
@@ -219,15 +202,18 @@ export default function YieldGenerator() {
               <h2 className="font-heading text-sm uppercase tracking-wider flex items-center gap-2">
                 <Zap className="w-4 h-4 text-primary" /> Yield Strategies
               </h2>
-              {STRATEGIES.map((s) => {
+              {strategiesLoading ? (
+                <div className="flex items-center justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+              ) : strategies.map((s) => {
                 const cc = colorClass(s.color);
-                const isSelected = selectedStrategy === s.id;
+                const isSelected = selectedStrategy === s.strategyId;
                 const riskLabel = s.riskScore <= 25 ? "Low" : s.riskScore <= 50 ? "Medium" : "High";
+                const apr = parseFloat(s.apr);
                 return (
                   <button
-                    key={s.id}
-                    data-testid={`strategy-${s.id}`}
-                    onClick={() => setSelectedStrategy(s.id)}
+                    key={s.strategyId}
+                    data-testid={`strategy-${s.strategyId}`}
+                    onClick={() => setSelectedStrategy(s.strategyId)}
                     className={`cosmic-card ${cc.border} p-4 w-full text-left transition-all ${isSelected ? "ring-1 ring-primary/60 scale-[1.01]" : "hover:scale-[1.005]"}`}
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -238,11 +224,11 @@ export default function YieldGenerator() {
                     <div className="grid grid-cols-3 gap-3">
                       <div>
                         <p className="text-[10px] text-muted-foreground">APR</p>
-                        <p className={`font-heading text-sm ${cc.text}`}>{s.apr}%</p>
+                        <p className={`font-heading text-sm ${cc.text}`}>{apr}%</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-muted-foreground">TVL</p>
-                        <p className="font-mono text-xs">${s.tvl}</p>
+                        <p className="font-mono text-xs">${parseInt(s.tvl).toLocaleString()}</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-muted-foreground">Risk Score</p>
@@ -251,8 +237,8 @@ export default function YieldGenerator() {
                     </div>
                     <div className="mt-2 pt-2 border-t border-border/30 flex justify-between items-center">
                       <span className="font-mono text-[10px] text-muted-foreground truncate">{s.contract}</span>
-                      {parseFloat(s.staked.replace(/,/g, "")) > 0 && (
-                        <span className="font-mono text-xs text-primary">{s.staked} SKYNT</span>
+                      {parseFloat(s.totalStaked) > 0 && (
+                        <span className="font-mono text-xs text-primary">{parseFloat(s.totalStaked).toLocaleString()} SKYNT</span>
                       )}
                     </div>
                   </button>
@@ -307,10 +293,10 @@ export default function YieldGenerator() {
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-heading">SKYNT</span>
                       </div>
                       <div className="flex justify-between text-[10px] font-mono text-muted-foreground px-1">
-                        <span>{activeTab === "stake" ? `Balance: ${skyntBalance}` : `Deposited: ${strategy.staked}`} SKYNT</span>
+                        <span>{activeTab === "stake" ? `Balance: ${parseFloat(skyntBalance).toLocaleString()}` : `Deposited: ${parseFloat(strategy.totalStaked).toLocaleString()}`} SKYNT</span>
                         <button
                           data-testid="button-max-stake"
-                          onClick={() => setStakeAmount(activeTab === "stake" ? "10000" : strategy.staked.replace(/,/g, ""))}
+                          onClick={() => setStakeAmount(activeTab === "stake" ? skyntBalance : strategy.totalStaked)}
                           className="text-primary hover:text-primary/80"
                         >
                           MAX
@@ -325,7 +311,7 @@ export default function YieldGenerator() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground flex items-center gap-1"><Gauge className="w-3 h-3" /> Phi Boosted APR</span>
-                        <span className="font-mono text-neon-green">{(strategy.apr * phiBoost).toFixed(1)}%</span>
+                        <span className="font-mono text-neon-green">{(parseFloat(strategy.apr) * phiBoost).toFixed(1)}%</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground flex items-center gap-1"><Activity className="w-3 h-3" /> Risk Score</span>
@@ -348,13 +334,13 @@ export default function YieldGenerator() {
                           <div className="flex justify-between pt-2 border-t border-border/30">
                             <span className="text-muted-foreground flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Est. Daily Yield</span>
                             <span className="font-mono text-neon-green">
-                              {((parseFloat(stakeAmount) * strategy.apr * phiBoost) / 365 / 100).toFixed(4)} SKYNT
+                              {((parseFloat(stakeAmount) * parseFloat(strategy.apr) * phiBoost) / 365 / 100).toFixed(4)} SKYNT
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground flex items-center gap-1"><Gift className="w-3 h-3" /> Your Share</span>
                             <span className="font-mono text-neon-cyan">
-                              {((parseFloat(stakeAmount) * strategy.apr * phiBoost * (1 - treasuryRate)) / 365 / 100).toFixed(4)} SKYNT/day
+                              {((parseFloat(stakeAmount) * parseFloat(strategy.apr) * phiBoost * (1 - treasuryRate)) / 365 / 100).toFixed(4)} SKYNT/day
                             </span>
                           </div>
                         </>
@@ -370,7 +356,7 @@ export default function YieldGenerator() {
                       <div className="flex items-center justify-center gap-2">
                         {staking ? (
                           <>
-                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <Loader2 className="w-4 h-4 animate-spin" />
                             {activeTab === "stake" ? "Depositing..." : "Withdrawing..."}
                           </>
                         ) : (
@@ -395,8 +381,8 @@ export default function YieldGenerator() {
                         { label: "90 Days", days: 90 },
                         { label: "1 Year", days: 365 },
                       ].map((period) => {
-                        const base = parseFloat(stakeAmount || strategy.staked.replace(/,/g, "") || "1000");
-                        const grossYield = (base * strategy.apr * phiBoost * period.days) / 365 / 100;
+                        const base = parseFloat(stakeAmount || strategy.totalStaked || "1000");
+                        const grossYield = (base * parseFloat(strategy.apr) * phiBoost * period.days) / 365 / 100;
                         const netYield = grossYield * (1 - treasuryRate);
                         return (
                           <div key={period.label} className="p-3 bg-black/30 border border-border/30 rounded-sm text-center">
