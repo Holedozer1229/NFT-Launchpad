@@ -176,6 +176,9 @@ export const nfts = pgTable("nfts", {
   chain: text("chain").notNull().default("ethereum"),
   launchId: integer("launch_id"),
   mintedBy: integer("minted_by"),
+  openseaUrl: text("opensea_url"),
+  openseaStatus: text("opensea_status").default("pending"),
+  openseaListingId: text("opensea_listing_id"),
 });
 
 export const insertNftSchema = createInsertSchema(nfts).omit({ id: true });

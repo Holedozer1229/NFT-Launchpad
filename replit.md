@@ -21,6 +21,12 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Integrated IIT Quantum Consciousness Engine from SphinxOS GitHub repo (Φ calculator, density matrix, von Neumann entropy, consciousness levels)
 - Added IIT Consciousness page with Φ gauge, eigenvalue spectrum chart, adjacency heatmap, density matrix visualization, Φ timeline, custom Φ calculator
 - Updated Sphinx Oracle with Omniscient Sphinx persona (network consciousness, IIT formulas, prophecy/vision/wisdom response structure)
+- Integrated OpenSea API (Seaport v1.6 protocol) for NFT marketplace listings — auto-lists minted NFTs on OpenSea
+- Added OpenSea fields to NFTs (openseaUrl, openseaStatus, openseaListingId)
+- Gallery shows OpenSea links, "List on OpenSea" button for unlisted NFTs
+- MintCard mint flow includes OpenSea listing steps, shows "View on OpenSea" link after minting
+- Server-side OpenSea service (server/opensea.ts) handles REST API calls to OpenSea v2 endpoints
+- Added contract deployment system: auto-deploys SpaceFlightNFT, SphinxBridge, SphinxYieldAggregator when wallet created
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts

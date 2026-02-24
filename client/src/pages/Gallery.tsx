@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2 } from "lucide-react";
+import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag } from "lucide-react";
 import { SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic";
 
@@ -18,6 +20,9 @@ interface NFTItem {
   owner: string;
   price: string;
   chain: string;
+  openseaUrl: string | null;
+  openseaStatus: string | null;
+  openseaListingId: string | null;
 }
 
 const rarityConfig: Record<string, { color: string; cardClass: string; icon: React.ReactNode }> = {
@@ -51,6 +56,27 @@ export default function Gallery() {
   const [filterRarity, setFilterRarity] = useState<FilterRarity>("All");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [filterChain, setFilterChain] = useState<FilterChain>("all");
+  const [listingNftId, setListingNftId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const handleListOnOpenSea = async (nftId: number) => {
+    setListingNftId(nftId);
+    try {
+      const res = await apiRequest("POST", "/api/opensea/list", { nftId });
+      const result = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
+      if (result.success) {
+        toast({ title: "LISTED ON OPENSEA", description: "NFT successfully listed on OpenSea marketplace." });
+      } else {
+        toast({ title: "OPENSEA LISTING SENT", description: result.error || "Listing submitted to OpenSea Seaport protocol." });
+      }
+    } catch {
+      toast({ title: "LISTING FAILED", description: "Could not list on OpenSea.", variant: "destructive" });
+    } finally {
+      setListingNftId(null);
+    }
+  };
 
   const { data: nfts = [], isLoading } = useQuery<NFTItem[]>({
     queryKey: ["/api/nfts"],
@@ -200,6 +226,30 @@ export default function Gallery() {
                   </div>
 
                   <div className="absolute bottom-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    {nft.openseaUrl && (
+                      <a
+                        href={nft.openseaUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-7 px-2.5 rounded-sm text-[10px] font-heading flex items-center gap-1 bg-[#2081E2]/20 border border-[#2081E2]/40 text-[#2081E2] hover:bg-[#2081E2]/30 transition-colors backdrop-blur-md"
+                        data-testid={`link-opensea-${nft.id}`}
+                      >
+                        <ShoppingBag className="w-3 h-3" />
+                        OpenSea
+                      </a>
+                    )}
+                    {!nft.openseaUrl && nft.status === "minted" && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleListOnOpenSea(nft.id); }}
+                        disabled={listingNftId === nft.id}
+                        className="h-7 px-2.5 rounded-sm text-[10px] font-heading flex items-center gap-1 bg-[#2081E2]/10 border border-[#2081E2]/30 text-[#2081E2] hover:bg-[#2081E2]/20 transition-colors backdrop-blur-md disabled:opacity-50"
+                        data-testid={`button-list-opensea-${nft.id}`}
+                      >
+                        <ShoppingBag className="w-3 h-3" />
+                        {listingNftId === nft.id ? "Listing..." : "List"}
+                      </button>
+                    )}
                     {explorerUrl && (
                       <a
                         href={explorerUrl}
@@ -213,9 +263,6 @@ export default function Gallery() {
                         {chainData?.name}
                       </a>
                     )}
-                    <Button size="sm" className="connect-wallet-btn text-[10px] font-heading h-7 px-3" data-testid={`button-view-nft-${nft.id}`}>
-                      <Eye className="w-3 h-3 mr-1" /> View
-                    </Button>
                   </div>
                 </div>
 
@@ -231,6 +278,20 @@ export default function Gallery() {
                     </span>
                     <span className="text-primary font-bold" data-testid={`text-nft-price-${nft.id}`}>{nft.price}</span>
                   </div>
+
+                  {nft.openseaUrl && (
+                    <a
+                      href={nft.openseaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-[10px] font-mono text-[#2081E2] hover:text-[#2081E2]/80 transition-colors"
+                      data-testid={`link-opensea-bottom-${nft.id}`}
+                    >
+                      <ShoppingBag className="w-3 h-3" />
+                      <span>View on OpenSea</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  )}
 
                   <div className="flex justify-between items-center text-[10px] font-mono text-muted-foreground/60 pt-2 border-t border-border/50">
                     <span>{nft.mintDate}</span>

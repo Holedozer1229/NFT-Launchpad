@@ -6,6 +6,7 @@ import { randomBytes } from "crypto";
 import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception } from "./iit-engine";
+import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
 
 function generateContractAddress(): string {
   return "0x" + randomBytes(20).toString("hex");
@@ -315,11 +316,109 @@ export async function registerRoutes(
     try {
       const parsed = insertNftSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json(parsed.error);
-      const nft = await storage.createNft(parsed.data);
-      res.json(nft);
+
+      const chainId = (parsed.data.chain || "ethereum") as ChainId;
+      const chainData = SUPPORTED_CHAINS[chainId];
+      const contractAddr = chainData?.contractAddress || "0x0000000000000000000000000000000000000000";
+      const tokenIdClean = parsed.data.tokenId.replace(/\.\.\./g, "").replace("0x", "");
+
+      const supported = isOpenSeaSupported(chainId);
+      const openseaUrl = supported ? getOpenSeaNftUrl(chainId, contractAddr, tokenIdClean) : null;
+      const nftData = {
+        ...parsed.data,
+        openseaUrl,
+        openseaStatus: supported ? "pending" : "unsupported",
+      };
+
+      const nft = await storage.createNft(nftData);
+
+      if (supported) {
+        listNftOnOpenSea({
+          chain: chainId,
+          contractAddress: contractAddr,
+          tokenId: tokenIdClean,
+          price: parsed.data.price,
+          sellerAddress: parsed.data.owner,
+          title: parsed.data.title,
+        }).then(async (result) => {
+          const status = result.success ? "listed" : "submitted";
+          await storage.updateNftOpenSea(nft.id, result.openseaUrl || openseaUrl, status, result.listingId);
+          if (result.success) {
+            await storage.updateNftStatus(nft.id, "listed");
+          }
+        }).catch(async (err) => {
+          console.error("Background OpenSea listing failed:", err);
+          await storage.updateNftOpenSea(nft.id, openseaUrl, "error", null);
+        });
+      }
+
+      res.json({ ...nft, openseaUrl, openseaSupported: supported });
     } catch (error) {
       res.status(500).json({ message: "Failed to create NFT" });
     }
+  });
+
+  // ========== OPENSEA ROUTES ==========
+
+  app.post("/api/opensea/list", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { nftId } = req.body;
+      if (!nftId) return res.status(400).json({ message: "NFT ID required" });
+
+      const nft = await storage.getNft(nftId);
+      if (!nft) return res.status(404).json({ message: "NFT not found" });
+
+      const chainId = (nft.chain || "ethereum") as ChainId;
+      const chainData = SUPPORTED_CHAINS[chainId];
+      const contractAddr = chainData?.contractAddress || "0x0000000000000000000000000000000000000000";
+      const tokenIdClean = nft.tokenId.replace(/\.\.\./g, "").replace("0x", "");
+
+      const result = await listNftOnOpenSea({
+        chain: chainId,
+        contractAddress: contractAddr,
+        tokenId: tokenIdClean,
+        price: nft.price,
+        sellerAddress: nft.owner,
+        title: nft.title,
+      });
+
+      const status = result.success ? "listed" : "failed";
+      await storage.updateNftOpenSea(nft.id, result.openseaUrl, status, result.listingId);
+      if (result.success) {
+        await storage.updateNftStatus(nft.id, "listed");
+      }
+
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to list on OpenSea" });
+    }
+  });
+
+  app.get("/api/opensea/nft/:chain/:contract/:tokenId", async (req, res) => {
+    try {
+      const { chain, contract, tokenId } = req.params;
+      const data = await fetchNftFromOpenSea(chain, contract, tokenId);
+      if (!data) return res.status(404).json({ message: "NFT not found on OpenSea" });
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch from OpenSea" });
+    }
+  });
+
+  app.get("/api/opensea/collection/:slug", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const nftList = await fetchCollectionNfts(req.params.slug, limit);
+      res.json(nftList);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch collection from OpenSea" });
+    }
+  });
+
+  app.get("/api/opensea/status", async (_req, res) => {
+    const hasKey = !!process.env.OPENSEA_API_KEY;
+    res.json({ configured: hasKey, marketplace: "OpenSea", protocol: "Seaport v1.6" });
   });
 
   // ========== BRIDGE ROUTES ==========
