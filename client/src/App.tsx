@@ -13,6 +13,7 @@ import Bridge from "@/pages/Bridge";
 import YieldGenerator from "@/pages/YieldGenerator";
 import IITConsciousness from "@/pages/IITConsciousness";
 import Admin from "@/pages/Admin";
+import Marketplace from "@/pages/Marketplace";
 import OmegaSerpent from "@/pages/OmegaSerpent";
 import WalletPage from "@/pages/WalletPage";
 import AuthPage from "@/pages/AuthPage";
@@ -58,6 +59,7 @@ function AppRouter() {
         <Route path="/" component={MintNFT} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/gallery" component={Gallery} />
+        <Route path="/marketplace" component={Marketplace} />
         <Route path="/analytics" component={Analytics} />
         <Route path="/bridge" component={Bridge} />
         <Route path="/yield" component={YieldGenerator} />

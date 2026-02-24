@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
+import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
 import { randomBytes } from "crypto";
 import { z } from "zod";
 import OpenAI from "openai";
@@ -665,6 +665,91 @@ export async function registerRoutes(
       res.json(result);
     } catch (error) {
       res.status(500).json({ message: "Failed to claim reward" });
+    }
+  });
+
+  // ========== MARKETPLACE ROUTES ==========
+
+  app.get("/api/marketplace/listings", async (req, res) => {
+    try {
+      const chain = req.query.chain as string | undefined;
+      const status = req.query.status as string | undefined;
+      const listings = await storage.getMarketplaceListings(chain, status || "active");
+      res.json(listings);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch marketplace listings" });
+    }
+  });
+
+  app.get("/api/marketplace/listings/:id", async (req, res) => {
+    try {
+      const listing = await storage.getMarketplaceListing(parseInt(req.params.id));
+      if (!listing) return res.status(404).json({ message: "Listing not found" });
+      res.json(listing);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch listing" });
+    }
+  });
+
+  app.get("/api/marketplace/my-listings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const listings = await storage.getMarketplaceListingsBySeller(req.user!.id);
+      res.json(listings);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch your listings" });
+    }
+  });
+
+  const VALID_CURRENCIES = ["ETH", "SKYNT", "STX"];
+  const VALID_CHAINS = Object.keys(SUPPORTED_CHAINS);
+
+  app.post("/api/marketplace/list", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const price = parseFloat(req.body.price);
+      if (!Number.isFinite(price) || price <= 0) return res.status(400).json({ message: "Price must be a positive number" });
+      const currency = VALID_CURRENCIES.includes(req.body.currency) ? req.body.currency : "ETH";
+      const chain = VALID_CHAINS.includes(req.body.chain) ? req.body.chain : "ethereum";
+
+      const listingData = {
+        ...req.body,
+        price: price.toString(),
+        currency,
+        chain,
+        sellerId: req.user!.id,
+        sellerUsername: req.user!.username,
+        status: "active",
+      };
+      const parsed = insertMarketplaceListingSchema.safeParse(listingData);
+      if (!parsed.success) return res.status(400).json(parsed.error);
+      const listing = await storage.createMarketplaceListing(parsed.data);
+      res.json(listing);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create listing" });
+    }
+  });
+
+  app.post("/api/marketplace/buy/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const listingId = parseInt(req.params.id);
+      const result = await storage.executeMarketplacePurchase(listingId, req.user!.id, req.user!.username);
+      if (!result.success) return res.status(400).json({ message: result.error });
+      res.json({ listing: result.listing, txHash: result.txHash });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to purchase NFT" });
+    }
+  });
+
+  app.post("/api/marketplace/cancel/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const result = await storage.cancelMarketplaceListing(parseInt(req.params.id), req.user!.id);
+      if (!result) return res.status(400).json({ message: "Cannot cancel this listing" });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to cancel listing" });
     }
   });
 

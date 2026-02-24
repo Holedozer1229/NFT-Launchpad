@@ -1,6 +1,6 @@
-import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore } from "@shared/schema";
+import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, marketplaceListings, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 function generateWalletAddress(): string {
@@ -54,6 +54,14 @@ export interface IStorage {
   getLeaderboard(limit?: number): Promise<GameScore[]>;
   getGameScoresByUser(userId: number): Promise<GameScore[]>;
   claimGameReward(scoreId: number, userId: number): Promise<GameScore | undefined>;
+
+  getMarketplaceListings(chain?: string, status?: string): Promise<MarketplaceListing[]>;
+  getMarketplaceListing(id: number): Promise<MarketplaceListing | undefined>;
+  createMarketplaceListing(listing: InsertMarketplaceListing): Promise<MarketplaceListing>;
+  buyMarketplaceListing(id: number, buyerId: number, buyerUsername: string): Promise<MarketplaceListing | undefined>;
+  cancelMarketplaceListing(id: number, sellerId: number): Promise<MarketplaceListing | undefined>;
+  getMarketplaceListingsBySeller(sellerId: number): Promise<MarketplaceListing[]>;
+  executeMarketplacePurchase(listingId: number, buyerId: number, buyerUsername: string): Promise<{ success: boolean; error?: string; listing?: MarketplaceListing; txHash?: string }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -267,6 +275,103 @@ export class DatabaseStorage implements IStorage {
 
     const [updated] = await db.update(gameScores).set({ claimed: true }).where(eq(gameScores.id, scoreId)).returning();
     return updated;
+  }
+
+  async getMarketplaceListings(chain?: string, status?: string): Promise<MarketplaceListing[]> {
+    const conditions = [];
+    if (chain && chain !== "all") conditions.push(eq(marketplaceListings.chain, chain));
+    if (status && status !== "all") conditions.push(eq(marketplaceListings.status, status));
+    if (conditions.length > 0) {
+      return await db.select().from(marketplaceListings).where(and(...conditions)).orderBy(desc(marketplaceListings.createdAt));
+    }
+    return await db.select().from(marketplaceListings).orderBy(desc(marketplaceListings.createdAt));
+  }
+
+  async getMarketplaceListing(id: number): Promise<MarketplaceListing | undefined> {
+    const [listing] = await db.select().from(marketplaceListings).where(eq(marketplaceListings.id, id));
+    return listing;
+  }
+
+  async createMarketplaceListing(listing: InsertMarketplaceListing): Promise<MarketplaceListing> {
+    const [created] = await db.insert(marketplaceListings).values(listing).returning();
+    return created;
+  }
+
+  async buyMarketplaceListing(id: number, buyerId: number, buyerUsername: string): Promise<MarketplaceListing | undefined> {
+    const [listing] = await db.select().from(marketplaceListings).where(eq(marketplaceListings.id, id));
+    if (!listing || listing.status !== "active" || listing.sellerId === buyerId) return undefined;
+    const [updated] = await db.update(marketplaceListings)
+      .set({ status: "sold", buyerId, buyerUsername, soldAt: new Date() })
+      .where(eq(marketplaceListings.id, id))
+      .returning();
+    return updated;
+  }
+
+  async cancelMarketplaceListing(id: number, sellerId: number): Promise<MarketplaceListing | undefined> {
+    const [listing] = await db.select().from(marketplaceListings).where(eq(marketplaceListings.id, id));
+    if (!listing || listing.sellerId !== sellerId || listing.status !== "active") return undefined;
+    const [updated] = await db.update(marketplaceListings)
+      .set({ status: "cancelled" })
+      .where(eq(marketplaceListings.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getMarketplaceListingsBySeller(sellerId: number): Promise<MarketplaceListing[]> {
+    return await db.select().from(marketplaceListings).where(eq(marketplaceListings.sellerId, sellerId)).orderBy(desc(marketplaceListings.createdAt));
+  }
+
+  async executeMarketplacePurchase(listingId: number, buyerId: number, buyerUsername: string): Promise<{ success: boolean; error?: string; listing?: MarketplaceListing; txHash?: string }> {
+    return await db.transaction(async (tx) => {
+      const [listing] = await tx.select().from(marketplaceListings).where(eq(marketplaceListings.id, listingId));
+      if (!listing) return { success: false, error: "Listing not found" };
+      if (listing.status !== "active") return { success: false, error: "Listing is no longer active" };
+      if (listing.sellerId === buyerId) return { success: false, error: "Cannot buy your own listing" };
+
+      const buyerWalletList = await tx.select().from(wallets).where(eq(wallets.userId, buyerId));
+      if (buyerWalletList.length === 0) return { success: false, error: "Create a wallet first" };
+      const buyerWallet = buyerWalletList[0];
+
+      const price = parseFloat(listing.price);
+      if (!Number.isFinite(price) || price <= 0) return { success: false, error: "Invalid listing price" };
+
+      const currency = listing.currency || "ETH";
+      const balanceField = currency === "STX" ? "balanceStx" as const : currency === "SKYNT" ? "balanceSkynt" as const : "balanceEth" as const;
+      const buyerBalance = parseFloat(buyerWallet[balanceField]);
+      if (buyerBalance < price) return { success: false, error: `Insufficient ${currency} balance` };
+
+      await tx.update(wallets).set({ [balanceField]: (buyerBalance - price).toString() }).where(eq(wallets.id, buyerWallet.id));
+
+      const sellerWalletList = await tx.select().from(wallets).where(eq(wallets.userId, listing.sellerId));
+      if (sellerWalletList.length > 0) {
+        const sellerWallet = sellerWalletList[0];
+        const sellerBalance = parseFloat(sellerWallet[balanceField]);
+        await tx.update(wallets).set({ [balanceField]: (sellerBalance + price).toString() }).where(eq(wallets.id, sellerWallet.id));
+      }
+
+      const txHash = "0x" + randomBytes(32).toString("hex");
+      await tx.insert(walletTransactions).values({
+        walletId: buyerWallet.id,
+        type: "nft_purchase",
+        toAddress: listing.contractAddress || "0x0000000000000000000000000000000000000000",
+        fromAddress: buyerWallet.address,
+        amount: listing.price,
+        token: currency,
+        status: "completed",
+        txHash,
+      });
+
+      const [updated] = await tx.update(marketplaceListings)
+        .set({ status: "sold", buyerId, buyerUsername, soldAt: new Date() })
+        .where(eq(marketplaceListings.id, listingId))
+        .returning();
+
+      if (listing.nftId) {
+        await tx.update(nfts).set({ status: "minted" }).where(eq(nfts.id, listing.nftId));
+      }
+
+      return { success: true, listing: updated, txHash };
+    });
   }
 }
 
