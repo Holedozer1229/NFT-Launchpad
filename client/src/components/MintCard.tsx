@@ -4,8 +4,8 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useWallet } from "@/lib/mock-web3";
-import { Launch, RARITY_TIERS, RarityTier } from "@shared/schema";
-import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem } from "lucide-react";
+import { Launch, RARITY_TIERS, RarityTier, SUPPORTED_CHAINS, ChainId } from "@shared/schema";
+import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink } from "lucide-react";
 import { TermsGate } from "./TermsGate";
 import { useToast } from "@/hooks/use-toast";
 import missionPatch from "../assets/mission-patch.png";
@@ -29,9 +29,11 @@ export function MintCard({ mission }: MintCardProps) {
   const { isConnected, connect } = useWallet();
   const [isMinting, setIsMinting] = useState(false);
   const [selectedRarity, setSelectedRarity] = useState<RarityTier>("common");
+  const [selectedChain, setSelectedChain] = useState<ChainId>("ethereum");
   const [showTerms, setShowTerms] = useState(false);
   const [progress, setProgress] = useState(0);
   const { toast } = useToast();
+  const chain = SUPPORTED_CHAINS[selectedChain];
 
   const mintedByRarity = (mission.mintedByRarity || { mythic: 0, legendary: 0, rare: 0, common: 0 }) as Record<RarityTier, number>;
 
@@ -61,12 +63,13 @@ export function MintCard({ mission }: MintCardProps) {
     const tier = RARITY_TIERS[selectedRarity];
     const steps = [
       "CONSULTING THE ORACLE...",
+      `CONNECTING TO ${chain.name.toUpperCase()} NETWORK...`,
       `VERIFYING ${tier.label.toUpperCase()} RARITY SHARD...`,
       "SYNCING CROSS-CHANNEL STX YIELD...",
       "MERGE MINING PROOF GENERATED...",
       "CALCULATING Φ ALGEBRA...",
-      "VERIFYING ZK-CROSS CHAIN...",
-      `${tier.label.toUpperCase()} ARTIFACT MATERIALIZED...`
+      `DEPLOYING TO ${chain.name.toUpperCase()} (Chain ${chain.chainId})...`,
+      `${tier.label.toUpperCase()} ARTIFACT MATERIALIZED ON ${chain.name.toUpperCase()}...`
     ];
 
     for (let i = 0; i < steps.length; i++) {
@@ -209,6 +212,40 @@ export function MintCard({ mission }: MintCardProps) {
               </div>
             </div>
 
+            <div className="space-y-1.5" data-testid="chain-selector">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-primary/60 flex items-center gap-1">
+                <Link2 className="w-3 h-3" /> Target Chain
+              </span>
+              <div className="flex gap-1.5 flex-wrap">
+                {(Object.keys(SUPPORTED_CHAINS) as ChainId[]).map((cid) => {
+                  const c = SUPPORTED_CHAINS[cid];
+                  const isSelected = selectedChain === cid;
+                  return (
+                    <button
+                      key={cid}
+                      data-testid={`button-chain-${cid}`}
+                      onClick={() => !isMinting && setSelectedChain(cid)}
+                      disabled={isMinting}
+                      className={`px-2.5 py-1.5 rounded-md border text-[11px] font-heading uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                        isSelected
+                          ? "border-white/40 bg-white/10 text-white shadow-[0_0_10px_rgba(255,255,255,0.1)]"
+                          : "border-white/10 bg-white/[0.02] text-muted-foreground hover:border-white/20 hover:text-foreground"
+                      } ${isMinting ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                    >
+                      <span style={{ color: c.color }}>{c.icon}</span>
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between text-[9px] font-mono text-muted-foreground/60 pt-1">
+                <span className="flex items-center gap-1">
+                  <Fuel className="w-2.5 h-2.5" /> Gas: {chain.gasEstimate}
+                </span>
+                <span className="truncate max-w-[140px]">{chain.contractAddress}</span>
+              </div>
+            </div>
+
             {isMinting && (
                <div className="space-y-2">
                  <div className="flex items-center justify-between text-xs font-mono text-primary animate-pulse">
@@ -241,7 +278,7 @@ export function MintCard({ mission }: MintCardProps) {
               <Button
                 data-testid="button-connect"
                 className="w-full text-lg py-7 font-heading font-bold bg-transparent border border-primary text-primary hover:bg-primary hover:text-black transition-all hover:shadow-[0_0_15px_rgba(255,215,0,0.3)]"
-                onClick={connect}
+                onClick={() => connect()}
               >
                 CONNECT TERMINAL
               </Button>

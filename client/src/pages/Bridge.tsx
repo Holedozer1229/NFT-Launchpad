@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle } from "lucide-react";
+import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle, Loader2 } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 const chains = [
   { id: "ethereum", name: "Ethereum", symbol: "ETH", icon: "⟠", color: "hsl(210 100% 55%)" },
@@ -11,25 +13,26 @@ const chains = [
   { id: "base", name: "Base", symbol: "BASE", icon: "🔵", color: "hsl(210 100% 55%)" },
 ];
 
-const recentBridges = [
-  { from: "Ethereum", to: "SphinxSkynet", amount: "500 SKYNT", status: "Released", sigs: "5/5", time: "12 min ago" },
-  { from: "Polygon", to: "Ethereum", amount: "1,200 SKYNT", status: "Minted", sigs: "5/5", time: "34 min ago" },
-  { from: "SphinxSkynet", to: "Arbitrum", amount: "250 SKYNT", status: "Locked", sigs: "3/5", time: "2 min ago" },
-  { from: "Base", to: "Ethereum", amount: "800 SKYNT", status: "Released", sigs: "5/5", time: "1h ago" },
-  { from: "Ethereum", to: "SphinxSkynet", amount: "2,000 SKYNT", status: "Burned", sigs: "4/5", time: "5 min ago" },
-];
+interface BridgeTx {
+  id: number;
+  fromChain: string;
+  toChain: string;
+  amount: string;
+  token: string;
+  status: string;
+  signatures: string;
+  mechanism: string;
+  txHash: string | null;
+  createdAt: string | null;
+}
 
-const guardians = [
-  { id: 1, status: "online", lastSig: "2m ago" },
-  { id: 2, status: "online", lastSig: "2m ago" },
-  { id: 3, status: "online", lastSig: "5m ago" },
-  { id: 4, status: "online", lastSig: "3m ago" },
-  { id: 5, status: "online", lastSig: "1m ago" },
-  { id: 6, status: "online", lastSig: "8m ago" },
-  { id: 7, status: "offline", lastSig: "1h ago" },
-  { id: 8, status: "online", lastSig: "4m ago" },
-  { id: 9, status: "online", lastSig: "6m ago" },
-];
+interface GuardianData {
+  id: number;
+  guardianIndex: number;
+  status: string;
+  lastSignature: string | null;
+  publicKey: string | null;
+}
 
 export default function Bridge() {
   const [sourceChain, setSourceChain] = useState("ethereum");
@@ -37,9 +40,32 @@ export default function Bridge() {
   const [amount, setAmount] = useState("");
   const [showSourceDropdown, setShowSourceDropdown] = useState(false);
   const [showDestDropdown, setShowDestDropdown] = useState(false);
-  const [bridging, setBridging] = useState(false);
   const [bridgeSuccess, setBridgeSuccess] = useState(false);
   const { isConnected, address, connect, isConnecting } = useWallet();
+  const queryClient = useQueryClient();
+
+  const { data: bridgeTransactions = [], isLoading: txLoading } = useQuery<BridgeTx[]>({
+    queryKey: ["/api/bridge/transactions"],
+    refetchInterval: 15000,
+  });
+
+  const { data: guardiansList = [], isLoading: guardiansLoading } = useQuery<GuardianData[]>({
+    queryKey: ["/api/bridge/guardians"],
+    refetchInterval: 30000,
+  });
+
+  const bridgeMutation = useMutation({
+    mutationFn: async (data: { fromChain: string; toChain: string; amount: string; mechanism: string }) => {
+      const res = await apiRequest("POST", "/api/bridge/transactions", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bridge/transactions"] });
+      setBridgeSuccess(true);
+      setAmount("");
+      setTimeout(() => setBridgeSuccess(false), 5000);
+    },
+  });
 
   const source = chains.find((c) => c.id === sourceChain)!;
   const dest = chains.find((c) => c.id === destChain)!;
@@ -49,7 +75,6 @@ export default function Bridge() {
     setDestChain(sourceChain);
   };
 
-  const skyntBalance = "10,000";
   const bridgeFee = amount ? (parseFloat(amount) * 0.001).toFixed(4) : "0.0000";
   const netReceive = amount ? (parseFloat(amount) * 0.999).toFixed(4) : "0.0000";
   const estimatedTime = sourceChain === "ethereum" ? "~15 min" : "~5 min";
@@ -59,16 +84,26 @@ export default function Bridge() {
 
   const handleBridge = async () => {
     if (!amount || parseFloat(amount) <= 0) return;
-    setBridging(true);
-    setBridgeSuccess(false);
-    await new Promise((r) => setTimeout(r, 2500));
-    setBridging(false);
-    setBridgeSuccess(true);
-    setAmount("");
-    setTimeout(() => setBridgeSuccess(false), 5000);
+    bridgeMutation.mutate({
+      fromChain: source.name,
+      toChain: dest.name,
+      amount,
+      mechanism,
+    });
   };
 
-  const onlineGuardians = guardians.filter((g) => g.status === "online").length;
+  const onlineGuardians = guardiansList.filter((g) => g.status === "online").length;
+
+  function timeAgo(dateStr: string | null): string {
+    if (!dateStr) return "—";
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  }
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto" data-testid="bridge-page">
@@ -94,15 +129,15 @@ export default function Bridge() {
       {!isConnected && (
         <div className="cosmic-card cosmic-card-magenta p-5 text-center space-y-3">
           <Wallet className="w-8 h-8 text-neon-magenta mx-auto" />
-          <p className="text-sm font-heading">Connect MetaMask to Bridge</p>
-          <p className="text-xs text-muted-foreground">Link your MetaMask wallet to bridge SKYNT tokens across chains via SphinxBridge.</p>
+          <p className="text-sm font-heading">Connect Wallet to Bridge</p>
+          <p className="text-xs text-muted-foreground">Link your wallet to bridge SKYNT tokens across chains via SphinxBridge.</p>
           <button
             data-testid="button-bridge-connect"
-            onClick={connect}
+            onClick={() => connect()}
             disabled={isConnecting}
             className="connect-wallet-btn px-6 py-2.5 rounded-sm font-heading text-sm tracking-wider mx-auto"
           >
-            {isConnecting ? "Connecting..." : "Connect MetaMask"}
+            {isConnecting ? "Connecting..." : "Connect Wallet"}
           </button>
         </div>
       )}
@@ -113,10 +148,6 @@ export default function Bridge() {
             <span className="w-2 h-2 rounded-full bg-neon-green animate-pulse" style={{ boxShadow: "0 0 6px hsl(145 100% 50% / 0.6)" }} />
             <span className="font-mono text-[11px] text-foreground">{address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ""}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Coins className="w-3.5 h-3.5 text-primary" />
-            <span className="font-mono text-xs text-primary">{skyntBalance} SKYNT</span>
-          </div>
         </div>
       )}
 
@@ -125,9 +156,6 @@ export default function Bridge() {
           <CheckCircle className="w-5 h-5 text-neon-green mx-auto" />
           <p className="text-sm font-heading text-neon-green">Bridge Transaction Submitted</p>
           <p className="text-xs text-muted-foreground">Awaiting {isLockMint ? "guardian minting" : "guardian release"} (5/5 signatures required).</p>
-          <a href="#" className="text-xs text-primary flex items-center justify-center gap-1 hover:underline">
-            View on Explorer <ExternalLink className="w-3 h-3" />
-          </a>
         </div>
       )}
 
@@ -212,10 +240,6 @@ export default function Bridge() {
               className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-lg focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40" />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-heading">SKYNT</span>
           </div>
-          <div className="flex justify-between text-[10px] font-mono text-muted-foreground px-1">
-            <span>Balance: {skyntBalance} SKYNT</span>
-            <button data-testid="button-max-amount" onClick={() => setAmount("10000")} className="text-primary hover:text-primary/80">MAX</button>
-          </div>
         </div>
 
         <div className="space-y-2 p-3 bg-black/20 border border-border/50 rounded-sm">
@@ -241,11 +265,11 @@ export default function Bridge() {
           </div>
         </div>
 
-        <button data-testid="button-bridge-transfer" disabled={!amount || parseFloat(amount) <= 0 || bridging} onClick={handleBridge}
+        <button data-testid="button-bridge-transfer" disabled={!amount || parseFloat(amount) <= 0 || bridgeMutation.isPending} onClick={handleBridge}
           className="connect-wallet-btn w-full py-3 rounded-sm font-heading text-sm tracking-wider disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none">
           <div className="flex items-center justify-center gap-2">
-            {bridging ? (
-              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {isLockMint ? "Locking SKYNT..." : "Burning SKYNT..."}</>
+            {bridgeMutation.isPending ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> {isLockMint ? "Locking SKYNT..." : "Burning SKYNT..."}</>
             ) : (
               <><Wallet className="w-4 h-4" /> {amount ? `${isLockMint ? "Lock" : "Burn"} ${amount} SKYNT` : "Enter Amount"}</>
             )}
@@ -262,62 +286,72 @@ export default function Bridge() {
         <h3 className="font-heading text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
           <Users className="w-4 h-4 text-primary" /> Guardian Network (9 Validators)
         </h3>
-        <div className="grid grid-cols-9 gap-2">
-          {guardians.map((g) => (
-            <div key={g.id} className="text-center" data-testid={`guardian-${g.id}`}>
-              <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto text-[10px] font-heading ${
-                g.status === "online" ? "border-neon-green bg-neon-green/10 text-neon-green" : "border-red-400/40 bg-red-400/5 text-red-400/60"
-              }`}>
-                {g.id}
+        {guardiansLoading ? (
+          <div className="flex items-center justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        ) : (
+          <div className="grid grid-cols-9 gap-2">
+            {guardiansList.map((g) => (
+              <div key={g.guardianIndex} className="text-center" data-testid={`guardian-${g.guardianIndex}`}>
+                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto text-[10px] font-heading ${
+                  g.status === "online" ? "border-neon-green bg-neon-green/10 text-neon-green" : "border-red-400/40 bg-red-400/5 text-red-400/60"
+                }`}>
+                  {g.guardianIndex}
+                </div>
+                <p className={`text-[8px] mt-1 ${g.status === "online" ? "text-neon-green" : "text-red-400/60"}`}>{timeAgo(g.lastSignature)}</p>
               </div>
-              <p className={`text-[8px] mt-1 ${g.status === "online" ? "text-neon-green" : "text-red-400/60"}`}>{g.lastSig}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="cosmic-card cosmic-card-orange p-4">
         <h3 className="font-heading text-sm uppercase tracking-wider mb-4 flex items-center gap-2" data-testid="text-recent-bridges">
           <Clock className="w-4 h-4 text-neon-orange" /> Recent Bridge Transactions
         </h3>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Route</th>
-              <th>Amount</th>
-              <th>Status</th>
-              <th>Sigs</th>
-              <th>Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentBridges.map((bridge, i) => (
-              <tr key={i} data-testid={`row-bridge-${i}`}>
-                <td>
-                  <span className="text-primary">{bridge.from}</span>
-                  <span className="text-muted-foreground mx-1">→</span>
-                  <span className="text-neon-green">{bridge.to}</span>
-                </td>
-                <td>{bridge.amount}</td>
-                <td>
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-heading uppercase ${
-                    bridge.status === "Released" || bridge.status === "Minted" ? "bg-neon-green/10 text-neon-green"
-                    : bridge.status === "Locked" || bridge.status === "Burned" ? "bg-neon-orange/10 text-neon-orange"
-                    : "bg-neon-cyan/10 text-neon-cyan"
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      bridge.status === "Released" || bridge.status === "Minted" ? "bg-neon-green"
-                      : "bg-neon-orange animate-pulse"
-                    }`} />
-                    {bridge.status}
-                  </span>
-                </td>
-                <td className="font-mono">{bridge.sigs}</td>
-                <td className="text-muted-foreground">{bridge.time}</td>
+        {txLoading ? (
+          <div className="flex items-center justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-neon-orange" /></div>
+        ) : bridgeTransactions.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">No bridge transactions yet</p>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Route</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Sigs</th>
+                <th>Time</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {bridgeTransactions.map((bridge) => (
+                <tr key={bridge.id} data-testid={`row-bridge-${bridge.id}`}>
+                  <td>
+                    <span className="text-primary">{bridge.fromChain}</span>
+                    <span className="text-muted-foreground mx-1">→</span>
+                    <span className="text-neon-green">{bridge.toChain}</span>
+                  </td>
+                  <td>{bridge.amount} {bridge.token}</td>
+                  <td>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-heading uppercase ${
+                      bridge.status === "Released" || bridge.status === "Minted" ? "bg-neon-green/10 text-neon-green"
+                      : bridge.status === "Locked" || bridge.status === "Burned" ? "bg-neon-orange/10 text-neon-orange"
+                      : "bg-neon-cyan/10 text-neon-cyan"
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        bridge.status === "Released" || bridge.status === "Minted" ? "bg-neon-green"
+                        : "bg-neon-orange animate-pulse"
+                      }`} />
+                      {bridge.status}
+                    </span>
+                  </td>
+                  <td className="font-mono">{bridge.signatures}</td>
+                  <td className="text-muted-foreground">{timeAgo(bridge.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div className="cosmic-card p-4">

@@ -1,18 +1,23 @@
 import { create } from 'zustand';
 import { MetaMaskSDK } from '@metamask/sdk';
 
+export type WalletProvider = "metamask" | "phantom" | null;
+
 type WalletState = {
   isConnected: boolean;
   address: string | null;
   balance: number;
   isConnecting: boolean;
-  connect: () => Promise<void>;
+  provider: WalletProvider;
+  showPicker: boolean;
+  setShowPicker: (show: boolean) => void;
+  connect: (provider?: WalletProvider) => Promise<void>;
   disconnect: () => void;
 };
 
 let mmSDK: MetaMaskSDK | null = null;
 
-function getSDK() {
+function getMetaMaskSDK() {
   if (!mmSDK) {
     mmSDK = new MetaMaskSDK({
       dappMetadata: {
@@ -25,46 +30,92 @@ function getSDK() {
   return mmSDK;
 }
 
-export const useWallet = create<WalletState>((set) => ({
+function getPhantomProvider(): any | null {
+  if (typeof window !== "undefined" && (window as any).phantom?.solana) {
+    return (window as any).phantom.solana;
+  }
+  return null;
+}
+
+export const useWallet = create<WalletState>((set, get) => ({
   isConnected: false,
   address: null,
   balance: 0,
   isConnecting: false,
-  connect: async () => {
-    set({ isConnecting: true });
+  provider: null,
+  showPicker: false,
+  setShowPicker: (show: boolean) => set({ showPicker: show }),
+  connect: async (walletProvider?: WalletProvider) => {
+    if (!walletProvider) {
+      set({ showPicker: true });
+      return;
+    }
+    set({ isConnecting: true, showPicker: false });
+
     try {
-      const sdk = getSDK();
-      const accounts = await sdk.connect();
-      if (accounts && accounts.length > 0) {
-        const addr = accounts[0];
-        const ethereum = sdk.getProvider();
-        let balance = 0;
-        if (ethereum) {
-          try {
-            const rawBal = await ethereum.request({
-              method: 'eth_getBalance',
-              params: [addr, 'latest'],
-            });
-            balance = parseInt(rawBal as string, 16) / 1e18;
-          } catch {
-            balance = 0;
+      if (walletProvider === "metamask") {
+        const sdk = getMetaMaskSDK();
+        const accounts = await sdk.connect();
+        if (accounts && accounts.length > 0) {
+          const addr = accounts[0];
+          const ethereum = sdk.getProvider();
+          let balance = 0;
+          if (ethereum) {
+            try {
+              const rawBal = await ethereum.request({
+                method: 'eth_getBalance',
+                params: [addr, 'latest'],
+              });
+              balance = parseInt(rawBal as string, 16) / 1e18;
+            } catch {
+              balance = 0;
+            }
           }
+          set({ isConnected: true, address: addr, balance, isConnecting: false, provider: "metamask" });
+        } else {
+          set({ isConnecting: false });
         }
-        set({ isConnected: true, address: addr, balance, isConnecting: false });
-      } else {
-        set({ isConnecting: false });
+      } else if (walletProvider === "phantom") {
+        const phantom = getPhantomProvider();
+        if (!phantom) {
+          window.open("https://phantom.app/", "_blank");
+          set({ isConnecting: false });
+          return;
+        }
+
+        const resp = await phantom.connect();
+        const addr = resp.publicKey.toString();
+
+        let balance = 0;
+        try {
+          const connection = phantom.connection || null;
+          if (connection) {
+            const lamports = await connection.getBalance(resp.publicKey);
+            balance = lamports / 1e9;
+          }
+        } catch {
+          balance = 0;
+        }
+
+        set({ isConnected: true, address: addr, balance, isConnecting: false, provider: "phantom" });
       }
     } catch (err) {
-      console.error("MetaMask connection failed", err);
+      console.error(`${walletProvider} connection failed`, err);
       set({ isConnecting: false });
     }
   },
   disconnect: () => {
-    set({ isConnected: false, address: null, balance: 0 });
-    if (mmSDK) {
+    const { provider } = get();
+    if (provider === "metamask" && mmSDK) {
       mmSDK.terminate();
       mmSDK = null;
+    } else if (provider === "phantom") {
+      const phantom = getPhantomProvider();
+      if (phantom) {
+        try { phantom.disconnect(); } catch {}
+      }
     }
+    set({ isConnected: false, address: null, balance: 0, provider: null });
   },
 }));
 

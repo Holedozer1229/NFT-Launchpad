@@ -8,7 +8,7 @@ import { Wallet, ShieldCheck, Key, Loader2, CheckCircle2, AlertCircle } from "lu
 import { useToast } from "@/hooks/use-toast";
 
 export function EmbeddedWallet() {
-  const { isConnected, address, balance, connect, disconnect } = useWallet();
+  const { isConnected, address, balance, connect, disconnect, provider } = useWallet();
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [signature, setSignature] = useState("");
@@ -37,7 +37,7 @@ export function EmbeddedWallet() {
           <CardDescription className="font-mono text-xs">Initialize wallet link to access the Causal Graph</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={connect} className="w-full font-heading font-bold py-6 bg-primary text-black hover:bg-primary/80 transition-all">
+          <Button onClick={() => connect()} className="w-full font-heading font-bold py-6 bg-primary text-black hover:bg-primary/80 transition-all">
             CONNECT_IDENTITY
           </Button>
         </CardContent>
@@ -61,8 +61,11 @@ export function EmbeddedWallet() {
       <CardContent className="space-y-4">
         <div className="p-3 bg-black/40 border border-primary/10 rounded-sm space-y-2">
           <div className="flex justify-between text-[10px] font-mono text-primary/60">
-            <span>PUBLIC_ADDRESS</span>
-            <span>{balance} ETH</span>
+            <span className="flex items-center gap-1.5">
+              <span>{provider === "phantom" ? "👻" : "🦊"}</span>
+              PUBLIC_ADDRESS
+            </span>
+            <span>{balance} {provider === "phantom" ? "SOL" : "ETH"}</span>
           </div>
           <div className="font-mono text-sm text-white break-all">{address}</div>
         </div>
