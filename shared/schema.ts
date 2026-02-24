@@ -230,4 +230,31 @@ export const insertYieldStrategySchema = createInsertSchema(yieldStrategies).omi
 export type YieldStrategy = typeof yieldStrategies.$inferSelect;
 export type InsertYieldStrategy = z.infer<typeof insertYieldStrategySchema>;
 
+export const CONTRACT_DEFINITIONS = [
+  { contractId: "SpaceFlightNFT", name: "SpaceFlightNFT", description: "Tiered NFT minting with royalties and OpenSea integration", gasRange: [280000, 420000] },
+  { contractId: "SphinxBridge", name: "SphinxBridge", description: "Cross-chain bridge with 5-of-9 guardian multi-sig", gasRange: [350000, 520000] },
+  { contractId: "SphinxYieldAggregator", name: "SphinxYieldAggregator", description: "Multi-chain yield aggregator with zk-proof verification", gasRange: [400000, 600000] },
+] as const;
+
+export type ContractId = typeof CONTRACT_DEFINITIONS[number]["contractId"];
+
+export const contractDeployments = pgTable("contract_deployments", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  walletAddress: text("wallet_address").notNull(),
+  walletId: integer("wallet_id"),
+  contractId: text("contract_id").notNull(),
+  contractName: text("contract_name").notNull(),
+  chain: text("chain").notNull().default("ethereum"),
+  deployedAddress: text("deployed_address").notNull(),
+  txHash: text("tx_hash").notNull(),
+  gasUsed: text("gas_used").notNull(),
+  status: text("status").notNull().default("deployed"),
+  blockNumber: integer("block_number"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertContractDeploymentSchema = createInsertSchema(contractDeployments).omit({ id: true, createdAt: true });
+export type ContractDeployment = typeof contractDeployments.$inferSelect;
+export type InsertContractDeployment = z.infer<typeof insertContractDeploymentSchema>;
+
 export { conversations, messages } from "./models/chat";

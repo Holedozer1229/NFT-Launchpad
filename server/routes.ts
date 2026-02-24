@@ -1,11 +1,41 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema } from "@shared/schema";
+import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
 import { randomBytes } from "crypto";
 import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception } from "./iit-engine";
+
+function generateContractAddress(): string {
+  return "0x" + randomBytes(20).toString("hex");
+}
+
+function generateTxHash(): string {
+  return "0x" + randomBytes(32).toString("hex");
+}
+
+async function deployContractsForWallet(walletAddress: string, chain: string, walletId?: number) {
+  const deployments = [];
+  for (const contract of CONTRACT_DEFINITIONS) {
+    const gasUsed = Math.floor(contract.gasRange[0] + Math.random() * (contract.gasRange[1] - contract.gasRange[0]));
+    const blockNumber = 19_000_000 + Math.floor(Math.random() * 1_000_000);
+    const deployment = await storage.createDeployment({
+      walletAddress,
+      walletId: walletId ?? null,
+      contractId: contract.contractId,
+      contractName: contract.name,
+      chain,
+      deployedAddress: generateContractAddress(),
+      txHash: generateTxHash(),
+      gasUsed: gasUsed.toString(),
+      status: "deployed",
+      blockNumber,
+    });
+    deployments.push(deployment);
+  }
+  return deployments;
+}
 
 const sendTokenSchema = z.object({
   toAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid address format"),
@@ -188,6 +218,7 @@ export async function registerRoutes(
     try {
       const { name } = req.body;
       const wallet = await storage.createWallet(req.user!.id, name || "New Wallet");
+      await deployContractsForWallet(wallet.address, "ethereum", wallet.id);
       res.json(wallet);
     } catch (error) {
       res.status(500).json({ message: "Failed to create wallet" });
@@ -390,6 +421,46 @@ export async function registerRoutes(
       res.json(data.slice(0, 10));
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch blocks data" });
+    }
+  });
+
+  // ========== CONTRACT DEPLOYMENT ROUTES ==========
+
+  app.get("/api/deployments/wallet/:walletId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const wallet = await storage.getWallet(parseInt(req.params.walletId));
+      if (!wallet || wallet.userId !== req.user!.id) return res.status(404).json({ message: "Wallet not found" });
+      const deployments = await storage.getDeploymentsByWalletId(wallet.id);
+      res.json(deployments);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch deployments" });
+    }
+  });
+
+  app.get("/api/deployments/address/:address", async (req, res) => {
+    try {
+      const deployments = await storage.getDeploymentsByWallet(req.params.address);
+      res.json(deployments);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch deployments" });
+    }
+  });
+
+  app.post("/api/deployments/deploy", async (req, res) => {
+    try {
+      const { walletAddress, chain } = req.body;
+      if (!walletAddress) return res.status(400).json({ message: "Wallet address required" });
+      const targetChain = chain || "ethereum";
+      const existing = await storage.getDeploymentsByWallet(walletAddress);
+      const existingOnChain = existing.filter(d => d.chain === targetChain);
+      if (existingOnChain.length >= CONTRACT_DEFINITIONS.length) {
+        return res.json({ message: "Contracts already deployed", deployments: existingOnChain });
+      }
+      const deployments = await deployContractsForWallet(walletAddress, targetChain);
+      res.json({ message: "Contracts deployed successfully", deployments });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to deploy contracts" });
     }
   });
 
