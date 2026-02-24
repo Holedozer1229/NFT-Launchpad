@@ -3,6 +3,7 @@ import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, Extern
 import { useAuth } from "@/hooks/use-auth";
 import { useWallet } from "@/lib/mock-web3";
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
+import { usePrices } from "@/hooks/use-prices";
 
 interface SphinxWallet {
   id: number;
@@ -36,6 +37,7 @@ const TOKEN_OPTIONS = [
 
 export default function WalletPage() {
   const { user } = useAuth();
+  const { data: prices } = usePrices();
   const { isConnected: externalWalletConnected, address: externalAddress, provider: externalProvider, connect: connectExternal } = useWallet();
   const mobile = isMobileDevice();
   const [wallets, setWallets] = useState<SphinxWallet[]>([]);
@@ -51,6 +53,27 @@ export default function WalletPage() {
   const [sendError, setSendError] = useState("");
   const [copied, setCopied] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [addressError, setAddressError] = useState("");
+  const [amountError, setAmountError] = useState("");
+
+  const validateAddress = (value: string) => {
+    if (!value) { setAddressError(""); return; }
+    if (!/^0x[a-fA-F0-9]{40}$/.test(value)) { setAddressError("Invalid Ethereum address format (0x...)"); return; }
+    if (activeWallet && value.toLowerCase() === activeWallet.address.toLowerCase()) { setAddressError("Cannot send to your own wallet"); return; }
+    setAddressError("");
+  };
+
+  const validateSendAmount = (value: string) => {
+    if (!value) { setAmountError(""); return; }
+    const num = parseFloat(value);
+    if (isNaN(num) || num <= 0) { setAmountError("Enter a valid positive amount"); return; }
+    if (activeWallet) {
+      const balanceField = sendToken === "STX" ? "balanceStx" : sendToken === "ETH" ? "balanceEth" : "balanceSkynt";
+      const balance = parseFloat(activeWallet[balanceField as keyof SphinxWallet] as string);
+      if (num > balance) { setAmountError(`Insufficient ${sendToken} balance`); return; }
+    }
+    setAmountError("");
+  };
 
   const fetchWallets = async () => {
     try {
@@ -159,7 +182,7 @@ export default function WalletPage() {
   };
 
   const totalUsd = activeWallet
-    ? getBalance(activeWallet, "SKYNT") * 0.45 + getBalance(activeWallet, "STX") * 1.85 + getBalance(activeWallet, "ETH") * 3200
+    ? getBalance(activeWallet, "SKYNT") * (prices?.SKYNT.usd ?? 0.45) + getBalance(activeWallet, "STX") * (prices?.STX.usd ?? 1.85) + getBalance(activeWallet, "ETH") * (prices?.ETH.usd ?? 3200)
     : 0;
 
   if (loading) {
@@ -270,13 +293,43 @@ export default function WalletPage() {
                 return (
                   <div key={t.symbol} className="text-center p-3 bg-black/30 border border-border/30 rounded-sm" data-testid={`balance-${t.symbol}`}>
                     <span className="text-lg">{t.icon}</span>
-                    <p className={`font-heading text-sm mt-1 text-neon-${t.color}`}>{bal.toLocaleString()}</p>
+                    <p className={`font-heading text-sm mt-1 text-neon-${t.color}`}>
+                      {bal.toLocaleString()}
+                      {prices && (
+                        <span className="text-[9px] text-muted-foreground ml-1">
+                          (${(bal * prices[t.symbol as keyof typeof prices].usd).toFixed(2)})
+                        </span>
+                      )}
+                    </p>
                     <p className="text-[10px] text-muted-foreground font-mono">{t.symbol}</p>
                   </div>
                 );
               })}
             </div>
           </div>
+
+          {prices && activeWallet && (
+            <div className="cosmic-card cosmic-card-cyan p-4 mt-3" data-testid="card-portfolio-value">
+              <span className="stat-label">Total Portfolio Value</span>
+              <div className="stat-value text-neon-cyan">
+                ${(
+                  parseFloat(activeWallet.balanceSkynt) * prices.SKYNT.usd +
+                  parseFloat(activeWallet.balanceStx) * prices.STX.usd +
+                  parseFloat(activeWallet.balanceEth) * prices.ETH.usd
+                ).toFixed(2)}
+              </div>
+              <div className="flex gap-3 mt-2">
+                {(["SKYNT", "STX", "ETH"] as const).map(token => {
+                  const change = prices[token].usd_24h_change;
+                  return (
+                    <span key={token} className={`text-[9px] font-mono ${change >= 0 ? "text-neon-green" : "text-red-400"}`}>
+                      {token} {change >= 0 ? "+" : ""}{change.toFixed(1)}%
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-2">
             {(["overview", "send", "receive"] as const).map((t) => (
@@ -432,9 +485,10 @@ export default function WalletPage() {
                       type="text"
                       placeholder="0x..."
                       value={sendTo}
-                      onChange={(e) => setSendTo(e.target.value)}
+                      onChange={(e) => { setSendTo(e.target.value); validateAddress(e.target.value); }}
                       className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-sm focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40"
                     />
+                    {addressError && <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-send-address">{addressError}</p>}
                   </div>
 
                   <div className="space-y-2">
@@ -445,11 +499,12 @@ export default function WalletPage() {
                         type="number"
                         placeholder="0.00"
                         value={sendAmount}
-                        onChange={(e) => setSendAmount(e.target.value)}
+                        onChange={(e) => { setSendAmount(e.target.value); validateSendAmount(e.target.value); }}
                         className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-lg focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-heading">{sendToken}</span>
                     </div>
+                    {amountError && <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-send-amount">{amountError}</p>}
                     <div className="flex justify-between text-[10px] font-mono text-muted-foreground px-1">
                       <span>Balance: {getBalance(activeWallet, sendToken).toLocaleString()} {sendToken}</span>
                       <button
@@ -464,7 +519,7 @@ export default function WalletPage() {
 
                   <button
                     data-testid="button-send-tx"
-                    disabled={!sendTo || !sendAmount || parseFloat(sendAmount) <= 0 || sending}
+                    disabled={!sendTo || !sendAmount || parseFloat(sendAmount) <= 0 || !!addressError || !!amountError || sending}
                     onClick={handleSend}
                     className="connect-wallet-btn w-full py-3 rounded-sm font-heading text-sm tracking-wider disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
                   >

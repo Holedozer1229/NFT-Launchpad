@@ -8,6 +8,35 @@ import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception } from "./iit-engine";
 import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
 
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+
+export function rateLimit(windowMs: number, maxRequests: number) {
+  return (req: any, res: any, next: any) => {
+    const key = req.ip || req.connection.remoteAddress || 'unknown';
+    const now = Date.now();
+    const record = rateLimitStore.get(key);
+    
+    if (!record || now > record.resetTime) {
+      rateLimitStore.set(key, { count: 1, resetTime: now + windowMs });
+      return next();
+    }
+    
+    if (record.count >= maxRequests) {
+      return res.status(429).json({ message: "Too many requests. Please try again later." });
+    }
+    
+    record.count++;
+    return next();
+  };
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of rateLimitStore) {
+    if (now > record.resetTime) rateLimitStore.delete(key);
+  }
+}, 300000);
+
 function generateContractAddress(): string {
   return "0x" + randomBytes(20).toString("hex");
 }
@@ -161,7 +190,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/oracle/chat", async (req, res) => {
+  app.post("/api/oracle/chat", rateLimit(5000, 2), async (req, res) => {
     try {
       const { messages } = req.body;
       if (!messages || !Array.isArray(messages)) {
@@ -311,7 +340,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/nfts", async (req, res) => {
+  app.post("/api/nfts", rateLimit(10000, 3), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const parsed = insertNftSchema.safeParse(req.body);
@@ -432,7 +461,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/bridge/transactions", async (req, res) => {
+  app.post("/api/bridge/transactions", rateLimit(10000, 3), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const parsed = insertBridgeTransactionSchema.safeParse({
@@ -465,6 +494,54 @@ export async function registerRoutes(
       res.json(strategies);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch yield strategies" });
+    }
+  });
+
+  // ========== PRICE FEED ROUTES ==========
+
+  let priceCache: { data: any; timestamp: number } | null = null;
+  const PRICE_CACHE_TTL = 60000;
+
+  app.get("/api/prices", async (_req, res) => {
+    try {
+      const now = Date.now();
+      if (priceCache && now - priceCache.timestamp < PRICE_CACHE_TTL) {
+        return res.json(priceCache.data);
+      }
+
+      const response = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,solana,blockstack&vs_currencies=usd&include_24hr_change=true"
+      );
+
+      if (!response.ok) {
+        if (priceCache) return res.json(priceCache.data);
+        return res.json({
+          ETH: { usd: 3200, usd_24h_change: 0 },
+          SOL: { usd: 145, usd_24h_change: 0 },
+          STX: { usd: 1.85, usd_24h_change: 0 },
+          SKYNT: { usd: 0.45, usd_24h_change: 0 },
+        });
+      }
+
+      const raw = await response.json();
+      const prices = {
+        ETH: { usd: raw.ethereum?.usd || 3200, usd_24h_change: raw.ethereum?.usd_24h_change || 0 },
+        SOL: { usd: raw.solana?.usd || 145, usd_24h_change: raw.solana?.usd_24h_change || 0 },
+        STX: { usd: raw.blockstack?.usd || 1.85, usd_24h_change: raw.blockstack?.usd_24h_change || 0 },
+        SKYNT: { usd: 0.45, usd_24h_change: 2.3 },
+      };
+
+      priceCache = { data: prices, timestamp: now };
+      res.json(prices);
+    } catch (error) {
+      console.error("Price fetch error:", error);
+      if (priceCache) return res.json(priceCache.data);
+      res.json({
+        ETH: { usd: 3200, usd_24h_change: 0 },
+        SOL: { usd: 145, usd_24h_change: 0 },
+        STX: { usd: 1.85, usd_24h_change: 0 },
+        SKYNT: { usd: 0.45, usd_24h_change: 0 },
+      });
     }
   });
 

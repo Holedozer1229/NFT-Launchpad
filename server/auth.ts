@@ -8,6 +8,7 @@ import { storage } from "./storage";
 import { User } from "@shared/schema";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
+import { rateLimit } from "./routes";
 
 const scryptAsync = promisify(scrypt);
 
@@ -74,7 +75,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/register", async (req, res, next) => {
+  app.post("/api/register", rateLimit(60000, 5), async (req, res, next) => {
     try {
       const { username, password } = req.body;
       if (!username || !password) {
@@ -103,7 +104,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", (req, res, next) => {
+  app.post("/api/login", rateLimit(60000, 10), (req, res, next) => {
     passport.authenticate("local", (err: any, user: User | false, info: any) => {
       if (err) return next(err);
       if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });

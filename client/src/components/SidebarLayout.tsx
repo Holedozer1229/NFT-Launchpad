@@ -5,6 +5,9 @@ import { useWallet } from "@/lib/mock-web3";
 import { WalletPicker } from "@/components/WalletPicker";
 import { useAuth } from "@/hooks/use-auth";
 import DynamicBackground from "@/components/DynamicBackground";
+import { NotificationCenter } from "@/components/NotificationCenter";
+import { OnboardingTour } from "@/components/OnboardingTour";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navItems = [
   { path: "/", label: "Mint NFT", icon: Sparkles, adminOnly: false },
@@ -82,11 +85,12 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
         <div className={`flex items-center gap-2 px-4 py-5 border-b border-[hsl(var(--sidebar-border))] ${collapsed ? "justify-center" : ""}`}>
           <Gem className="w-6 h-6 text-neon-cyan shrink-0" style={{ filter: "drop-shadow(0 0 6px hsl(185 100% 50% / 0.6))" }} />
           {!collapsed && (
-            <div>
+            <div className="flex-1">
               <div className="font-heading text-sm font-bold tracking-widest text-foreground" data-testid="text-logo-title">SKYNT</div>
               <div className="text-[10px] font-mono text-muted-foreground tracking-wider">PROTOCOL</div>
             </div>
           )}
+          {!collapsed ? <NotificationCenter /> : <NotificationCenter collapsed />}
         </div>
 
         <nav className="flex-1 py-4 space-y-1 overflow-y-auto" data-testid="sidebar-nav">
@@ -168,6 +172,11 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
           </div>
         )}
 
+        <div className={`flex items-center border-t border-[hsl(var(--sidebar-border))] ${collapsed ? "justify-center p-2" : "justify-between px-3 py-2"}`}>
+          <ThemeToggle />
+          {!collapsed && <span className="text-[9px] font-mono text-muted-foreground">Theme</span>}
+        </div>
+
         <button
           data-testid="button-collapse-sidebar"
           className="hidden md:flex items-center justify-center py-2 border-t border-[hsl(var(--sidebar-border))] text-muted-foreground hover:text-foreground transition-colors"
@@ -182,6 +191,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
       </main>
 
       <WalletPicker />
+      <OnboardingTour />
     </div>
   );
 }

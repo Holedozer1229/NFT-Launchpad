@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle, Loader2, Smartphone } from "lucide-react";
+import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle, Loader2, Smartphone, DollarSign } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
+import { usePrices } from "@/hooks/use-prices";
 
 const chains = [
   { id: "ethereum", name: "Ethereum", symbol: "ETH", icon: "⟠", color: "hsl(210 100% 55%)" },
@@ -42,8 +43,10 @@ export default function Bridge() {
   const [showSourceDropdown, setShowSourceDropdown] = useState(false);
   const [showDestDropdown, setShowDestDropdown] = useState(false);
   const [bridgeSuccess, setBridgeSuccess] = useState(false);
+  const [amountError, setAmountError] = useState("");
   const { isConnected, address, connect, isConnecting } = useWallet();
   const queryClient = useQueryClient();
+  const { data: prices } = usePrices();
 
   const { data: bridgeTransactions = [], isLoading: txLoading } = useQuery<BridgeTx[]>({
     queryKey: ["/api/bridge/transactions"],
@@ -70,6 +73,15 @@ export default function Bridge() {
 
   const source = chains.find((c) => c.id === sourceChain)!;
   const dest = chains.find((c) => c.id === destChain)!;
+
+  const validateAmount = (value: string) => {
+    if (!value) { setAmountError(""); return; }
+    const num = parseFloat(value);
+    if (isNaN(num) || num <= 0) { setAmountError("Enter a valid positive amount"); return; }
+    if (num < 0.001) { setAmountError("Minimum bridge amount is 0.001 SKYNT"); return; }
+    if (num > 1000000) { setAmountError("Maximum bridge amount is 1,000,000 SKYNT"); return; }
+    setAmountError("");
+  };
 
   const swapChains = () => {
     setSourceChain(destChain);
@@ -262,10 +274,13 @@ export default function Bridge() {
           <label className="stat-label">Amount (SKYNT)</label>
           <div className="relative">
             <input data-testid="input-bridge-amount" type="number" placeholder="0.00" value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => { setAmount(e.target.value); validateAmount(e.target.value); }}
               className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-lg focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40" />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-heading">SKYNT</span>
           </div>
+          {amountError && (
+            <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-bridge-amount">{amountError}</p>
+          )}
         </div>
 
         <div className="space-y-2 p-3 bg-black/20 border border-border/50 rounded-sm">
@@ -277,6 +292,12 @@ export default function Bridge() {
             <span className="text-muted-foreground flex items-center gap-1"><Coins className="w-3 h-3" /> You Receive</span>
             <span className="font-mono text-neon-green">{netReceive} SKYNT</span>
           </div>
+          {prices && amount && parseFloat(amount) > 0 && (
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground flex items-center gap-1"><DollarSign className="w-3 h-3" /> USD Value</span>
+              <span className="font-mono text-primary">${(parseFloat(netReceive) * prices.SKYNT.usd).toFixed(2)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /> Est. Time</span>
             <span className="font-mono">{estimatedTime}</span>
@@ -291,7 +312,7 @@ export default function Bridge() {
           </div>
         </div>
 
-        <button data-testid="button-bridge-transfer" disabled={!amount || parseFloat(amount) <= 0 || bridgeMutation.isPending} onClick={handleBridge}
+        <button data-testid="button-bridge-transfer" disabled={!amount || parseFloat(amount) <= 0 || !!amountError || bridgeMutation.isPending} onClick={handleBridge}
           className="connect-wallet-btn w-full py-3 rounded-sm font-heading text-sm tracking-wider disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none">
           <div className="flex items-center justify-center gap-2">
             {bridgeMutation.isPending ? (

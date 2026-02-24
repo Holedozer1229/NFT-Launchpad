@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2 } from "lucide-react";
+import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2, Search } from "lucide-react";
 import { SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -57,6 +57,8 @@ export default function Gallery() {
   const [filterRarity, setFilterRarity] = useState<FilterRarity>("All");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [filterChain, setFilterChain] = useState<FilterChain>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const [listingNftId, setListingNftId] = useState<number | null>(null);
   const [previewNft, setPreviewNft] = useState<NFTItem | null>(null);
   const queryClient = useQueryClient();
@@ -84,12 +86,18 @@ export default function Gallery() {
     queryKey: ["/api/nfts"],
   });
 
+  const ITEMS_PER_PAGE = 12;
+
   const filtered = nfts.filter((nft) => {
     if (filterRarity !== "All" && nft.rarity !== filterRarity) return false;
     if (filterStatus !== "all" && nft.status !== filterStatus) return false;
     if (filterChain !== "all" && nft.chain !== filterChain) return false;
+    if (searchQuery && !nft.title.toLowerCase().includes(searchQuery.toLowerCase()) && !nft.tokenId.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginatedNfts = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const chainCounts: Record<string, number> = {};
   for (const nft of nfts) {
@@ -118,7 +126,7 @@ export default function Gallery() {
             <button
               key={cid}
               data-testid={`button-chain-stat-${cid}`}
-              onClick={() => setFilterChain(isActive ? "all" : cid)}
+              onClick={() => { setFilterChain(isActive ? "all" : cid); setCurrentPage(1); }}
               className={`flex items-center gap-2 px-3 py-2.5 rounded-sm border text-left transition-all ${
                 isActive
                   ? "border-white/40 bg-white/10"
@@ -136,6 +144,18 @@ export default function Gallery() {
       </div>
 
       <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            data-testid="input-search-gallery"
+            type="text"
+            placeholder="Search artifacts..."
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            className="w-full sm:w-64 pl-10 pr-4 py-2 bg-black/40 border border-border rounded-sm font-mono text-sm focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40"
+          />
+        </div>
+
         <span className="text-xs font-heading uppercase tracking-widest text-muted-foreground">Rarity:</span>
         {(["All", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic"] as FilterRarity[]).map((r) => (
           <Button
@@ -143,7 +163,7 @@ export default function Gallery() {
             size="sm"
             variant={filterRarity === r ? "default" : "ghost"}
             className={`text-xs font-mono uppercase tracking-wider ${filterRarity === r ? "" : "text-muted-foreground hover:text-foreground"}`}
-            onClick={() => setFilterRarity(r)}
+            onClick={() => { setFilterRarity(r); setCurrentPage(1); }}
             data-testid={`button-filter-rarity-${r.toLowerCase()}`}
           >
             {r}
@@ -157,7 +177,7 @@ export default function Gallery() {
             size="sm"
             variant={filterStatus === s ? "default" : "ghost"}
             className={`text-xs font-mono uppercase tracking-wider ${filterStatus === s ? "" : "text-muted-foreground hover:text-foreground"}`}
-            onClick={() => setFilterStatus(s)}
+            onClick={() => { setFilterStatus(s); setCurrentPage(1); }}
             data-testid={`button-filter-status-${s}`}
           >
             {s}
@@ -179,7 +199,7 @@ export default function Gallery() {
       </div>
 
       <div className="text-xs font-mono text-muted-foreground" data-testid="text-gallery-count">
-        Showing {filtered.length} of {nfts.length} artifacts
+        Showing {paginatedNfts.length} of {filtered.length} artifacts (page {currentPage} of {totalPages || 1})
         {filterChain !== "all" && ` on ${SUPPORTED_CHAINS[filterChain].name}`}
       </div>
 
@@ -189,7 +209,7 @@ export default function Gallery() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filtered.map((nft) => {
+          {paginatedNfts.map((nft) => {
             const rConf = rarityConfig[nft.rarity] || rarityConfig.Common;
             const chainData = SUPPORTED_CHAINS[nft.chain as ChainId];
             const explorerUrl = getExplorerUrl(nft.chain, nft.tokenId);
@@ -317,11 +337,47 @@ export default function Gallery() {
         </div>
       )}
 
+      {!isLoading && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-8" data-testid="gallery-pagination">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1.5 rounded-sm border border-border text-xs font-heading uppercase tracking-wider disabled:opacity-30 hover:border-primary/40 transition-colors"
+            data-testid="button-prev-page"
+          >
+            Prev
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).slice(
+            Math.max(0, currentPage - 3),
+            Math.min(totalPages, currentPage + 2)
+          ).map(page => (
+            <button
+              key={page}
+              onClick={() => setCurrentPage(page)}
+              className={`w-8 h-8 rounded-sm text-xs font-mono transition-colors ${
+                currentPage === page ? "bg-primary/20 text-primary border border-primary/40" : "border border-border text-muted-foreground hover:border-primary/30"
+              }`}
+              data-testid={`button-page-${page}`}
+            >
+              {page}
+            </button>
+          ))}
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1.5 rounded-sm border border-border text-xs font-heading uppercase tracking-wider disabled:opacity-30 hover:border-primary/40 transition-colors"
+            data-testid="button-next-page"
+          >
+            Next
+          </button>
+        </div>
+      )}
+
       {!isLoading && filtered.length === 0 && (
         <div className="text-center py-20 space-y-4" data-testid="text-gallery-empty">
           <Sparkles className="w-12 h-12 mx-auto text-muted-foreground/30" />
           <p className="font-heading text-muted-foreground">No artifacts match your filters</p>
-          <Button variant="ghost" className="text-primary text-xs" onClick={() => { setFilterRarity("All"); setFilterStatus("all"); setFilterChain("all"); }} data-testid="button-clear-filters">
+          <Button variant="ghost" className="text-primary text-xs" onClick={() => { setFilterRarity("All"); setFilterStatus("all"); setFilterChain("all"); setSearchQuery(""); setCurrentPage(1); }} data-testid="button-clear-filters">
             Clear Filters
           </Button>
         </div>

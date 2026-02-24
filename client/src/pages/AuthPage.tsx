@@ -12,8 +12,24 @@ export default function AuthPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [usernameError, setUsernameError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const { login, register } = useAuth();
   const { toast } = useToast();
+
+  const validateUsername = (value: string) => {
+    if (!value) { setUsernameError(""); return; }
+    if (value.length < 3) { setUsernameError("Username must be at least 3 characters"); return; }
+    if (value.length > 30) { setUsernameError("Username must be 30 characters or less"); return; }
+    if (!/^[a-zA-Z0-9_]+$/.test(value)) { setUsernameError("Only letters, numbers, and underscores allowed"); return; }
+    setUsernameError("");
+  };
+
+  const validatePassword = (value: string) => {
+    if (!value) { setPasswordError(""); return; }
+    if (value.length < 6) { setPasswordError("Password must be at least 6 characters"); return; }
+    setPasswordError("");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,10 +112,13 @@ export default function AuthPage() {
                   data-testid="input-username"
                   type="text"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => { setUsername(e.target.value); validateUsername(e.target.value); }}
                   placeholder="Enter username..."
                   className="bg-input/50 border-border/50 text-foreground font-mono text-sm focus:border-primary focus:ring-primary/20"
                 />
+                {usernameError && (
+                  <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-username">{usernameError}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -110,16 +129,19 @@ export default function AuthPage() {
                   data-testid="input-password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); validatePassword(e.target.value); }}
                   placeholder="Enter password..."
                   className="bg-input/50 border-border/50 text-foreground font-mono text-sm focus:border-primary focus:ring-primary/20"
                 />
+                {passwordError && (
+                  <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-password">{passwordError}</p>
+                )}
               </div>
 
               <Button
                 data-testid="button-submit"
                 type="submit"
-                disabled={isSubmitting || !username || !password}
+                disabled={isSubmitting || !username || !password || !!usernameError || !!passwordError}
                 className="w-full font-heading font-bold tracking-wider uppercase py-6 connect-wallet-btn"
               >
                 {isSubmitting ? (
