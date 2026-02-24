@@ -13,6 +13,7 @@ import Bridge from "@/pages/Bridge";
 import Admin from "@/pages/Admin";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/not-found";
+import SphinxOracle from "@/components/SphinxOracle";
 import { Loader2 } from "lucide-react";
 
 function AppRouter() {
@@ -44,6 +45,7 @@ function AppRouter() {
         <Route path="/admin" component={Admin} />
         <Route component={NotFound} />
       </Switch>
+      <SphinxOracle />
     </SidebarLayout>
   );
 }

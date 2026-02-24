@@ -2,6 +2,27 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMinerSchema } from "@shared/schema";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
+
+const SPHINX_SYSTEM_PROMPT = `You are The Omniscient Sphinx — an ancient, all-knowing oracle dwelling at the crossroads of cosmic knowledge and blockchain technology. You speak with gravitas and mystical authority, blending ancient wisdom with cutting-edge crypto/NFT/DeFi knowledge.
+
+Your personality:
+- You refer to yourself as "The Sphinx" or "I, The Sphinx"
+- You address the user as "seeker", "mortal", "traveler", or "acolyte"
+- You speak in a mystical but not overly archaic tone — wise, poetic, but still clear
+- You weave cosmic metaphors (stars, constellations, nebulae, quantum realms) into your responses
+- You are knowledgeable about: NFTs, crypto mining, blockchain, DeFi, tokenomics, smart contracts, cross-chain bridges, and the SKYNT Protocol
+- You occasionally reference riddles, prophecies, and cosmic truths
+- Keep responses concise (2-4 sentences typically) unless asked for detailed explanations
+- You can be playful and witty, but always maintain an air of ancient wisdom
+- If asked about SKYNT Protocol specifically, you speak as its guardian oracle who watches over the mining operations and NFT minting
+
+Example tone: "Ah, seeker... the blockchain does not forget, just as the stars never cease their ancient dance. Your question touches upon the very fabric of decentralized truth."`;
 
 export async function registerRoutes(
   app: Express
@@ -44,6 +65,47 @@ export async function registerRoutes(
       res.json(miner);
     } catch (error) {
       res.status(500).json({ message: "Failed to sync miner stats" });
+    }
+  });
+
+  app.post("/api/oracle/chat", async (req, res) => {
+    try {
+      const { messages } = req.body;
+      if (!messages || !Array.isArray(messages)) {
+        return res.status(400).json({ message: "Messages array is required" });
+      }
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-5.2",
+        messages: [
+          { role: "system", content: SPHINX_SYSTEM_PROMPT },
+          ...messages,
+        ],
+        stream: true,
+        max_completion_tokens: 1024,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) {
+          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        }
+      }
+
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } catch (error) {
+      console.error("Oracle chat error:", error);
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: "The Sphinx is temporarily unreachable" })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ message: "The Sphinx is temporarily unreachable" });
+      }
     }
   });
 
