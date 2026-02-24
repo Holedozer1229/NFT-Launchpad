@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
+import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
 import { randomBytes } from "crypto";
 import { z } from "zod";
 import OpenAI from "openai";
@@ -598,6 +598,73 @@ export async function registerRoutes(
       res.json(phi);
     } catch (error) {
       res.status(500).json({ message: "Failed to compute Φ" });
+    }
+  });
+
+  // ========== OMEGA SERPENT GAME ROUTES ==========
+
+  app.post("/api/game/score", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const MAX_SCORE = 50000;
+      const MAX_ERGOTROPY = 10000;
+      const MAX_TICKS = 100000;
+      const rawScore = Math.min(Math.max(0, Math.floor(Number(req.body.score) || 0)), MAX_SCORE);
+      const rawErgotropy = Math.min(Math.max(0, Math.floor(Number(req.body.ergotropy) || 0)), MAX_ERGOTROPY);
+      const rawTreasures = Math.min(Math.max(0, Math.floor(Number(req.body.treasuresCollected) || 0)), 500);
+      const rawTicks = Math.min(Math.max(0, Math.floor(Number(req.body.survivalTicks) || 0)), MAX_TICKS);
+      const serverSkyntEarned = (rawScore * 0.1).toFixed(2);
+
+      const scoreData = {
+        userId: req.user!.id,
+        username: req.user!.username,
+        score: rawScore,
+        skyntEarned: serverSkyntEarned,
+        ergotropy: rawErgotropy,
+        berryPhase: String(Number(req.body.berryPhase) || 0).slice(0, 20),
+        treasuresCollected: rawTreasures,
+        milestones: Math.min(Math.max(0, Math.floor(Number(req.body.milestones) || 0)), 200),
+        superMilestones: Math.min(Math.max(0, Math.floor(Number(req.body.superMilestones) || 0)), 20),
+        survivalTicks: rawTicks,
+        chain: ["ETH", "SOL", "STX"].includes(req.body.chain) ? req.body.chain : "ETH",
+      };
+      const parsed = insertGameScoreSchema.safeParse(scoreData);
+      if (!parsed.success) return res.status(400).json(parsed.error);
+      const score = await storage.createGameScore(parsed.data);
+      res.json(score);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to save game score" });
+    }
+  });
+
+  app.get("/api/game/leaderboard", async (_req, res) => {
+    try {
+      const leaderboard = await storage.getLeaderboard(20);
+      res.json(leaderboard);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch leaderboard" });
+    }
+  });
+
+  app.get("/api/game/scores", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const scores = await storage.getGameScoresByUser(req.user!.id);
+      res.json(scores);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch scores" });
+    }
+  });
+
+  app.post("/api/game/claim/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const scoreId = parseInt(req.params.id);
+      const result = await storage.claimGameReward(scoreId, req.user!.id);
+      if (!result) return res.status(400).json({ message: "Cannot claim this reward" });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to claim reward" });
     }
   });
 

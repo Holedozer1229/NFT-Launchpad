@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain } from "lucide-react";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2 } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
 import { WalletPicker } from "@/components/WalletPicker";
 import { useAuth } from "@/hooks/use-auth";
@@ -13,6 +13,7 @@ const navItems = [
   { path: "/bridge", label: "Bridge", icon: ArrowLeftRight, adminOnly: false },
   { path: "/yield", label: "Yield", icon: TrendingUp, adminOnly: false },
   { path: "/iit", label: "IIT Consciousness", icon: Brain, adminOnly: false },
+  { path: "/serpent", label: "Omega Serpent", icon: Gamepad2, adminOnly: false },
   { path: "/wallet", label: "Wallet", icon: WalletCards, adminOnly: false },
   { path: "/admin", label: "Admin", icon: Shield, adminOnly: true },
 ];

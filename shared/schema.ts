@@ -260,4 +260,25 @@ export const insertContractDeploymentSchema = createInsertSchema(contractDeploym
 export type ContractDeployment = typeof contractDeployments.$inferSelect;
 export type InsertContractDeployment = z.infer<typeof insertContractDeploymentSchema>;
 
+export const gameScores = pgTable("game_scores", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  username: text("username").notNull(),
+  score: integer("score").notNull().default(0),
+  skyntEarned: text("skynt_earned").notNull().default("0"),
+  ergotropy: integer("ergotropy").notNull().default(0),
+  berryPhase: text("berry_phase").notNull().default("0"),
+  treasuresCollected: integer("treasures_collected").notNull().default(0),
+  milestones: integer("milestones").notNull().default(0),
+  superMilestones: integer("super_milestones").notNull().default(0),
+  survivalTicks: integer("survival_ticks").notNull().default(0),
+  chain: text("chain").notNull().default("ETH"),
+  claimed: boolean("claimed").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertGameScoreSchema = createInsertSchema(gameScores).omit({ id: true, createdAt: true, claimed: true });
+export type GameScore = typeof gameScores.$inferSelect;
+export type InsertGameScore = z.infer<typeof insertGameScoreSchema>;
+
 export { conversations, messages } from "./models/chat";

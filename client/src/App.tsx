@@ -13,6 +13,7 @@ import Bridge from "@/pages/Bridge";
 import YieldGenerator from "@/pages/YieldGenerator";
 import IITConsciousness from "@/pages/IITConsciousness";
 import Admin from "@/pages/Admin";
+import OmegaSerpent from "@/pages/OmegaSerpent";
 import WalletPage from "@/pages/WalletPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/not-found";
@@ -61,6 +62,7 @@ function AppRouter() {
         <Route path="/bridge" component={Bridge} />
         <Route path="/yield" component={YieldGenerator} />
         <Route path="/iit" component={IITConsciousness} />
+        <Route path="/serpent" component={OmegaSerpent} />
         <Route path="/wallet" component={WalletPage} />
         <Route path="/admin" component={AdminGuard} />
         <Route component={NotFound} />

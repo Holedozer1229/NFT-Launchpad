@@ -1,4 +1,4 @@
-import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment } from "@shared/schema";
+import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -49,6 +49,11 @@ export interface IStorage {
   getDeploymentsByWallet(walletAddress: string): Promise<ContractDeployment[]>;
   getDeploymentsByWalletId(walletId: number): Promise<ContractDeployment[]>;
   createDeployment(deployment: InsertContractDeployment): Promise<ContractDeployment>;
+
+  createGameScore(score: InsertGameScore): Promise<GameScore>;
+  getLeaderboard(limit?: number): Promise<GameScore[]>;
+  getGameScoresByUser(userId: number): Promise<GameScore[]>;
+  claimGameReward(scoreId: number, userId: number): Promise<GameScore | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -219,6 +224,49 @@ export class DatabaseStorage implements IStorage {
   async createDeployment(deployment: InsertContractDeployment): Promise<ContractDeployment> {
     const [d] = await db.insert(contractDeployments).values(deployment).returning();
     return d;
+  }
+
+  async createGameScore(score: InsertGameScore): Promise<GameScore> {
+    const [s] = await db.insert(gameScores).values(score).returning();
+    return s;
+  }
+
+  async getLeaderboard(limit: number = 20): Promise<GameScore[]> {
+    return await db.select().from(gameScores).orderBy(desc(gameScores.score)).limit(limit);
+  }
+
+  async getGameScoresByUser(userId: number): Promise<GameScore[]> {
+    return await db.select().from(gameScores).where(eq(gameScores.userId, userId)).orderBy(desc(gameScores.score));
+  }
+
+  async claimGameReward(scoreId: number, userId: number): Promise<GameScore | undefined> {
+    const [score] = await db.select().from(gameScores).where(eq(gameScores.id, scoreId));
+    if (!score || score.userId !== userId || score.claimed) return undefined;
+
+    let userWallets = await this.getWalletsByUser(userId);
+    if (userWallets.length === 0) {
+      await this.createWallet(userId, "Main Wallet");
+      userWallets = await this.getWalletsByUser(userId);
+    }
+    if (userWallets.length === 0) return undefined;
+
+    const wallet = userWallets[0];
+    const currentBalance = parseFloat(wallet.balanceSkynt);
+    const reward = parseFloat(score.skyntEarned);
+    await this.updateWalletBalance(wallet.id, "SKYNT", (currentBalance + reward).toString());
+    await this.createTransaction({
+      walletId: wallet.id,
+      type: "reward",
+      fromAddress: "0x0000000000000000000000000000000000000000",
+      toAddress: wallet.address,
+      amount: score.skyntEarned,
+      token: "SKYNT",
+      status: "completed",
+      txHash: "0x" + randomBytes(32).toString("hex"),
+    });
+
+    const [updated] = await db.update(gameScores).set({ claimed: true }).where(eq(gameScores.id, scoreId)).returning();
+    return updated;
   }
 }
 
