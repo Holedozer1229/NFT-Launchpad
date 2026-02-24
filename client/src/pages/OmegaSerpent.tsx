@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Zap, Trophy, Flame, Sparkles, Activity, Coins, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Gamepad2, Crown, Gift, Skull } from "lucide-react";
+import { Coins, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Gamepad2, Crown, Gift, Skull, X, Trophy } from "lucide-react";
 
 const GRID_W = 30;
 const GRID_H = 20;
@@ -74,6 +72,38 @@ function createPlayerSnake(): Snake {
   return { segments: segs, direction: { dx: -1, dy: 0 }, chain: "PLAYER", alive: true };
 }
 
+function DPad({ onDir }: { onDir: (d: Dir) => void }) {
+  const btnClass = "w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center rounded-lg bg-white/10 border border-white/20 active:bg-neon-green/30 active:border-neon-green/60 transition-colors select-none";
+  const press = (d: Dir) => (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDir(d);
+  };
+  return (
+    <div className="grid grid-cols-3 gap-1 w-[180px] sm:w-[200px]" style={{ touchAction: "none" }} data-testid="dpad">
+      <div />
+      <button type="button" className={btnClass} onPointerDown={press({ dx: 0, dy: -1 })} style={{ touchAction: "none" }} data-testid="dpad-up">
+        <ArrowUp className="w-6 h-6 text-white/80 pointer-events-none" />
+      </button>
+      <div />
+      <button type="button" className={btnClass} onPointerDown={press({ dx: -1, dy: 0 })} style={{ touchAction: "none" }} data-testid="dpad-left">
+        <ArrowLeft className="w-6 h-6 text-white/80 pointer-events-none" />
+      </button>
+      <div className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center rounded-lg border border-white/5">
+        <Gamepad2 className="w-5 h-5 text-white/20 pointer-events-none" />
+      </div>
+      <button type="button" className={btnClass} onPointerDown={press({ dx: 1, dy: 0 })} style={{ touchAction: "none" }} data-testid="dpad-right">
+        <ArrowRight className="w-6 h-6 text-white/80 pointer-events-none" />
+      </button>
+      <div />
+      <button type="button" className={btnClass} onPointerDown={press({ dx: 0, dy: 1 })} style={{ touchAction: "none" }} data-testid="dpad-down">
+        <ArrowDown className="w-6 h-6 text-white/80 pointer-events-none" />
+      </button>
+      <div />
+    </div>
+  );
+}
+
 export default function OmegaSerpent() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -96,11 +126,29 @@ export default function OmegaSerpent() {
   const [eventLog, setEventLog] = useState<string[]>([]);
   const [tick, setTick] = useState(0);
   const [lives, setLives] = useState(3);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showRewards, setShowRewards] = useState(false);
 
   const stateRef = useRef({ player, aiSnakes, treasures, score, ergotropy, berryPhase, treasuresCollected, milestones, superMilestones, survivalTicks, lives, tick });
   useEffect(() => {
     stateRef.current = { player, aiSnakes, treasures, score, ergotropy, berryPhase, treasuresCollected, milestones, superMilestones, survivalTicks, lives, tick };
   });
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  const [canvasKey, setCanvasKey] = useState(0);
+  useEffect(() => {
+    const onResize = () => setCanvasKey(k => k + 1);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+    };
+  }, []);
 
   const { data: leaderboard } = useQuery<any[]>({
     queryKey: ["/api/game/leaderboard"],
@@ -177,7 +225,15 @@ export default function OmegaSerpent() {
     setEventLog([]);
     setTick(0);
     setLives(3);
+    setShowLeaderboard(false);
+    setShowRewards(false);
     setGameState("playing");
+  }, []);
+
+  const handleDpadDir = useCallback((d: Dir) => {
+    const cur = dirRef.current;
+    if (d.dx !== 0 && d.dx !== -cur.dx) dirRef.current = d;
+    if (d.dy !== 0 && d.dy !== -cur.dy) dirRef.current = d;
   }, []);
 
   useEffect(() => {
@@ -186,20 +242,16 @@ export default function OmegaSerpent() {
       switch (e.key) {
         case "ArrowUp": case "w": case "W":
           if (cur.dy !== 1) dirRef.current = { dx: 0, dy: -1 };
-          e.preventDefault();
-          break;
+          e.preventDefault(); break;
         case "ArrowDown": case "s": case "S":
           if (cur.dy !== -1) dirRef.current = { dx: 0, dy: 1 };
-          e.preventDefault();
-          break;
+          e.preventDefault(); break;
         case "ArrowLeft": case "a": case "A":
           if (cur.dx !== 1) dirRef.current = { dx: -1, dy: 0 };
-          e.preventDefault();
-          break;
+          e.preventDefault(); break;
         case "ArrowRight": case "d": case "D":
           if (cur.dx !== -1) dirRef.current = { dx: 1, dy: 0 };
-          e.preventDefault();
-          break;
+          e.preventDefault(); break;
       }
     };
     window.addEventListener("keydown", handler);
@@ -208,7 +260,6 @@ export default function OmegaSerpent() {
 
   useEffect(() => {
     if (gameState !== "playing") return;
-
     const loop = setInterval(() => {
       setTick(t => t + 1);
       setSurvivalTicks(t => t + 1);
@@ -219,7 +270,6 @@ export default function OmegaSerpent() {
         const head = p.segments[0];
         const nx = (head.x + p.direction.dx + GRID_W) % GRID_W;
         const ny = (head.y + p.direction.dy + GRID_H) % GRID_H;
-
         const selfHit = p.segments.some((seg, i) => i > 0 && seg.x === nx && seg.y === ny);
         const aiHit = stateRef.current.aiSnakes.some(ai => ai.alive && ai.segments.some(seg => seg.x === nx && seg.y === ny));
 
@@ -227,11 +277,11 @@ export default function OmegaSerpent() {
           setLives(l => {
             const newLives = l - 1;
             if (newLives <= 0) {
-              addEvent("💀 PLAYER TERMINATED — GAME OVER");
+              addEvent("\u{1F480} PLAYER TERMINATED \u2014 GAME OVER");
               setTimeout(() => endGame(), 100);
               return 0;
             }
-            addEvent(`💥 COLLISION! Lives remaining: ${newLives}`);
+            addEvent(`\u{1F4A5} COLLISION! Lives remaining: ${newLives}`);
             const fresh = createPlayerSnake();
             fresh.direction = dirRef.current;
             setPlayer(fresh);
@@ -241,7 +291,6 @@ export default function OmegaSerpent() {
         }
 
         p.segments.unshift({ x: nx, y: ny });
-
         setTreasures(prevT => {
           const hit = prevT.findIndex(t => t.x === nx && t.y === ny);
           if (hit >= 0) {
@@ -249,7 +298,7 @@ export default function OmegaSerpent() {
             if (t.type === "skull") {
               setScore(s => Math.max(0, s + t.value * 10));
               setErgotropy(e => Math.max(0, e + t.value));
-              addEvent(`☠️ SKULL TRAP — penalty ${t.value * 10}`);
+              addEvent(`\u2620\uFE0F SKULL TRAP \u2014 penalty ${t.value * 10}`);
               if (p.segments.length > 3) p.segments.pop();
             } else {
               const points = t.type === "golden" ? t.value * 20 : t.value * 10;
@@ -258,19 +307,19 @@ export default function OmegaSerpent() {
                 const newE = e + t.value * 3;
                 const newM = Math.floor(newE / 50);
                 setMilestones(pm => {
-                  if (newM > pm) addEvent(`⚡ MILESTONE #${newM} — +${t.value * 30} SKYNT BONUS`);
+                  if (newM > pm) addEvent(`\u26A1 MILESTONE #${newM} \u2014 +${t.value * 30} SKYNT BONUS`);
                   return newM;
                 });
                 const newSM = Math.floor(newE / 500);
                 setSuperMilestones(psm => {
-                  if (newSM > psm) addEvent(`🏆 SUPER MILESTONE #${newSM} — OMEGA NFT TRIGGER`);
+                  if (newSM > psm) addEvent(`\u{1F3C6} SUPER MILESTONE #${newSM} \u2014 OMEGA NFT TRIGGER`);
                   return newSM;
                 });
                 return newE;
               });
               setBerryPhase(bp => bp + (2 * Math.PI / 3) * t.value);
               setTreasuresCollected(tc => tc + 1);
-              addEvent(`${t.type === "golden" ? "✨" : "🐍"} Collected ${t.chain} ${t.type === "golden" ? "GOLDEN " : ""}treasure [+${points}]`);
+              addEvent(`${t.type === "golden" ? "\u2728" : "\u{1F40D}"} Collected ${t.chain} ${t.type === "golden" ? "GOLDEN " : ""}treasure [+${points}]`);
             }
             const remaining = [...prevT];
             remaining.splice(hit, 1);
@@ -280,7 +329,6 @@ export default function OmegaSerpent() {
           p.segments.pop();
           return prevT;
         });
-
         return p;
       });
 
@@ -288,15 +336,10 @@ export default function OmegaSerpent() {
         return prevAis.map(ai => {
           if (!ai.alive) return ai;
           const s = { ...ai, segments: [...ai.segments] };
-
           const head = s.segments[0];
           const nearestTreasure = stateRef.current.treasures
             .filter(t => t.type !== "skull")
-            .sort((a, b) => {
-              const da = Math.abs(a.x - head.x) + Math.abs(a.y - head.y);
-              const db = Math.abs(b.x - head.x) + Math.abs(b.y - head.y);
-              return da - db;
-            })[0];
+            .sort((a, b) => (Math.abs(a.x - head.x) + Math.abs(a.y - head.y)) - (Math.abs(b.x - head.x) + Math.abs(b.y - head.y)))[0];
 
           if (nearestTreasure && Math.random() < 0.7) {
             const dx = nearestTreasure.x - head.x;
@@ -318,7 +361,6 @@ export default function OmegaSerpent() {
           const nx = (head.x + s.direction.dx + GRID_W) % GRID_W;
           const ny = (head.y + s.direction.dy + GRID_H) % GRID_H;
           s.segments.unshift({ x: nx, y: ny });
-
           setTreasures(prevT => {
             const hit = prevT.findIndex(t => t.x === nx && t.y === ny);
             if (hit >= 0) {
@@ -330,7 +372,6 @@ export default function OmegaSerpent() {
             s.segments.pop();
             return prevT;
           });
-
           return s;
         });
       });
@@ -353,7 +394,7 @@ export default function OmegaSerpent() {
     const cellW = rect.width / GRID_W;
     const cellH = rect.height / GRID_H;
 
-    ctx.fillStyle = "rgba(0,0,0,0.92)";
+    ctx.fillStyle = "rgba(0,0,0,0.95)";
     ctx.fillRect(0, 0, rect.width, rect.height);
 
     ctx.strokeStyle = "rgba(0,243,255,0.04)";
@@ -376,7 +417,7 @@ export default function OmegaSerpent() {
         ctx.font = `${Math.min(cellW, cellH) * 0.6}px monospace`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("☠", tx, ty);
+        ctx.fillText("\u2620", tx, ty);
       } else if (t.type === "golden") {
         ctx.shadowColor = "hsl(50,100%,60%)";
         ctx.shadowBlur = 10 * pulse;
@@ -385,9 +426,7 @@ export default function OmegaSerpent() {
         const r = Math.min(cellW, cellH) * 0.35;
         for (let i = 0; i < 5; i++) {
           const a = -Math.PI / 2 + (i * 2 * Math.PI / 5);
-          const px = tx + Math.cos(a) * r;
-          const py = ty + Math.sin(a) * r;
-          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+          ctx.lineTo(tx + Math.cos(a) * r, ty + Math.sin(a) * r);
           const ia = a + Math.PI / 5;
           ctx.lineTo(tx + Math.cos(ia) * r * 0.4, ty + Math.sin(ia) * r * 0.4);
         }
@@ -440,235 +479,219 @@ export default function OmegaSerpent() {
       if (ai.alive) drawSnake(ai, CHAIN_COLORS[ai.chain as Chain]);
     }
     if (player.alive) drawSnake(player, PLAYER_COLOR);
-  }, [player, aiSnakes, treasures, tick]);
+  }, [player, aiSnakes, treasures, tick, canvasKey]);
 
   const skyntReward = (score * 0.1).toFixed(2);
-  const quantumProof = ergotropy > 0
-    ? `0x${Math.floor((berryPhase + ergotropy) * 1e6).toString(16).slice(0, 16)}`
-    : "0x0";
 
   return (
-    <div className="space-y-6" data-testid="omega-serpent-page">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-heading text-2xl md:text-3xl font-bold tracking-widest text-neon-green" data-testid="text-page-title">
-            OMEGA SERPENT ARENA
-          </h1>
-          <p className="font-mono text-xs text-muted-foreground mt-1">
-            PLAY-TO-EARN // COLLECT TREASURES // EARN SKYNT ON-CHAIN
-          </p>
+    <div className="fixed inset-0 z-50 bg-black flex flex-col" data-testid="omega-serpent-page" style={{ touchAction: "none" }}>
+      {/* TOP HUD BAR */}
+      <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-black/80 border-b border-neon-green/20 z-20">
+        <div className="flex items-center gap-3">
+          <span className="font-heading text-sm sm:text-base tracking-widest text-neon-green">OMEGA SERPENT</span>
+          <Badge variant="outline" className={`text-[10px] ${gameState === "playing" ? "border-neon-green text-neon-green animate-pulse" : "text-muted-foreground"}`}>
+            {gameState === "playing" ? "LIVE" : gameState === "gameover" ? "OVER" : "READY"}
+          </Badge>
         </div>
-        <Badge variant="outline" className={`text-sm ${gameState === "playing" ? "border-neon-green text-neon-green animate-pulse" : "text-muted-foreground"}`}>
-          {gameState === "playing" ? "LIVE" : gameState === "gameover" ? "GAME OVER" : "READY"}
-        </Badge>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="cosmic-card bg-black/70 border-neon-green/30 overflow-hidden">
-            <CardContent className="p-0 relative">
-              <div style={{ aspectRatio: `${GRID_W}/${GRID_H}` }} data-testid="game-arena">
-                <canvas ref={canvasRef} className="w-full h-full" style={{ imageRendering: "pixelated" }} />
-
-                {gameState === "menu" && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-10">
-                    <Gamepad2 className="w-12 h-12 text-neon-green mb-3 animate-pulse" />
-                    <h2 className="font-heading text-xl text-neon-green tracking-widest mb-2">OMEGA SERPENT v3.0</h2>
-                    <p className="font-mono text-xs text-muted-foreground mb-4 text-center max-w-sm">
-                      Control your serpent with WASD or Arrow keys. Collect treasures to earn SKYNT. Avoid AI serpents and skull traps.
-                    </p>
-                    <div className="flex gap-2 mb-4">
-                      {CHAINS.map(c => (
-                        <button
-                          key={c}
-                          data-testid={`select-chain-${c.toLowerCase()}`}
-                          className={`px-3 py-1.5 rounded-sm font-heading text-xs tracking-wider border transition-all ${selectedChain === c ? "border-neon-green text-neon-green bg-neon-green/10" : "border-white/10 text-muted-foreground hover:border-white/30"}`}
-                          onClick={() => setSelectedChain(c)}
-                        >
-                          {c}
-                        </button>
-                      ))}
-                    </div>
-                    <Button
-                      data-testid="button-start-game"
-                      className="bg-gradient-to-r from-neon-cyan via-neon-green to-neon-orange text-black font-heading font-bold tracking-widest px-8"
-                      onClick={startGame}
-                    >
-                      DEPLOY SERPENT
-                    </Button>
-                    <div className="flex items-center gap-4 mt-4 font-mono text-[10px] text-muted-foreground">
-                      <span className="flex items-center gap-1"><ArrowUp className="w-3 h-3" />W</span>
-                      <span className="flex items-center gap-1"><ArrowLeft className="w-3 h-3" />A</span>
-                      <span className="flex items-center gap-1"><ArrowDown className="w-3 h-3" />S</span>
-                      <span className="flex items-center gap-1"><ArrowRight className="w-3 h-3" />D</span>
-                    </div>
-                  </div>
-                )}
-
-                {gameState === "gameover" && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm z-10">
-                    <Skull className="w-10 h-10 text-red-500 mb-2" />
-                    <h2 className="font-heading text-xl text-red-400 tracking-widest mb-1">GAME OVER</h2>
-                    <div className="text-center space-y-1 mb-4">
-                      <p className="font-mono text-lg text-neon-green">SCORE: {score}</p>
-                      <p className="font-mono text-sm text-neon-cyan">SKYNT EARNED: {skyntReward}</p>
-                      <p className="font-mono text-xs text-muted-foreground">Ergotropy: {Math.floor(ergotropy)} | Milestones: {milestones}</p>
-                    </div>
-                    <Button
-                      data-testid="button-play-again"
-                      className="bg-gradient-to-r from-neon-cyan via-neon-green to-neon-orange text-black font-heading font-bold tracking-widest px-8"
-                      onClick={startGame}
-                    >
-                      PLAY AGAIN
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {gameState === "playing" && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="cosmic-card-cyan p-3">
-                <div className="font-mono text-[10px] text-neon-cyan/70 uppercase">Score</div>
-                <div className="font-heading text-lg text-neon-cyan" data-testid="text-score">{score}</div>
-              </div>
-              <div className="cosmic-card-green p-3">
-                <div className="font-mono text-[10px] text-neon-green/70 uppercase">SKYNT Reward</div>
-                <div className="font-heading text-lg text-neon-green flex items-center gap-1"><Coins className="w-4 h-4" />{skyntReward}</div>
-              </div>
-              <div className="cosmic-card-orange p-3">
-                <div className="font-mono text-[10px] text-neon-orange/70 uppercase">Ergotropy</div>
-                <div className="font-heading text-lg text-neon-orange">{Math.floor(ergotropy)}</div>
-              </div>
-              <div className="cosmic-card-magenta p-3">
-                <div className="font-mono text-[10px] text-neon-magenta/70 uppercase">Lives</div>
-                <div className="font-heading text-lg text-neon-magenta">{"♥".repeat(lives)}</div>
-              </div>
-            </div>
-          )}
-
-          <Card className="cosmic-card bg-black/50 border-primary/10">
-            <CardHeader className="py-3 border-b border-primary/10">
-              <div className="flex justify-between items-center">
-                <CardTitle className="font-heading text-sm tracking-widest text-primary">EVENT FEED</CardTitle>
-                <Activity className="w-4 h-4 text-primary/40" />
-              </div>
-            </CardHeader>
-            <CardContent className="py-3">
-              <div className="space-y-0.5 font-mono text-[11px] min-h-[80px]" data-testid="game-event-feed">
-                {eventLog.length > 0 ? eventLog.map((msg, i) => (
-                  <p key={i} className={`${i === 0 ? "text-neon-green" : "text-primary/50"} truncate`}>{">>>"} {msg}</p>
-                )) : (
-                  <p className="text-muted-foreground/40 italic">Awaiting serpent deployment...</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {gameState === "playing" && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-[10px] font-mono uppercase text-primary/60">
-                <span>Cross-Chain Ergotropy</span>
-                <span className="text-foreground">{Math.floor(ergotropy)} / {(superMilestones + 1) * 500}</span>
-              </div>
-              <Progress value={(ergotropy % 500) / 5} className="h-2 bg-white/5 [&>div]:bg-gradient-to-r [&>div]:from-neon-cyan [&>div]:via-neon-magenta [&>div]:to-neon-orange" />
-              <div className="flex justify-between text-[10px] font-mono">
-                <span className="text-muted-foreground">GHZ Quantum Proof</span>
-                <span className="text-neon-cyan">{quantumProof}</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-4">
-          <Card className="cosmic-card bg-black/60 border-primary/20">
-            <CardHeader className="py-3 border-b border-primary/10">
-              <div className="flex items-center gap-2">
-                <Crown className="w-4 h-4 text-neon-orange" />
-                <CardTitle className="font-heading text-sm tracking-widest text-primary">LEADERBOARD</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="py-3">
-              <div className="space-y-1.5" data-testid="leaderboard">
-                {leaderboard && leaderboard.length > 0 ? leaderboard.slice(0, 10).map((entry: any, i: number) => (
-                  <div key={entry.id} className={`flex items-center justify-between p-2 rounded-sm ${i === 0 ? "bg-neon-orange/10 border border-neon-orange/30" : i < 3 ? "bg-primary/5 border border-primary/10" : "border border-transparent"}`}>
-                    <div className="flex items-center gap-2">
-                      <span className={`font-heading text-xs w-5 text-center ${i === 0 ? "text-neon-orange" : i < 3 ? "text-neon-cyan" : "text-muted-foreground"}`}>
-                        {i === 0 ? "👑" : `#${i + 1}`}
-                      </span>
-                      <span className="font-mono text-xs text-foreground truncate max-w-[80px]">{entry.username}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-mono text-xs text-neon-green">{entry.score}</span>
-                      <span className="font-mono text-[9px] text-muted-foreground ml-1">({entry.chain})</span>
-                    </div>
-                  </div>
-                )) : (
-                  <p className="font-mono text-xs text-muted-foreground/50 text-center py-4">No scores yet. Be the first!</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="cosmic-card bg-black/60 border-primary/20">
-            <CardHeader className="py-3 border-b border-primary/10">
-              <div className="flex items-center gap-2">
-                <Gift className="w-4 h-4 text-neon-green" />
-                <CardTitle className="font-heading text-sm tracking-widest text-primary">MY REWARDS</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="py-3">
-              <div className="space-y-2" data-testid="my-rewards">
-                {myScores && myScores.length > 0 ? myScores.slice(0, 5).map((entry: any) => (
-                  <div key={entry.id} className="flex items-center justify-between p-2 bg-black/30 border border-white/5 rounded-sm">
-                    <div>
-                      <div className="font-mono text-xs text-foreground">Score: {entry.score}</div>
-                      <div className="font-mono text-[9px] text-muted-foreground">{entry.chain} | {parseFloat(entry.skyntEarned).toFixed(2)} SKYNT</div>
-                    </div>
-                    {entry.claimed ? (
-                      <Badge variant="outline" className="text-[9px] border-neon-green/30 text-neon-green">CLAIMED</Badge>
-                    ) : (
-                      <Button
-                        size="sm"
-                        data-testid={`button-claim-${entry.id}`}
-                        className="text-[10px] h-6 px-2 bg-neon-green/20 border border-neon-green/40 text-neon-green hover:bg-neon-green/30"
-                        onClick={() => claimMutation.mutate(entry.id)}
-                        disabled={claimMutation.isPending}
-                      >
-                        CLAIM
-                      </Button>
-                    )}
-                  </div>
-                )) : (
-                  <p className="font-mono text-xs text-muted-foreground/50 text-center py-4">Play to earn rewards!</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="cosmic-card bg-black/60 border-primary/20">
-            <CardHeader className="py-3 border-b border-primary/10">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-neon-cyan" />
-                <CardTitle className="font-heading text-sm tracking-widest text-primary">HOW TO PLAY</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="py-3">
-              <div className="space-y-2 font-mono text-[11px] text-muted-foreground">
-                <p><span className="text-neon-green">WASD</span> or <span className="text-neon-green">Arrow Keys</span> to steer</p>
-                <p><span style={{ color: CHAIN_COLORS.ETH }}>◆</span> Chain treasures = points + growth</p>
-                <p><span className="text-yellow-400">★</span> Golden treasures = 5x points</p>
-                <p><span className="text-red-500">☠</span> Skull traps = point penalty + shrink</p>
-                <p><span className="text-neon-orange">⚡</span> Milestone every 50 ergotropy</p>
-                <p><span className="text-neon-magenta">🏆</span> Super milestone every 500</p>
-                <p className="border-t border-white/5 pt-2 text-neon-cyan">Score × 0.1 = SKYNT earned on-chain</p>
-                <p className="text-neon-green">3 lives per game. Claim SKYNT rewards to your SphinxOS wallet!</p>
-              </div>
-            </CardContent>
-          </Card>
+        {gameState === "playing" && (
+          <div className="flex items-center gap-3 sm:gap-5 font-mono text-xs">
+            <span className="text-neon-cyan" data-testid="text-score">{score}</span>
+            <span className="text-neon-green flex items-center gap-1"><Coins className="w-3 h-3" />{skyntReward}</span>
+            <span className="text-neon-magenta">{"♥".repeat(lives)}</span>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowLeaderboard(!showLeaderboard); setShowRewards(false); }}
+            className={`p-1.5 rounded border transition-colors ${showLeaderboard ? "border-neon-orange text-neon-orange bg-neon-orange/10" : "border-white/10 text-white/50 hover:text-white/80"}`}
+            data-testid="button-toggle-leaderboard"
+          >
+            <Crown className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => { setShowRewards(!showRewards); setShowLeaderboard(false); }}
+            className={`p-1.5 rounded border transition-colors ${showRewards ? "border-neon-green text-neon-green bg-neon-green/10" : "border-white/10 text-white/50 hover:text-white/80"}`}
+            data-testid="button-toggle-rewards"
+          >
+            <Gift className="w-4 h-4" />
+          </button>
         </div>
       </div>
+
+      {/* GAME CANVAS — fills remaining space */}
+      <div className="flex-1 relative overflow-hidden" data-testid="game-arena">
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" style={{ imageRendering: "pixelated" }} />
+
+        {/* MENU OVERLAY */}
+        {gameState === "menu" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm z-10">
+            <Gamepad2 className="w-14 h-14 text-neon-green mb-4 animate-pulse" />
+            <h2 className="font-heading text-2xl sm:text-3xl text-neon-green tracking-widest mb-2">OMEGA SERPENT v3.0</h2>
+            <p className="font-mono text-xs text-muted-foreground mb-6 text-center max-w-sm px-4">
+              Control your serpent with WASD, Arrow keys, or the D-pad. Collect treasures to earn SKYNT on-chain.
+            </p>
+            <div className="flex gap-2 mb-6">
+              {CHAINS.map(c => (
+                <button
+                  key={c}
+                  data-testid={`select-chain-${c.toLowerCase()}`}
+                  className={`px-4 py-2 rounded-sm font-heading text-sm tracking-wider border transition-all ${selectedChain === c ? "border-neon-green text-neon-green bg-neon-green/10" : "border-white/10 text-muted-foreground hover:border-white/30"}`}
+                  onClick={() => setSelectedChain(c)}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+            <Button
+              data-testid="button-start-game"
+              className="bg-gradient-to-r from-neon-cyan via-neon-green to-neon-orange text-black font-heading font-bold tracking-widest px-10 py-3 text-base"
+              onClick={startGame}
+            >
+              DEPLOY SERPENT
+            </Button>
+            <div className="flex items-center gap-5 mt-5 font-mono text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><ArrowUp className="w-3 h-3" />W</span>
+              <span className="flex items-center gap-1"><ArrowLeft className="w-3 h-3" />A</span>
+              <span className="flex items-center gap-1"><ArrowDown className="w-3 h-3" />S</span>
+              <span className="flex items-center gap-1"><ArrowRight className="w-3 h-3" />D</span>
+            </div>
+            <p className="font-mono text-[10px] text-muted-foreground/50 mt-3">Touch D-pad available during gameplay</p>
+          </div>
+        )}
+
+        {/* GAME OVER OVERLAY */}
+        {gameState === "gameover" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm z-10">
+            <Skull className="w-12 h-12 text-red-500 mb-3" />
+            <h2 className="font-heading text-2xl text-red-400 tracking-widest mb-2">GAME OVER</h2>
+            <div className="text-center space-y-1.5 mb-6">
+              <p className="font-mono text-2xl text-neon-green">SCORE: {score}</p>
+              <p className="font-mono text-lg text-neon-cyan flex items-center justify-center gap-1"><Coins className="w-5 h-5" /> {skyntReward} SKYNT</p>
+              <p className="font-mono text-xs text-muted-foreground">Ergotropy: {Math.floor(ergotropy)} | Milestones: {milestones} | Treasures: {treasuresCollected}</p>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                data-testid="button-play-again"
+                className="bg-gradient-to-r from-neon-cyan via-neon-green to-neon-orange text-black font-heading font-bold tracking-widest px-8 py-3"
+                onClick={startGame}
+              >
+                PLAY AGAIN
+              </Button>
+              <Button
+                variant="outline"
+                className="border-neon-green/40 text-neon-green font-heading tracking-widest px-6 py-3"
+                onClick={() => setShowRewards(true)}
+                data-testid="button-view-rewards"
+              >
+                CLAIM REWARDS
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* D-PAD — anchored bottom-right during gameplay */}
+        {gameState === "playing" && (
+          <div className="absolute bottom-4 right-4 z-20 opacity-70 hover:opacity-100 transition-opacity" data-testid="dpad-container">
+            <DPad onDir={handleDpadDir} />
+          </div>
+        )}
+
+        {/* LIVE EVENT TICKER — bottom-left during gameplay */}
+        {gameState === "playing" && eventLog.length > 0 && (
+          <div className="absolute bottom-4 left-3 z-20 max-w-[260px] sm:max-w-[340px]">
+            <div className="bg-black/70 border border-white/10 rounded px-2.5 py-1.5 space-y-0.5 font-mono text-[10px]" data-testid="game-event-feed">
+              {eventLog.slice(0, 4).map((msg, i) => (
+                <p key={i} className={`${i === 0 ? "text-neon-green" : "text-white/40"} truncate`}>{">"} {msg}</p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ERGOTROPY BAR — top of game area during play */}
+        {gameState === "playing" && (
+          <div className="absolute top-0 left-0 right-0 z-20 px-3 py-1 bg-black/50">
+            <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-neon-cyan via-neon-magenta to-neon-orange transition-all"
+                style={{ width: `${(ergotropy % 500) / 5}%` }}
+              />
+            </div>
+            <div className="flex justify-between font-mono text-[9px] text-white/30 mt-0.5">
+              <span>ERG {Math.floor(ergotropy)}</span>
+              <span>NEXT SUPER {(superMilestones + 1) * 500}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* LEADERBOARD SLIDE-OVER */}
+      {showLeaderboard && (
+        <div className="absolute top-0 right-0 bottom-0 w-72 sm:w-80 bg-black/95 border-l border-neon-orange/30 z-30 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-neon-orange/20">
+            <div className="flex items-center gap-2">
+              <Crown className="w-4 h-4 text-neon-orange" />
+              <span className="font-heading text-sm tracking-widest text-neon-orange">LEADERBOARD</span>
+            </div>
+            <button onClick={() => setShowLeaderboard(false)} className="text-white/40 hover:text-white"><X className="w-4 h-4" /></button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-1.5" data-testid="leaderboard">
+            {leaderboard && leaderboard.length > 0 ? leaderboard.slice(0, 15).map((entry: any, i: number) => (
+              <div key={entry.id} className={`flex items-center justify-between p-2 rounded ${i === 0 ? "bg-neon-orange/10 border border-neon-orange/30" : i < 3 ? "bg-white/5 border border-white/10" : "border border-transparent"}`}>
+                <div className="flex items-center gap-2">
+                  <span className={`font-heading text-xs w-6 text-center ${i === 0 ? "text-neon-orange" : i < 3 ? "text-neon-cyan" : "text-muted-foreground"}`}>
+                    {i === 0 ? "\u{1F451}" : `#${i + 1}`}
+                  </span>
+                  <span className="font-mono text-xs text-foreground truncate max-w-[90px]">{entry.username}</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono text-xs text-neon-green">{entry.score}</span>
+                  <span className="font-mono text-[9px] text-muted-foreground ml-1">({entry.chain})</span>
+                </div>
+              </div>
+            )) : (
+              <p className="font-mono text-xs text-muted-foreground/50 text-center py-8">No scores yet. Be the first!</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* REWARDS SLIDE-OVER */}
+      {showRewards && (
+        <div className="absolute top-0 right-0 bottom-0 w-72 sm:w-80 bg-black/95 border-l border-neon-green/30 z-30 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-neon-green/20">
+            <div className="flex items-center gap-2">
+              <Gift className="w-4 h-4 text-neon-green" />
+              <span className="font-heading text-sm tracking-widest text-neon-green">MY REWARDS</span>
+            </div>
+            <button onClick={() => setShowRewards(false)} className="text-white/40 hover:text-white"><X className="w-4 h-4" /></button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2" data-testid="my-rewards">
+            {myScores && myScores.length > 0 ? myScores.slice(0, 10).map((entry: any) => (
+              <div key={entry.id} className="flex items-center justify-between p-2.5 bg-white/5 border border-white/10 rounded">
+                <div>
+                  <div className="font-mono text-xs text-foreground flex items-center gap-1"><Trophy className="w-3 h-3 text-neon-orange" /> {entry.score} pts</div>
+                  <div className="font-mono text-[10px] text-muted-foreground">{entry.chain} | {parseFloat(entry.skyntEarned).toFixed(2)} SKYNT</div>
+                </div>
+                {entry.claimed ? (
+                  <Badge variant="outline" className="text-[9px] border-neon-green/30 text-neon-green">CLAIMED</Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    data-testid={`button-claim-${entry.id}`}
+                    className="text-[10px] h-7 px-3 bg-neon-green/20 border border-neon-green/40 text-neon-green hover:bg-neon-green/30"
+                    onClick={() => claimMutation.mutate(entry.id)}
+                    disabled={claimMutation.isPending}
+                  >
+                    CLAIM
+                  </Button>
+                )}
+              </div>
+            )) : (
+              <p className="font-mono text-xs text-muted-foreground/50 text-center py-8">Play to earn rewards!</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
