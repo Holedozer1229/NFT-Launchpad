@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { SUPPORTED_CHAINS, RARITY_TIERS } from "@shared/schema";
 import {
   Store, ShoppingCart, Tag, Filter, Plus, X, ExternalLink,
-  Gem, Loader2, TrendingUp, Users, Package, Coins
+  Gem, Loader2, TrendingUp, Users, Package, Coins, Search
 } from "lucide-react";
 
 const CHAIN_LIST = [
@@ -52,6 +52,7 @@ export default function Marketplace() {
   const queryClient = useQueryClient();
   const [chainFilter, setChainFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"browse" | "my-listings">("browse");
+  const [searchQuery, setSearchQuery] = useState("");
   const [sellDialogOpen, setSellDialogOpen] = useState(false);
 
   const [newTitle, setNewTitle] = useState("");
@@ -146,6 +147,12 @@ export default function Marketplace() {
   };
 
   const displayedListings = viewMode === "browse" ? (listings || []) : (myListings || []);
+
+  const searchFiltered = displayedListings.filter((listing: any) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return listing.title?.toLowerCase().includes(q) || listing.sellerUsername?.toLowerCase().includes(q);
+  });
 
   const stats = {
     totalActive: (listings || []).length,
@@ -301,7 +308,18 @@ export default function Marketplace() {
         </Tabs>
 
         {viewMode === "browse" && (
-          <div className="flex flex-wrap gap-1.5" data-testid="chain-filters">
+          <div className="flex flex-wrap gap-1.5 items-center" data-testid="chain-filters">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                data-testid="input-search-marketplace"
+                type="text"
+                placeholder="Search listings..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full sm:w-56 pl-10 pr-4 py-1.5 bg-black/40 border border-white/10 rounded-sm font-mono text-xs focus:outline-none focus:border-neon-cyan/60 transition-colors placeholder:text-muted-foreground/40"
+              />
+            </div>
             {CHAIN_LIST.map((c) => (
               <button
                 key={c.id}
@@ -325,7 +343,7 @@ export default function Marketplace() {
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-neon-cyan" />
         </div>
-      ) : displayedListings.length === 0 ? (
+      ) : searchFiltered.length === 0 ? (
         <Card className="cosmic-card bg-black/50 border-primary/10">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Store className="w-12 h-12 text-muted-foreground/30 mb-4" />
@@ -339,7 +357,7 @@ export default function Marketplace() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" data-testid="listings-grid">
-          {displayedListings.map((listing: any) => {
+          {searchFiltered.map((listing: any) => {
             const chainData = SUPPORTED_CHAINS[listing.chain as keyof typeof SUPPORTED_CHAINS];
             const isOwner = user?.id === listing.sellerId;
             return (

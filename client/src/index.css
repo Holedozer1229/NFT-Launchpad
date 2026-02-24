@@ -87,6 +87,30 @@
   --sidebar-border: 210 20% 12%;
 }
 
+[data-theme="light"] {
+  --background: 220 15% 95%;
+  --foreground: 220 25% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 25% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 25% 10%;
+  --primary: 185 100% 35%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 145 60% 40%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 220 15% 90%;
+  --muted-foreground: 220 15% 40%;
+  --accent: 30 100% 50%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 80% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 15% 85%;
+  --input: 220 15% 90%;
+  --ring: 185 100% 35%;
+  --sidebar-bg: 220 15% 97%;
+  --sidebar-border: 220 15% 88%;
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -487,4 +511,13 @@
 @keyframes wallet-pulse {
   0%, 100% { box-shadow: 0 0 10px hsl(30 100% 55% / 0.2); }
   50% { box-shadow: 0 0 25px hsl(30 100% 55% / 0.5); }
+}
+
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.page-transition {
+  animation: page-enter 0.3s ease-out;
 }

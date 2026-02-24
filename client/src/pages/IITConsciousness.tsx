@@ -49,7 +49,7 @@ function PhiGauge({ phi, level }: { phi: number; level: string }) {
 
   return (
     <div className="relative flex items-center justify-center" data-testid="phi-gauge">
-      <svg width="200" height="200" viewBox="0 0 200 200">
+      <svg className="w-[160px] h-[160px] sm:w-[200px] sm:h-[200px]" viewBox="0 0 200 200">
         <circle cx="100" cy="100" r="80" fill="none" stroke="hsl(220 20% 12%)" strokeWidth="8" />
         <circle
           cx="100" cy="100" r="80" fill="none"
@@ -82,7 +82,7 @@ function EigenvalueSpectrum({ eigenvalues }: { eigenvalues: number[] }) {
 
   return (
     <div data-testid="eigenvalue-chart">
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 20% 15%)" />
           <XAxis dataKey="name" tick={{ fill: "#888", fontSize: 10, fontFamily: "monospace" }} />

@@ -203,10 +203,10 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="cosmic-card cosmic-card-cyan p-5" data-testid="chart-hashrate">
           <h3 className="stat-label mb-4">Network Hashrate (EH/s) — Live from mempool.space</h3>
-          <div className="h-[250px]">
+          <div className="h-[200px] sm:h-[250px]">
             {hashrateLoading ? (
               <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-neon-cyan" /></div>
             ) : (
@@ -235,7 +235,7 @@ export default function Dashboard() {
 
         <div className="cosmic-card cosmic-card-green p-5" data-testid="chart-blocks">
           <h3 className="stat-label mb-4">Recent Blocks — Transaction Count</h3>
-          <div className="h-[250px]">
+          <div className="h-[200px] sm:h-[250px]">
             {!recentBlocks ? (
               <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-neon-green" /></div>
             ) : (
@@ -351,11 +351,11 @@ export default function Dashboard() {
 
       <div className="cosmic-card p-5" data-testid="table-miners">
         <h3 className="stat-label mb-4">Active Miners</h3>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-2 px-2">
           {minersLoading ? (
             <div className="flex items-center justify-center h-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : miners && miners.length > 0 ? (
-            <table className="data-table">
+            <table className="data-table min-w-[600px]">
               <thead>
                 <tr>
                   <th>Miner ID</th>

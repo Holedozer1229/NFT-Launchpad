@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -19,6 +19,8 @@ import WalletPage from "@/pages/WalletPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/not-found";
 import SphinxOracle from "@/components/SphinxOracle";
+import PageTransition from "@/components/PageTransition";
+import OfflineBanner from "@/components/OfflineBanner";
 import { Loader2, ShieldAlert } from "lucide-react";
 
 function AdminGuard() {
@@ -37,6 +39,7 @@ function AdminGuard() {
 
 function AppRouter() {
   const { user, isLoading } = useAuth();
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
@@ -55,20 +58,22 @@ function AppRouter() {
 
   return (
     <SidebarLayout>
-      <Switch>
-        <Route path="/" component={MintNFT} />
-        <Route path="/dashboard" component={Dashboard} />
-        <Route path="/gallery" component={Gallery} />
-        <Route path="/marketplace" component={Marketplace} />
-        <Route path="/analytics" component={Analytics} />
-        <Route path="/bridge" component={Bridge} />
-        <Route path="/yield" component={YieldGenerator} />
-        <Route path="/iit" component={IITConsciousness} />
-        <Route path="/serpent" component={OmegaSerpent} />
-        <Route path="/wallet" component={WalletPage} />
-        <Route path="/admin" component={AdminGuard} />
-        <Route component={NotFound} />
-      </Switch>
+      <PageTransition key={location}>
+        <Switch>
+          <Route path="/" component={MintNFT} />
+          <Route path="/dashboard" component={Dashboard} />
+          <Route path="/gallery" component={Gallery} />
+          <Route path="/marketplace" component={Marketplace} />
+          <Route path="/analytics" component={Analytics} />
+          <Route path="/bridge" component={Bridge} />
+          <Route path="/yield" component={YieldGenerator} />
+          <Route path="/iit" component={IITConsciousness} />
+          <Route path="/serpent" component={OmegaSerpent} />
+          <Route path="/wallet" component={WalletPage} />
+          <Route path="/admin" component={AdminGuard} />
+          <Route component={NotFound} />
+        </Switch>
+      </PageTransition>
       <SphinxOracle />
     </SidebarLayout>
   );
@@ -79,6 +84,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
+          <OfflineBanner />
           <Toaster />
           <AppRouter />
         </TooltipProvider>
