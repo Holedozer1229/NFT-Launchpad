@@ -1,8 +1,12 @@
-import { launches, miners, type Launch, type InsertLaunch, type Miner, type InsertMiner } from "@shared/schema";
+import { launches, miners, users, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
 export interface IStorage {
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+
   getLaunches(): Promise<Launch[]>;
   getLaunch(id: number): Promise<Launch | undefined>;
   createLaunch(launch: InsertLaunch): Promise<Launch>;
@@ -14,6 +18,21 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
   async getLaunches(): Promise<Launch[]> {
     return await db.select().from(launches);
   }
