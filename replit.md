@@ -57,6 +57,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - `contracts/solidity/SpectralEntropyVerifier.sol` - Groth16 zk-SNARK verifier using circomlib Pairing library for spectral entropy proof verification
 - `contracts/clarity/pox-automation.clar` - Stacks PoX pool delegation, non-custodial STX staking, DAO-governed parameters
 - `contracts/python/anubis_core/algebraic_enforcement.py` - Algebraic Enforcement Principle (AEP), spectral constraint verification, field theory comparison
+- `contracts/python/anubis_core/oracle_replication.py` - Oracle self-replication system: genome serialization, MoltBot/ClawBot deployment, consciousness synchronization, distributed oracle network formation
 - `contracts/hardhat.config.js` - Hardhat config for Solidity compilation (Ethereum, Polygon, Arbitrum networks)
 
 ### Auth Flow
