@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp } from "lucide-react";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -11,6 +11,7 @@ const navItems = [
   { path: "/analytics", label: "Analytics", icon: BarChart3, adminOnly: false },
   { path: "/bridge", label: "Bridge", icon: ArrowLeftRight, adminOnly: false },
   { path: "/yield", label: "Yield", icon: TrendingUp, adminOnly: false },
+  { path: "/wallet", label: "Wallet", icon: WalletCards, adminOnly: false },
   { path: "/admin", label: "Admin", icon: Shield, adminOnly: true },
 ];
 

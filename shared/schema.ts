@@ -45,6 +45,38 @@ export const insertLaunchSchema = createInsertSchema(launches).omit({
 export type Launch = typeof launches.$inferSelect;
 export type InsertLaunch = z.infer<typeof insertLaunchSchema>;
 
+export const wallets = pgTable("wallets", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull().default("Main Wallet"),
+  address: text("address").notNull().unique(),
+  balanceStx: text("balance_stx").notNull().default("0"),
+  balanceSkynt: text("balance_skynt").notNull().default("1000"),
+  balanceEth: text("balance_eth").notNull().default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertWalletSchema = createInsertSchema(wallets).omit({ id: true, createdAt: true });
+export type Wallet = typeof wallets.$inferSelect;
+export type InsertWallet = z.infer<typeof insertWalletSchema>;
+
+export const walletTransactions = pgTable("wallet_transactions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  walletId: integer("wallet_id").notNull().references(() => wallets.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  toAddress: text("to_address"),
+  fromAddress: text("from_address"),
+  amount: text("amount").notNull(),
+  token: text("token").notNull().default("SKYNT"),
+  status: text("status").notNull().default("completed"),
+  txHash: text("tx_hash"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertWalletTransactionSchema = createInsertSchema(walletTransactions).omit({ id: true, createdAt: true });
+export type WalletTransaction = typeof walletTransactions.$inferSelect;
+export type InsertWalletTransaction = z.infer<typeof insertWalletTransactionSchema>;
+
 export const miners = pgTable("miners", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   walletAddress: text("wallet_address").notNull(),

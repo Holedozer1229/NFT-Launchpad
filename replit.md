@@ -17,6 +17,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Added Yield Generator page with Phi score slider, treasury split formula, zk-proof status, strategy allocation
 - Updated Bridge page with guardian multi-sig validation, lock/mint/burn/release mechanics
 - Added AnubisCore Python module: Algebraic Enforcement Principle (AEP) implementation
+- Added in-app SphinxOS Wallet: per-user wallets with SKYNT/STX/ETH balances, send/receive, transaction history, Zod-validated API
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts
@@ -31,7 +32,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - `client/src/components/SphinxOracle.tsx` - AI chat oracle (streaming SSE, cosmic UI)
 - `client/src/components/LaunchCountdown.tsx` - Live space launch countdown (Launch Library 2 API)
 - `client/src/hooks/use-auth.tsx` - Auth context with login/register/logout
-- `client/src/pages/` - MintNFT (home), Dashboard, Gallery, Analytics, Bridge, Admin, AuthPage
+- `client/src/pages/` - MintNFT (home), Dashboard, Gallery, Analytics, Bridge, Admin, AuthPage, WalletPage
 - `server/auth.ts` - Passport.js setup with session store
 - `server/routes.ts` - API routes including /api/space-launches proxy and /api/oracle/chat
 - `server/storage.ts` - Database storage interface (users, launches, miners)
