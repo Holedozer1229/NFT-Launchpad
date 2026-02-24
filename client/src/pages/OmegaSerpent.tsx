@@ -73,14 +73,14 @@ function createPlayerSnake(): Snake {
 }
 
 function DPad({ onDir }: { onDir: (d: Dir) => void }) {
-  const btnClass = "w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center rounded-lg bg-white/10 border border-white/20 active:bg-neon-green/30 active:border-neon-green/60 transition-colors select-none";
+  const btnClass = "w-16 h-16 sm:w-14 sm:h-14 flex items-center justify-center rounded-xl bg-white/10 border-2 border-white/20 active:bg-neon-green/30 active:border-neon-green/60 transition-colors select-none";
   const press = (d: Dir) => (e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onDir(d);
   };
   return (
-    <div className="grid grid-cols-3 gap-1 w-[180px] sm:w-[200px]" style={{ touchAction: "none" }} data-testid="dpad">
+    <div className="grid grid-cols-3 gap-1.5 w-[210px] sm:w-[180px]" style={{ touchAction: "none" }} data-testid="dpad">
       <div />
       <button type="button" className={btnClass} onPointerDown={press({ dx: 0, dy: -1 })} style={{ touchAction: "none" }} data-testid="dpad-up">
         <ArrowUp className="w-6 h-6 text-white/80 pointer-events-none" />
@@ -89,7 +89,7 @@ function DPad({ onDir }: { onDir: (d: Dir) => void }) {
       <button type="button" className={btnClass} onPointerDown={press({ dx: -1, dy: 0 })} style={{ touchAction: "none" }} data-testid="dpad-left">
         <ArrowLeft className="w-6 h-6 text-white/80 pointer-events-none" />
       </button>
-      <div className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center rounded-lg border border-white/5">
+      <div className="w-16 h-16 sm:w-14 sm:h-14 flex items-center justify-center rounded-xl border border-white/5">
         <Gamepad2 className="w-5 h-5 text-white/20 pointer-events-none" />
       </div>
       <button type="button" className={btnClass} onPointerDown={press({ dx: 1, dy: 0 })} style={{ touchAction: "none" }} data-testid="dpad-right">
@@ -591,7 +591,7 @@ export default function OmegaSerpent() {
 
         {/* D-PAD — anchored bottom-right during gameplay */}
         {gameState === "playing" && (
-          <div className="absolute bottom-4 right-4 z-20 opacity-70 hover:opacity-100 transition-opacity" data-testid="dpad-container">
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 opacity-80 hover:opacity-100 transition-opacity" data-testid="dpad-container">
             <DPad onDir={handleDpadDir} />
           </div>
         )}
