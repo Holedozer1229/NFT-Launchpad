@@ -54,6 +54,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - `contracts/solidity/SpaceFlightNFT.sol` - Tiered NFT minting (Common-Legendary), 10% royalties, referral system, OpenSea auto-listing
 - `contracts/solidity/SphinxBridge.sol` - Cross-chain bridge with 5-of-9 guardian multi-sig, lock/mint + burn/release mechanisms
 - `contracts/solidity/SphinxYieldAggregator.sol` - Multi-chain yield aggregator, zk-SNARK proof verification, Phi score boost (200-1000), treasury split formula
+- `contracts/solidity/SpectralEntropyVerifier.sol` - Groth16 zk-SNARK verifier using circomlib Pairing library for spectral entropy proof verification
 - `contracts/clarity/pox-automation.clar` - Stacks PoX pool delegation, non-custodial STX staking, DAO-governed parameters
 - `contracts/python/anubis_core/algebraic_enforcement.py` - Algebraic Enforcement Principle (AEP), spectral constraint verification, field theory comparison
 - `contracts/hardhat.config.js` - Hardhat config for Solidity compilation (Ethereum, Polygon, Arbitrum networks)
