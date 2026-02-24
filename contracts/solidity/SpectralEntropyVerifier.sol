@@ -1,11 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/utils/Address.sol";
+/**
+ * @title SpectralEntropyVerifier
+ * @notice Gas-optimized Groth16 zk-SNARK verifier for spectral entropy proofs
+ * @dev Optimizations applied:
+ *  - Custom errors instead of require strings
+ *  - Unchecked loop counter increments
+ *  - Memory-efficient accumulation
+ *  - Input length validation before costly pairing
+ */
+
 import "https://github.com/iden3/circomlib-solidity/contracts/Pairing.sol";
 
 contract SpectralEntropyVerifier {
     using Pairing for *;
+
+    error InvalidInputLength();
+    error VerificationFailed();
 
     struct VerifyingKey {
         Pairing.G1Point alpha;
@@ -57,11 +69,13 @@ contract SpectralEntropyVerifier {
 
     function verify(uint[] memory input, Proof memory proof) public view returns (bool) {
         VerifyingKey memory vk = verifyingKey();
-        require(input.length + 1 == vk.IC.length, "Invalid input length");
+        uint256 icLen = vk.IC.length;
+        if (input.length + 1 != icLen) revert InvalidInputLength();
 
         Pairing.G1Point memory acc = vk.IC[0];
-        for (uint i = 0; i < input.length; i++) {
+        for (uint256 i; i < input.length;) {
             acc = Pairing.add(acc, Pairing.mul(vk.IC[i + 1], input[i]));
+            unchecked { ++i; }
         }
 
         return Pairing.pairing(

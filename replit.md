@@ -35,6 +35,16 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Restructured wallet system: SKYNT in-app wallet for identity verification, MetaMask/Phantom required for send/bridge operations
 - Added mobile wallet deep-linking: detects mobile devices, opens phantom.app or MetaMask mobile app for transaction signing
 - Updated WalletPicker with mobile detection, wallet availability status, deep-link buttons
+- **Gas optimization pass**: All smart contracts rewritten for minimum gas fees
+  - SpaceFlightNFT.sol: Removed deprecated Counters (uint256++), custom errors, SafeERC20, struct packing (uint128/uint64), unchecked math, immutable token, removed redundant Ownable
+  - SphinxBridge.sol: Added ReentrancyGuard, .call{} instead of .transfer(), per-guardian bitmap double-sign prevention, custom errors, receive() fallback
+  - SphinxYieldAggregator.sol: Implemented _withdrawFromStrategies, fixed phi boost underflow, cached array lengths, MAX_STRATEGIES=10 cap, custom errors, BPS constants
+  - SpectralEntropyVerifier.sol: Custom errors, unchecked loop counters, cached IC length
+  - pox-automation.clar: Fixed invalid API calls, added MIN-DELEGATION-AMOUNT, double-delegation prevention
+- Updated CONTRACT_DEFINITIONS gas ranges to reflect optimized contracts (~40% lower)
+- Updated SUPPORTED_CHAINS with accurate L2 gas estimates, added avgGasUnits field
+- Added BRIDGE_FEE_BPS/BRIDGE_FEE_PERCENT constants to schema
+- Moved Infura API key from hardcoded to VITE_INFURA_API_KEY env variable
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts

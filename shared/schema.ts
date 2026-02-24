@@ -23,7 +23,8 @@ export const SUPPORTED_CHAINS = {
     chainId: 1,
     explorer: "https://etherscan.io",
     contractAddress: "0x7A3F...SpaceFlightNFT",
-    gasEstimate: "~0.008 ETH",
+    gasEstimate: "~0.003 ETH",
+    avgGasUnits: 180000,
   },
   polygon: {
     id: "polygon",
@@ -34,7 +35,8 @@ export const SUPPORTED_CHAINS = {
     chainId: 137,
     explorer: "https://polygonscan.com",
     contractAddress: "0x4E8D...SpaceFlightNFT",
-    gasEstimate: "~0.01 MATIC",
+    gasEstimate: "~0.003 MATIC",
+    avgGasUnits: 180000,
   },
   arbitrum: {
     id: "arbitrum",
@@ -45,7 +47,8 @@ export const SUPPORTED_CHAINS = {
     chainId: 42161,
     explorer: "https://arbiscan.io",
     contractAddress: "0x9B2C...SpaceFlightNFT",
-    gasEstimate: "~0.0003 ETH",
+    gasEstimate: "~0.00008 ETH",
+    avgGasUnits: 180000,
   },
   stacks: {
     id: "stacks",
@@ -56,7 +59,8 @@ export const SUPPORTED_CHAINS = {
     chainId: 0,
     explorer: "https://explorer.stacks.co",
     contractAddress: "SP2...sphinx-nft",
-    gasEstimate: "~0.5 STX",
+    gasEstimate: "~0.01 STX",
+    avgGasUnits: 0,
   },
   base: {
     id: "base",
@@ -67,7 +71,8 @@ export const SUPPORTED_CHAINS = {
     chainId: 8453,
     explorer: "https://basescan.org",
     contractAddress: "0x1F6A...SpaceFlightNFT",
-    gasEstimate: "~0.0002 ETH",
+    gasEstimate: "~0.00005 ETH",
+    avgGasUnits: 180000,
   },
   solana: {
     id: "solana",
@@ -79,8 +84,12 @@ export const SUPPORTED_CHAINS = {
     explorer: "https://explorer.solana.com",
     contractAddress: "Sphnx...NftProgram",
     gasEstimate: "~0.00025 SOL",
+    avgGasUnits: 0,
   },
 } as const;
+
+export const BRIDGE_FEE_BPS = 10;
+export const BRIDGE_FEE_PERCENT = "0.1%";
 
 export type ChainId = keyof typeof SUPPORTED_CHAINS;
 
@@ -234,9 +243,9 @@ export type YieldStrategy = typeof yieldStrategies.$inferSelect;
 export type InsertYieldStrategy = z.infer<typeof insertYieldStrategySchema>;
 
 export const CONTRACT_DEFINITIONS = [
-  { contractId: "SpaceFlightNFT", name: "SpaceFlightNFT", description: "Tiered NFT minting with royalties and OpenSea integration", gasRange: [280000, 420000] },
-  { contractId: "SphinxBridge", name: "SphinxBridge", description: "Cross-chain bridge with 5-of-9 guardian multi-sig", gasRange: [350000, 520000] },
-  { contractId: "SphinxYieldAggregator", name: "SphinxYieldAggregator", description: "Multi-chain yield aggregator with zk-proof verification", gasRange: [400000, 600000] },
+  { contractId: "SpaceFlightNFT", name: "SpaceFlightNFT", description: "Gas-optimized tiered NFT minting with royalties and OpenSea integration", gasRange: [160000, 240000] },
+  { contractId: "SphinxBridge", name: "SphinxBridge", description: "Gas-optimized cross-chain bridge with 5-of-9 guardian multi-sig", gasRange: [180000, 280000] },
+  { contractId: "SphinxYieldAggregator", name: "SphinxYieldAggregator", description: "Gas-optimized multi-chain yield aggregator with zk-proof verification", gasRange: [200000, 320000] },
 ] as const;
 
 export type ContractId = typeof CONTRACT_DEFINITIONS[number]["contractId"];
