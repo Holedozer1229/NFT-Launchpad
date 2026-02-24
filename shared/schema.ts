@@ -281,4 +281,29 @@ export const insertGameScoreSchema = createInsertSchema(gameScores).omit({ id: t
 export type GameScore = typeof gameScores.$inferSelect;
 export type InsertGameScore = z.infer<typeof insertGameScoreSchema>;
 
+export const marketplaceListings = pgTable("marketplace_listings", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  nftId: integer("nft_id").references(() => nfts.id, { onDelete: "cascade" }),
+  sellerId: integer("seller_id").notNull().references(() => users.id),
+  sellerUsername: text("seller_username").notNull(),
+  buyerId: integer("buyer_id").references(() => users.id),
+  buyerUsername: text("buyer_username"),
+  title: text("title").notNull(),
+  image: text("image").notNull(),
+  rarity: text("rarity").notNull(),
+  chain: text("chain").notNull().default("ethereum"),
+  price: text("price").notNull(),
+  currency: text("currency").notNull().default("ETH"),
+  status: text("status").notNull().default("active"),
+  tokenId: text("token_id"),
+  contractAddress: text("contract_address"),
+  openseaUrl: text("opensea_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  soldAt: timestamp("sold_at"),
+});
+
+export const insertMarketplaceListingSchema = createInsertSchema(marketplaceListings).omit({ id: true, createdAt: true, soldAt: true });
+export type MarketplaceListing = typeof marketplaceListings.$inferSelect;
+export type InsertMarketplaceListing = z.infer<typeof insertMarketplaceListingSchema>;
+
 export { conversations, messages } from "./models/chat";
