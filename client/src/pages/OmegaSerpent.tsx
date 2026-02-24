@@ -6,8 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Coins, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Gamepad2, Crown, Gift, Skull, X, Trophy } from "lucide-react";
 
-const GRID_W = 30;
-const GRID_H = 20;
+const GRID_W = 50;
+const GRID_H = 35;
 const TICK_MS = 120;
 const CHAINS = ["ETH", "SOL", "STX"] as const;
 type Chain = typeof CHAINS[number];
@@ -208,10 +208,10 @@ export default function OmegaSerpent() {
   const startGame = useCallback(() => {
     const p = createPlayerSnake();
     dirRef.current = { dx: -1, dy: 0 };
-    const ais = [createAISnake("ETH", 3), createAISnake("SOL", 10), createAISnake("STX", 17)];
+    const ais = [createAISnake("ETH", 5), createAISnake("SOL", 17), createAISnake("STX", 29)];
     const initTreasures: Treasure[] = [];
     const allSnakes = [p, ...ais];
-    for (let i = 0; i < 6; i++) initTreasures.push(spawnTreasure(allSnakes, initTreasures));
+    for (let i = 0; i < 12; i++) initTreasures.push(spawnTreasure(allSnakes, initTreasures));
     setPlayer(p);
     setAiSnakes(ais);
     setTreasures(initTreasures);
