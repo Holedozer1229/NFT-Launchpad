@@ -30,6 +30,11 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Gamified QuantumMiner into Omega Serpent arcade miner: 3 autonomous snakes (ETH/SOL/STX) on canvas grid, qutrit state tracking, berry phase/ergotropy accumulation, treasure collection, per-chain milestones, cross-chain super milestones, GHZ quantum proof hash
 - Added playable Omega Serpent Arena page (/serpent): player-controlled snake (WASD/arrows), 3 AI opponents, 3 treasure types (normal/golden/skull), 3-lives system, SKYNT play-to-earn rewards (score×0.1), leaderboard, claim-to-wallet flow, server-side score validation with caps
 - Added multi-chain NFT Marketplace (/marketplace): browse/filter by chain, create listings, buy NFTs with wallet balance, cancel listings, atomic buy transactions, price/currency validation, stats cards
+- Added dynamic background themes: page-specific nebula colors and ambient glow that change per route (mint=cyan/green, gallery=purple, bridge=orange, etc.)
+- Added interactive 3D NFT preview in Gallery: mouse-tracking rotation, auto-rotate mode, zoom controls, rarity-based glow animations, floating particles
+- Restructured wallet system: SKYNT in-app wallet for identity verification, MetaMask/Phantom required for send/bridge operations
+- Added mobile wallet deep-linking: detects mobile devices, opens phantom.app or MetaMask mobile app for transaction signing
+- Updated WalletPicker with mobile detection, wallet availability status, deep-link buttons
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts

@@ -304,3 +304,187 @@
 .data-table tr:hover td {
   background: hsl(var(--muted) / 0.3);
 }
+
+.dynamic-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 1.5s ease-in-out;
+}
+
+.dynamic-bg-nebula {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+  animation: nebula-drift 20s ease-in-out infinite alternate;
+}
+
+@keyframes nebula-drift {
+  0% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.1); }
+  66% { transform: translate(-20px, 30px) scale(0.9); }
+  100% { transform: translate(10px, -10px) scale(1.05); }
+}
+
+@keyframes nebula-pulse {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 0.25; }
+}
+
+.bg-theme-mint {
+  --theme-hue-1: 185;
+  --theme-hue-2: 145;
+  --theme-hue-3: 210;
+}
+
+.bg-theme-gallery {
+  --theme-hue-1: 280;
+  --theme-hue-2: 300;
+  --theme-hue-3: 210;
+}
+
+.bg-theme-bridge {
+  --theme-hue-1: 30;
+  --theme-hue-2: 185;
+  --theme-hue-3: 300;
+}
+
+.bg-theme-yield {
+  --theme-hue-1: 145;
+  --theme-hue-2: 185;
+  --theme-hue-3: 45;
+}
+
+.bg-theme-dashboard {
+  --theme-hue-1: 210;
+  --theme-hue-2: 185;
+  --theme-hue-3: 145;
+}
+
+.bg-theme-marketplace {
+  --theme-hue-1: 45;
+  --theme-hue-2: 30;
+  --theme-hue-3: 300;
+}
+
+.bg-theme-serpent {
+  --theme-hue-1: 145;
+  --theme-hue-2: 0;
+  --theme-hue-3: 280;
+}
+
+.bg-theme-iit {
+  --theme-hue-1: 280;
+  --theme-hue-2: 185;
+  --theme-hue-3: 300;
+}
+
+.bg-theme-wallet {
+  --theme-hue-1: 185;
+  --theme-hue-2: 45;
+  --theme-hue-3: 145;
+}
+
+.bg-theme-admin {
+  --theme-hue-1: 0;
+  --theme-hue-2: 30;
+  --theme-hue-3: 210;
+}
+
+.bg-theme-analytics {
+  --theme-hue-1: 210;
+  --theme-hue-2: 300;
+  --theme-hue-3: 145;
+}
+
+.nft-preview-3d {
+  perspective: 1200px;
+  perspective-origin: center;
+}
+
+.nft-card-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.1s ease-out;
+  will-change: transform;
+}
+
+.nft-card-3d-face {
+  backface-visibility: hidden;
+}
+
+.nft-card-3d .nft-shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.08) 55%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.nft-card-3d:hover .nft-shine {
+  opacity: 1;
+}
+
+@keyframes rarity-glow-common {
+  0%, 100% { box-shadow: 0 0 20px hsl(0 0% 50% / 0.2); }
+  50% { box-shadow: 0 0 40px hsl(0 0% 50% / 0.4); }
+}
+
+@keyframes rarity-glow-rare {
+  0%, 100% { box-shadow: 0 0 20px hsl(185 100% 50% / 0.3); }
+  50% { box-shadow: 0 0 50px hsl(185 100% 50% / 0.6); }
+}
+
+@keyframes rarity-glow-epic {
+  0%, 100% { box-shadow: 0 0 20px hsl(300 100% 60% / 0.3); }
+  50% { box-shadow: 0 0 50px hsl(300 100% 60% / 0.6); }
+}
+
+@keyframes rarity-glow-legendary {
+  0%, 100% { box-shadow: 0 0 20px hsl(30 100% 55% / 0.3); }
+  50% { box-shadow: 0 0 60px hsl(30 100% 55% / 0.6); }
+}
+
+@keyframes rarity-glow-mythic {
+  0%, 100% { box-shadow: 0 0 30px hsl(45 100% 50% / 0.4); }
+  50% { box-shadow: 0 0 80px hsl(45 100% 50% / 0.7); }
+}
+
+.rarity-glow-Common { animation: rarity-glow-common 3s ease-in-out infinite; }
+.rarity-glow-Uncommon { animation: rarity-glow-rare 3s ease-in-out infinite; }
+.rarity-glow-Rare { animation: rarity-glow-rare 2.5s ease-in-out infinite; }
+.rarity-glow-Epic { animation: rarity-glow-epic 2.5s ease-in-out infinite; }
+.rarity-glow-Legendary { animation: rarity-glow-legendary 2s ease-in-out infinite; }
+.rarity-glow-Mythic { animation: rarity-glow-mythic 1.8s ease-in-out infinite; }
+
+@keyframes particle-float {
+  0% { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-200px) translateX(50px) scale(0); opacity: 0; }
+}
+
+.wallet-verify-badge {
+  background: linear-gradient(135deg, hsl(185 100% 50% / 0.15), hsl(145 100% 50% / 0.15));
+  border: 1px solid hsl(185 100% 50% / 0.4);
+  box-shadow: 0 0 15px hsl(185 100% 50% / 0.15);
+}
+
+.wallet-required-glow {
+  animation: wallet-pulse 2s ease-in-out infinite;
+}
+
+@keyframes wallet-pulse {
+  0%, 100% { box-shadow: 0 0 10px hsl(30 100% 55% / 0.2); }
+  50% { box-shadow: 0 0 25px hsl(30 100% 55% / 0.5); }
+}
