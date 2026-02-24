@@ -12,6 +12,7 @@ import Analytics from "@/pages/Analytics";
 import Bridge from "@/pages/Bridge";
 import YieldGenerator from "@/pages/YieldGenerator";
 import Admin from "@/pages/Admin";
+import WalletPage from "@/pages/WalletPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/not-found";
 import SphinxOracle from "@/components/SphinxOracle";
@@ -58,6 +59,7 @@ function AppRouter() {
         <Route path="/analytics" component={Analytics} />
         <Route path="/bridge" component={Bridge} />
         <Route path="/yield" component={YieldGenerator} />
+        <Route path="/wallet" component={WalletPage} />
         <Route path="/admin" component={AdminGuard} />
         <Route component={NotFound} />
       </Switch>

@@ -1,6 +1,11 @@
-import { launches, miners, users, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser } from "@shared/schema";
+import { launches, miners, users, wallets, walletTransactions, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
+import { randomBytes } from "crypto";
+
+function generateWalletAddress(): string {
+  return "0x" + randomBytes(20).toString("hex");
+}
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -15,6 +20,13 @@ export interface IStorage {
   getMiner(walletAddress: string): Promise<Miner | undefined>;
   upsertMiner(miner: InsertMiner): Promise<Miner>;
   updateMinerStats(walletAddress: string, hashRate: number, shards: number): Promise<void>;
+
+  createWallet(userId: number, name?: string): Promise<Wallet>;
+  getWalletsByUser(userId: number): Promise<Wallet[]>;
+  getWallet(id: number): Promise<Wallet | undefined>;
+  updateWalletBalance(id: number, token: string, amount: string): Promise<void>;
+  createTransaction(tx: InsertWalletTransaction): Promise<WalletTransaction>;
+  getTransactionsByWallet(walletId: number): Promise<WalletTransaction[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -75,6 +87,42 @@ export class DatabaseStorage implements IStorage {
     await db.update(miners)
       .set({ hashRate, shards, lastUpdate: new Date() })
       .where(eq(miners.walletAddress, walletAddress));
+  }
+
+  async createWallet(userId: number, name: string = "Main Wallet"): Promise<Wallet> {
+    const address = generateWalletAddress();
+    const [wallet] = await db.insert(wallets).values({
+      userId,
+      name,
+      address,
+      balanceStx: "0",
+      balanceSkynt: "1000",
+      balanceEth: "0",
+    }).returning();
+    return wallet;
+  }
+
+  async getWalletsByUser(userId: number): Promise<Wallet[]> {
+    return await db.select().from(wallets).where(eq(wallets.userId, userId));
+  }
+
+  async getWallet(id: number): Promise<Wallet | undefined> {
+    const [wallet] = await db.select().from(wallets).where(eq(wallets.id, id));
+    return wallet;
+  }
+
+  async updateWalletBalance(id: number, token: string, amount: string): Promise<void> {
+    const field = token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
+    await db.update(wallets).set({ [field]: amount }).where(eq(wallets.id, id));
+  }
+
+  async createTransaction(tx: InsertWalletTransaction): Promise<WalletTransaction> {
+    const [transaction] = await db.insert(walletTransactions).values(tx).returning();
+    return transaction;
+  }
+
+  async getTransactionsByWallet(walletId: number): Promise<WalletTransaction[]> {
+    return await db.select().from(walletTransactions).where(eq(walletTransactions.walletId, walletId)).orderBy(desc(walletTransactions.createdAt));
   }
 }
 

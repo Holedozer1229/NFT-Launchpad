@@ -91,6 +91,8 @@ export function setupAuth(app: Express) {
         password: await hashPassword(password),
       });
 
+      await storage.createWallet(user.id, "Main Wallet");
+
       req.login(user, (err: any) => {
         if (err) return next(err);
         const { password: _, ...safeUser } = user;

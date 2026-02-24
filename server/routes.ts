@@ -2,7 +2,15 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMinerSchema } from "@shared/schema";
+import { randomBytes } from "crypto";
+import { z } from "zod";
 import OpenAI from "openai";
+
+const sendTokenSchema = z.object({
+  toAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid address format"),
+  amount: z.string().refine((v) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0; }, "Amount must be a positive number"),
+  token: z.enum(["SKYNT", "STX", "ETH"]).default("SKYNT"),
+});
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -131,6 +139,93 @@ export async function registerRoutes(
       } else {
         res.status(500).json({ message: "The Sphinx is temporarily unreachable" });
       }
+    }
+  });
+
+  // ========== WALLET ROUTES ==========
+
+  app.get("/api/wallet/list", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userWallets = await storage.getWalletsByUser(req.user!.id);
+      res.json(userWallets);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch wallets" });
+    }
+  });
+
+  app.post("/api/wallet/create", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { name } = req.body;
+      const wallet = await storage.createWallet(req.user!.id, name || "New Wallet");
+      res.json(wallet);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create wallet" });
+    }
+  });
+
+  app.get("/api/wallet/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const wallet = await storage.getWallet(parseInt(req.params.id));
+      if (!wallet || wallet.userId !== req.user!.id) return res.status(404).json({ message: "Wallet not found" });
+      res.json(wallet);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch wallet" });
+    }
+  });
+
+  app.get("/api/wallet/:id/transactions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const wallet = await storage.getWallet(parseInt(req.params.id));
+      if (!wallet || wallet.userId !== req.user!.id) return res.status(404).json({ message: "Wallet not found" });
+      const transactions = await storage.getTransactionsByWallet(wallet.id);
+      res.json(transactions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
+  app.post("/api/wallet/:id/send", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const wallet = await storage.getWallet(parseInt(req.params.id));
+      if (!wallet || wallet.userId !== req.user!.id) return res.status(404).json({ message: "Wallet not found" });
+
+      const parsed = sendTokenSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.issues[0]?.message || "Invalid parameters" });
+      }
+      const { toAddress, amount, token } = parsed.data;
+
+      const balanceField = token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
+      const currentBalance = parseFloat(wallet[balanceField]);
+      const sendAmount = parseFloat(amount);
+
+      if (sendAmount > currentBalance) {
+        return res.status(400).json({ message: "Insufficient balance" });
+      }
+
+      const newBalance = (currentBalance - sendAmount).toString();
+      await storage.updateWalletBalance(wallet.id, token, newBalance);
+
+      const txHash = "0x" + randomBytes(32).toString("hex");
+      const transaction = await storage.createTransaction({
+        walletId: wallet.id,
+        type: "send",
+        toAddress,
+        fromAddress: wallet.address,
+        amount,
+        token,
+        status: "completed",
+        txHash,
+      });
+
+      res.json({ transaction, newBalance });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send transaction" });
     }
   });
 
