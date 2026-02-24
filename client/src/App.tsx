@@ -37,8 +37,8 @@ function AppRouter() {
   return (
     <SidebarLayout>
       <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/mint" component={MintNFT} />
+        <Route path="/" component={MintNFT} />
+        <Route path="/dashboard" component={Dashboard} />
         <Route path="/gallery" component={Gallery} />
         <Route path="/analytics" component={Analytics} />
         <Route path="/bridge" component={Bridge} />
