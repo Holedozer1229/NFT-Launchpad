@@ -27,6 +27,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - MintCard mint flow includes OpenSea listing steps, shows "View on OpenSea" link after minting
 - Server-side OpenSea service (server/opensea.ts) handles REST API calls to OpenSea v2 endpoints
 - Added contract deployment system: auto-deploys SpaceFlightNFT, SphinxBridge, SphinxYieldAggregator when wallet created
+- Gamified QuantumMiner into Omega Serpent arcade miner: 3 autonomous snakes (ETH/SOL/STX) on canvas grid, qutrit state tracking, berry phase/ergotropy accumulation, treasure collection, per-chain milestones, cross-chain super milestones, GHZ quantum proof hash
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts
