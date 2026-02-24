@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins } from "lucide-react";
+import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
 
 const chains = [
   { id: "ethereum", name: "Ethereum", symbol: "ETH", icon: "⟠", color: "hsl(210 100% 55%)" },
+  { id: "sphinx", name: "SphinxSkynet", symbol: "SPX", icon: "🦁", color: "hsl(40 100% 50%)" },
   { id: "solana", name: "Solana", symbol: "SOL", icon: "◎", color: "hsl(280 100% 60%)" },
   { id: "polygon", name: "Polygon", symbol: "MATIC", icon: "⬡", color: "hsl(300 100% 60%)" },
   { id: "arbitrum", name: "Arbitrum", symbol: "ARB", icon: "🔷", color: "hsl(210 100% 55%)" },
@@ -11,15 +12,28 @@ const chains = [
 ];
 
 const recentBridges = [
-  { from: "Ethereum", to: "Solana", amount: "500 SKYNT", status: "completed", time: "12 min ago" },
-  { from: "Polygon", to: "Ethereum", amount: "1,200 SKYNT", status: "completed", time: "34 min ago" },
-  { from: "Solana", to: "Arbitrum", amount: "250 SKYNT", status: "pending", time: "2 min ago" },
-  { from: "Base", to: "Ethereum", amount: "800 SKYNT", status: "completed", time: "1h ago" },
+  { from: "Ethereum", to: "SphinxSkynet", amount: "500 SKYNT", status: "Released", sigs: "5/5", time: "12 min ago" },
+  { from: "Polygon", to: "Ethereum", amount: "1,200 SKYNT", status: "Minted", sigs: "5/5", time: "34 min ago" },
+  { from: "SphinxSkynet", to: "Arbitrum", amount: "250 SKYNT", status: "Locked", sigs: "3/5", time: "2 min ago" },
+  { from: "Base", to: "Ethereum", amount: "800 SKYNT", status: "Released", sigs: "5/5", time: "1h ago" },
+  { from: "Ethereum", to: "SphinxSkynet", amount: "2,000 SKYNT", status: "Burned", sigs: "4/5", time: "5 min ago" },
+];
+
+const guardians = [
+  { id: 1, status: "online", lastSig: "2m ago" },
+  { id: 2, status: "online", lastSig: "2m ago" },
+  { id: 3, status: "online", lastSig: "5m ago" },
+  { id: 4, status: "online", lastSig: "3m ago" },
+  { id: 5, status: "online", lastSig: "1m ago" },
+  { id: 6, status: "online", lastSig: "8m ago" },
+  { id: 7, status: "offline", lastSig: "1h ago" },
+  { id: 8, status: "online", lastSig: "4m ago" },
+  { id: 9, status: "online", lastSig: "6m ago" },
 ];
 
 export default function Bridge() {
   const [sourceChain, setSourceChain] = useState("ethereum");
-  const [destChain, setDestChain] = useState("solana");
+  const [destChain, setDestChain] = useState("sphinx");
   const [amount, setAmount] = useState("");
   const [showSourceDropdown, setShowSourceDropdown] = useState(false);
   const [showDestDropdown, setShowDestDropdown] = useState(false);
@@ -36,9 +50,12 @@ export default function Bridge() {
   };
 
   const skyntBalance = "10,000";
-  const estimatedFee = amount ? (parseFloat(amount) * 0.003).toFixed(2) : "0.00";
+  const bridgeFee = amount ? (parseFloat(amount) * 0.001).toFixed(4) : "0.0000";
+  const netReceive = amount ? (parseFloat(amount) * 0.999).toFixed(4) : "0.0000";
   const estimatedTime = sourceChain === "ethereum" ? "~15 min" : "~5 min";
-  const estimatedReceive = amount ? (parseFloat(amount) * 0.997).toFixed(2) : "0.00";
+
+  const isLockMint = sourceChain !== "sphinx";
+  const mechanism = isLockMint ? "Lock → Mint" : "Burn → Release";
 
   const handleBridge = async () => {
     if (!amount || parseFloat(amount) <= 0) return;
@@ -51,20 +68,34 @@ export default function Bridge() {
     setTimeout(() => setBridgeSuccess(false), 5000);
   };
 
+  const onlineGuardians = guardians.filter((g) => g.status === "online").length;
+
   return (
     <div className="space-y-6 max-w-2xl mx-auto" data-testid="bridge-page">
       <div className="text-center">
         <h1 className="text-2xl font-heading neon-glow-cyan flex items-center justify-center gap-2" data-testid="text-bridge-title">
-          <Coins className="w-6 h-6" /> SKYNT Bridge
+          <Coins className="w-6 h-6" /> SphinxBridge
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">Bridge SKYNT tokens across networks via MetaMask</p>
+        <p className="text-sm text-muted-foreground mt-1">Cross-chain bridge with 5-of-9 guardian multi-sig validation</p>
+      </div>
+
+      <div className="flex items-center justify-center gap-4 text-[10px] font-mono">
+        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-neon-green/10 text-neon-green rounded-full">
+          <Users className="w-3 h-3" /> {onlineGuardians}/9 Guardians Online
+        </span>
+        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-neon-cyan/10 text-neon-cyan rounded-full">
+          <Shield className="w-3 h-3" /> 5-of-9 Multi-Sig
+        </span>
+        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary rounded-full">
+          {isLockMint ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />} {mechanism}
+        </span>
       </div>
 
       {!isConnected && (
         <div className="cosmic-card cosmic-card-magenta p-5 text-center space-y-3">
           <Wallet className="w-8 h-8 text-neon-magenta mx-auto" />
           <p className="text-sm font-heading">Connect MetaMask to Bridge</p>
-          <p className="text-xs text-muted-foreground">Link your MetaMask wallet to bridge SKYNT tokens across chains.</p>
+          <p className="text-xs text-muted-foreground">Link your MetaMask wallet to bridge SKYNT tokens across chains via SphinxBridge.</p>
           <button
             data-testid="button-bridge-connect"
             onClick={connect}
@@ -91,8 +122,9 @@ export default function Bridge() {
 
       {bridgeSuccess && (
         <div className="cosmic-card cosmic-card-green p-4 text-center space-y-2 animate-in fade-in">
+          <CheckCircle className="w-5 h-5 text-neon-green mx-auto" />
           <p className="text-sm font-heading text-neon-green">Bridge Transaction Submitted</p>
-          <p className="text-xs text-muted-foreground">Your SKYNT tokens are being transferred. Track status below.</p>
+          <p className="text-xs text-muted-foreground">Awaiting {isLockMint ? "guardian minting" : "guardian release"} (5/5 signatures required).</p>
           <a href="#" className="text-xs text-primary flex items-center justify-center gap-1 hover:underline">
             View on Explorer <ExternalLink className="w-3 h-3" />
           </a>
@@ -102,7 +134,7 @@ export default function Bridge() {
       <div className={`cosmic-card cosmic-card-cyan p-6 space-y-6 ${!isConnected ? "opacity-50 pointer-events-none" : ""}`}>
         <div className="flex items-center justify-between">
           <span className="stat-label">Bridge SKYNT Token</span>
-          <span className="font-mono text-[10px] text-primary px-2 py-0.5 bg-primary/10 border border-primary/20 rounded-full">ERC-20</span>
+          <span className="font-mono text-[10px] text-primary px-2 py-0.5 bg-primary/10 border border-primary/20 rounded-full">{mechanism}</span>
         </div>
 
         <div className="space-y-2">
@@ -125,14 +157,9 @@ export default function Bridge() {
             {showSourceDropdown && (
               <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-sm shadow-lg">
                 {chains.filter((c) => c.id !== destChain).map((chain) => (
-                  <button
-                    key={chain.id}
-                    data-testid={`option-source-${chain.id}`}
-                    onClick={() => { setSourceChain(chain.id); setShowSourceDropdown(false); }}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-left"
-                  >
-                    <span className="text-lg">{chain.icon}</span>
-                    <span className="text-sm">{chain.name}</span>
+                  <button key={chain.id} data-testid={`option-source-${chain.id}`} onClick={() => { setSourceChain(chain.id); setShowSourceDropdown(false); }}
+                    className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-left">
+                    <span className="text-lg">{chain.icon}</span><span className="text-sm">{chain.name}</span>
                   </button>
                 ))}
               </div>
@@ -141,11 +168,8 @@ export default function Bridge() {
         </div>
 
         <div className="flex justify-center">
-          <button
-            data-testid="button-swap-chains"
-            onClick={swapChains}
-            className="p-2 rounded-full border border-border bg-black/40 hover:bg-primary/10 hover:border-primary/40 transition-all"
-          >
+          <button data-testid="button-swap-chains" onClick={swapChains}
+            className="p-2 rounded-full border border-border bg-black/40 hover:bg-primary/10 hover:border-primary/40 transition-all">
             <ArrowDownUp className="w-5 h-5 text-primary" />
           </button>
         </div>
@@ -170,14 +194,9 @@ export default function Bridge() {
             {showDestDropdown && (
               <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-sm shadow-lg">
                 {chains.filter((c) => c.id !== sourceChain).map((chain) => (
-                  <button
-                    key={chain.id}
-                    data-testid={`option-dest-${chain.id}`}
-                    onClick={() => { setDestChain(chain.id); setShowDestDropdown(false); }}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-left"
-                  >
-                    <span className="text-lg">{chain.icon}</span>
-                    <span className="text-sm">{chain.name}</span>
+                  <button key={chain.id} data-testid={`option-dest-${chain.id}`} onClick={() => { setDestChain(chain.id); setShowDestDropdown(false); }}
+                    className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-left">
+                    <span className="text-lg">{chain.icon}</span><span className="text-sm">{chain.name}</span>
                   </button>
                 ))}
               </div>
@@ -188,79 +207,78 @@ export default function Bridge() {
         <div className="space-y-2">
           <label className="stat-label">Amount (SKYNT)</label>
           <div className="relative">
-            <input
-              data-testid="input-bridge-amount"
-              type="number"
-              placeholder="0.00"
-              value={amount}
+            <input data-testid="input-bridge-amount" type="number" placeholder="0.00" value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-lg focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-heading">
-              SKYNT
-            </span>
+              className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-lg focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40" />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-heading">SKYNT</span>
           </div>
           <div className="flex justify-between text-[10px] font-mono text-muted-foreground px-1">
             <span>Balance: {skyntBalance} SKYNT</span>
-            <button
-              data-testid="button-max-amount"
-              onClick={() => setAmount("10000")}
-              className="text-primary hover:text-primary/80"
-            >
-              MAX
-            </button>
+            <button data-testid="button-max-amount" onClick={() => setAmount("10000")} className="text-primary hover:text-primary/80">MAX</button>
           </div>
         </div>
 
         <div className="space-y-2 p-3 bg-black/20 border border-border/50 rounded-sm">
           <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground flex items-center gap-1"><Zap className="w-3 h-3" /> Bridge Fee</span>
-            <span className="font-mono">{estimatedFee} SKYNT</span>
+            <span className="text-muted-foreground flex items-center gap-1"><Zap className="w-3 h-3" /> Bridge Fee (0.1%)</span>
+            <span className="font-mono">{bridgeFee} SKYNT</span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground flex items-center gap-1"><Coins className="w-3 h-3" /> You Receive</span>
-            <span className="font-mono text-neon-green">{estimatedReceive} SKYNT</span>
+            <span className="font-mono text-neon-green">{netReceive} SKYNT</span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /> Est. Time</span>
             <span className="font-mono">{estimatedTime}</span>
           </div>
           <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground flex items-center gap-1"><Shield className="w-3 h-3" /> Security</span>
-            <span className="font-mono text-neon-green">ZK-Verified</span>
+            <span className="text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" /> Required Sigs</span>
+            <span className="font-mono">5 of 9 guardians</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground flex items-center gap-1"><Shield className="w-3 h-3" /> Mechanism</span>
+            <span className="font-mono text-neon-cyan">{mechanism}</span>
           </div>
         </div>
 
-        <button
-          data-testid="button-bridge-transfer"
-          disabled={!amount || parseFloat(amount) <= 0 || bridging}
-          onClick={handleBridge}
-          className="connect-wallet-btn w-full py-3 rounded-sm font-heading text-sm tracking-wider disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
-        >
+        <button data-testid="button-bridge-transfer" disabled={!amount || parseFloat(amount) <= 0 || bridging} onClick={handleBridge}
+          className="connect-wallet-btn w-full py-3 rounded-sm font-heading text-sm tracking-wider disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none">
           <div className="flex items-center justify-center gap-2">
             {bridging ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Bridging SKYNT...
-              </>
+              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {isLockMint ? "Locking SKYNT..." : "Burning SKYNT..."}</>
             ) : (
-              <>
-                <Wallet className="w-4 h-4" />
-                {amount ? `Bridge ${amount} SKYNT` : "Enter Amount"}
-              </>
+              <><Wallet className="w-4 h-4" /> {amount ? `${isLockMint ? "Lock" : "Burn"} ${amount} SKYNT` : "Enter Amount"}</>
             )}
           </div>
         </button>
 
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 justify-center">
           <AlertTriangle className="w-3 h-3" />
-          <span>Bridge transfers are irreversible. Double-check destination network.</span>
+          <span>Bridge transfers are irreversible. Guardians must validate before release.</span>
+        </div>
+      </div>
+
+      <div className="cosmic-card p-4">
+        <h3 className="font-heading text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Users className="w-4 h-4 text-primary" /> Guardian Network (9 Validators)
+        </h3>
+        <div className="grid grid-cols-9 gap-2">
+          {guardians.map((g) => (
+            <div key={g.id} className="text-center" data-testid={`guardian-${g.id}`}>
+              <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto text-[10px] font-heading ${
+                g.status === "online" ? "border-neon-green bg-neon-green/10 text-neon-green" : "border-red-400/40 bg-red-400/5 text-red-400/60"
+              }`}>
+                {g.id}
+              </div>
+              <p className={`text-[8px] mt-1 ${g.status === "online" ? "text-neon-green" : "text-red-400/60"}`}>{g.lastSig}</p>
+            </div>
+          ))}
         </div>
       </div>
 
       <div className="cosmic-card cosmic-card-orange p-4">
         <h3 className="font-heading text-sm uppercase tracking-wider mb-4 flex items-center gap-2" data-testid="text-recent-bridges">
-          <Clock className="w-4 h-4 text-neon-orange" /> Recent SKYNT Bridges
+          <Clock className="w-4 h-4 text-neon-orange" /> Recent Bridge Transactions
         </h3>
         <table className="data-table">
           <thead>
@@ -268,6 +286,7 @@ export default function Bridge() {
               <th>Route</th>
               <th>Amount</th>
               <th>Status</th>
+              <th>Sigs</th>
               <th>Time</th>
             </tr>
           </thead>
@@ -282,21 +301,36 @@ export default function Bridge() {
                 <td>{bridge.amount}</td>
                 <td>
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-heading uppercase ${
-                    bridge.status === "completed"
-                      ? "bg-neon-green/10 text-neon-green"
-                      : "bg-neon-orange/10 text-neon-orange"
+                    bridge.status === "Released" || bridge.status === "Minted" ? "bg-neon-green/10 text-neon-green"
+                    : bridge.status === "Locked" || bridge.status === "Burned" ? "bg-neon-orange/10 text-neon-orange"
+                    : "bg-neon-cyan/10 text-neon-cyan"
                   }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${
-                      bridge.status === "completed" ? "bg-neon-green" : "bg-neon-orange animate-pulse"
+                      bridge.status === "Released" || bridge.status === "Minted" ? "bg-neon-green"
+                      : "bg-neon-orange animate-pulse"
                     }`} />
                     {bridge.status}
                   </span>
                 </td>
+                <td className="font-mono">{bridge.sigs}</td>
                 <td className="text-muted-foreground">{bridge.time}</td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="cosmic-card p-4">
+        <h3 className="font-heading text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Fingerprint className="w-3.5 h-3.5 text-primary" /> Contract Details
+        </h3>
+        <div className="space-y-2 text-xs font-mono">
+          <div className="flex justify-between"><span className="text-muted-foreground">Contract</span><span className="text-primary">SphinxBridge.sol</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Solidity</span><span>^0.8.0</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Guardians</span><span>9 (5 required)</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Fee</span><span>0.1% (1/1000 basis)</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Mechanism</span><span>Lock/Mint + Burn/Release</span></div>
+        </div>
       </div>
     </div>
   );
