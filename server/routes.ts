@@ -190,6 +190,23 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/oracle", async (req, res) => {
+    try {
+      const gridSize = 20;
+      const vectorCount = 3 + Math.floor(Math.random() * 4);
+      const vectors = Array.from({ length: vectorCount }, () => ({
+        x: Math.floor(Math.random() * gridSize),
+        y: Math.floor(Math.random() * gridSize),
+        strength: parseFloat((0.3 + Math.random() * 0.7).toFixed(2)),
+        type: Math.random() > 0.4 ? "reward" : "danger",
+      }));
+      res.json(vectors);
+    } catch (error) {
+      console.error("Oracle vectors error:", error);
+      res.status(500).json({ message: "Failed to fetch oracle vectors" });
+    }
+  });
+
   app.post("/api/oracle/chat", rateLimit(5000, 2), async (req, res) => {
     try {
       const { messages } = req.body;
