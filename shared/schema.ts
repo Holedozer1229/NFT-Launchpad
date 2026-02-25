@@ -159,7 +159,7 @@ export type InsertWalletTransaction = z.infer<typeof insertWalletTransactionSche
 
 export const miners = pgTable("miners", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  walletAddress: text("wallet_address").notNull(),
+  walletAddress: text("wallet_address").notNull().unique(),
   hashRate: integer("hash_rate").notNull().default(0),
   shards: integer("shards").notNull().default(0),
   lastUpdate: timestamp("last_update").defaultNow(),
