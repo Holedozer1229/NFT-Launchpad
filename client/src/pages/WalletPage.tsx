@@ -198,7 +198,7 @@ export default function WalletPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-heading neon-glow-cyan flex items-center gap-2" data-testid="text-wallet-title">
-            <Wallet className="w-6 h-6" /> SphinxOS Wallet
+            <Wallet className="w-6 h-6" /> SKYNT Wallet
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Your in-app crypto wallet — manage SKYNT, STX, and ETH</p>
         </div>
@@ -590,7 +590,7 @@ export default function WalletPage() {
         <div className="cosmic-card p-8 text-center space-y-4">
           <Wallet className="w-12 h-12 text-muted-foreground/30 mx-auto" />
           <p className="font-heading text-sm text-muted-foreground">No Wallet Found</p>
-          <p className="text-xs text-muted-foreground/60">Create your first SphinxOS wallet to start managing tokens.</p>
+          <p className="text-xs text-muted-foreground/60">Create your first SKYNT wallet to start managing tokens.</p>
           <button
             data-testid="button-create-first-wallet"
             onClick={handleCreateWallet}

@@ -22,7 +22,7 @@ export function EmbeddedWallet() {
     setIsVerifying(false);
     toast({
       title: "IDENTITY_VERIFIED",
-      description: "Wallet ownership cryptographically confirmed via SphinxOS.",
+      description: "Wallet ownership cryptographically confirmed via SKYNT.",
     });
   };
 

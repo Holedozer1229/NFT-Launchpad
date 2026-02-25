@@ -178,7 +178,7 @@ export default function OmegaSerpent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/game/scores"] });
       queryClient.invalidateQueries({ queryKey: ["/api/game/leaderboard"] });
-      toast({ title: "SKYNT Claimed!", description: "Reward deposited to your SphinxOS wallet" });
+      toast({ title: "SKYNT Claimed!", description: "Reward deposited to your SKYNT wallet" });
     },
   });
 
