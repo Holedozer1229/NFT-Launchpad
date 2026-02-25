@@ -98,7 +98,7 @@ export default function MintNFT() {
             <Cpu className="w-8 h-8 text-neon-cyan mb-4 group-hover:drop-shadow-[0_0_10px_currentColor]" />
             <h3 className="font-heading font-bold text-base mb-2 text-white uppercase tracking-wider">Living Logic</h3>
             <p className="font-mono text-muted-foreground text-xs leading-relaxed">
-              SphinxOS monitors every contract interaction, treating each mint as a neural synapse in the global brain.
+              SKYNT monitors every contract interaction, treating each mint as a neural synapse in the global brain.
             </p>
           </div>
           <div className="cosmic-card cosmic-card-orange p-6 hover:border-accent/50 transition-all group relative overflow-hidden" data-testid="card-oracle-governance">

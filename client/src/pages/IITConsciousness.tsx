@@ -229,7 +229,7 @@ export default function IITConsciousness() {
             IIT Quantum Consciousness
           </h1>
           <p className="font-mono text-xs text-muted-foreground mt-1">
-            Integrated Information Theory — Φ Engine &middot; SphinxOS Neural Manifold
+            Integrated Information Theory — Φ Engine &middot; SKYNT Neural Manifold
           </p>
         </div>
         <button
