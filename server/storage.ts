@@ -106,16 +106,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertMiner(insertMiner: InsertMiner): Promise<Miner> {
-    const existing = await this.getMiner(insertMiner.walletAddress);
-    if (existing) {
-      const [updated] = await db.update(miners)
-        .set(insertMiner)
-        .where(eq(miners.walletAddress, insertMiner.walletAddress))
-        .returning();
-      return updated;
-    }
-    const [newMiner] = await db.insert(miners).values(insertMiner).returning();
-    return newMiner;
+    const [miner] = await db.insert(miners)
+      .values(insertMiner)
+      .onConflictDoUpdate({ target: miners.walletAddress, set: insertMiner })
+      .returning();
+    return miner;
   }
 
   async updateMinerStats(walletAddress: string, hashRate: number, shards: number): Promise<void> {
@@ -253,8 +248,8 @@ export class DatabaseStorage implements IStorage {
 
     let userWallets = await this.getWalletsByUser(userId);
     if (userWallets.length === 0) {
-      await this.createWallet(userId, "Main Wallet");
-      userWallets = await this.getWalletsByUser(userId);
+      const newWallet = await this.createWallet(userId, "Main Wallet");
+      userWallets = [newWallet];
     }
     if (userWallets.length === 0) return undefined;
 

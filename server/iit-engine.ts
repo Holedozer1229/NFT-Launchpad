@@ -91,23 +91,21 @@ function eigenvaluesSymmetric(matrix: number[][]): number[] {
     const c = 1 / Math.sqrt(1 + t * t);
     const s = t * c;
 
-    const newA = a.map(row => [...row]);
+    const app = a[p][p], aqq = a[q][q], apq = a[p][q];
     for (let i = 0; i < n; i++) {
       if (i !== p && i !== q) {
-        newA[i][p] = c * a[i][p] - s * a[i][q];
-        newA[p][i] = newA[i][p];
-        newA[i][q] = s * a[i][p] + c * a[i][q];
-        newA[q][i] = newA[i][q];
+        const aip = a[i][p];
+        const aiq = a[i][q];
+        a[i][p] = c * aip - s * aiq;
+        a[p][i] = a[i][p];
+        a[i][q] = s * aip + c * aiq;
+        a[q][i] = a[i][q];
       }
     }
-    newA[p][p] = c * c * a[p][p] - 2 * s * c * a[p][q] + s * s * a[q][q];
-    newA[q][q] = s * s * a[p][p] + 2 * s * c * a[p][q] + c * c * a[q][q];
-    newA[p][q] = 0;
-    newA[q][p] = 0;
-
-    for (let i = 0; i < n; i++)
-      for (let j = 0; j < n; j++)
-        a[i][j] = newA[i][j];
+    a[p][p] = c * c * app - 2 * s * c * apq + s * s * aqq;
+    a[q][q] = s * s * app + 2 * s * c * apq + c * c * aqq;
+    a[p][q] = 0;
+    a[q][p] = 0;
   }
 
   const eigenvals: number[] = [];

@@ -169,6 +169,11 @@ export async function registerRoutes(
 
   app.get("/api/space-launches", async (_req, res) => {
     try {
+      const now = Date.now();
+      if (spacelaunchesCache && now - spacelaunchesCache.timestamp < SPACE_LAUNCHES_CACHE_TTL) {
+        return res.json(spacelaunchesCache.data);
+      }
+
       const response = await fetch(
         "https://ll.thespacedevs.com/2.0.0/launch/upcoming/?limit=6"
       );
@@ -185,9 +190,11 @@ export async function registerRoutes(
         location: l.pad?.location?.name || "Unknown",
         image: l.image || null,
       }));
+      spacelaunchesCache = { data: launches, timestamp: now };
       res.json(launches);
     } catch (error) {
       console.error("Space launches fetch error:", error);
+      if (spacelaunchesCache) return res.json(spacelaunchesCache.data);
       res.status(500).json({ message: "Failed to fetch space launch data" });
     }
   });
@@ -565,6 +572,18 @@ export async function registerRoutes(
   let priceCache: { data: any; timestamp: number } | null = null;
   const PRICE_CACHE_TTL = 60000;
 
+  let spacelaunchesCache: { data: any; timestamp: number } | null = null;
+  const SPACE_LAUNCHES_CACHE_TTL = 300000;
+
+  let mempoolStatsCache: { data: any; timestamp: number } | null = null;
+  let mempoolHashrateCache: { data: any; timestamp: number } | null = null;
+  let mempoolDifficultyCache: { data: any; timestamp: number } | null = null;
+  let mempoolBlocksCache: { data: any; timestamp: number } | null = null;
+  const MEMPOOL_STATS_TTL = 15000;
+  const MEMPOOL_HASHRATE_TTL = 60000;
+  const MEMPOOL_DIFFICULTY_TTL = 60000;
+  const MEMPOOL_BLOCKS_TTL = 15000;
+
   app.get("/api/prices", async (_req, res) => {
     try {
       const now = Date.now();
@@ -612,12 +631,17 @@ export async function registerRoutes(
 
   app.get("/api/mempool/stats", async (_req, res) => {
     try {
+      const now = Date.now();
+      if (mempoolStatsCache && now - mempoolStatsCache.timestamp < MEMPOOL_STATS_TTL) {
+        return res.json(mempoolStatsCache.data);
+      }
+
       const [mempoolInfo, fees, blockTip] = await Promise.all([
         fetch("https://mempool.space/api/mempool").then(r => r.json()),
         fetch("https://mempool.space/api/v1/fees/recommended").then(r => r.json()),
         fetch("https://mempool.space/api/blocks/tip/height").then(r => r.text()),
       ]);
-      res.json({
+      const data = {
         mempoolSize: mempoolInfo.count || 0,
         mempoolVSize: mempoolInfo.vsize || 0,
         totalFee: mempoolInfo.total_fee || 0,
@@ -629,7 +653,9 @@ export async function registerRoutes(
           minimum: fees.minimumFee || 0,
         },
         blockHeight: parseInt(blockTip) || 0,
-      });
+      };
+      mempoolStatsCache = { data, timestamp: now };
+      res.json(data);
     } catch (error) {
       console.error("Mempool fetch error:", error);
       res.status(500).json({ message: "Failed to fetch mempool data" });
@@ -638,7 +664,12 @@ export async function registerRoutes(
 
   app.get("/api/mempool/hashrate", async (_req, res) => {
     try {
+      const now = Date.now();
+      if (mempoolHashrateCache && now - mempoolHashrateCache.timestamp < MEMPOOL_HASHRATE_TTL) {
+        return res.json(mempoolHashrateCache.data);
+      }
       const data = await fetch("https://mempool.space/api/v1/mining/hashrate/1m").then(r => r.json());
+      mempoolHashrateCache = { data, timestamp: now };
       res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch hashrate data" });
@@ -647,7 +678,12 @@ export async function registerRoutes(
 
   app.get("/api/mempool/difficulty", async (_req, res) => {
     try {
+      const now = Date.now();
+      if (mempoolDifficultyCache && now - mempoolDifficultyCache.timestamp < MEMPOOL_DIFFICULTY_TTL) {
+        return res.json(mempoolDifficultyCache.data);
+      }
       const data = await fetch("https://mempool.space/api/v1/difficulty-adjustment").then(r => r.json());
+      mempoolDifficultyCache = { data, timestamp: now };
       res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch difficulty data" });
@@ -656,8 +692,14 @@ export async function registerRoutes(
 
   app.get("/api/mempool/blocks", async (_req, res) => {
     try {
-      const data = await fetch("https://mempool.space/api/v1/blocks").then(r => r.json());
-      res.json(data.slice(0, 10));
+      const now = Date.now();
+      if (mempoolBlocksCache && now - mempoolBlocksCache.timestamp < MEMPOOL_BLOCKS_TTL) {
+        return res.json(mempoolBlocksCache.data);
+      }
+      const raw = await fetch("https://mempool.space/api/v1/blocks").then(r => r.json());
+      const data = raw.slice(0, 10);
+      mempoolBlocksCache = { data, timestamp: now };
+      res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch blocks data" });
     }

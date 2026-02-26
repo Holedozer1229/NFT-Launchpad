@@ -154,13 +154,20 @@ export default function Marketplace() {
     return listing.title?.toLowerCase().includes(q) || listing.sellerUsername?.toLowerCase().includes(q);
   });
 
+  const listingsArr = listings || [];
+  const { totalVolume, chainSet } = listingsArr.reduce(
+    (acc: { totalVolume: number; chainSet: Set<string> }, l: any) => {
+      acc.totalVolume += parseFloat(l.price || "0");
+      acc.chainSet.add(l.chain);
+      return acc;
+    },
+    { totalVolume: 0, chainSet: new Set<string>() }
+  );
   const stats = {
-    totalActive: (listings || []).length,
-    totalVolume: (listings || []).reduce((sum: number, l: any) => sum + parseFloat(l.price || "0"), 0).toFixed(2),
-    avgPrice: (listings || []).length > 0
-      ? ((listings || []).reduce((sum: number, l: any) => sum + parseFloat(l.price || "0"), 0) / (listings || []).length).toFixed(3)
-      : "0",
-    chains: new Set((listings || []).map((l: any) => l.chain)).size,
+    totalActive: listingsArr.length,
+    totalVolume: totalVolume.toFixed(2),
+    avgPrice: listingsArr.length > 0 ? (totalVolume / listingsArr.length).toFixed(3) : "0",
+    chains: chainSet.size,
   };
 
   return (
