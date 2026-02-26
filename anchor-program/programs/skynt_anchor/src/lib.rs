@@ -125,9 +125,11 @@ pub mod skynt_anchor {
     }
 }
 
-/// Encodes the first 8 bytes of a slice as a hex string for logging.
+/// Encodes the first 8 bytes of a slice as a hex string for logging (abbreviated).
 fn hex_encode_8(data: &[u8]) -> String {
-    data.iter().take(8).map(|b| format!("{:02x}", b)).collect()
+    let mut s: String = data.iter().take(8).map(|b| format!("{:02x}", b)).collect();
+    if data.len() > 8 { s.push_str("..."); }
+    s
 }
 
 // ─── Accounts ────────────────────────────────────────────────────────────────

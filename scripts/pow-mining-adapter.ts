@@ -240,7 +240,7 @@ function mine(
       );
     }
 
-    nonce = (nonce + 1n) & 0xFFFFFFFFFFFFFFFFn; // wrap at u64::MAX
+    nonce = (nonce + 1n) % (2n ** 64n); // wrap at u64::MAX to match Rust wrapping_add
   }
 }
 
@@ -259,15 +259,14 @@ async function submitSolution(
   challengeId: string,
   minerAddress: string,
   nonce: bigint,
-  powHash: string,
   sourceChain: string,
 ): Promise<SubmitResponse> {
   const url = `${apiUrl}/api/pow/submit`;
+  // Note: powHash is intentionally omitted — the server recomputes and verifies it.
   const body = JSON.stringify({
     challengeId,
     minerAddress,
     nonce: nonce.toString(),
-    powHash,
     sourceChain,
   });
   const res = await fetch(url, {
@@ -351,14 +350,13 @@ async function main() {
   // 2. Mine off-chain
   const { nonce, powHash } = mine(challenge, minerAddress);
 
-  // 3. Submit solution to API (off-chain record)
+  // 3. Submit solution to API (off-chain record); server recomputes and verifies the hash
   console.log("\n[Adapter] Submitting solution to API...");
   const submitResp = await submitSolution(
     apiUrl,
     challenge.challengeId,
     minerAddress,
     nonce,
-    powHash,
     sourceChain,
   );
   console.log(`[Adapter] Submission recorded (id=${submitResp.submission.id})`);

@@ -385,7 +385,7 @@ export const powChallenges = pgTable("pow_challenges", {
   status: text("status").notNull().default("active"),
   /** Number of valid solutions accepted. */
   solutionsCount: integer("solutions_count").notNull().default(0),
-  /** Solana public key of the authority that created this challenge. */
+  /** Username or Solana public key of the authority that created this challenge. */
   createdBy: text("created_by").notNull(),
   /** Solana transaction signature for the create_challenge instruction (optional). */
   solanaTxHash: text("solana_tx_hash"),

@@ -1145,7 +1145,8 @@ export async function registerRoutes(
       const seed = parsed.data.seed ?? randomBytes(32).toString("hex");
       // Default: u128::MAX / 1_000_000  ≈  340282366920938463463374607431768n
       const difficultyTarget = parsed.data.difficultyTarget ?? "340282366920938463463374607431768";
-      const challengeId = seed.slice(0, 16) + "-" + Date.now().toString(16);
+      const challengeId =
+        seed.slice(0, 16) + "-" + Date.now().toString(16) + "-" + randomBytes(4).toString("hex");
 
       // Expire any previously active challenge
       const existing = await storage.getActivePowChallenge();

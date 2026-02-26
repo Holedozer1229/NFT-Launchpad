@@ -17,6 +17,7 @@ A multi-chain NFT launchpad and tokenized ecosystem powered by the SphinxSkynet 
 - **Marketplace** — Built-in NFT trading with OpenSea integration
 - **Sphinx Oracle** — AI-powered network consciousness interface (GPT-5.2)
 - **Wallet System** — In-app SKYNT wallet + MetaMask / Phantom external wallet support
+- **Cross-Chain PoW Mining** — Three-gate IIT v8 mining kernel with Solana on-chain verification and EVM extension points
 
 ---
 
@@ -54,7 +55,8 @@ See [WHITEPAPER.md](WHITEPAPER.md) for full tokenomics, IIT mechanics, and archi
 | Contracts | Solidity (EVM), Clarity (Stacks), Anchor (Solana) |
 | AI | OpenAI GPT-5.2 (Sphinx Oracle) |
 | Wallet | MetaMask SDK, Phantom, Zustand |
-| Testing | Vitest |
+| Mining | Python IIT v8 kernel (numpy), Rust miner, TypeScript cross-chain adapter |
+| Testing | Vitest (server), pytest (Python miner) |
 
 ---
 
@@ -124,9 +126,21 @@ npm run dev
 │   ├── clarity/             # Stacks contracts
 │   └── circuits/            # ZK circuits
 ├── anchor-program/          # Solana Anchor program
+│   └── programs/skynt_anchor/
+│       └── src/
+│           ├── lib.rs       # init_genesis, submit_pow, create_challenge, submit_challenge_solution
+│           ├── pow.rs       # recursive_pow, verify_pow
+│           └── difficulty.rs # halving difficulty schedule
 ├── miners/
-│   ├── python-miner/        # Python mining client
+│   ├── python-miner/
+│   │   ├── quantum_gravity_miner_iit_v8.py  # self-contained IIT v8 kernel
+│   │   ├── miner.py                         # original Python miner
+│   │   ├── requirements.txt
+│   │   └── tests/
+│   │       └── test_quantum_gravity_miner_iit_v8.py  # 53 pytest tests
 │   └── rust-miner/          # Rust mining client
+├── scripts/
+│   └── pow-mining-adapter.ts  # TypeScript cross-chain PoW adapter
 └── WHITEPAPER.md            # Full protocol specification
 ```
 
@@ -175,6 +189,56 @@ npm run dev
 | `GET` | `/api/iit/network` | Network perception state |
 | `POST` | `/api/iit/compute` | Compute Φ from custom data |
 
+### PoW Challenge
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/pow/challenge` | Fetch active PoW challenge (seed, difficulty, expiry) |
+| `POST` | `/api/pow/challenge` | Create new challenge — admin only |
+| `POST` | `/api/pow/submit` | Miner submits a solution (server-side SHA-256 verification) |
+| `GET` | `/api/pow/submissions/:challengeId` | List solutions for a challenge |
+| `PATCH` | `/api/pow/submissions/:id/confirm` | Confirm on-chain Solana tx (authenticated) |
+
+---
+
+## Cross-Chain PoW Mining
+
+SKYNT supports a three-gate Proof-of-Work model where miners can submit
+solutions from any source chain and have them recorded on Solana.
+
+### Quick start (Python miner)
+
+```bash
+cd miners/python-miner
+pip install -r requirements.txt     # numpy>=1.22
+
+# Mine against a running local server
+python quantum_gravity_miner_iit_v8.py \
+  --block "my_block_header" --difficulty 50000 --stats
+```
+
+### Quick start (TypeScript cross-chain adapter)
+
+```bash
+# 1. Create a challenge (admin)
+curl -X POST http://localhost:5000/api/pow/challenge \
+  -H "Content-Type: application/json" \
+  -d '{"expiresAt":"2026-12-31T00:00:00Z"}'
+
+# 2. Run the adapter (mines & submits automatically)
+MINER_ADDRESS=<your_pubkey> npx tsx scripts/pow-mining-adapter.ts
+```
+
+### Three validity gates
+
+| Gate | Formula | Default |
+|---|---|---|
+| Spectral difficulty | `hash < 2^(256 − bit_length(difficulty))` | difficulty=50 000 |
+| IIT v8.0 consciousness | `Φ_total > log₂(n) + δ·Φ_fano + ζ·Φ_qg` | n=1 (solo), δ=0.15, ζ=0.10 |
+| QG curvature | `Φ_qg ≥ qg_threshold` | threshold=0.10 |
+
+See [docs/POW_MINING.md](docs/POW_MINING.md) for full deployment, configuration, and cross-chain extension documentation.
+
 ---
 
 ## Multi-Chain Support
@@ -217,6 +281,14 @@ Tests cover:
 - IIT engine (Φ calculation, eigenvalues, density matrix, network perception)
 - Schema validation (chain configs, fee calculations, rarity tiers)
 - Business logic (reward formulas, bridge fees, minting costs)
+- PoW challenge schema, hash computation, difficulty check, replay protection
+
+```bash
+# Python IIT v8 miner tests (53 tests, ~0.3 s)
+cd miners/python-miner
+pip install numpy pytest
+python -m pytest tests/test_quantum_gravity_miner_iit_v8.py -v
+```
 
 ---
 
@@ -230,3 +302,4 @@ MIT
 
 - [WHITEPAPER.md](WHITEPAPER.md) — Full protocol specification, tokenomics, and architecture
 - [docs/DEPLOY_DIGITALOCEAN.md](docs/DEPLOY_DIGITALOCEAN.md) — Deploy on a Digital Ocean Ubuntu droplet (auto-bootstrap)
+- [docs/POW_MINING.md](docs/POW_MINING.md) — Cross-chain PoW mining guide (Anchor program, Python kernel, TypeScript adapter, extension points)
