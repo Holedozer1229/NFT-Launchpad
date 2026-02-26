@@ -92,7 +92,7 @@ class SkynetMiner:
 
 def main():
     # Example miner address (would be Solana public key in production)
-    miner_address = "ExampleSolanaMinerAddress123456789"
+    miner_address = "6h5M7PrUjy6tJ9gC4FTwGne1y4VJydKk9MELgNgBb5Do"
     
     miner = SkynetMiner(miner_address)
     
