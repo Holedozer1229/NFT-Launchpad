@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
+import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, type ChainId, type RarityTier } from "@shared/schema";
 import { randomBytes } from "crypto";
 import { z } from "zod";
 import OpenAI from "openai";
@@ -365,6 +365,29 @@ export async function registerRoutes(
       const parsed = insertNftSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json(parsed.error);
 
+      // Deduct minting cost from user wallet
+      const rarityCosts: Record<string, number> = { mythic: 100, legendary: 1, rare: 0.5, common: 0.1 };
+      const rarity = parsed.data.rarity as string;
+      const cost = rarityCosts[rarity];
+      if (cost === undefined) return res.status(400).json({ message: "Invalid rarity tier" });
+
+      const userWallets = await storage.getWalletsByUser(req.user!.id);
+      if (userWallets.length === 0) return res.status(400).json({ message: "No wallet found. Please create a wallet first." });
+      const wallet = userWallets[0];
+
+      const currentEth = parseFloat(wallet.balanceEth);
+      if (currentEth < cost) return res.status(400).json({ message: `Insufficient ETH balance. Minting a ${rarity} NFT costs ${cost} ETH.` });
+
+      await storage.updateWalletBalance(wallet.id, "ETH", (currentEth - cost).toString());
+      await storage.createTransaction({
+        walletId: wallet.id,
+        type: "mint",
+        amount: cost.toString(),
+        token: "ETH",
+        status: "completed",
+        txHash: "0x" + randomBytes(32).toString("hex"),
+      });
+
       const chainId = (parsed.data.chain || "ethereum") as ChainId;
       const chainData = SUPPORTED_CHAINS[chainId];
       const contractAddr = chainData?.contractAddress || "0x0000000000000000000000000000000000000000";
@@ -489,8 +512,28 @@ export async function registerRoutes(
         txHash: "0x" + randomBytes(32).toString("hex"),
       });
       if (!parsed.success) return res.status(400).json(parsed.error);
+
+      // Apply bridge fee and deduct from wallet
+      const bridgeAmount = parseFloat(parsed.data.amount);
+      const fee = bridgeAmount * BRIDGE_FEE_BPS / 10000;
+      const totalDeduction = bridgeAmount + fee;
+      const token = (parsed.data.token || "SKYNT") as string;
+      const tokenBalanceFields: Record<string, "balanceEth" | "balanceStx" | "balanceSkynt"> = {
+        ETH: "balanceEth", STX: "balanceStx", SKYNT: "balanceSkynt",
+      };
+      const balanceField = tokenBalanceFields[token];
+      if (!balanceField) return res.status(400).json({ message: `Unsupported bridge token: ${token}` });
+
+      const userWallets = await storage.getWalletsByUser(req.user!.id);
+      if (userWallets.length === 0) return res.status(400).json({ message: "No wallet found. Please create a wallet first." });
+      const wallet = userWallets[0];
+      const currentBalance = parseFloat(wallet[balanceField]);
+      if (currentBalance < totalDeduction) return res.status(400).json({ message: `Insufficient ${token} balance. You need ${totalDeduction} ${token} (${bridgeAmount} + ${fee} fee).` });
+
+      await storage.updateWalletBalance(wallet.id, token, (currentBalance - totalDeduction).toString());
+
       const tx = await storage.createBridgeTransaction(parsed.data);
-      res.json(tx);
+      res.json({ ...tx, fee: fee.toString(), totalDeducted: totalDeduction.toString() });
     } catch (error) {
       res.status(500).json({ message: "Failed to create bridge transaction" });
     }
@@ -758,7 +801,22 @@ export async function registerRoutes(
       const scoreId = parseInt(req.params.id);
       const result = await storage.claimGameReward(scoreId, req.user!.id);
       if (!result) return res.status(400).json({ message: "Cannot claim this reward" });
-      res.json(result);
+
+      // Apply IIT Φ bonus
+      const phiResult = calculatePhi(`claim-${scoreId}-${Date.now()}`);
+      const skyntEarned = parseFloat(result.skyntEarned);
+      const bonusSkynt = skyntEarned * phiResult.phi * 0.5;
+
+      if (bonusSkynt > 0) {
+        const userWallets = await storage.getWalletsByUser(req.user!.id);
+        if (userWallets.length > 0) {
+          const wallet = userWallets[0];
+          const currentSkynt = parseFloat(wallet.balanceSkynt);
+          await storage.updateWalletBalance(wallet.id, "SKYNT", (currentSkynt + bonusSkynt).toString());
+        }
+      }
+
+      res.json({ ...result, phiBonus: bonusSkynt.toString(), phi: phiResult.phi, phiLevel: phiResult.levelLabel });
     } catch (error) {
       res.status(500).json({ message: "Failed to claim reward" });
     }
