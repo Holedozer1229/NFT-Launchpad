@@ -365,11 +365,12 @@ export async function registerRoutes(
       const parsed = insertNftSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json(parsed.error);
 
-      // Deduct minting cost from user wallet
-      const rarityCosts: Record<string, number> = { mythic: 100, legendary: 1, rare: 0.5, common: 0.1 };
+      // Deduct minting cost from user wallet (derived from RARITY_TIERS)
       const rarity = parsed.data.rarity as string;
-      const cost = rarityCosts[rarity];
-      if (cost === undefined) return res.status(400).json({ message: "Invalid rarity tier" });
+      const tier = RARITY_TIERS[rarity as RarityTier];
+      if (!tier) return res.status(400).json({ message: "Invalid rarity tier" });
+      const cost = parseFloat(tier.price);
+      if (isNaN(cost)) return res.status(400).json({ message: "Invalid rarity pricing" });
 
       const userWallets = await storage.getWalletsByUser(req.user!.id);
       if (userWallets.length === 0) return res.status(400).json({ message: "No wallet found. Please create a wallet first." });

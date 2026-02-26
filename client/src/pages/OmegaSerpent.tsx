@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Coins, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Gamepad2, Crown, Gift, Skull, X, Trophy, Zap } from "lucide-react";
+import { Coins, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Gamepad2, Crown, Gift, Skull, X, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
 
 const GRID_W = 50;
 const GRID_H = 35;
@@ -55,6 +55,7 @@ function spawnParticles(x: number, y: number, color: string, count: number): Par
 
 // Web Audio API sound synthesis (AudioContext is created lazily on first user-triggered sound)
 let audioCtx: AudioContext | null = null;
+let audioMuted = false;
 function getAudioCtx(): AudioContext {
   if (!audioCtx) audioCtx = new AudioContext();
   if (audioCtx.state === "suspended") audioCtx.resume();
@@ -62,6 +63,7 @@ function getAudioCtx(): AudioContext {
 }
 
 function playTone(freq: number, duration: number, type: OscillatorType = "square", volume = 0.08) {
+  if (audioMuted) return;
   try {
     const ctx = getAudioCtx();
     const osc = ctx.createOscillator();
@@ -200,6 +202,7 @@ export default function OmegaSerpent() {
   const [lives, setLives] = useState(3);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showRewards, setShowRewards] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [particles, setParticles] = useState<Particle[]>([]);
   const [shakeOffset, setShakeOffset] = useState({ x: 0, y: 0 });
   const [combo, setCombo] = useState(0);
@@ -743,6 +746,14 @@ export default function OmegaSerpent() {
             data-testid="button-toggle-rewards"
           >
             <Gift className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => { audioMuted = !audioMuted; setMuted(audioMuted); }}
+            className={`p-1.5 rounded border transition-colors ${muted ? "border-red-400 text-red-400 bg-red-400/10" : "border-white/10 text-white/50 hover:text-white/80"}`}
+            data-testid="button-toggle-sound"
+            title={muted ? "Unmute" : "Mute"}
+          >
+            {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </button>
         </div>
       </div>
