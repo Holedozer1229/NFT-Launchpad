@@ -63,11 +63,15 @@ function getPhantomProvider(): any | null {
   return null;
 }
 
+const EVM_CHAIN_NAMES: Record<number, string> = {
+  1: "Ethereum Mainnet", 5: "Goerli", 11155111: "Sepolia",
+  137: "Polygon", 42161: "Arbitrum One", 10: "Optimism",
+};
+
 function getChainName(chainId: string | null): string | null {
   if (!chainId) return null;
   const id = parseInt(chainId, 16);
-  const chains: Record<number, string> = { 1: "Ethereum Mainnet", 5: "Goerli", 11155111: "Sepolia", 137: "Polygon", 42161: "Arbitrum One", 10: "Optimism" };
-  return chains[id] || `Chain ${id}`;
+  return EVM_CHAIN_NAMES[id] || `Chain ${id}`;
 }
 
 async function fetchMetaMaskBalance(addr: string): Promise<{ balance: number; chainId: string | null }> {
@@ -201,11 +205,12 @@ export const useWallet = create<WalletState>((set, get) => ({
   },
 }));
 
-// Auto-reconnect from session on load
+// Auto-reconnect from session on load (delay allows wallet providers to initialize)
+const AUTO_RECONNECT_DELAY_MS = 500;
 if (typeof window !== "undefined") {
   const session = loadSession();
   if (session) {
-    setTimeout(() => { useWallet.getState().connect(session.provider); }, 500);
+    setTimeout(() => { useWallet.getState().connect(session.provider); }, AUTO_RECONNECT_DELAY_MS);
   }
 }
 

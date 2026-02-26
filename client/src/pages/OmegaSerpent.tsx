@@ -53,10 +53,11 @@ function spawnParticles(x: number, y: number, color: string, count: number): Par
   });
 }
 
-// Web Audio API sound synthesis
+// Web Audio API sound synthesis (AudioContext is created lazily on first user-triggered sound)
 let audioCtx: AudioContext | null = null;
 function getAudioCtx(): AudioContext {
   if (!audioCtx) audioCtx = new AudioContext();
+  if (audioCtx.state === "suspended") audioCtx.resume();
   return audioCtx;
 }
 
