@@ -1,4 +1,4 @@
-import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, marketplaceListings, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing } from "@shared/schema";
+import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, marketplaceListings, powChallenges, powSubmissions, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing, type PowChallenge, type InsertPowChallenge, type PowSubmission, type InsertPowSubmission } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -62,6 +62,17 @@ export interface IStorage {
   cancelMarketplaceListing(id: number, sellerId: number): Promise<MarketplaceListing | undefined>;
   getMarketplaceListingsBySeller(sellerId: number): Promise<MarketplaceListing[]>;
   executeMarketplacePurchase(listingId: number, buyerId: number, buyerUsername: string): Promise<{ success: boolean; error?: string; listing?: MarketplaceListing; txHash?: string }>;
+
+  // ─── PoW Challenge methods ────────────────────────────────────────────────
+  getActivePowChallenge(): Promise<PowChallenge | undefined>;
+  getPowChallenge(challengeId: string): Promise<PowChallenge | undefined>;
+  createPowChallenge(challenge: InsertPowChallenge): Promise<PowChallenge>;
+  updatePowChallengeStatus(challengeId: string, status: string): Promise<void>;
+  incrementPowChallengeSolutions(challengeId: string): Promise<void>;
+  createPowSubmission(submission: InsertPowSubmission): Promise<PowSubmission>;
+  getPowSubmissions(challengeId: string): Promise<PowSubmission[]>;
+  getMinerSubmission(challengeId: string, minerAddress: string): Promise<PowSubmission | undefined>;
+  updatePowSubmissionStatus(id: number, status: string, solanaTxHash?: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -367,6 +378,84 @@ export class DatabaseStorage implements IStorage {
 
       return { success: true, listing: updated, txHash };
     });
+  }
+
+  // ─── PoW Challenge implementations ───────────────────────────────────────
+
+  async getActivePowChallenge(): Promise<PowChallenge | undefined> {
+    const [challenge] = await db
+      .select()
+      .from(powChallenges)
+      .where(eq(powChallenges.status, "active"))
+      .orderBy(desc(powChallenges.createdAt))
+      .limit(1);
+    return challenge;
+  }
+
+  async getPowChallenge(challengeId: string): Promise<PowChallenge | undefined> {
+    const [challenge] = await db
+      .select()
+      .from(powChallenges)
+      .where(eq(powChallenges.challengeId, challengeId));
+    return challenge;
+  }
+
+  async createPowChallenge(challenge: InsertPowChallenge): Promise<PowChallenge> {
+    const [created] = await db.insert(powChallenges).values(challenge).returning();
+    return created;
+  }
+
+  async updatePowChallengeStatus(challengeId: string, status: string): Promise<void> {
+    await db
+      .update(powChallenges)
+      .set({ status })
+      .where(eq(powChallenges.challengeId, challengeId));
+  }
+
+  async incrementPowChallengeSolutions(challengeId: string): Promise<void> {
+    const [existing] = await db
+      .select()
+      .from(powChallenges)
+      .where(eq(powChallenges.challengeId, challengeId));
+    if (existing) {
+      await db
+        .update(powChallenges)
+        .set({ solutionsCount: existing.solutionsCount + 1 })
+        .where(eq(powChallenges.challengeId, challengeId));
+    }
+  }
+
+  async createPowSubmission(submission: InsertPowSubmission): Promise<PowSubmission> {
+    const [created] = await db.insert(powSubmissions).values(submission).returning();
+    return created;
+  }
+
+  async getPowSubmissions(challengeId: string): Promise<PowSubmission[]> {
+    return db
+      .select()
+      .from(powSubmissions)
+      .where(eq(powSubmissions.challengeId, challengeId))
+      .orderBy(desc(powSubmissions.createdAt));
+  }
+
+  async getMinerSubmission(challengeId: string, minerAddress: string): Promise<PowSubmission | undefined> {
+    const [record] = await db
+      .select()
+      .from(powSubmissions)
+      .where(
+        and(
+          eq(powSubmissions.challengeId, challengeId),
+          eq(powSubmissions.minerAddress, minerAddress),
+        ),
+      );
+    return record;
+  }
+
+  async updatePowSubmissionStatus(id: number, status: string, solanaTxHash?: string): Promise<void> {
+    await db
+      .update(powSubmissions)
+      .set({ status, ...(solanaTxHash !== undefined ? { solanaTxHash } : {}) })
+      .where(eq(powSubmissions.id, id));
   }
 }
 

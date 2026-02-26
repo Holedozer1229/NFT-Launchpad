@@ -364,3 +364,69 @@ export type MarketplaceListing = typeof marketplaceListings.$inferSelect;
 export type InsertMarketplaceListing = z.infer<typeof insertMarketplaceListingSchema>;
 
 export { conversations, messages } from "./models/chat";
+
+// ─── PoW Challenge Tables ─────────────────────────────────────────────────────
+
+/**
+ * On-chain PoW challenges created by an authority.
+ * Mirrors the PowChallenge Anchor account for off-chain tracking.
+ */
+export const powChallenges = pgTable("pow_challenges", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  /** Unique challenge identifier (e.g. hex seed prefix or UUID). */
+  challengeId: text("challenge_id").notNull().unique(),
+  /** 32-byte seed published to miners, stored as hex string. */
+  seed: text("seed").notNull(),
+  /** Difficulty target as decimal string (u128 doesn't fit in JS number). */
+  difficultyTarget: text("difficulty_target").notNull(),
+  /** Unix timestamp when this challenge expires. */
+  expiresAt: timestamp("expires_at").notNull(),
+  /** 'active' | 'expired' | 'completed' */
+  status: text("status").notNull().default("active"),
+  /** Number of valid solutions accepted. */
+  solutionsCount: integer("solutions_count").notNull().default(0),
+  /** Username or Solana public key of the authority that created this challenge. */
+  createdBy: text("created_by").notNull(),
+  /** Solana transaction signature for the create_challenge instruction (optional). */
+  solanaTxHash: text("solana_tx_hash"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPowChallengeSchema = createInsertSchema(powChallenges).omit({
+  id: true,
+  createdAt: true,
+  solutionsCount: true,
+});
+export type PowChallenge = typeof powChallenges.$inferSelect;
+export type InsertPowChallenge = z.infer<typeof insertPowChallengeSchema>;
+
+/**
+ * Off-chain record of a miner's PoW solution submission.
+ * The solanaTxHash is populated once the on-chain submit_challenge_solution
+ * transaction confirms.
+ */
+export const powSubmissions = pgTable("pow_submissions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  /** References powChallenges.challengeId. */
+  challengeId: text("challenge_id").notNull(),
+  /** Solana (or cross-chain source) address of the miner. */
+  minerAddress: text("miner_address").notNull(),
+  /** Nonce as decimal string. */
+  nonce: text("nonce").notNull(),
+  /** Resulting SHA-256 hash as hex string. */
+  powHash: text("pow_hash").notNull(),
+  /** Source chain identifier, e.g. 'solana', 'ethereum'. */
+  sourceChain: text("source_chain").notNull().default("solana"),
+  /** Solana transaction signature after on-chain submission confirms. */
+  solanaTxHash: text("solana_tx_hash"),
+  /** 'pending' | 'confirmed' | 'failed' */
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPowSubmissionSchema = createInsertSchema(powSubmissions).omit({
+  id: true,
+  createdAt: true,
+});
+export type PowSubmission = typeof powSubmissions.$inferSelect;
+export type InsertPowSubmission = z.infer<typeof insertPowSubmissionSchema>;

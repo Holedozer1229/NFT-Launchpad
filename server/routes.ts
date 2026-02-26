@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, type ChainId, type RarityTier } from "@shared/schema";
-import { randomBytes } from "crypto";
+import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, type ChainId, type RarityTier } from "@shared/schema";
+import { randomBytes, createHash } from "crypto";
 import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception } from "./iit-engine";
@@ -1089,6 +1089,189 @@ export async function registerRoutes(
       res.json({ valid: isChainValid(), chain: "SphinxSkynet" });
     } catch (error) {
       res.status(500).json({ message: "Failed to validate SphinxSkynet chain" });
+    }
+  });
+
+  // ========== POW CHALLENGE ROUTES ==========
+
+  /**
+   * GET /api/pow/challenge
+   * Returns the current active PoW challenge.
+   * Miners fetch this to learn the seed, difficulty target, and expiry.
+   */
+  app.get("/api/pow/challenge", async (_req, res) => {
+    try {
+      const challenge = await storage.getActivePowChallenge();
+      if (!challenge) return res.status(404).json({ message: "No active challenge" });
+
+      // Expire stale challenges lazily
+      if (new Date(challenge.expiresAt) < new Date()) {
+        await storage.updatePowChallengeStatus(challenge.challengeId, "expired");
+        return res.status(404).json({ message: "No active challenge" });
+      }
+
+      res.json(challenge);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch PoW challenge" });
+    }
+  });
+
+  /**
+   * POST /api/pow/challenge  (admin only)
+   * Creates a new PoW challenge.
+   * Body: { seed?: string, difficultyTarget?: string, expiresAt: string (ISO date) }
+   *
+   * If seed is omitted a random 32-byte hex seed is generated.
+   * If difficultyTarget is omitted the default (u128::MAX / 1_000_000) is used.
+   */
+  app.post("/api/pow/challenge", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user!.isAdmin) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    try {
+      const bodySchema = z.object({
+        seed: z.string().regex(/^[0-9a-fA-F]{64}$/, "seed must be 64 hex chars").optional(),
+        difficultyTarget: z.string().regex(/^\d+$/, "difficultyTarget must be a decimal integer string").optional(),
+        expiresAt: z.string().datetime({ message: "expiresAt must be an ISO 8601 datetime" }),
+      });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json(parsed.error);
+
+      const expiresAt = new Date(parsed.data.expiresAt);
+      if (expiresAt <= new Date()) {
+        return res.status(400).json({ message: "expiresAt must be in the future" });
+      }
+
+      const seed = parsed.data.seed ?? randomBytes(32).toString("hex");
+      // Default: u128::MAX / 1_000_000  ≈  340282366920938463463374607431768n
+      const difficultyTarget = parsed.data.difficultyTarget ?? "340282366920938463463374607431768";
+      const challengeId =
+        seed.slice(0, 16) + "-" + Date.now().toString(16) + "-" + randomBytes(4).toString("hex");
+
+      // Expire any previously active challenge
+      const existing = await storage.getActivePowChallenge();
+      if (existing) {
+        await storage.updatePowChallengeStatus(existing.challengeId, "expired");
+      }
+
+      const challenge = await storage.createPowChallenge({
+        challengeId,
+        seed,
+        difficultyTarget,
+        expiresAt,
+        status: "active",
+        createdBy: (req.user as any).username ?? "admin",
+      });
+
+      res.status(201).json(challenge);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create PoW challenge" });
+    }
+  });
+
+  /**
+   * POST /api/pow/submit
+   * Miner submits a PoW solution.
+   * Body: { challengeId: string, minerAddress: string, nonce: string, sourceChain?: string }
+   *
+   * Server verifies the hash off-chain and records the submission.
+   * The solanaTxHash field is left null here and updated by the cross-chain adapter
+   * once the on-chain transaction confirms.
+   */
+  app.post("/api/pow/submit", rateLimit(60000, 10), async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        challengeId: z.string().min(1),
+        minerAddress: z.string().min(1).max(128),
+        nonce: z.string().regex(/^\d+$/, "nonce must be a decimal integer string"),
+        sourceChain: z.string().default("solana"),
+      });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json(parsed.error);
+
+      const { challengeId, minerAddress, nonce, sourceChain } = parsed.data;
+
+      const challenge = await storage.getPowChallenge(challengeId);
+      if (!challenge) return res.status(404).json({ message: "Challenge not found" });
+      if (challenge.status !== "active") {
+        return res.status(409).json({ message: `Challenge is ${challenge.status}` });
+      }
+      if (new Date(challenge.expiresAt) < new Date()) {
+        await storage.updatePowChallengeStatus(challengeId, "expired");
+        return res.status(409).json({ message: "Challenge has expired" });
+      }
+
+      // Replay protection: one submission per miner per challenge
+      const existing = await storage.getMinerSubmission(challengeId, minerAddress);
+      if (existing) {
+        return res.status(409).json({ message: "Miner has already submitted a solution for this challenge" });
+      }
+
+      // Verify PoW: SHA-256(seed_bytes || nonce_le_bytes || miner_address_bytes)
+      const seedBytes = Buffer.from(challenge.seed, "hex");
+      const nonceBigInt = BigInt(nonce);
+      const nonceBuf = Buffer.alloc(8);
+      // Write nonce as little-endian 64-bit (matches on-chain nonce.to_le_bytes())
+      nonceBuf.writeBigUInt64LE(nonceBigInt);
+      const minerBytes = Buffer.from(minerAddress, "utf8");
+
+      const powHash = createHash("sha256")
+        .update(seedBytes)
+        .update(nonceBuf)
+        .update(minerBytes)
+        .digest("hex");
+
+      // Compare first 16 bytes (big-endian u128) against difficulty target
+      const hashNum = BigInt("0x" + powHash.slice(0, 32));
+      const target = BigInt(challenge.difficultyTarget);
+      if (hashNum >= target) {
+        return res.status(400).json({ message: "Proof-of-work does not meet difficulty target" });
+      }
+
+      const submission = await storage.createPowSubmission({
+        challengeId,
+        minerAddress,
+        nonce,
+        powHash,
+        sourceChain,
+        status: "pending",
+      });
+
+      await storage.incrementPowChallengeSolutions(challengeId);
+
+      res.status(201).json({ submission, powHash });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to submit PoW solution" });
+    }
+  });
+
+  /**
+   * GET /api/pow/submissions/:challengeId
+   * Returns all recorded submissions for a challenge.
+   */
+  app.get("/api/pow/submissions/:challengeId", async (req, res) => {
+    try {
+      const submissions = await storage.getPowSubmissions(req.params.challengeId);
+      res.json(submissions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch PoW submissions" });
+    }
+  });
+
+  /**
+   * PATCH /api/pow/submissions/:id/confirm  (internal: called by cross-chain adapter)
+   * Updates a submission's solanaTxHash and marks it confirmed.
+   */
+  app.patch("/api/pow/submissions/:id/confirm", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = parseInt(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid submission id" });
+      const { solanaTxHash } = z.object({ solanaTxHash: z.string().min(1) }).parse(req.body);
+      await storage.updatePowSubmissionStatus(id, "confirmed", solanaTxHash);
+      res.json({ message: "Submission confirmed" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to confirm submission" });
     }
   });
 
