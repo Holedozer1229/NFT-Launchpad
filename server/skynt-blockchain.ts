@@ -251,6 +251,11 @@ export function getBlock(indexOrHash: number | string): SkyntBlock | null {
   return chain.find(b => b.hash === indexOrHash) ?? null;
 }
 
+/**
+ * Mint an NFT on the SphinxSkynet SKYNT chain.
+ * Computes a Φ (phi) proof via IIT engine (range: 0–1, normalized von Neumann entropy),
+ * creates a signed NFT transaction, and mines a new block immediately (gasless).
+ */
 export function mintNftOnSkynt(params: {
   owner: string;
   title: string;

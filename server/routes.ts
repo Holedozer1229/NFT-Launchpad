@@ -955,12 +955,21 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/skynt/mint", rateLimit(10000, 3), async (req, res) => {
+  app.post("/api/skynt/mint", rateLimit(60000, 3), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { owner, title, rarity, launchId, price } = req.body;
-      if (!owner || !title || !rarity || !price) {
-        return res.status(400).json({ message: "owner, title, rarity, and price are required" });
+      if (!owner || typeof owner !== "string" || !/^(0x[a-fA-F0-9]{40}|[A-Za-z0-9_-]{1,64})$/.test(owner)) {
+        return res.status(400).json({ message: "owner must be a valid address" });
+      }
+      if (!title || typeof title !== "string" || title.length < 1 || title.length > 200) {
+        return res.status(400).json({ message: "title must be a non-empty string (max 200 chars)" });
+      }
+      if (!rarity || typeof rarity !== "string" || rarity.length < 1 || rarity.length > 50) {
+        return res.status(400).json({ message: "rarity must be a non-empty string (max 50 chars)" });
+      }
+      if (!price || typeof price !== "string" || !/^[\d.]+ ?\w+$/.test(price.trim())) {
+        return res.status(400).json({ message: "price must be a valid amount string (e.g. '100 SKYNT')" });
       }
       const result = mintNftOnSkynt({ owner, title, rarity, launchId, price });
       res.json(result);
