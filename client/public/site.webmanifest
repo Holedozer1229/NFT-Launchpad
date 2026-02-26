@@ -1,0 +1,27 @@
+{
+  "name": "SKYNT — SphinxSkynet NFT Launchpad",
+  "short_name": "SKYNT",
+  "description": "Mint, bridge, and trade NFTs on the SphinxSkynet SKYNT blockchain. Gasless minting, Φ-boosted quantum mining, and 5-of-9 guardian cross-chain bridging.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080d18",
+  "theme_color": "#00EAFF",
+  "orientation": "portrait-primary",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/opengraph.jpg",
+      "sizes": "1200x630",
+      "type": "image/jpeg",
+      "label": "SKYNT NFT Launchpad"
+    }
+  ]
+}

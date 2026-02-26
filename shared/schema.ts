@@ -86,6 +86,18 @@ export const SUPPORTED_CHAINS = {
     gasEstimate: "~0.00025 SOL",
     avgGasUnits: 0,
   },
+  skynt: {
+    id: "skynt",
+    name: "SphinxSkynet",
+    symbol: "SKYNT",
+    icon: "🦁",
+    color: "#FFD700",
+    chainId: 0,
+    explorer: "https://explorer.sphinxskynet.io",
+    contractAddress: "SKYNT...SpaceFlightNFT",
+    gasEstimate: "~0 SKYNT",
+    avgGasUnits: 0,
+  },
 } as const;
 
 export const BRIDGE_FEE_BPS = 10;
