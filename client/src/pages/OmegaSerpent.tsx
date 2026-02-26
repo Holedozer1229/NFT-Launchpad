@@ -4,12 +4,83 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Coins, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Gamepad2, Crown, Gift, Skull, X, Trophy } from "lucide-react";
+import { Coins, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Gamepad2, Crown, Gift, Skull, X, Trophy, Zap } from "lucide-react";
 
 const GRID_W = 50;
 const GRID_H = 35;
 const TICK_MS = 120;
 const CHAINS = ["ETH", "SOL", "STX"] as const;
+
+// Particle system for visual effects
+interface Particle {
+  x: number; y: number;
+  vx: number; vy: number;
+  life: number; maxLife: number;
+  color: string; size: number;
+}
+
+// Background star
+interface Star {
+  x: number; y: number;
+  size: number; twinkleSpeed: number; twinkleOffset: number;
+  brightness: number;
+}
+
+function createStars(count: number): Star[] {
+  return Array.from({ length: count }, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    size: Math.random() * 1.5 + 0.5,
+    twinkleSpeed: Math.random() * 0.03 + 0.01,
+    twinkleOffset: Math.random() * Math.PI * 2,
+    brightness: Math.random() * 0.4 + 0.1,
+  }));
+}
+
+function spawnParticles(x: number, y: number, color: string, count: number): Particle[] {
+  return Array.from({ length: count }, () => {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 3 + 1;
+    return {
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1,
+      maxLife: 1,
+      color,
+      size: Math.random() * 3 + 1,
+    };
+  });
+}
+
+// Web Audio API sound synthesis
+let audioCtx: AudioContext | null = null;
+function getAudioCtx(): AudioContext {
+  if (!audioCtx) audioCtx = new AudioContext();
+  return audioCtx;
+}
+
+function playTone(freq: number, duration: number, type: OscillatorType = "square", volume = 0.08) {
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch { /* audio not available */ }
+}
+
+function sfxCollect() { playTone(880, 0.1, "square", 0.06); playTone(1100, 0.08, "square", 0.04); }
+function sfxGolden() { playTone(1200, 0.12, "sine", 0.07); setTimeout(() => playTone(1600, 0.15, "sine", 0.05), 60); }
+function sfxSkull() { playTone(200, 0.2, "sawtooth", 0.08); }
+function sfxCollision() { playTone(100, 0.3, "sawtooth", 0.1); playTone(80, 0.4, "square", 0.06); }
+function sfxMilestone() { playTone(660, 0.1, "sine", 0.06); setTimeout(() => playTone(880, 0.1, "sine", 0.06), 100); setTimeout(() => playTone(1100, 0.15, "sine", 0.06), 200); }
 type Chain = typeof CHAINS[number];
 
 const CHAIN_COLORS: Record<Chain, string> = {
@@ -128,6 +199,11 @@ export default function OmegaSerpent() {
   const [lives, setLives] = useState(3);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showRewards, setShowRewards] = useState(false);
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const [shakeOffset, setShakeOffset] = useState({ x: 0, y: 0 });
+  const [combo, setCombo] = useState(0);
+  const lastCollectTickRef = useRef(-999);
+  const starsRef = useRef<Star[]>(createStars(120));
 
   const stateRef = useRef({ player, aiSnakes, treasures, score, ergotropy, berryPhase, treasuresCollected, milestones, superMilestones, survivalTicks, lives, tick });
   useEffect(() => {
@@ -227,6 +303,10 @@ export default function OmegaSerpent() {
     setLives(3);
     setShowLeaderboard(false);
     setShowRewards(false);
+    setParticles([]);
+    setShakeOffset({ x: 0, y: 0 });
+    setCombo(0);
+    lastCollectTickRef.current = -999;
     setGameState("playing");
   }, []);
 
@@ -264,6 +344,18 @@ export default function OmegaSerpent() {
       setTick(t => t + 1);
       setSurvivalTicks(t => t + 1);
 
+      // Update particles
+      setParticles(prev => prev
+        .map(p => ({ ...p, x: p.x + p.vx, y: p.y + p.vy, vy: p.vy + 0.05, life: p.life - (1 / (p.maxLife * 30)) }))
+        .filter(p => p.life > 0)
+      );
+
+      // Decay screen shake
+      setShakeOffset(prev => ({
+        x: prev.x * 0.7,
+        y: prev.y * 0.7,
+      }));
+
       setPlayer(prev => {
         if (!prev.alive) return prev;
         const p = { ...prev, segments: [...prev.segments], direction: dirRef.current };
@@ -274,6 +366,16 @@ export default function OmegaSerpent() {
         const aiHit = stateRef.current.aiSnakes.some(ai => ai.alive && ai.segments.some(seg => seg.x === nx && seg.y === ny));
 
         if (selfHit || aiHit) {
+          sfxCollision();
+          setShakeOffset({ x: (Math.random() - 0.5) * 12, y: (Math.random() - 0.5) * 12 });
+          const canvas = canvasRef.current;
+          if (canvas) {
+            const rect = canvas.getBoundingClientRect();
+            const cellW = rect.width / GRID_W;
+            const cellH = rect.height / GRID_H;
+            setParticles(prev => [...prev, ...spawnParticles(nx * cellW + cellW / 2, ny * cellH + cellH / 2, "hsl(0,100%,60%)", 20)]);
+          }
+          setCombo(0);
           setLives(l => {
             const newLives = l - 1;
             if (newLives <= 0) {
@@ -296,23 +398,47 @@ export default function OmegaSerpent() {
           if (hit >= 0) {
             const t = prevT[hit];
             if (t.type === "skull") {
+              sfxSkull();
               setScore(s => Math.max(0, s + t.value * 10));
               setErgotropy(e => Math.max(0, e + t.value));
               addEvent(`\u2620\uFE0F SKULL TRAP \u2014 penalty ${t.value * 10}`);
+              setCombo(0);
               if (p.segments.length > 3) p.segments.pop();
+              const canvas = canvasRef.current;
+              if (canvas) {
+                const rect = canvas.getBoundingClientRect();
+                const cW = rect.width / GRID_W;
+                const cH = rect.height / GRID_H;
+                setParticles(prev => [...prev, ...spawnParticles(nx * cW + cW / 2, ny * cH + cH / 2, "hsl(0,100%,50%)", 10)]);
+              }
+              setShakeOffset({ x: (Math.random() - 0.5) * 6, y: (Math.random() - 0.5) * 6 });
             } else {
+              if (t.type === "golden") sfxGolden(); else sfxCollect();
+              // Combo tracking
+              const curTick = stateRef.current.tick;
+              const gap = curTick - lastCollectTickRef.current;
+              lastCollectTickRef.current = curTick;
+              setCombo(c => gap < 15 ? c + 1 : 1);
+              const canvas = canvasRef.current;
+              if (canvas) {
+                const rect = canvas.getBoundingClientRect();
+                const cW = rect.width / GRID_W;
+                const cH = rect.height / GRID_H;
+                const pColor = t.type === "golden" ? "hsl(50,100%,60%)" : CHAIN_COLORS[t.chain];
+                setParticles(prev => [...prev, ...spawnParticles(nx * cW + cW / 2, ny * cH + cH / 2, pColor, t.type === "golden" ? 18 : 8)]);
+              }
               const points = t.type === "golden" ? t.value * 20 : t.value * 10;
               setScore(s => s + points);
               setErgotropy(e => {
                 const newE = e + t.value * 3;
                 const newM = Math.floor(newE / 50);
                 setMilestones(pm => {
-                  if (newM > pm) addEvent(`\u26A1 MILESTONE #${newM} \u2014 +${t.value * 30} SKYNT BONUS`);
+                  if (newM > pm) { addEvent(`\u26A1 MILESTONE #${newM} \u2014 +${t.value * 30} SKYNT BONUS`); sfxMilestone(); }
                   return newM;
                 });
                 const newSM = Math.floor(newE / 500);
                 setSuperMilestones(psm => {
-                  if (newSM > psm) addEvent(`\u{1F3C6} SUPER MILESTONE #${newSM} \u2014 OMEGA NFT TRIGGER`);
+                  if (newSM > psm) { addEvent(`\u{1F3C6} SUPER MILESTONE #${newSM} \u2014 OMEGA NFT TRIGGER`); sfxMilestone(); }
                   return newSM;
                 });
                 return newE;
@@ -394,10 +520,32 @@ export default function OmegaSerpent() {
     const cellW = rect.width / GRID_W;
     const cellH = rect.height / GRID_H;
 
-    ctx.fillStyle = "rgba(0,0,0,0.95)";
-    ctx.fillRect(0, 0, rect.width, rect.height);
+    // Apply screen shake
+    ctx.save();
+    ctx.translate(shakeOffset.x, shakeOffset.y);
 
-    ctx.strokeStyle = "rgba(0,243,255,0.04)";
+    // Background with subtle gradient
+    const bgGrad = ctx.createRadialGradient(rect.width / 2, rect.height / 2, 0, rect.width / 2, rect.height / 2, rect.width * 0.7);
+    bgGrad.addColorStop(0, "rgba(5,5,20,0.97)");
+    bgGrad.addColorStop(1, "rgba(0,0,0,0.99)");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(-20, -20, rect.width + 40, rect.height + 40);
+
+    // Starfield background
+    for (const star of starsRef.current) {
+      const twinkle = Math.sin(tick * star.twinkleSpeed + star.twinkleOffset) * 0.5 + 0.5;
+      const alpha = star.brightness * (0.3 + twinkle * 0.7);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(star.x * rect.width, star.y * rect.height, star.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Grid lines with pulsing effect
+    const gridPulse = Math.sin(tick * 0.02) * 0.02 + 0.04;
+    ctx.strokeStyle = `rgba(0,243,255,${gridPulse})`;
     ctx.lineWidth = 0.5;
     for (let x = 0; x <= GRID_W; x++) {
       ctx.beginPath(); ctx.moveTo(x * cellW, 0); ctx.lineTo(x * cellW, rect.height); ctx.stroke();
@@ -406,29 +554,39 @@ export default function OmegaSerpent() {
       ctx.beginPath(); ctx.moveTo(0, y * cellH); ctx.lineTo(rect.width, y * cellH); ctx.stroke();
     }
 
+    // Treasures with enhanced rendering
     for (const t of treasures) {
       const tx = t.x * cellW + cellW / 2;
       const ty = t.y * cellH + cellH / 2;
       const pulse = Math.sin(tick * 0.15) * 0.3 + 0.7;
+      const floatY = Math.sin(tick * 0.1 + t.x) * 1.5;
       if (t.type === "skull") {
         ctx.shadowColor = "hsl(0,100%,50%)";
-        ctx.shadowBlur = 6 * pulse;
+        ctx.shadowBlur = 8 * pulse;
         ctx.fillStyle = "hsl(0,100%,50%)";
-        ctx.font = `${Math.min(cellW, cellH) * 0.6}px monospace`;
+        ctx.font = `${Math.min(cellW, cellH) * 0.65}px monospace`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("\u2620", tx, ty);
+        ctx.fillText("\u2620", tx, ty + floatY);
       } else if (t.type === "golden") {
+        // Glowing golden halo
+        const haloGrad = ctx.createRadialGradient(tx, ty + floatY, 0, tx, ty + floatY, Math.min(cellW, cellH) * 0.6);
+        haloGrad.addColorStop(0, `hsla(50,100%,60%,${0.3 * pulse})`);
+        haloGrad.addColorStop(1, "hsla(50,100%,60%,0)");
+        ctx.fillStyle = haloGrad;
+        ctx.fillRect(tx - cellW, ty + floatY - cellH, cellW * 2, cellH * 2);
+
         ctx.shadowColor = "hsl(50,100%,60%)";
-        ctx.shadowBlur = 10 * pulse;
+        ctx.shadowBlur = 12 * pulse;
         ctx.fillStyle = "hsl(50,100%,60%)";
         ctx.beginPath();
         const r = Math.min(cellW, cellH) * 0.35;
+        const rotAngle = tick * 0.05;
         for (let i = 0; i < 5; i++) {
-          const a = -Math.PI / 2 + (i * 2 * Math.PI / 5);
-          ctx.lineTo(tx + Math.cos(a) * r, ty + Math.sin(a) * r);
+          const a = rotAngle - Math.PI / 2 + (i * 2 * Math.PI / 5);
+          ctx.lineTo(tx + Math.cos(a) * r, ty + floatY + Math.sin(a) * r);
           const ia = a + Math.PI / 5;
-          ctx.lineTo(tx + Math.cos(ia) * r * 0.4, ty + Math.sin(ia) * r * 0.4);
+          ctx.lineTo(tx + Math.cos(ia) * r * 0.4, ty + floatY + Math.sin(ia) * r * 0.4);
         }
         ctx.closePath();
         ctx.fill();
@@ -438,10 +596,11 @@ export default function OmegaSerpent() {
         ctx.fillStyle = CHAIN_COLORS[t.chain];
         ctx.beginPath();
         const r = Math.min(cellW, cellH) * 0.3;
+        const rotAngle = tick * 0.04;
         for (let i = 0; i < 4; i++) {
-          const a = (Math.PI / 4) + (i * Math.PI / 2);
+          const a = rotAngle + (Math.PI / 4) + (i * Math.PI / 2);
           const px = tx + Math.cos(a) * r;
-          const py = ty + Math.sin(a) * r;
+          const py = ty + floatY + Math.sin(a) * r;
           i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
         }
         ctx.closePath();
@@ -450,36 +609,100 @@ export default function OmegaSerpent() {
       ctx.shadowBlur = 0;
     }
 
+    // Enhanced snake rendering with glow trail and eyes
     const drawSnake = (snake: Snake, color: string) => {
+      // Glow trail behind snake
+      for (let i = snake.segments.length - 1; i >= 1; i--) {
+        const seg = snake.segments[i];
+        const trailAlpha = 0.08 * (1 - i / snake.segments.length);
+        ctx.globalAlpha = trailAlpha;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(seg.x * cellW + cellW / 2, seg.y * cellH + cellH / 2, cellW * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // Body segments with rounded corners
       for (let i = snake.segments.length - 1; i >= 0; i--) {
         const seg = snake.segments[i];
-        const alpha = 0.3 + 0.7 * (1 - i / snake.segments.length);
+        const alpha = 0.4 + 0.6 * (1 - i / snake.segments.length);
         ctx.fillStyle = color;
         ctx.globalAlpha = alpha;
-        const pad = i === 0 ? 1 : 2;
-        ctx.fillRect(seg.x * cellW + pad, seg.y * cellH + pad, cellW - pad * 2, cellH - pad * 2);
+        const pad = i === 0 ? 0.5 : 1.5;
+        const rr = Math.min(cellW, cellH) * 0.2;
+        const sx = seg.x * cellW + pad;
+        const sy = seg.y * cellH + pad;
+        const sw = cellW - pad * 2;
+        const sh = cellH - pad * 2;
+        ctx.beginPath();
+        ctx.moveTo(sx + rr, sy);
+        ctx.lineTo(sx + sw - rr, sy);
+        ctx.quadraticCurveTo(sx + sw, sy, sx + sw, sy + rr);
+        ctx.lineTo(sx + sw, sy + sh - rr);
+        ctx.quadraticCurveTo(sx + sw, sy + sh, sx + sw - rr, sy + sh);
+        ctx.lineTo(sx + rr, sy + sh);
+        ctx.quadraticCurveTo(sx, sy + sh, sx, sy + sh - rr);
+        ctx.lineTo(sx, sy + rr);
+        ctx.quadraticCurveTo(sx, sy, sx + rr, sy);
+        ctx.closePath();
+        ctx.fill();
         if (i === 0) {
           ctx.shadowColor = color;
-          ctx.shadowBlur = 14;
-          ctx.fillRect(seg.x * cellW + pad, seg.y * cellH + pad, cellW - pad * 2, cellH - pad * 2);
+          ctx.shadowBlur = 16;
+          ctx.fill();
           ctx.shadowBlur = 0;
         }
       }
       ctx.globalAlpha = 1;
+
+      // Eyes on head
       const head = snake.segments[0];
+      const cx = head.x * cellW + cellW / 2;
+      const cy = head.y * cellH + cellH / 2;
+      const dir = snake.direction;
+      const eyeR = Math.min(cellW, cellH) * 0.12;
+      const eyeOff = Math.min(cellW, cellH) * 0.2;
+      // Position eyes perpendicular to direction
+      const perpX = -dir.dy;
+      const perpY = dir.dx;
+      const fwdX = dir.dx * eyeOff * 0.5;
+      const fwdY = dir.dy * eyeOff * 0.5;
+      const e1x = cx + perpX * eyeOff + fwdX;
+      const e1y = cy + perpY * eyeOff + fwdY;
+      const e2x = cx - perpX * eyeOff + fwdX;
+      const e2y = cy - perpY * eyeOff + fwdY;
+      // Eye whites
       ctx.fillStyle = "#fff";
-      ctx.font = `bold ${Math.min(cellW, cellH) * 0.5}px monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      const label = snake.chain === "PLAYER" ? "P" : (snake.chain as string)[0];
-      ctx.fillText(label, head.x * cellW + cellW / 2, head.y * cellH + cellH / 2);
+      ctx.beginPath(); ctx.arc(e1x, e1y, eyeR, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(e2x, e2y, eyeR, 0, Math.PI * 2); ctx.fill();
+      // Pupils (look in movement direction)
+      ctx.fillStyle = "#111";
+      const pupilOff = eyeR * 0.35;
+      ctx.beginPath(); ctx.arc(e1x + dir.dx * pupilOff, e1y + dir.dy * pupilOff, eyeR * 0.55, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(e2x + dir.dx * pupilOff, e2y + dir.dy * pupilOff, eyeR * 0.55, 0, Math.PI * 2); ctx.fill();
     };
 
     for (const ai of aiSnakes) {
       if (ai.alive) drawSnake(ai, CHAIN_COLORS[ai.chain as Chain]);
     }
     if (player.alive) drawSnake(player, PLAYER_COLOR);
-  }, [player, aiSnakes, treasures, tick, canvasKey]);
+
+    // Draw particles
+    for (const p of particles) {
+      ctx.globalAlpha = p.life;
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
+  }, [player, aiSnakes, treasures, tick, canvasKey, particles, shakeOffset]);
 
   const skyntReward = (score * 0.1).toFixed(2);
 
@@ -497,6 +720,11 @@ export default function OmegaSerpent() {
           <div className="flex items-center gap-3 sm:gap-5 font-mono text-xs">
             <span className="text-neon-cyan" data-testid="text-score">{score}</span>
             <span className="text-neon-green flex items-center gap-1"><Coins className="w-3 h-3" />{skyntReward}</span>
+            {combo > 1 && (
+              <span className="text-neon-orange flex items-center gap-0.5 animate-pulse" data-testid="combo-display">
+                <Zap className="w-3 h-3" />x{combo}
+              </span>
+            )}
             <span className="text-neon-magenta">{"♥".repeat(lives)}</span>
           </div>
         )}
@@ -593,6 +821,15 @@ export default function OmegaSerpent() {
         {gameState === "playing" && (
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 opacity-80 hover:opacity-100 transition-opacity" data-testid="dpad-container">
             <DPad onDir={handleDpadDir} />
+          </div>
+        )}
+
+        {/* COMBO INDICATOR — top-right during gameplay */}
+        {gameState === "playing" && combo > 1 && (
+          <div className="absolute top-10 right-4 z-20 pointer-events-none" data-testid="combo-indicator">
+            <div className={`font-heading text-2xl sm:text-3xl tracking-widest ${combo >= 5 ? "text-neon-orange" : combo >= 3 ? "text-neon-cyan" : "text-neon-green"} animate-pulse drop-shadow-[0_0_12px_currentColor]`}>
+              {combo}x COMBO
+            </div>
           </div>
         )}
 
