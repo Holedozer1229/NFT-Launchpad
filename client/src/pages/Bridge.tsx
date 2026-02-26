@@ -8,7 +8,7 @@ import { usePrices } from "@/hooks/use-prices";
 
 const chains = [
   { id: "ethereum", name: "Ethereum", symbol: "ETH", icon: "⟠", color: "hsl(210 100% 55%)" },
-  { id: "sphinx", name: "SphinxSkynet", symbol: "SPX", icon: "🦁", color: "hsl(40 100% 50%)" },
+  { id: "skynt", name: "SphinxSkynet", symbol: "SKYNT", icon: "🦁", color: "hsl(40 100% 50%)" },
   { id: "solana", name: "Solana", symbol: "SOL", icon: "◎", color: "hsl(280 100% 60%)" },
   { id: "polygon", name: "Polygon", symbol: "MATIC", icon: "⬡", color: "hsl(300 100% 60%)" },
   { id: "arbitrum", name: "Arbitrum", symbol: "ARB", icon: "🔷", color: "hsl(210 100% 55%)" },
@@ -38,7 +38,7 @@ interface GuardianData {
 
 export default function Bridge() {
   const [sourceChain, setSourceChain] = useState("ethereum");
-  const [destChain, setDestChain] = useState("sphinx");
+  const [destChain, setDestChain] = useState("skynt");
   const [amount, setAmount] = useState("");
   const [showSourceDropdown, setShowSourceDropdown] = useState(false);
   const [showDestDropdown, setShowDestDropdown] = useState(false);
@@ -92,7 +92,7 @@ export default function Bridge() {
   const netReceive = amount ? (parseFloat(amount) * 0.999).toFixed(4) : "0.0000";
   const estimatedTime = sourceChain === "ethereum" ? "~15 min" : "~5 min";
 
-  const isLockMint = sourceChain !== "sphinx";
+  const isLockMint = sourceChain !== "skynt";
   const mechanism = isLockMint ? "Lock → Mint" : "Burn → Release";
 
   const handleBridge = async () => {

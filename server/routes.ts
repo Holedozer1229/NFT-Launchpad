@@ -7,6 +7,7 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception } from "./iit-engine";
 import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
+import { getChainInfo, getBalance, getTransaction, getBlock, mintNftOnSkynt, isChainValid } from "./skynt-blockchain";
 
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
@@ -911,6 +912,68 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Seed error:", error);
       res.status(500).json({ message: "Failed to seed data" });
+    }
+  });
+
+  // ========== SKYNT BLOCKCHAIN ROUTES ==========
+
+  app.get("/api/skynt/info", (_req, res) => {
+    try {
+      res.json(getChainInfo());
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch SphinxSkynet chain info" });
+    }
+  });
+
+  app.get("/api/skynt/balance/:address", (req, res) => {
+    try {
+      const balance = getBalance(req.params.address);
+      res.json({ address: req.params.address, balance, token: "SKYNT" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch SKYNT balance" });
+    }
+  });
+
+  app.get("/api/skynt/transaction/:txHash", (req, res) => {
+    try {
+      const tx = getTransaction(req.params.txHash);
+      if (!tx) return res.status(404).json({ message: "Transaction not found on SphinxSkynet chain" });
+      res.json(tx);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch SKYNT transaction" });
+    }
+  });
+
+  app.get("/api/skynt/block/:indexOrHash", (req, res) => {
+    try {
+      const param = req.params.indexOrHash;
+      const block = getBlock(/^\d+$/.test(param) ? parseInt(param) : param);
+      if (!block) return res.status(404).json({ message: "Block not found on SphinxSkynet chain" });
+      res.json(block);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch SKYNT block" });
+    }
+  });
+
+  app.post("/api/skynt/mint", rateLimit(10000, 3), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { owner, title, rarity, launchId, price } = req.body;
+      if (!owner || !title || !rarity || !price) {
+        return res.status(400).json({ message: "owner, title, rarity, and price are required" });
+      }
+      const result = mintNftOnSkynt({ owner, title, rarity, launchId, price });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to mint NFT on SphinxSkynet chain" });
+    }
+  });
+
+  app.get("/api/skynt/validate", (_req, res) => {
+    try {
+      res.json({ valid: isChainValid(), chain: "SphinxSkynet" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to validate SphinxSkynet chain" });
     }
   });
 
