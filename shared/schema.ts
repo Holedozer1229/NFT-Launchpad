@@ -112,6 +112,42 @@ export const RARITY_TIERS = {
   common: { label: "Common", supply: 90, color: "green", price: "0.1 ETH" },
 } as const;
 
+// ==================== SKYNT Tokenomics ====================
+
+export const SKYNT_TOKENOMICS = {
+  name: "SKYNT",
+  maxSupply: 21_000_000,
+  initialCirculating: 2_100_000,
+  decimals: 18,
+  transactionFee: 0,
+  miningReward: 50,
+  halvingInterval: 210_000,
+  powAlgorithm: "phi-spectral",
+
+  distribution: {
+    mining:           { percent: 40, tokens: 8_400_000,  label: "Mining & Validation" },
+    ecosystem:        { percent: 20, tokens: 4_200_000,  label: "Ecosystem & Staking Rewards" },
+    treasury:         { percent: 15, tokens: 3_150_000,  label: "Treasury & Operations" },
+    team:             { percent: 10, tokens: 2_100_000,  label: "Team & Advisors",      vestingMonths: 24 },
+    communityRewards: { percent: 10, tokens: 2_100_000,  label: "Community & Game Rewards" },
+    liquidity:        { percent:  5, tokens: 1_050_000,  label: "Liquidity Provision" },
+  },
+
+  gameRewards: {
+    scoreMultiplier: 0.1,
+    phiBonusMultiplier: 0.5,
+    maxScorePerGame: 50_000,
+    maxErgotropy: 10_000,
+  },
+
+  yieldTiers: {
+    singleStake:     { aprPercent: 24.6, riskScore: 10 },
+    liquidityPool:   { aprPercent: 42.8, riskScore: 25 },
+    crossChain:      { aprPercent: 68.5, riskScore: 55 },
+    poxDelegation:   { aprPercent: 95.2, riskScore: 40 },
+  },
+} as const;
+
 export type RarityTier = keyof typeof RARITY_TIERS;
 
 export const launches = pgTable("launches", {
