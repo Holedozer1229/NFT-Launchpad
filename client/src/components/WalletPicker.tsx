@@ -1,5 +1,5 @@
 import { useWallet, WalletProvider } from "@/lib/mock-web3";
-import { X, Smartphone, Monitor, ExternalLink } from "lucide-react";
+import { X, Smartphone, Monitor, ExternalLink, AlertCircle, Loader2 } from "lucide-react";
 import { isMobileDevice, hasPhantomExtension, hasMetaMaskExtension, openWalletApp } from "@/lib/wallet-utils";
 
 const WALLET_OPTIONS: { id: WalletProvider; name: string; icon: string; description: string; mobileDescription: string; color: string }[] = [
@@ -22,7 +22,7 @@ const WALLET_OPTIONS: { id: WalletProvider; name: string; icon: string; descript
 ];
 
 export function WalletPicker() {
-  const { showPicker, setShowPicker, connect, isConnecting } = useWallet();
+  const { showPicker, setShowPicker, connect, isConnecting, error, clearError } = useWallet();
   const mobile = isMobileDevice();
 
   if (!showPicker) return null;
@@ -52,13 +52,13 @@ export function WalletPicker() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center" data-testid="wallet-picker-overlay">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowPicker(false)} />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowPicker(false); clearError(); }} />
       <div className="relative w-full max-w-sm mx-4 cosmic-card cosmic-card-cyan p-6 space-y-5 z-10 animate-in zoom-in-95 fade-in duration-200">
         <div className="flex items-center justify-between">
           <h3 className="font-heading text-sm uppercase tracking-widest text-foreground">Connect Wallet</h3>
           <button
             data-testid="button-close-picker"
-            onClick={() => setShowPicker(false)}
+            onClick={() => { setShowPicker(false); clearError(); }}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="w-4 h-4" />
@@ -70,6 +70,14 @@ export function WalletPicker() {
             ? "Connect your mobile wallet to sign transactions"
             : "Select a wallet to connect to SKYNT Protocol"}
         </p>
+
+        {error && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-sm bg-red-500/10 border border-red-500/20 text-[10px] font-mono text-red-400 animate-in fade-in">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span className="flex-1">{error}</span>
+            <button onClick={clearError} className="text-red-400/60 hover:text-red-400">✕</button>
+          </div>
+        )}
 
         {mobile && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-sm bg-neon-cyan/5 border border-neon-cyan/20 text-[10px] font-mono text-neon-cyan">
@@ -89,13 +97,17 @@ export function WalletPicker() {
                 disabled={isConnecting}
                 className="w-full flex items-center gap-4 p-4 rounded-sm border border-border/40 bg-black/30 hover:bg-white/5 hover:border-white/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span className="text-2xl shrink-0">{wallet.icon}</span>
+                {isConnecting ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground shrink-0" />
+                ) : (
+                  <span className="text-2xl shrink-0">{wallet.icon}</span>
+                )}
                 <div className="flex-1 text-left">
                   <p className="font-heading text-sm tracking-wider" style={{ color: wallet.color }}>
                     {wallet.name}
                   </p>
                   <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                    {mobile ? wallet.mobileDescription : wallet.description}
+                    {isConnecting ? "Connecting…" : mobile ? wallet.mobileDescription : wallet.description}
                   </p>
                   <div className="flex items-center gap-1 mt-1">
                     <span className={`w-1.5 h-1.5 rounded-full ${status.available ? "bg-neon-green" : "bg-neon-orange"}`} />

@@ -49,7 +49,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isConnected, address, connect, isConnecting, disconnect, provider } = useWallet();
+  const { isConnected, address, connect, isConnecting, disconnect, provider, chainName, error } = useWallet();
   const { user, logout } = useAuth();
 
   return (
@@ -117,8 +117,9 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
           {isConnected ? (
             <div className={`${collapsed ? "" : "px-1"}`}>
               <div className="flex items-center gap-2">
-                <span className="shrink-0" title={provider === "phantom" ? "Phantom" : "MetaMask"}>
+                <span className="shrink-0 relative" title={provider === "phantom" ? "Phantom" : "MetaMask"}>
                   {provider === "phantom" ? "👻" : "🦊"}
+                  <span className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-neon-green border border-black" />
                 </span>
                 {!collapsed && (
                   <span className="font-mono text-[11px] text-foreground truncate flex-1">
@@ -136,20 +137,27 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
               </div>
               {!collapsed && (
                 <div className="mt-1 text-[9px] font-mono text-muted-foreground/60 pl-5">
-                  {provider === "phantom" ? "Solana" : "EVM"} Network
+                  {chainName || (provider === "phantom" ? "Solana" : "EVM")}
                 </div>
               )}
             </div>
           ) : (
-            <button
-              data-testid="button-connect-wallet"
-              className={`connect-wallet-btn w-full flex items-center justify-center gap-2 py-2.5 rounded-sm text-xs ${collapsed ? "px-2" : "px-4"}`}
-              onClick={() => connect()}
-              disabled={isConnecting}
-            >
-              <Wallet className={`w-4 h-4 shrink-0 ${isConnecting ? "animate-pulse" : ""}`} />
-              {!collapsed && <span>{isConnecting ? "Connecting..." : "Connect Wallet"}</span>}
-            </button>
+            <div className="space-y-1.5">
+              {!collapsed && error && (
+                <div className="text-[9px] font-mono text-red-400 truncate px-1" title={error}>
+                  ⚠ {error}
+                </div>
+              )}
+              <button
+                data-testid="button-connect-wallet"
+                className={`connect-wallet-btn w-full flex items-center justify-center gap-2 py-2.5 rounded-sm text-xs ${collapsed ? "px-2" : "px-4"}`}
+                onClick={() => connect()}
+                disabled={isConnecting}
+              >
+                <Wallet className={`w-4 h-4 shrink-0 ${isConnecting ? "animate-pulse" : ""}`} />
+                {!collapsed && <span>{isConnecting ? "Connecting..." : "Connect Wallet"}</span>}
+              </button>
+            </div>
           )}
         </div>
 

@@ -9,11 +9,36 @@ type WalletState = {
   balance: number;
   isConnecting: boolean;
   provider: WalletProvider;
+  chainId: string | null;
+  chainName: string | null;
+  error: string | null;
   showPicker: boolean;
   setShowPicker: (show: boolean) => void;
   connect: (provider?: WalletProvider) => Promise<void>;
   disconnect: () => void;
+  refreshBalance: () => Promise<void>;
+  clearError: () => void;
 };
+
+const SESSION_KEY = "skynt_wallet_session";
+
+function saveSession(provider: WalletProvider, address: string | null) {
+  try {
+    if (provider && address) {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ provider, address }));
+    } else {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  } catch { /* storage unavailable */ }
+}
+
+function loadSession(): { provider: WalletProvider; address: string } | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* storage unavailable */ }
+  return null;
+}
 
 let mmSDK: MetaMaskSDK | null = null;
 
@@ -38,20 +63,59 @@ function getPhantomProvider(): any | null {
   return null;
 }
 
+function getChainName(chainId: string | null): string | null {
+  if (!chainId) return null;
+  const id = parseInt(chainId, 16);
+  const chains: Record<number, string> = { 1: "Ethereum Mainnet", 5: "Goerli", 11155111: "Sepolia", 137: "Polygon", 42161: "Arbitrum One", 10: "Optimism" };
+  return chains[id] || `Chain ${id}`;
+}
+
+async function fetchMetaMaskBalance(addr: string): Promise<{ balance: number; chainId: string | null }> {
+  const sdk = getMetaMaskSDK();
+  const ethereum = sdk.getProvider();
+  let balance = 0;
+  let chainId: string | null = null;
+  if (ethereum) {
+    try {
+      const rawBal = await ethereum.request({ method: 'eth_getBalance', params: [addr, 'latest'] });
+      balance = parseInt(rawBal as string, 16) / 1e18;
+    } catch { balance = 0; }
+    try {
+      chainId = (await ethereum.request({ method: 'eth_chainId' })) as string;
+    } catch { chainId = null; }
+  }
+  return { balance, chainId };
+}
+
+async function fetchPhantomBalance(phantom: any): Promise<number> {
+  try {
+    const connection = phantom.connection || null;
+    if (connection && phantom.publicKey) {
+      const lamports = await connection.getBalance(phantom.publicKey);
+      return lamports / 1e9;
+    }
+  } catch { /* balance unavailable */ }
+  return 0;
+}
+
 export const useWallet = create<WalletState>((set, get) => ({
   isConnected: false,
   address: null,
   balance: 0,
   isConnecting: false,
   provider: null,
+  chainId: null,
+  chainName: null,
+  error: null,
   showPicker: false,
   setShowPicker: (show: boolean) => set({ showPicker: show }),
+  clearError: () => set({ error: null }),
   connect: async (walletProvider?: WalletProvider) => {
     if (!walletProvider) {
       set({ showPicker: true });
       return;
     }
-    set({ isConnecting: true, showPicker: false });
+    set({ isConnecting: true, showPicker: false, error: null });
 
     try {
       if (walletProvider === "metamask") {
@@ -59,50 +123,50 @@ export const useWallet = create<WalletState>((set, get) => ({
         const accounts = await sdk.connect();
         if (accounts && accounts.length > 0) {
           const addr = accounts[0];
+          const { balance, chainId } = await fetchMetaMaskBalance(addr);
+          saveSession("metamask", addr);
+          set({ isConnected: true, address: addr, balance, isConnecting: false, provider: "metamask", chainId, chainName: getChainName(chainId) });
+
+          // Listen for account and chain changes
           const ethereum = sdk.getProvider();
-          let balance = 0;
           if (ethereum) {
-            try {
-              const rawBal = await ethereum.request({
-                method: 'eth_getBalance',
-                params: [addr, 'latest'],
-              });
-              balance = parseInt(rawBal as string, 16) / 1e18;
-            } catch {
-              balance = 0;
-            }
+            ethereum.on?.("accountsChanged", (...args: unknown[]) => {
+              const accts = args[0] as string[];
+              if (!accts || accts.length === 0) { get().disconnect(); }
+              else {
+                const newAddr = accts[0];
+                saveSession("metamask", newAddr);
+                set({ address: newAddr });
+                get().refreshBalance();
+              }
+            });
+            ethereum.on?.("chainChanged", (...args: unknown[]) => {
+              const newChainId = args[0] as string;
+              set({ chainId: newChainId, chainName: getChainName(newChainId) });
+              get().refreshBalance();
+            });
           }
-          set({ isConnected: true, address: addr, balance, isConnecting: false, provider: "metamask" });
         } else {
-          set({ isConnecting: false });
+          set({ isConnecting: false, error: "No accounts returned by MetaMask" });
         }
       } else if (walletProvider === "phantom") {
         const phantom = getPhantomProvider();
         if (!phantom) {
           window.open("https://phantom.app/", "_blank");
-          set({ isConnecting: false });
+          set({ isConnecting: false, error: "Phantom wallet not detected. Please install the extension." });
           return;
         }
 
         const resp = await phantom.connect();
         const addr = resp.publicKey.toString();
-
-        let balance = 0;
-        try {
-          const connection = phantom.connection || null;
-          if (connection) {
-            const lamports = await connection.getBalance(resp.publicKey);
-            balance = lamports / 1e9;
-          }
-        } catch {
-          balance = 0;
-        }
-
-        set({ isConnected: true, address: addr, balance, isConnecting: false, provider: "phantom" });
+        const balance = await fetchPhantomBalance(phantom);
+        saveSession("phantom", addr);
+        set({ isConnected: true, address: addr, balance, isConnecting: false, provider: "phantom", chainId: null, chainName: "Solana" });
       }
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Connection failed";
       console.error(`${walletProvider} connection failed`, err);
-      set({ isConnecting: false });
+      set({ isConnecting: false, error: `${walletProvider === "metamask" ? "MetaMask" : "Phantom"}: ${message}` });
     }
   },
   disconnect: () => {
@@ -116,9 +180,34 @@ export const useWallet = create<WalletState>((set, get) => ({
         try { phantom.disconnect(); } catch {}
       }
     }
-    set({ isConnected: false, address: null, balance: 0, provider: null });
+    saveSession(null, null);
+    set({ isConnected: false, address: null, balance: 0, provider: null, chainId: null, chainName: null, error: null });
+  },
+  refreshBalance: async () => {
+    const { provider, address } = get();
+    if (!provider || !address) return;
+    try {
+      if (provider === "metamask") {
+        const { balance, chainId } = await fetchMetaMaskBalance(address);
+        set({ balance, chainId, chainName: getChainName(chainId) });
+      } else if (provider === "phantom") {
+        const phantom = getPhantomProvider();
+        if (phantom) {
+          const balance = await fetchPhantomBalance(phantom);
+          set({ balance });
+        }
+      }
+    } catch { /* refresh failed silently */ }
   },
 }));
+
+// Auto-reconnect from session on load
+if (typeof window !== "undefined") {
+  const session = loadSession();
+  if (session) {
+    setTimeout(() => { useWallet.getState().connect(session.provider); }, 500);
+  }
+}
 
 export interface LaunchMission {
   id: string;

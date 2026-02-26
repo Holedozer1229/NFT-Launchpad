@@ -4,11 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useWallet } from "@/lib/mock-web3";
-import { Wallet, ShieldCheck, Key, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Wallet, ShieldCheck, Key, Loader2, CheckCircle2, AlertCircle, RefreshCw, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function EmbeddedWallet() {
-  const { isConnected, address, balance, connect, disconnect, provider } = useWallet();
+  const { isConnected, address, balance, connect, disconnect, provider, chainName, error, clearError, refreshBalance } = useWallet();
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [signature, setSignature] = useState("");
@@ -36,7 +36,14 @@ export function EmbeddedWallet() {
           <CardTitle className="font-heading text-xl text-primary">SECURE_GATEWAY</CardTitle>
           <CardDescription className="font-mono text-xs">Initialize wallet link to access the Causal Graph</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-sm text-red-400 font-mono text-xs animate-in fade-in">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span className="flex-1">{error}</span>
+              <button onClick={clearError} className="text-red-400/60 hover:text-red-400 text-xs">✕</button>
+            </div>
+          )}
           <Button onClick={() => connect()} className="w-full font-heading font-bold py-6 bg-primary text-black hover:bg-primary/80 transition-all">
             CONNECT_IDENTITY
           </Button>
@@ -65,10 +72,32 @@ export function EmbeddedWallet() {
               <span>{provider === "phantom" ? "👻" : "🦊"}</span>
               PUBLIC_ADDRESS
             </span>
-            <span>{balance} {provider === "phantom" ? "SOL" : "ETH"}</span>
+            <span>{balance.toFixed(4)} {provider === "phantom" ? "SOL" : "ETH"}</span>
           </div>
           <div className="font-mono text-sm text-white break-all">{address}</div>
+          {chainName && (
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground/70">
+              <Link2 className="w-3 h-3" />
+              <span>{chainName}</span>
+            </div>
+          )}
         </div>
+
+        <button
+          onClick={() => refreshBalance()}
+          className="w-full flex items-center justify-center gap-2 py-2 text-xs font-mono text-muted-foreground hover:text-primary border border-border/30 hover:border-primary/30 rounded-sm transition-colors"
+        >
+          <RefreshCw className="w-3 h-3" />
+          REFRESH_BALANCE
+        </button>
+
+        {error && (
+          <div className="flex items-center gap-2 p-2 bg-red-500/10 border border-red-500/20 rounded-sm text-red-400 font-mono text-[10px]">
+            <AlertCircle className="w-3 h-3 shrink-0" />
+            <span className="flex-1">{error}</span>
+            <button onClick={clearError} className="text-red-400/60 hover:text-red-400 text-xs">✕</button>
+          </div>
+        )}
 
         {!isVerified && (
           <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
