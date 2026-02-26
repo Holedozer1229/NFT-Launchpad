@@ -23,6 +23,34 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Production security headers
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+
+// CORS for API routes
+app.use("/api", (_req: Request, res: Response, next: NextFunction) => {
+  const origin = _req.headers.origin;
+  if (process.env.NODE_ENV !== "production") {
+    res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  } else if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  if (_req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
 setupAuth(app);
 
 export function log(message: string, source = "express") {
