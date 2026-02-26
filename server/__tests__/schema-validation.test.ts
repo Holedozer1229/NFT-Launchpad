@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, insertGameScoreSchema, insertBridgeTransactionSchema, insertNftSchema } from "../../shared/schema";
+import { SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, SKYNT_TOKENOMICS, insertGameScoreSchema, insertBridgeTransactionSchema, insertNftSchema } from "../../shared/schema";
 
 describe("Schema Constants", () => {
   it("SUPPORTED_CHAINS has all expected chains", () => {
@@ -25,6 +25,27 @@ describe("Schema Constants", () => {
     expect(RARITY_TIERS.legendary.supply).toBe(3);
     expect(RARITY_TIERS.rare.supply).toBe(6);
     expect(RARITY_TIERS.common.supply).toBe(90);
+  });
+
+  it("SKYNT_TOKENOMICS distribution sums to 100%", () => {
+    const { distribution } = SKYNT_TOKENOMICS;
+    const totalPercent = Object.values(distribution).reduce((sum, d) => sum + d.percent, 0);
+    expect(totalPercent).toBe(100);
+  });
+
+  it("SKYNT_TOKENOMICS token allocations sum to max supply", () => {
+    const { distribution, maxSupply } = SKYNT_TOKENOMICS;
+    const totalTokens = Object.values(distribution).reduce((sum, d) => sum + d.tokens, 0);
+    expect(totalTokens).toBe(maxSupply);
+  });
+
+  it("SKYNT_TOKENOMICS has correct core constants", () => {
+    expect(SKYNT_TOKENOMICS.maxSupply).toBe(21_000_000);
+    expect(SKYNT_TOKENOMICS.miningReward).toBe(50);
+    expect(SKYNT_TOKENOMICS.halvingInterval).toBe(210_000);
+    expect(SKYNT_TOKENOMICS.transactionFee).toBe(0);
+    expect(SKYNT_TOKENOMICS.decimals).toBe(18);
+    expect(SKYNT_TOKENOMICS.powAlgorithm).toBe("phi-spectral");
   });
 
   it("each chain has required fields", () => {
