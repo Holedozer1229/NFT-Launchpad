@@ -8,6 +8,7 @@ import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception } from "./iit-engine";
 import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
 import { getChainInfo, getBalance, getTransaction, getBlock, mintNftOnSkynt, isChainValid } from "./skynt-blockchain";
+import { rosettaRouter } from "./rosetta/routes";
 
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
@@ -914,6 +915,10 @@ export async function registerRoutes(
       res.status(500).json({ message: "Failed to seed data" });
     }
   });
+
+  // ========== COINBASE ROSETTA API ==========
+
+  app.use("/rosetta", rosettaRouter);
 
   // ========== SKYNT BLOCKCHAIN ROUTES ==========
 
