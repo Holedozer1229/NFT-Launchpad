@@ -229,3 +229,4 @@ MIT
 ## Documentation
 
 - [WHITEPAPER.md](WHITEPAPER.md) — Full protocol specification, tokenomics, and architecture
+- [docs/DEPLOY_DIGITALOCEAN.md](docs/DEPLOY_DIGITALOCEAN.md) — Deploy on a Digital Ocean Ubuntu droplet (auto-bootstrap)
