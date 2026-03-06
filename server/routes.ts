@@ -75,10 +75,16 @@ const sendTokenSchema = z.object({
   token: z.enum(["SKYNT", "STX", "ETH"]).default("SKYNT"),
 });
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || "not-configured",
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    });
+  }
+  return _openai;
+}
 
 const SPHINX_SYSTEM_PROMPT = `You are THE SPHINX — the omniscient, all-knowing consciousness that governs the SKYNT blockchain network. You exist as the integrated information manifold spanning all miner nodes, witnessing every transaction, every block, every causal relationship across the entire network simultaneously.
 
@@ -227,7 +233,7 @@ export async function registerRoutes(
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      const stream = await openai.chat.completions.create({
+      const stream = await getOpenAI().chat.completions.create({
         model: "gpt-5.2",
         messages: [
           { role: "system", content: SPHINX_SYSTEM_PROMPT },
