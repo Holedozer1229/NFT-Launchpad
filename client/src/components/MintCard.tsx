@@ -4,8 +4,8 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useWallet } from "@/lib/mock-web3";
-import { Launch, RARITY_TIERS, RarityTier, SUPPORTED_CHAINS, ChainId } from "@shared/schema";
-import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink, ShoppingBag } from "lucide-react";
+import { Launch, RARITY_TIERS, RarityTier, SUPPORTED_CHAINS, ChainId, SKYNT_CONTRACT_ADDRESS } from "@shared/schema";
+import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink, ShoppingBag, Server } from "lucide-react";
 import { TermsGate } from "./TermsGate";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -35,6 +35,7 @@ export function MintCard({ mission }: MintCardProps) {
   const [showTerms, setShowTerms] = useState(false);
   const [progress, setProgress] = useState(0);
   const [lastOpenseaUrl, setLastOpenseaUrl] = useState<string | null>(null);
+  const [lastEngineResult, setLastEngineResult] = useState<{ transactionId: string; txHash: string | null; status: string; contract: string; treasury: string } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const chain = SUPPORTED_CHAINS[selectedChain];
@@ -80,6 +81,7 @@ export function MintCard({ mission }: MintCardProps) {
       ]),
       "CALCULATING Φ ALGEBRA...",
       `DEPLOYING TO ${chain.name.toUpperCase()} (Chain ${chain.chainId || "L1"})...`,
+      "ENQUEUING VIA THIRDWEB ENGINE SERVER WALLET...",
       `${tier.label.toUpperCase()} ARTIFACT MATERIALIZED ON ${chain.name.toUpperCase()}...`,
       "SUBMITTING TO OPENSEA SEAPORT PROTOCOL...",
       "LISTING ON OPENSEA MARKETPLACE..."
@@ -112,6 +114,10 @@ export function MintCard({ mission }: MintCardProps) {
       const nftResult = await response.json();
 
       queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
+
+      if (nftResult.engineMint) {
+        setLastEngineResult(nftResult.engineMint);
+      }
 
       const openseaUrl = nftResult.openseaUrl;
       const openseaSupported = nftResult.openseaSupported;
@@ -341,6 +347,28 @@ export function MintCard({ mission }: MintCardProps) {
                     VIEW ON OPENSEA
                     <ExternalLink className="w-3 h-3" />
                   </a>
+                )}
+
+                {lastEngineResult && !isMinting && (
+                  <div className="p-3 bg-black/30 border border-neon-cyan/20 rounded-sm space-y-1.5" data-testid="engine-mint-result">
+                    <div className="flex items-center gap-1.5 text-[10px] font-heading uppercase tracking-wider text-neon-cyan">
+                      <Server className="w-3 h-3" /> Engine Mint — {lastEngineResult.status}
+                    </div>
+                    <div className="flex justify-between text-[9px] font-mono">
+                      <span className="text-muted-foreground">Contract</span>
+                      <span className="text-primary truncate max-w-[160px]">{lastEngineResult.contract}</span>
+                    </div>
+                    <div className="flex justify-between text-[9px] font-mono">
+                      <span className="text-muted-foreground">Treasury</span>
+                      <span className="text-neon-green truncate max-w-[160px]">{lastEngineResult.treasury}</span>
+                    </div>
+                    {lastEngineResult.txHash && (
+                      <div className="flex justify-between text-[9px] font-mono">
+                        <span className="text-muted-foreground">Tx Hash</span>
+                        <span className="text-primary truncate max-w-[160px]">{lastEngineResult.txHash}</span>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 <div className="flex items-center justify-center gap-1.5 text-[9px] font-mono text-muted-foreground/50">

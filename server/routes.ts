@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, type ChainId, type RarityTier } from "@shared/schema";
 import { randomBytes, createHash } from "crypto";
+import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./thirdweb-engine";
 import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception } from "./iit-engine";
@@ -407,6 +408,21 @@ export async function registerRoutes(
       const contractAddr = chainData?.contractAddress || "0x0000000000000000000000000000000000000000";
       const tokenIdClean = parsed.data.tokenId.replace(/\.\.\./g, "").replace("0x", "");
 
+      let engineResult: { transactionId?: string; txHash?: string | null; status?: string } = {};
+      const useEngine = isEngineConfigured() && (chainId === "zksync" || chainId === "ethereum" || chainId === "base" || chainId === "arbitrum" || chainId === "polygon");
+      if (useEngine) {
+        try {
+          const tokenIdNum = BigInt(parseInt(tokenIdClean.slice(0, 8), 16) % 1000);
+          engineResult = await mintNftViaEngine({
+            recipientAddress: parsed.data.owner.startsWith("0x") ? parsed.data.owner : TREASURY_WALLET,
+            tokenId: tokenIdNum,
+            quantity: 1n,
+          });
+        } catch (engineErr) {
+          console.error("Engine mint enqueue failed (continuing with standard mint):", engineErr);
+        }
+      }
+
       const supported = isOpenSeaSupported(chainId);
       const openseaUrl = supported ? getOpenSeaNftUrl(chainId, contractAddr, tokenIdClean) : null;
       const nftData = {
@@ -437,10 +453,39 @@ export async function registerRoutes(
         });
       }
 
-      res.json({ ...nft, openseaUrl, openseaSupported: supported });
+      res.json({
+        ...nft,
+        openseaUrl,
+        openseaSupported: supported,
+        engineMint: engineResult.transactionId ? {
+          transactionId: engineResult.transactionId,
+          txHash: engineResult.txHash || null,
+          status: engineResult.status || "enqueued",
+          contract: ENGINE_CONTRACT,
+          treasury: TREASURY_WALLET,
+        } : null,
+      });
     } catch (error) {
       res.status(500).json({ message: "Failed to create NFT" });
     }
+  });
+
+  app.get("/api/engine/status/:transactionId", async (req, res) => {
+    try {
+      const result = await getEngineTransactionStatus(req.params.transactionId);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch engine transaction status" });
+    }
+  });
+
+  app.get("/api/engine/config", (_req, res) => {
+    res.json({
+      configured: isEngineConfigured(),
+      contract: ENGINE_CONTRACT,
+      treasury: TREASURY_WALLET,
+      chains: ["ethereum", "polygon", "arbitrum", "base", "zksync"],
+    });
   });
 
   // ========== OPENSEA ROUTES ==========

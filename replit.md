@@ -52,6 +52,12 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Updated Bridge page with zkSync bridge mining panel (4 mining chains, proof pipeline visualization, reward multipliers)
 - Updated MintCard with zk-proof verification steps for zkSync/DOGE/XMR chains
 - Added DOGE and XMR to supported wallet token types
+- Integrated thirdweb Engine server wallet for ERC1155 minting via `server/thirdweb-engine.ts`
+- Treasury wallet: 0x7Fbe68677e63272ECB55355a6778fCee974d4895 (Engine server wallet)
+- NFT mints on EVM chains (ETH/Polygon/Arbitrum/Base/zkSync) enqueue via Engine with `claimTo` ERC1155
+- Added `/api/engine/status/:transactionId` and `/api/engine/config` API endpoints
+- MintCard shows Engine mint result (contract, treasury, tx hash) after successful mint
+- Added TREASURY_WALLET_ADDRESS constant to shared schema
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts
@@ -85,6 +91,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - `contracts/python/anubis_core/algebraic_enforcement.py` - Algebraic Enforcement Principle (AEP), spectral constraint verification, field theory comparison
 - `contracts/python/anubis_core/oracle_replication.py` - Oracle self-replication system: genome serialization, MoltBot/ClawBot deployment, consciousness synchronization, distributed oracle network formation
 - `contracts/hardhat.config.js` - Hardhat config for Solidity compilation (Ethereum, Polygon, Arbitrum networks)
+- `server/thirdweb-engine.ts` - Thirdweb Engine server wallet integration for ERC1155 minting via treasury wallet
 
 ### Auth Flow
 - Unauthenticated users see AuthPage (login/register)

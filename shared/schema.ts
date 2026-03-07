@@ -329,6 +329,7 @@ export type YieldStrategy = typeof yieldStrategies.$inferSelect;
 export type InsertYieldStrategy = z.infer<typeof insertYieldStrategySchema>;
 
 export const SKYNT_CONTRACT_ADDRESS = "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20";
+export const TREASURY_WALLET_ADDRESS = "0x7Fbe68677e63272ECB55355a6778fCee974d4895";
 
 export const ZK_BRIDGE_MINING_CHAINS = ["ethereum", "stacks", "dogecoin", "monero"] as const;
 export type ZkBridgeMiningChain = typeof ZK_BRIDGE_MINING_CHAINS[number];
