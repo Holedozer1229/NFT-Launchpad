@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Gem, Loader2, Eye, Shield } from "lucide-react";
+import { Gem, Loader2, Eye, Shield, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import bgCosmic from "@/assets/bg-cosmic.png";
 
@@ -12,9 +12,10 @@ export default function AuthPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isWalletConnecting, setIsWalletConnecting] = useState(false);
   const [usernameError, setUsernameError] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  const { login, register } = useAuth();
+  const { login, register, loginWithWallet } = useAuth();
   const { toast } = useToast();
 
   const validateUsername = (value: string) => {
@@ -29,6 +30,46 @@ export default function AuthPage() {
     if (!value) { setPasswordError(""); return; }
     if (value.length < 6) { setPasswordError("Password must be at least 6 characters"); return; }
     setPasswordError("");
+  };
+
+  const handleWalletLogin = async () => {
+    if (!window.ethereum) {
+      toast({
+        title: "Wallet Not Found",
+        description: "Please install MetaMask or another Ethereum wallet extension",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsWalletConnecting(true);
+    try {
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      const address = accounts[0];
+      
+      const nonceRes = await fetch(`/api/auth/nonce?address=${address}`);
+      const { nonce } = await nonceRes.json();
+      
+      const message = `Sign this message to authenticate with SKYNT Protocol (Contract: 0x22d3f06afB69e5FCFAa98C20009510dD11aF2517)\nNonce: ${nonce}`;
+      const signature = await window.ethereum.request({
+        method: "personal_sign",
+        params: [message, address],
+      });
+
+      await loginWithWallet(address, signature, nonce);
+      toast({
+        title: "Success",
+        description: "Successfully authenticated with wallet",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Wallet Authentication Failed",
+        description: error.message || "User denied signature or connection failed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsWalletConnecting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,7 +143,7 @@ export default function AuthPage() {
             </CardDescription>
           </CardHeader>
 
-          <CardContent>
+          <CardContent className="space-y-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-[10px] font-heading font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
@@ -141,7 +182,7 @@ export default function AuthPage() {
               <Button
                 data-testid="button-submit"
                 type="submit"
-                disabled={isSubmitting || !username || !password || !!usernameError || !!passwordError}
+                disabled={isSubmitting || isWalletConnecting || !username || !password || !!usernameError || !!passwordError}
                 className="w-full font-heading font-bold tracking-wider uppercase py-6 connect-wallet-btn"
               >
                 {isSubmitting ? (
@@ -154,7 +195,32 @@ export default function AuthPage() {
               </Button>
             </form>
 
-            <div className="mt-6 text-center">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border/50" />
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase tracking-tighter">
+                <span className="bg-card px-2 text-muted-foreground font-mono">Or connect via</span>
+              </div>
+            </div>
+
+            <Button
+              data-testid="button-wallet-login"
+              type="button"
+              variant="outline"
+              disabled={isSubmitting || isWalletConnecting}
+              onClick={handleWalletLogin}
+              className="w-full border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary font-heading font-bold tracking-wider uppercase py-6"
+            >
+              {isWalletConnecting ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Wallet className="w-4 h-4 mr-2" />
+              )}
+              {isWalletConnecting ? "SIGNING..." : "CONNECT WALLET"}
+            </Button>
+
+            <div className="text-center">
               <button
                 data-testid="button-toggle-auth"
                 type="button"

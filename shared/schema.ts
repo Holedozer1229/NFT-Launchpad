@@ -7,6 +7,8 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   isAdmin: boolean("is_admin").notNull().default(false),
+  walletAddress: text("wallet_address").unique(),
+  authNonce: text("auth_nonce"),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });

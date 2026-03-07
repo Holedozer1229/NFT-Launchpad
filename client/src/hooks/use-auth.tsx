@@ -13,6 +13,7 @@ type AuthContextType = {
   user: User | null;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
+  loginWithWallet: (address: string, signature: string, nonce: string) => Promise<void>;
   register: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
@@ -37,6 +38,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: async ({ username, password }: { username: string; password: string }) => {
       const res = await apiRequest("POST", "/api/login", { username, password });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["/api/user"], data);
+      setLocation("/");
+    },
+  });
+
+  const loginWithWalletMutation = useMutation({
+    mutationFn: async ({ address, signature, nonce }: { address: string; signature: string; nonce: string }) => {
+      const res = await apiRequest("POST", "/api/auth/wallet", { address, signature, nonce });
       return res.json();
     },
     onSuccess: (data) => {
@@ -73,6 +85,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login: async (username, password) => {
           await loginMutation.mutateAsync({ username, password });
+        },
+        loginWithWallet: async (address, signature, nonce) => {
+          await loginWithWalletMutation.mutateAsync({ address, signature, nonce });
         },
         register: async (username, password) => {
           await registerMutation.mutateAsync({ username, password });

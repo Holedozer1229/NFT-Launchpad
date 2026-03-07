@@ -9,6 +9,7 @@ import { User } from "@shared/schema";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 import { rateLimit } from "./routes";
+import { verifyMessage } from "viem";
 
 const scryptAsync = promisify(scrypt);
 
@@ -115,6 +116,65 @@ export function setupAuth(app: Express) {
         return res.json(safeUser);
       });
     })(req, res, next);
+  });
+
+  app.get("/api/auth/nonce", async (req, res) => {
+    const { address } = req.query;
+    if (!address || typeof address !== "string") {
+      return res.status(400).json({ message: "Address is required" });
+    }
+    const nonce = randomBytes(16).toString("hex");
+    const user = await storage.getUserByWalletAddress(address);
+    if (user) {
+      await storage.updateUserNonce(user.id, nonce);
+    }
+    res.json({ nonce });
+  });
+
+  app.post("/api/auth/wallet", async (req, res, next) => {
+    try {
+      const { address, signature, nonce } = req.body;
+      if (!address || !signature || !nonce) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      const message = `Sign this message to authenticate with SKYNT Protocol (Contract: 0x22d3f06afB69e5FCFAa98C20009510dD11aF2517)\nNonce: ${nonce}`;
+      
+      const isValid = await verifyMessage({
+        address: address as `0x${string}`,
+        message,
+        signature: signature as `0x${string}`,
+      });
+
+      if (!isValid) {
+        return res.status(401).json({ message: "Invalid signature" });
+      }
+
+      let user = await storage.getUserByWalletAddress(address);
+      if (!user) {
+        // Auto-register for wallet login
+        user = await storage.createUser({
+          username: `wallet_${address.slice(2, 8)}`,
+          password: await hashPassword(randomBytes(32).toString("hex")),
+          walletAddress: address,
+          authNonce: null,
+        });
+        await storage.createWallet(user.id, "Primary Wallet");
+      } else {
+        if (user.authNonce !== nonce) {
+          return res.status(401).json({ message: "Invalid or expired nonce" });
+        }
+        await storage.updateUserNonce(user.id, null);
+      }
+
+      req.login(user, (err) => {
+        if (err) return next(err);
+        const { password: _, ...safeUser } = user!;
+        res.json(safeUser);
+      });
+    } catch (error) {
+      next(error);
+    }
   });
 
   app.post("/api/logout", (req, res, next) => {

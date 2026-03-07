@@ -10,6 +10,8 @@ function generateWalletAddress(): string {
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByWalletAddress(address: string): Promise<User | undefined>;
+  updateUserNonce(id: number, nonce: string | null): Promise<void>;
   createUser(user: InsertUser): Promise<User>;
 
   getLaunches(): Promise<Launch[]>;
@@ -84,6 +86,15 @@ export class DatabaseStorage implements IStorage {
   async getUserByUsername(username: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.username, username));
     return user;
+  }
+
+  async getUserByWalletAddress(address: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.walletAddress, address));
+    return user;
+  }
+
+  async updateUserNonce(id: number, nonce: string | null): Promise<void> {
+    await db.update(users).set({ authNonce: nonce }).where(eq(users.id, id));
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
