@@ -82,6 +82,16 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Added `/api/engine/status/:transactionId` and `/api/engine/config` API endpoints
 - MintCard shows Engine mint result (contract, treasury, tx hash) after successful mint
 - Added TREASURY_WALLET_ADDRESS constant to shared schema
+- **Fair Game Play Mining Fees**: 0.5 SKYNT game play fee + 0.25 SKYNT claim fee, deducted from user wallet balance
+  - `POST /api/game/score` charges 0.5 SKYNT before saving score (returns 402 if insufficient)
+  - `POST /api/game/claim/:id` charges 0.25 SKYNT before processing reward claim (returns 402 if insufficient)
+  - `GET /api/game/fee-config` returns current fee rates
+  - Fees routed to treasury via `recordMintFee()` for yield reinvestment (60% reinvested into 4 strategies)
+  - Frontend shows fee breakdown on game menu and next to claim buttons, handles 402 errors with toast
+- **Treasury Yield Engine**: `server/treasury-yield.ts` auto-compound engine (60s interval), Phi-boosted yield, 4-strategy allocation
+  - Started on server boot via `startTreasuryYieldEngine()` in `server/index.ts`
+  - `GET /api/treasury/yield` returns full treasury yield state
+  - `miningFees` config added to `SKYNT_TOKENOMICS` in shared schema
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts

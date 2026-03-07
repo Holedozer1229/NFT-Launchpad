@@ -183,6 +183,14 @@ export const SKYNT_TOKENOMICS = {
     maxErgotropy: 10_000,
   },
 
+  miningFees: {
+    gamePlayFee: 0.5,
+    claimFee: 0.25,
+    feeToken: "SKYNT",
+    treasuryReinvestRate: 0.60,
+    feeDescription: "Fair play mining fee supports treasury yield and network security",
+  },
+
   yieldTiers: {
     singleStake:     { aprPercent: 24.6, riskScore: 10 },
     liquidityPool:   { aprPercent: 42.8, riskScore: 25 },

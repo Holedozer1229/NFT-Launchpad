@@ -275,6 +275,10 @@ export default function OmegaSerpent() {
     };
   }, []);
 
+  const { data: feeConfig } = useQuery<{ gamePlayFee: number; claimFee: number; feeToken: string }>({
+    queryKey: ["/api/game/fee-config"],
+  });
+
   const { data: leaderboard } = useQuery<any[]>({
     queryKey: ["/api/game/leaderboard"],
     refetchInterval: 15000,
@@ -298,6 +302,17 @@ export default function OmegaSerpent() {
     }
   }, [quantumState]);
 
+  const parseApiError = (err: Error): string => {
+    try {
+      const match = err.message.match(/^\d+:\s*(.+)$/s);
+      if (match) {
+        const parsed = JSON.parse(match[1]);
+        return parsed.message || err.message;
+      }
+    } catch {}
+    return err.message;
+  };
+
   const saveScoreMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/game/score", data);
@@ -307,6 +322,9 @@ export default function OmegaSerpent() {
       queryClient.invalidateQueries({ queryKey: ["/api/game/leaderboard"] });
       queryClient.invalidateQueries({ queryKey: ["/api/game/scores"] });
     },
+    onError: (err: Error) => {
+      toast({ title: "Mining Fee Error", description: parseApiError(err), variant: "destructive" });
+    },
   });
 
   const claimMutation = useMutation({
@@ -314,10 +332,14 @@ export default function OmegaSerpent() {
       const res = await apiRequest("POST", `/api/game/claim/${id}`);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/game/scores"] });
       queryClient.invalidateQueries({ queryKey: ["/api/game/leaderboard"] });
-      toast({ title: "SKYNT Claimed!", description: "Reward deposited to your SKYNT wallet" });
+      const feeMsg = data.claimFeeCharged ? ` (${data.claimFeeCharged} SKYNT fee deducted)` : "";
+      toast({ title: "SKYNT Claimed!", description: `Reward deposited to your SKYNT wallet${feeMsg}` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Claim Fee Error", description: parseApiError(err), variant: "destructive" });
     },
   });
 
@@ -874,9 +896,16 @@ export default function OmegaSerpent() {
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm z-10">
             <Gamepad2 className="w-14 h-14 text-neon-green mb-4 animate-pulse" />
             <h2 className="font-heading text-2xl sm:text-3xl text-neon-green tracking-widest mb-2">OMEGA SERPENT v3.0</h2>
-            <p className="font-mono text-xs text-muted-foreground mb-6 text-center max-w-sm px-4">
+            <p className="font-mono text-xs text-muted-foreground mb-3 text-center max-w-sm px-4">
               Control your serpent with WASD, Arrow keys, or the D-pad. Collect treasures to earn SKYNT on-chain.
             </p>
+            {feeConfig && (
+              <div className="flex items-center gap-4 mb-4 px-4 py-2 bg-white/5 border border-neon-orange/30 rounded font-mono text-[10px] text-neon-orange" data-testid="mining-fee-info">
+                <div className="flex items-center gap-1"><Coins className="w-3 h-3" /> Play Fee: {feeConfig.gamePlayFee} {feeConfig.feeToken}</div>
+                <div className="text-white/30">|</div>
+                <div>Claim Fee: {feeConfig.claimFee} {feeConfig.feeToken}</div>
+              </div>
+            )}
             <div className="flex gap-2 mb-6">
               {CHAINS.map(c => (
                 <button
@@ -1031,15 +1060,18 @@ export default function OmegaSerpent() {
                 {entry.claimed ? (
                   <Badge variant="outline" className="text-[9px] border-neon-green/30 text-neon-green">CLAIMED</Badge>
                 ) : (
-                  <Button
-                    size="sm"
-                    data-testid={`button-claim-${entry.id}`}
-                    className="text-[10px] h-7 px-3 bg-neon-green/20 border border-neon-green/40 text-neon-green hover:bg-neon-green/30"
-                    onClick={() => claimMutation.mutate(entry.id)}
-                    disabled={claimMutation.isPending}
-                  >
-                    CLAIM
-                  </Button>
+                  <div className="flex flex-col items-end gap-0.5">
+                    <Button
+                      size="sm"
+                      data-testid={`button-claim-${entry.id}`}
+                      className="text-[10px] h-7 px-3 bg-neon-green/20 border border-neon-green/40 text-neon-green hover:bg-neon-green/30"
+                      onClick={() => claimMutation.mutate(entry.id)}
+                      disabled={claimMutation.isPending}
+                    >
+                      CLAIM
+                    </Button>
+                    {feeConfig && <span className="font-mono text-[8px] text-neon-orange/60">{feeConfig.claimFee} SKYNT fee</span>}
+                  </div>
                 )}
               </div>
             )) : (

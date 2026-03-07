@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, type ChainId, type RarityTier } from "@shared/schema";
 import { randomBytes, createHash } from "crypto";
 import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./thirdweb-engine";
+import { recordMintFee, getTreasuryYieldState, startTreasuryYieldEngine } from "./treasury-yield";
 import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception, startEngine, isEngineRunning } from "./iit-engine";
@@ -1152,11 +1153,41 @@ export async function registerRoutes(
     }
   });
 
+  // ========== GAME MINING FEE CONFIG ==========
+
+  const GAME_PLAY_FEE = 0.5;
+  const GAME_CLAIM_FEE = 0.25;
+
+  app.get("/api/game/fee-config", (_req, res) => {
+    res.json({
+      gamePlayFee: GAME_PLAY_FEE,
+      claimFee: GAME_CLAIM_FEE,
+      feeToken: "SKYNT",
+      treasuryReinvestRate: 0.60,
+      description: "Fair play mining fee supports treasury yield and network security",
+    });
+  });
+
   // ========== OMEGA SERPENT GAME ROUTES ==========
 
   app.post("/api/game/score", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
+      const userWallets = await storage.getWalletsByUser(req.user!.id);
+      if (userWallets.length > 0) {
+        const wallet = userWallets[0];
+        const currentSkynt = parseFloat(wallet.balanceSkynt);
+        if (currentSkynt < GAME_PLAY_FEE) {
+          return res.status(402).json({
+            message: `Insufficient SKYNT balance. Game play mining fee is ${GAME_PLAY_FEE} SKYNT.`,
+            required: GAME_PLAY_FEE,
+            current: currentSkynt,
+          });
+        }
+        await storage.updateWalletBalance(wallet.id, "SKYNT", (currentSkynt - GAME_PLAY_FEE).toString());
+        recordMintFee(GAME_PLAY_FEE, "game-play", "SKYNT", `game-fee-${Date.now()}-${req.user!.id}`);
+      }
+
       const MAX_SCORE = 50000;
       const MAX_ERGOTROPY = 10000;
       const MAX_TICKS = 100000;
@@ -1182,7 +1213,7 @@ export async function registerRoutes(
       const parsed = insertGameScoreSchema.safeParse(scoreData);
       if (!parsed.success) return res.status(400).json(parsed.error);
       const score = await storage.createGameScore(parsed.data);
-      res.json(score);
+      res.json({ ...score, miningFeeCharged: GAME_PLAY_FEE });
     } catch (error) {
       res.status(500).json({ message: "Failed to save game score" });
     }
@@ -1226,24 +1257,42 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const scoreId = parseInt(req.params.id);
+
+      const userWallets = await storage.getWalletsByUser(req.user!.id);
+      if (userWallets.length > 0) {
+        const wallet = userWallets[0];
+        const currentSkynt = parseFloat(wallet.balanceSkynt);
+        if (currentSkynt < GAME_CLAIM_FEE) {
+          return res.status(402).json({
+            message: `Insufficient SKYNT balance. Claim mining fee is ${GAME_CLAIM_FEE} SKYNT.`,
+            required: GAME_CLAIM_FEE,
+            current: currentSkynt,
+          });
+        }
+        await storage.updateWalletBalance(wallet.id, "SKYNT", (currentSkynt - GAME_CLAIM_FEE).toString());
+        recordMintFee(GAME_CLAIM_FEE, "game-claim", "SKYNT", `claim-fee-${Date.now()}-${req.user!.id}`);
+      }
+
       const result = await storage.claimGameReward(scoreId, req.user!.id);
       if (!result) return res.status(400).json({ message: "Cannot claim this reward" });
 
-      // Apply IIT Φ bonus
       const phiResult = calculatePhi(`claim-${scoreId}-${Date.now()}`);
       const skyntEarned = parseFloat(result.skyntEarned);
       const bonusSkynt = skyntEarned * phiResult.phi * 0.5;
 
-      if (bonusSkynt > 0) {
-        const userWallets = await storage.getWalletsByUser(req.user!.id);
-        if (userWallets.length > 0) {
-          const wallet = userWallets[0];
-          const currentSkynt = parseFloat(wallet.balanceSkynt);
-          await storage.updateWalletBalance(wallet.id, "SKYNT", (currentSkynt + bonusSkynt).toString());
-        }
+      if (bonusSkynt > 0 && userWallets.length > 0) {
+        const wallet = userWallets[0];
+        const updatedSkynt = parseFloat(wallet.balanceSkynt) - GAME_CLAIM_FEE + bonusSkynt;
+        await storage.updateWalletBalance(wallet.id, "SKYNT", Math.max(0, updatedSkynt).toString());
       }
 
-      res.json({ ...result, phiBonus: bonusSkynt.toString(), phi: phiResult.phi, phiLevel: phiResult.levelLabel });
+      res.json({
+        ...result,
+        phiBonus: bonusSkynt.toString(),
+        phi: phiResult.phi,
+        phiLevel: phiResult.levelLabel,
+        claimFeeCharged: GAME_CLAIM_FEE,
+      });
     } catch (error) {
       res.status(500).json({ message: "Failed to claim reward" });
     }
@@ -1887,6 +1936,17 @@ export async function registerRoutes(
       res.json({ message: "Submission confirmed" });
     } catch (error) {
       res.status(500).json({ message: "Failed to confirm submission" });
+    }
+  });
+
+  // ========== TREASURY YIELD ROUTES ==========
+
+  app.get("/api/treasury/yield", (_req, res) => {
+    try {
+      const yieldState = getTreasuryYieldState();
+      res.json(yieldState);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch treasury yield state" });
     }
   });
 
