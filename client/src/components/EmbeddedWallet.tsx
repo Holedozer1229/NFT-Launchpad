@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 
 export function EmbeddedWallet() {
-  const { isConnected, address, balance, connect, disconnect, provider, chainName, error, clearError, refreshBalance } = useWallet();
+  const { isConnected, address, balance, connect, disconnect, provider, chainName, error, clearError, refreshBalance, getEthereumProvider } = useWallet();
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const { toast } = useToast();
@@ -27,8 +27,8 @@ export function EmbeddedWallet() {
       let signature: string;
 
       if (provider === "metamask") {
-        const ethereum = (window as any).ethereum;
-        if (!ethereum) throw new Error("MetaMask provider not available");
+        const ethereum = getEthereumProvider();
+        if (!ethereum) throw new Error("MetaMask provider not available. Make sure the MetaMask extension or app is active.");
         signature = await ethereum.request({
           method: "personal_sign",
           params: [message, address],

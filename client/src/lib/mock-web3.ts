@@ -18,6 +18,7 @@ type WalletState = {
   disconnect: () => void;
   refreshBalance: () => Promise<void>;
   clearError: () => void;
+  getEthereumProvider: () => any;
 };
 
 const SESSION_KEY = "skynt_wallet_session";
@@ -41,6 +42,19 @@ function loadSession(): { provider: WalletProvider; address: string } | null {
 }
 
 let mmSDK: MetaMaskSDK | null = null;
+let activeEthProvider: any = null;
+
+function getInjectedEthereum(): any | null {
+  if (typeof window !== "undefined" && (window as any).ethereum) {
+    const eth = (window as any).ethereum;
+    if (eth.isMetaMask) return eth;
+    if (eth.providers) {
+      const mm = eth.providers.find((p: any) => p.isMetaMask);
+      if (mm) return mm;
+    }
+  }
+  return null;
+}
 
 function getMetaMaskSDK() {
   if (!mmSDK) {
@@ -76,8 +90,7 @@ function getChainName(chainId: string | null): string | null {
 }
 
 async function fetchMetaMaskBalance(addr: string): Promise<{ balance: number; chainId: string | null }> {
-  const sdk = getMetaMaskSDK();
-  const ethereum = sdk.getProvider();
+  const ethereum = activeEthProvider || getInjectedEthereum();
   let balance = 0;
   let chainId: string | null = null;
   if (ethereum) {
@@ -124,16 +137,28 @@ export const useWallet = create<WalletState>((set, get) => ({
 
     try {
       if (walletProvider === "metamask") {
-        const sdk = getMetaMaskSDK();
-        const accounts = await sdk.connect();
+        const injected = getInjectedEthereum();
+        let ethereum: any;
+        let accounts: string[];
+
+        if (injected) {
+          ethereum = injected;
+          const result = await injected.request({ method: "eth_requestAccounts" });
+          accounts = result as string[];
+        } else {
+          const sdk = getMetaMaskSDK();
+          const sdkAccounts = await sdk.connect();
+          ethereum = sdk.getProvider();
+          accounts = sdkAccounts || [];
+        }
+
         if (accounts && accounts.length > 0) {
           const addr = accounts[0];
+          activeEthProvider = ethereum;
           const { balance, chainId } = await fetchMetaMaskBalance(addr);
           saveSession("metamask", addr);
           set({ isConnected: true, address: addr, balance, isConnecting: false, provider: "metamask", chainId, chainName: getChainName(chainId) });
 
-          // Listen for account and chain changes
-          const ethereum = sdk.getProvider();
           if (ethereum) {
             ethereum.on?.("accountsChanged", (...args: unknown[]) => {
               const accts = args[0] as string[];
@@ -176,9 +201,12 @@ export const useWallet = create<WalletState>((set, get) => ({
   },
   disconnect: () => {
     const { provider } = get();
-    if (provider === "metamask" && mmSDK) {
-      mmSDK.terminate();
-      mmSDK = null;
+    if (provider === "metamask") {
+      activeEthProvider = null;
+      if (mmSDK) {
+        mmSDK.terminate();
+        mmSDK = null;
+      }
     } else if (provider === "phantom") {
       const phantom = getPhantomProvider();
       if (phantom) {
@@ -187,6 +215,9 @@ export const useWallet = create<WalletState>((set, get) => ({
     }
     saveSession(null, null);
     set({ isConnected: false, address: null, balance: 0, provider: null, chainId: null, chainName: null, error: null });
+  },
+  getEthereumProvider: () => {
+    return activeEthProvider || getInjectedEthereum();
   },
   refreshBalance: async () => {
     const { provider, address } = get();

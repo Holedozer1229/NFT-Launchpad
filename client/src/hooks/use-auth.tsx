@@ -52,8 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return res.json();
     },
     onSuccess: (data) => {
+      const wasLoggedIn = !!user;
       queryClient.setQueryData(["/api/user"], data);
-      setLocation("/");
+      if (!wasLoggedIn) {
+        setLocation("/");
+      }
     },
   });
 
