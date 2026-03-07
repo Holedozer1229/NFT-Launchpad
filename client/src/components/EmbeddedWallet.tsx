@@ -2,12 +2,24 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useWallet } from "@/lib/mock-web3";
-import { Wallet, ShieldCheck, Loader2, CheckCircle2, AlertCircle, RefreshCw, Link2 } from "lucide-react";
+import { Wallet, ShieldCheck, CheckCircle2, AlertCircle, RefreshCw, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { ConnectButton, useActiveAccount, useActiveWallet, useDisconnect } from "thirdweb/react";
+import { thirdwebClient } from "@/lib/thirdweb";
+import { createWallet, inAppWallet } from "thirdweb/wallets";
+import { ethereum, polygon, base } from "thirdweb/chains";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
-function ConnectionPulse({ provider }: { provider: string | null }) {
+const wallets = [
+  createWallet("io.metamask"),
+  createWallet("app.phantom"),
+  createWallet("com.coinbase.wallet"),
+  createWallet("me.rainbow"),
+  inAppWallet(),
+];
+
+function ConnectionPulse({ color }: { color: number[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -22,7 +34,6 @@ function ConnectionPulse({ provider }: { provider: string | null }) {
     const cw = w / 4;
     const ch = h / 4;
 
-    const color = provider === "phantom" ? [171, 159, 242] : [226, 118, 27];
     let frame = 0;
     const totalFrames = 60;
     let raf: number;
@@ -33,8 +44,7 @@ function ConnectionPulse({ provider }: { provider: string | null }) {
       ctx.clearRect(0, 0, w, h);
 
       const progress = frame / totalFrames;
-      const rings = 3;
-      for (let i = 0; i < rings; i++) {
+      for (let i = 0; i < 3; i++) {
         const delay = i * 0.15;
         const t = Math.max(0, Math.min(1, (progress - delay) / (1 - delay)));
         if (t <= 0) continue;
@@ -48,18 +58,12 @@ function ConnectionPulse({ provider }: { provider: string | null }) {
         ctx.stroke();
       }
 
-      const dotAlpha = progress < 0.3 ? progress / 0.3 : progress > 0.7 ? (1 - progress) / 0.3 : 1;
-      ctx.beginPath();
-      ctx.arc(cw, ch, 4, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${dotAlpha * 0.8})`;
-      ctx.fill();
-
       raf = requestAnimationFrame(draw);
     };
 
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [provider]);
+  }, [color]);
 
   return (
     <canvas
@@ -71,13 +75,20 @@ function ConnectionPulse({ provider }: { provider: string | null }) {
 }
 
 export function EmbeddedWallet() {
-  const { isConnected, address, balance, connect, disconnect, provider, chainName, error, clearError, refreshBalance, getEthereumProvider, getActivePhantomProvider } = useWallet();
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
+  const account = useActiveAccount();
+  const wallet = useActiveWallet();
+  const { disconnect } = useDisconnect();
   const [showConnectAnim, setShowConnectAnim] = useState(false);
+  const [isLinking, setIsLinking] = useState(false);
   const prevConnected = useRef(false);
   const { toast } = useToast();
-  const { loginWithWallet, user } = useAuth();
+  const { user } = useAuth();
+
+  const isConnected = !!account;
+  const address = account?.address ?? null;
+
+  const walletLinked = !!(user?.walletAddress && address && user.walletAddress.toLowerCase() === address.toLowerCase());
+  const userHasWallet = !!user?.walletAddress;
 
   useEffect(() => {
     if (isConnected && !prevConnected.current) {
@@ -88,51 +99,33 @@ export function EmbeddedWallet() {
     prevConnected.current = isConnected;
   }, [isConnected]);
 
-  const handleVerify = async () => {
-    if (!address || !provider) return;
-    setIsVerifying(true);
+  useEffect(() => {
+    if (isConnected && address && user && !walletLinked && !isLinking) {
+      linkWallet(address);
+    }
+  }, [isConnected, address, user, walletLinked]);
+
+  const linkWallet = async (addr: string) => {
+    setIsLinking(true);
     try {
-      const nonceRes = await fetch(`/api/auth/nonce?address=${address}`);
-      if (!nonceRes.ok) throw new Error("Failed to get nonce");
-      const { nonce } = await nonceRes.json();
-
-      const message = `Sign this message to authenticate with SKYNT Protocol (Contract: 0x22d3f06afB69e5FCFAa98C20009510dD11aF2517)\nNonce: ${nonce}`;
-
-      let signature: string;
-
-      if (provider === "metamask") {
-        const ethereum = getEthereumProvider();
-        if (!ethereum) throw new Error("MetaMask provider not available. Make sure the MetaMask extension or app is active.");
-        signature = await ethereum.request({
-          method: "personal_sign",
-          params: [message, address],
-        });
-      } else if (provider === "phantom") {
-        const phantom = getActivePhantomProvider();
-        if (!phantom) throw new Error("Phantom provider not available. Make sure the Phantom extension or app is active.");
-        const encoded = new TextEncoder().encode(message);
-        const signed = await phantom.signMessage(encoded, "utf8");
-        const bytes = signed.signature instanceof Uint8Array ? signed.signature : new Uint8Array(signed.signature);
-        signature = "0x" + Array.from(bytes).map((b: number) => b.toString(16).padStart(2, "0")).join("");
-      } else {
-        throw new Error("Unsupported wallet provider");
-      }
-
-      await loginWithWallet(address, signature, nonce);
-      setIsVerified(true);
+      const res = await apiRequest("POST", "/api/auth/link-wallet", { address: addr });
+      const data = await res.json();
+      queryClient.setQueryData(["/api/user"], data);
       toast({
-        title: "IDENTITY_VERIFIED",
-        description: "Wallet ownership cryptographically confirmed via SKYNT.",
+        title: "IDENTITY_LINKED",
+        description: `Wallet ${addr.slice(0, 6)}...${addr.slice(-4)} linked to your account.`,
       });
     } catch (err: any) {
-      const msg = err?.message || "Signature denied or verification failed";
-      toast({
-        title: "Verification Failed",
-        description: msg,
-        variant: "destructive",
-      });
+      const msg = err?.message || "Failed to link wallet";
+      if (!msg.includes("already linked")) {
+        toast({
+          title: "Link Failed",
+          description: msg,
+          variant: "destructive",
+        });
+      }
     } finally {
-      setIsVerifying(false);
+      setIsLinking(false);
     }
   };
 
@@ -147,22 +140,31 @@ export function EmbeddedWallet() {
           <CardDescription className="font-mono text-xs">Initialize wallet link to access the Causal Graph</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {error && (
-            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-sm text-red-400 font-mono text-xs animate-in fade-in">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span className="flex-1">{error}</span>
-              <button onClick={clearError} className="text-red-400/60 hover:text-red-400 text-xs">✕</button>
+          {userHasWallet && (
+            <div className="flex items-center gap-2 p-2 bg-primary/5 border border-primary/15 rounded-sm font-mono text-[10px] text-primary/70">
+              <Link2 className="w-3 h-3 shrink-0" />
+              <span>Linked: {user!.walletAddress!.slice(0, 6)}...{user!.walletAddress!.slice(-4)}</span>
             </div>
           )}
-          <Button onClick={() => connect()} className="w-full font-heading font-bold py-6 bg-primary text-black hover:bg-primary/80 transition-all">
-            CONNECT_IDENTITY
-          </Button>
+          <div data-testid="thirdweb-connect-gateway" className="flex justify-center [&_button]:w-full [&_button]:font-heading [&_button]:font-bold [&_button]:py-6">
+            <ConnectButton
+              client={thirdwebClient}
+              wallets={wallets}
+              chains={[ethereum, polygon, base]}
+              theme="dark"
+              connectModal={{
+                title: "SKYNT Protocol",
+                titleIcon: "",
+                size: "compact",
+              }}
+            />
+          </div>
         </CardContent>
       </Card>
     );
   }
 
-  const glowColor = provider === "phantom" ? "rgba(171,159,242," : "rgba(226,118,27,";
+  const glowColor = [34, 197, 94];
 
   return (
     <Card
@@ -171,17 +173,14 @@ export function EmbeddedWallet() {
           ? "border-primary/60 shadow-[0_0_30px_rgba(var(--primary-rgb),0.3)]"
           : "border-primary/20"
       }`}
-      style={showConnectAnim ? {
-        boxShadow: `0 0 24px ${glowColor}0.25), 0 0 48px ${glowColor}0.1)`,
-      } : undefined}
       data-testid="card-wallet-connected"
     >
-      {showConnectAnim && <ConnectionPulse provider={provider} />}
+      {showConnectAnim && <ConnectionPulse color={glowColor} />}
 
       <CardHeader className="pb-4 relative z-10">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <ShieldCheck className={`w-5 h-5 transition-colors duration-500 ${isVerified ? 'text-green-500' : showConnectAnim ? 'text-white' : 'text-primary'}`} />
+            <ShieldCheck className={`w-5 h-5 transition-colors duration-500 ${walletLinked ? 'text-green-500' : showConnectAnim ? 'text-white' : 'text-primary'}`} />
             <CardTitle className={`font-heading text-lg transition-colors duration-500 ${showConnectAnim ? 'text-white' : 'text-primary'}`}>
               {showConnectAnim ? "LINKED" : "IDENTITY_NODE"}
             </CardTitle>
@@ -189,14 +188,14 @@ export function EmbeddedWallet() {
           <Badge
             variant="outline"
             className={`transition-all duration-500 ${
-              (isVerified || user)
+              walletLinked
                 ? "border-green-500 text-green-500"
                 : showConnectAnim
                   ? "border-white/60 text-white animate-pulse"
                   : "border-primary text-primary"
             }`}
           >
-            {showConnectAnim ? "CONNECTED" : (isVerified || user) ? "VERIFIED" : "UNVERIFIED"}
+            {showConnectAnim ? "CONNECTED" : walletLinked ? "VERIFIED" : "CONNECTED"}
           </Badge>
         </div>
       </CardHeader>
@@ -206,68 +205,48 @@ export function EmbeddedWallet() {
         }`}>
           <div className="flex justify-between text-[10px] font-mono text-primary/60">
             <span className="flex items-center gap-1.5">
-              <span className={showConnectAnim ? "animate-bounce" : ""}>{provider === "phantom" ? "👻" : "🦊"}</span>
+              <span className={showConnectAnim ? "animate-bounce" : ""}>
+                {wallet?.id === "app.phantom" ? "👻" : "🦊"}
+              </span>
               PUBLIC_ADDRESS
             </span>
-            <span>{balance.toFixed(4)} {provider === "phantom" ? "SOL" : "ETH"}</span>
           </div>
           <div className="font-mono text-sm text-white break-all">{address}</div>
-          {chainName && (
-            <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground/70">
-              <Link2 className="w-3 h-3" />
-              <span>{chainName}</span>
-            </div>
-          )}
         </div>
 
-        <button
-          onClick={() => refreshBalance()}
-          className="w-full flex items-center justify-center gap-2 py-2 text-xs font-mono text-muted-foreground hover:text-primary border border-border/30 hover:border-primary/30 rounded-sm transition-colors"
-        >
-          <RefreshCw className="w-3 h-3" />
-          REFRESH_BALANCE
-        </button>
-
-        {error && (
-          <div className="flex items-center gap-2 p-2 bg-red-500/10 border border-red-500/20 rounded-sm text-red-400 font-mono text-[10px]">
-            <AlertCircle className="w-3 h-3 shrink-0" />
-            <span className="flex-1">{error}</span>
-            <button onClick={clearError} className="text-red-400/60 hover:text-red-400 text-xs">✕</button>
+        {walletLinked && (
+          <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-sm text-green-500 font-mono text-xs animate-in zoom-in-95">
+            <CheckCircle2 className="w-4 h-4" />
+            <span>SESSION_SECURED: LINKED{user ? ` as ${user.username}` : ""}</span>
           </div>
         )}
 
-        {!isVerified && !user && (
+        {!walletLinked && !isLinking && user && (
           <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
             <div className="flex items-center gap-2 text-xs font-mono text-yellow-500/80">
               <AlertCircle className="w-3 h-3" />
-              <span>Sign with your wallet to authenticate and unlock full access.</span>
+              <span>Wallet detected but not linked to your account yet.</span>
             </div>
-            <Button 
-              data-testid="button-sign-verify"
-              onClick={handleVerify} 
-              disabled={isVerifying}
+            <Button
+              data-testid="button-link-wallet"
+              onClick={() => address && linkWallet(address)}
               className="w-full bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 font-heading"
             >
-              {isVerifying ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  SIGNING...
-                </>
-              ) : "SIGN & AUTHENTICATE"}
+              LINK WALLET TO ACCOUNT
             </Button>
           </div>
         )}
 
-        {(isVerified || user) && (
-          <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-sm text-green-500 font-mono text-xs animate-in zoom-in-95">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>SESSION_SECURED: AUTHENTICATED{user ? ` as ${user.username}` : ""}</span>
+        {isLinking && (
+          <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-sm text-primary font-mono text-xs">
+            <RefreshCw className="w-3 h-3 animate-spin" />
+            <span>LINKING_IDENTITY...</span>
           </div>
         )}
 
-        <Button 
-          variant="ghost" 
-          onClick={disconnect} 
+        <Button
+          variant="ghost"
+          onClick={() => wallet && disconnect(wallet)}
           className="w-full text-xs font-mono text-destructive hover:text-destructive/80 hover:bg-destructive/10"
         >
           DISCONNECT_TERMINAL

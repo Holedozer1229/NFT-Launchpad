@@ -1,48 +1,22 @@
-import { useWallet, WalletProvider } from "@/lib/mock-web3";
-import { X, Smartphone, Monitor, ExternalLink, AlertCircle, Loader2 } from "lucide-react";
-import { isMobileDevice, hasPhantomExtension, hasMetaMaskExtension, openWalletApp } from "@/lib/wallet-utils";
+import { useWalletStore } from "@/lib/mock-web3";
+import { ConnectButton } from "thirdweb/react";
+import { thirdwebClient } from "@/lib/thirdweb";
+import { createWallet, inAppWallet } from "thirdweb/wallets";
+import { ethereum, polygon, base } from "thirdweb/chains";
+import { X } from "lucide-react";
 
-const WALLET_OPTIONS: { id: WalletProvider; name: string; icon: string; description: string; mobileDescription: string; color: string }[] = [
-  {
-    id: "metamask",
-    name: "MetaMask",
-    icon: "🦊",
-    description: "Connect with MetaMask for EVM chains",
-    mobileDescription: "Open MetaMask mobile app",
-    color: "#E2761B",
-  },
-  {
-    id: "phantom",
-    name: "Phantom",
-    icon: "👻",
-    description: "Connect with Phantom for Solana",
-    mobileDescription: "Open Phantom mobile app",
-    color: "#AB9FF2",
-  },
+const wallets = [
+  createWallet("io.metamask"),
+  createWallet("app.phantom"),
+  createWallet("com.coinbase.wallet"),
+  createWallet("me.rainbow"),
+  inAppWallet(),
 ];
 
 export function WalletPicker() {
-  const { showPicker, setShowPicker, connect, isConnecting, error, clearError } = useWallet();
-  const mobile = isMobileDevice();
+  const { showPicker, setShowPicker, clearError } = useWalletStore();
 
   if (!showPicker) return null;
-
-  const handleConnect = (walletId: WalletProvider) => {
-    if (!walletId) return;
-    connect(walletId);
-  };
-
-  const getAvailability = (walletId: WalletProvider): { available: boolean; label: string } => {
-    if (!walletId) return { available: false, label: "" };
-    if (mobile) {
-      if (walletId === "phantom" && hasPhantomExtension()) return { available: true, label: "In-app browser" };
-      if (walletId === "metamask" && hasMetaMaskExtension()) return { available: true, label: "In-app browser" };
-      return { available: false, label: "Open mobile app" };
-    }
-    if (walletId === "phantom" && hasPhantomExtension()) return { available: true, label: "Extension detected" };
-    if (walletId === "metamask" && hasMetaMaskExtension()) return { available: true, label: "Extension detected" };
-    return { available: false, label: "Not installed" };
-  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center" data-testid="wallet-picker-overlay">
@@ -59,68 +33,22 @@ export function WalletPicker() {
           </button>
         </div>
 
-        <p className="text-xs text-muted-foreground font-mono">
-          {mobile
-            ? "Connect your mobile wallet to sign transactions"
-            : "Select a wallet to connect to SKYNT Protocol"}
-        </p>
-
-        {error && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-sm bg-red-500/10 border border-red-500/20 text-[10px] font-mono text-red-400 animate-in fade-in">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-            <span className="flex-1">{error}</span>
-            <button onClick={clearError} className="text-red-400/60 hover:text-red-400">✕</button>
-          </div>
-        )}
-
-        {mobile && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-sm bg-neon-cyan/5 border border-neon-cyan/20 text-[10px] font-mono text-neon-cyan">
-            <Smartphone className="w-3.5 h-3.5 shrink-0" />
-            Mobile detected — tap to open wallet app for signing
-          </div>
-        )}
-
-        <div className="space-y-2">
-          {WALLET_OPTIONS.map((wallet) => {
-            const status = getAvailability(wallet.id);
-            const showMobileSign = mobile && !status.available;
-            
-            return (
-              <button
-                key={wallet.id}
-                data-testid={`button-wallet-${wallet.id}`}
-                onClick={() => handleConnect(wallet.id)}
-                disabled={isConnecting}
-                className="w-full flex items-center gap-4 p-4 rounded-sm border border-border/40 bg-black/30 hover:bg-white/5 hover:border-white/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isConnecting ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground shrink-0" />
-                ) : (
-                  <span className="text-2xl shrink-0">{wallet.icon}</span>
-                )}
-                <div className="flex-1 text-left">
-                  <p className="font-heading text-sm tracking-wider" style={{ color: wallet.color }}>
-                    {showMobileSign ? `Open ${wallet.name} to Sign` : wallet.name}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                    {isConnecting ? "Connecting…" : showMobileSign ? "Sign to Connect" : mobile ? wallet.mobileDescription : wallet.description}
-                  </p>
-                  <div className="flex items-center gap-1 mt-1">
-                    <span className={`w-1.5 h-1.5 rounded-full ${status.available ? "bg-neon-green" : "bg-neon-orange"}`} />
-                    <span className="text-[9px] font-mono text-muted-foreground/70">{status.label}</span>
-                    {mobile && !status.available && <ExternalLink className="w-2.5 h-2.5 text-muted-foreground/50" />}
-                  </div>
-                </div>
-                <div className="w-2 h-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: wallet.color }} />
-              </button>
-            );
-          })}
+        <div data-testid="thirdweb-connect-picker" className="[&_button]:w-full">
+          <ConnectButton
+            client={thirdwebClient}
+            wallets={wallets}
+            chains={[ethereum, polygon, base]}
+            theme="dark"
+            connectModal={{
+              title: "SKYNT Protocol",
+              titleIcon: "",
+              size: "compact",
+            }}
+          />
         </div>
 
         <div className="text-center text-[9px] text-muted-foreground/50 font-mono pt-2">
-          {mobile
-            ? "Transactions require wallet app approval"
-            : "By connecting, you agree to SKYNT Protocol terms"}
+          By connecting, you agree to SKYNT Protocol terms
         </div>
       </div>
     </div>

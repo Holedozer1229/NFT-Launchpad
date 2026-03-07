@@ -4,7 +4,8 @@
 Multi-page NFT minting protocol application combining SphinxOS Oracle Minter with Cosmos Launchpad design. Features sidebar navigation, cosmic theme with neon accents, and user authentication.
 
 ## Recent Changes
-- **Mar 2026**: Fixed wallet sign-in gateway — EmbeddedWallet now performs real cryptographic signing (SIWE pattern: nonce request → personal_sign → backend verification) instead of simulated timeout. Supports both MetaMask (personal_sign) and Phantom (signMessage). Gateway shows authenticated state when user is signed in.
+- **Mar 2026**: Migrated wallet system to **Thirdweb SDK v5** — replaces MetaMask SDK + manual Phantom integration with Thirdweb's unified ConnectButton. Supports MetaMask, Phantom, Coinbase Wallet, Rainbow, and in-app wallet (email/social). Auto-links connected wallet address to user account via `/api/auth/link-wallet`. Wallet connection persists across sessions. Thirdweb client ID stored as `VITE_THIRDWEB_CLIENT_ID` env var.
+- **Mar 2026**: Fixed wallet sign-in gateway — wallet linking no longer replaces the user session. Already-authenticated users get their wallet address linked to their existing account instead of being logged out.
 - **Mar 2026**: IIT Engine continuous loop hardened — added graceful shutdown on SIGTERM/SIGINT, frontend polls every 10s with live "LOOP ACTIVE" status indicator and countdown to next refresh.
 - **Feb 2026**: Restructured from single-page to multi-page app with sidebar navigation
 - Added 6 pages: Dashboard, Mint NFT, Gallery, Analytics, Bridge, Admin
