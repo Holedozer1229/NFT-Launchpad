@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,12 +7,86 @@ import { Wallet, ShieldCheck, Loader2, CheckCircle2, AlertCircle, RefreshCw, Lin
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 
+function ConnectionPulse({ provider }: { provider: string | null }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const w = canvas.width = canvas.offsetWidth * 2;
+    const h = canvas.height = canvas.offsetHeight * 2;
+    ctx.scale(2, 2);
+    const cw = w / 4;
+    const ch = h / 4;
+
+    const color = provider === "phantom" ? [171, 159, 242] : [226, 118, 27];
+    let frame = 0;
+    const totalFrames = 60;
+    let raf: number;
+
+    const draw = () => {
+      frame++;
+      if (frame > totalFrames) return;
+      ctx.clearRect(0, 0, w, h);
+
+      const progress = frame / totalFrames;
+      const rings = 3;
+      for (let i = 0; i < rings; i++) {
+        const delay = i * 0.15;
+        const t = Math.max(0, Math.min(1, (progress - delay) / (1 - delay)));
+        if (t <= 0) continue;
+        const ease = 1 - Math.pow(1 - t, 3);
+        const radius = ease * Math.max(cw, ch) * 1.2;
+        const alpha = (1 - ease) * 0.4;
+        ctx.beginPath();
+        ctx.arc(cw, ch, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha})`;
+        ctx.lineWidth = 2 - ease * 1.5;
+        ctx.stroke();
+      }
+
+      const dotAlpha = progress < 0.3 ? progress / 0.3 : progress > 0.7 ? (1 - progress) / 0.3 : 1;
+      ctx.beginPath();
+      ctx.arc(cw, ch, 4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${dotAlpha * 0.8})`;
+      ctx.fill();
+
+      raf = requestAnimationFrame(draw);
+    };
+
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, [provider]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full pointer-events-none z-0"
+      style={{ opacity: 0.7 }}
+    />
+  );
+}
+
 export function EmbeddedWallet() {
   const { isConnected, address, balance, connect, disconnect, provider, chainName, error, clearError, refreshBalance, getEthereumProvider, getActivePhantomProvider } = useWallet();
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
+  const [showConnectAnim, setShowConnectAnim] = useState(false);
+  const prevConnected = useRef(false);
   const { toast } = useToast();
   const { loginWithWallet, user } = useAuth();
+
+  useEffect(() => {
+    if (isConnected && !prevConnected.current) {
+      setShowConnectAnim(true);
+      const timer = setTimeout(() => setShowConnectAnim(false), 1800);
+      return () => clearTimeout(timer);
+    }
+    prevConnected.current = isConnected;
+  }, [isConnected]);
 
   const handleVerify = async () => {
     if (!address || !provider) return;
@@ -88,24 +162,51 @@ export function EmbeddedWallet() {
     );
   }
 
+  const glowColor = provider === "phantom" ? "rgba(171,159,242," : "rgba(226,118,27,";
+
   return (
-    <Card className="sphinx-card bg-black/60 border-primary/20 backdrop-blur-xl">
-      <CardHeader className="pb-4">
+    <Card
+      className={`sphinx-card bg-black/60 backdrop-blur-xl relative overflow-hidden transition-all duration-700 ${
+        showConnectAnim
+          ? "border-primary/60 shadow-[0_0_30px_rgba(var(--primary-rgb),0.3)]"
+          : "border-primary/20"
+      }`}
+      style={showConnectAnim ? {
+        boxShadow: `0 0 24px ${glowColor}0.25), 0 0 48px ${glowColor}0.1)`,
+      } : undefined}
+      data-testid="card-wallet-connected"
+    >
+      {showConnectAnim && <ConnectionPulse provider={provider} />}
+
+      <CardHeader className="pb-4 relative z-10">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <ShieldCheck className={`w-5 h-5 ${isVerified ? 'text-green-500' : 'text-primary'}`} />
-            <CardTitle className="font-heading text-lg text-primary">IDENTITY_NODE</CardTitle>
+            <ShieldCheck className={`w-5 h-5 transition-colors duration-500 ${isVerified ? 'text-green-500' : showConnectAnim ? 'text-white' : 'text-primary'}`} />
+            <CardTitle className={`font-heading text-lg transition-colors duration-500 ${showConnectAnim ? 'text-white' : 'text-primary'}`}>
+              {showConnectAnim ? "LINKED" : "IDENTITY_NODE"}
+            </CardTitle>
           </div>
-          <Badge variant="outline" className={(isVerified || user) ? "border-green-500 text-green-500" : "border-primary text-primary"}>
-            {(isVerified || user) ? "VERIFIED" : "UNVERIFIED"}
+          <Badge
+            variant="outline"
+            className={`transition-all duration-500 ${
+              (isVerified || user)
+                ? "border-green-500 text-green-500"
+                : showConnectAnim
+                  ? "border-white/60 text-white animate-pulse"
+                  : "border-primary text-primary"
+            }`}
+          >
+            {showConnectAnim ? "CONNECTED" : (isVerified || user) ? "VERIFIED" : "UNVERIFIED"}
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="p-3 bg-black/40 border border-primary/10 rounded-sm space-y-2">
+      <CardContent className="space-y-4 relative z-10">
+        <div className={`p-3 bg-black/40 border rounded-sm space-y-2 transition-all duration-700 ${
+          showConnectAnim ? "border-primary/40" : "border-primary/10"
+        }`}>
           <div className="flex justify-between text-[10px] font-mono text-primary/60">
             <span className="flex items-center gap-1.5">
-              <span>{provider === "phantom" ? "👻" : "🦊"}</span>
+              <span className={showConnectAnim ? "animate-bounce" : ""}>{provider === "phantom" ? "👻" : "🦊"}</span>
               PUBLIC_ADDRESS
             </span>
             <span>{balance.toFixed(4)} {provider === "phantom" ? "SOL" : "ETH"}</span>
