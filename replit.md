@@ -47,6 +47,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
   - SpectralEntropyVerifier.sol: Custom errors, unchecked loop counters, cached IC length
   - pox-automation.clar: Fixed invalid API calls, added MIN-DELEGATION-AMOUNT, double-delegation prevention
 - Updated CONTRACT_DEFINITIONS gas ranges to reflect optimized contracts (~40% lower)
+- Added Starship Launches page (/starship): live countdown to next Starship flight, full IFT-1 through IFT-7 historic mission timeline, interactive mission detail panel, stats bar (flights/catches/upcoming), 5 special edition NFT packs (Genesis Ignition, Hot-Stage Separation, Orbital Reentry, Mechazilla Catch mythic, Next Frontier) with mint buttons, linked missions, SpaceDevs API for live upcoming flights
 - Updated SUPPORTED_CHAINS with accurate L2 gas estimates, added avgGasUnits field
 - Added BRIDGE_FEE_BPS/BRIDGE_FEE_PERCENT constants to schema
 - Moved Infura API key from hardcoded to VITE_INFURA_API_KEY env variable

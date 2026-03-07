@@ -209,6 +209,321 @@ export async function registerRoutes(
     }
   });
 
+  let starshipCache: { data: any; timestamp: number } | null = null;
+
+  app.get("/api/starship-launches", async (_req, res) => {
+    try {
+      const now = Date.now();
+      if (starshipCache && now - starshipCache.timestamp < SPACE_LAUNCHES_CACHE_TTL) {
+        return res.json(starshipCache.data);
+      }
+
+      const response = await fetch(
+        "https://ll.thespacedevs.com/2.0.0/launch/upcoming/?limit=20&search=starship"
+      );
+
+      let starshipLaunches: any[] = [];
+
+      if (response.ok) {
+        const data = await response.json();
+        starshipLaunches = data.results
+          .filter((l: any) => {
+            const name = (l.name || "").toLowerCase();
+            const rocket = (l.rocket?.configuration?.name || "").toLowerCase();
+            return name.includes("starship") || rocket.includes("starship") || name.includes("ift");
+          })
+          .map((l: any) => ({
+            id: l.id,
+            name: l.name,
+            net: l.net,
+            status: l.status?.name || "Unknown",
+            statusAbbrev: l.status?.abbrev || "UNK",
+            provider: l.launch_service_provider?.name || "SpaceX",
+            rocket: l.rocket?.configuration?.name || "Starship",
+            pad: l.pad?.name || "Unknown",
+            location: l.pad?.location?.name || "Starbase, TX, USA",
+            image: l.image || null,
+            missionName: l.mission?.name || l.name?.split("|")?.[1]?.trim() || "Starship Test Flight",
+            missionDescription: l.mission?.description || null,
+            missionType: l.mission?.type || "Test Flight",
+            orbit: l.mission?.orbit?.name || null,
+            webcastLive: l.webcast_live || false,
+            windowStart: l.window_start || l.net,
+            windowEnd: l.window_end || null,
+            probability: l.probability ?? null,
+          }));
+      }
+
+      const historicStarshipMissions = [
+        {
+          id: "starship-ift-1",
+          name: "Starship | Integrated Flight Test 1",
+          net: "2023-04-20T13:33:00Z",
+          status: "Launched",
+          statusAbbrev: "SUC",
+          provider: "SpaceX",
+          rocket: "Starship",
+          pad: "Orbital Launch Pad A",
+          location: "Starbase, TX, USA",
+          image: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+          missionName: "Integrated Flight Test 1",
+          missionDescription: "First integrated flight test of SpaceX's Starship rocket. The vehicle cleared the launch pad but experienced multiple engine failures during ascent and was destroyed by the automated flight termination system approximately 4 minutes after liftoff.",
+          missionType: "Test Flight",
+          orbit: "Suborbital",
+          webcastLive: false,
+          windowStart: "2023-04-20T13:33:00Z",
+          windowEnd: null,
+          probability: null,
+          historic: true,
+          outcome: "partial",
+        },
+        {
+          id: "starship-ift-2",
+          name: "Starship | Integrated Flight Test 2",
+          net: "2023-11-18T13:03:00Z",
+          status: "Launched",
+          statusAbbrev: "SUC",
+          provider: "SpaceX",
+          rocket: "Starship",
+          pad: "Orbital Launch Pad A",
+          location: "Starbase, TX, USA",
+          image: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+          missionName: "Integrated Flight Test 2",
+          missionDescription: "Second integrated flight test. Starship achieved stage separation for the first time. The Super Heavy booster experienced a rapid unscheduled disassembly shortly after separation. The Starship upper stage continued to fly but was lost during its burn.",
+          missionType: "Test Flight",
+          orbit: "Suborbital",
+          webcastLive: false,
+          windowStart: "2023-11-18T13:03:00Z",
+          windowEnd: null,
+          probability: null,
+          historic: true,
+          outcome: "partial",
+        },
+        {
+          id: "starship-ift-3",
+          name: "Starship | Integrated Flight Test 3",
+          net: "2024-03-14T13:25:00Z",
+          status: "Launched",
+          statusAbbrev: "SUC",
+          provider: "SpaceX",
+          rocket: "Starship",
+          pad: "Orbital Launch Pad A",
+          location: "Starbase, TX, USA",
+          image: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+          missionName: "Integrated Flight Test 3",
+          missionDescription: "Third flight test achieved major milestones: successful stage separation, Super Heavy booster boostback burn, Starship coasted through most of its planned trajectory, and demonstrated in-space engine relight and propellant transfer. Both vehicles were lost during reentry.",
+          missionType: "Test Flight",
+          orbit: "Low Earth Orbit",
+          webcastLive: false,
+          windowStart: "2024-03-14T13:25:00Z",
+          windowEnd: null,
+          probability: null,
+          historic: true,
+          outcome: "partial",
+        },
+        {
+          id: "starship-ift-4",
+          name: "Starship | Integrated Flight Test 4",
+          net: "2024-06-06T12:50:00Z",
+          status: "Launched",
+          statusAbbrev: "SUC",
+          provider: "SpaceX",
+          rocket: "Starship",
+          pad: "Orbital Launch Pad A",
+          location: "Starbase, TX, USA",
+          image: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+          missionName: "Integrated Flight Test 4",
+          missionDescription: "Fourth flight achieved all primary objectives: successful booster soft splashdown in the Gulf of Mexico and Starship survived reentry heating, demonstrating controlled flight through the atmosphere before a soft splashdown in the Indian Ocean.",
+          missionType: "Test Flight",
+          orbit: "Low Earth Orbit",
+          webcastLive: false,
+          windowStart: "2024-06-06T12:50:00Z",
+          windowEnd: null,
+          probability: null,
+          historic: true,
+          outcome: "success",
+        },
+        {
+          id: "starship-ift-5",
+          name: "Starship | Integrated Flight Test 5",
+          net: "2024-10-13T12:25:00Z",
+          status: "Launched",
+          statusAbbrev: "SUC",
+          provider: "SpaceX",
+          rocket: "Starship",
+          pad: "Orbital Launch Pad A",
+          location: "Starbase, TX, USA",
+          image: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+          missionName: "Integrated Flight Test 5",
+          missionDescription: "Historic fifth flight test: first-ever booster catch using the Mechazilla tower chopstick arms at Starbase. Super Heavy booster returned to the launch site and was caught mid-air. Starship upper stage completed a controlled splashdown in the Indian Ocean.",
+          missionType: "Test Flight",
+          orbit: "Low Earth Orbit",
+          webcastLive: false,
+          windowStart: "2024-10-13T12:25:00Z",
+          windowEnd: null,
+          probability: null,
+          historic: true,
+          outcome: "success",
+        },
+        {
+          id: "starship-ift-6",
+          name: "Starship | Integrated Flight Test 6",
+          net: "2025-01-16T22:37:00Z",
+          status: "Launched",
+          statusAbbrev: "SUC",
+          provider: "SpaceX",
+          rocket: "Starship",
+          pad: "Orbital Launch Pad A",
+          location: "Starbase, TX, USA",
+          image: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+          missionName: "Integrated Flight Test 6",
+          missionDescription: "Sixth flight test attempted second booster catch but aborted due to off-nominal conditions and diverted to Gulf splashdown. Starship upper stage reached orbit but was lost during reentry over the Indian Ocean, with debris scattered.",
+          missionType: "Test Flight",
+          orbit: "Low Earth Orbit",
+          webcastLive: false,
+          windowStart: "2025-01-16T22:37:00Z",
+          windowEnd: null,
+          probability: null,
+          historic: true,
+          outcome: "partial",
+        },
+        {
+          id: "starship-ift-7",
+          name: "Starship | Integrated Flight Test 7",
+          net: "2025-04-13T00:00:00Z",
+          status: "Launched",
+          statusAbbrev: "SUC",
+          provider: "SpaceX",
+          rocket: "Starship",
+          pad: "Orbital Launch Pad A",
+          location: "Starbase, TX, USA",
+          image: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+          missionName: "Integrated Flight Test 7",
+          missionDescription: "Seventh flight test with major upgrades. Featured next-generation heat shield tiles, improved Raptor engines, and demonstrated multiple mission objectives including payload deployment simulation.",
+          missionType: "Test Flight",
+          orbit: "Low Earth Orbit",
+          webcastLive: false,
+          windowStart: "2025-04-13T00:00:00Z",
+          windowEnd: null,
+          probability: null,
+          historic: true,
+          outcome: "success",
+        },
+      ];
+
+      const allLaunches = [...starshipLaunches, ...historicStarshipMissions];
+      allLaunches.sort((a, b) => new Date(b.net).getTime() - new Date(a.net).getTime());
+
+      const nftPacks = [
+        {
+          id: "pack-genesis",
+          name: "Genesis Ignition Pack",
+          description: "Commemorating the first-ever Starship integrated flight test. Features rare imagery of the historic launch pad departure and flight termination moment.",
+          tier: "legendary",
+          price: "1.0 ETH",
+          supply: 3,
+          minted: 1,
+          linkedMissionId: "starship-ift-1",
+          items: [
+            { rarity: "legendary", title: "IFT-1 Launch Pad Departure", type: "artifact" },
+            { rarity: "rare", title: "Raptor Engine Cluster Array", type: "schematic" },
+            { rarity: "rare", title: "Flight Termination Signal", type: "data-fragment" },
+            { rarity: "common", title: "Starbase Ground Crew Badge", type: "badge" },
+          ],
+          image: "/assets/sphinx-eye.png",
+        },
+        {
+          id: "pack-separation",
+          name: "Hot-Stage Separation Pack",
+          description: "Celebrating the first successful Starship stage separation. Includes artifacts from the revolutionary hot-staging maneuver that changed rocketry forever.",
+          tier: "legendary",
+          price: "1.0 ETH",
+          supply: 3,
+          minted: 0,
+          linkedMissionId: "starship-ift-2",
+          items: [
+            { rarity: "legendary", title: "Hot-Stage Separation Moment", type: "artifact" },
+            { rarity: "rare", title: "Super Heavy Booster Blueprint", type: "schematic" },
+            { rarity: "rare", title: "Stage Separation Telemetry", type: "data-fragment" },
+            { rarity: "common", title: "Mission Control Patch", type: "badge" },
+          ],
+          image: "/assets/rocket-launch.png",
+        },
+        {
+          id: "pack-reentry",
+          name: "Orbital Reentry Pack",
+          description: "Marking Starship's first successful orbital reentry and controlled splashdown. Features the iconic plasma trail and heat shield survival data.",
+          tier: "legendary",
+          price: "1.0 ETH",
+          supply: 3,
+          minted: 0,
+          linkedMissionId: "starship-ift-4",
+          items: [
+            { rarity: "legendary", title: "Plasma Reentry Trail", type: "artifact" },
+            { rarity: "rare", title: "Heat Shield Tile Matrix", type: "schematic" },
+            { rarity: "rare", title: "Indian Ocean Splashdown Coordinates", type: "data-fragment" },
+            { rarity: "common", title: "Reentry Survival Certificate", type: "badge" },
+          ],
+          image: "/assets/quantum-tunnel.png",
+        },
+        {
+          id: "pack-mechazilla",
+          name: "Mechazilla Catch Pack",
+          description: "The crown jewel: commemorating the first-ever rocket booster catch by the Mechazilla tower arms. The moment that made the impossible real.",
+          tier: "mythic",
+          price: "100 ETH",
+          supply: 1,
+          minted: 0,
+          linkedMissionId: "starship-ift-5",
+          items: [
+            { rarity: "mythic", title: "Mechazilla Catch — The Impossible Moment", type: "artifact" },
+            { rarity: "legendary", title: "Chopstick Arms Engineering Blueprint", type: "schematic" },
+            { rarity: "legendary", title: "Tower Catch Telemetry Stream", type: "data-fragment" },
+            { rarity: "rare", title: "Starbase Tower Operator Badge", type: "badge" },
+            { rarity: "rare", title: "Booster Return Trajectory Map", type: "schematic" },
+          ],
+          image: "/assets/sphinx-eye.png",
+        },
+        {
+          id: "pack-next-flight",
+          name: "Next Frontier Pack",
+          description: "Reserved for the next upcoming Starship flight. This pack will be fully revealed at T-24h before launch with exclusive pre-flight artifacts.",
+          tier: "legendary",
+          price: "1.0 ETH",
+          supply: 5,
+          minted: 0,
+          linkedMissionId: starshipLaunches[0]?.id || null,
+          items: [
+            { rarity: "legendary", title: "Pre-Flight Mission Briefing", type: "artifact" },
+            { rarity: "rare", title: "Launch Window Calculation", type: "data-fragment" },
+            { rarity: "rare", title: "Vehicle Assembly Timelapse", type: "schematic" },
+            { rarity: "common", title: "Launch Viewer Access Pass", type: "badge" },
+          ],
+          image: "/assets/forge-hud.png",
+        },
+      ];
+
+      const result = {
+        upcoming: starshipLaunches,
+        historic: historicStarshipMissions,
+        all: allLaunches,
+        nftPacks,
+        stats: {
+          totalFlights: historicStarshipMissions.length,
+          successfulCatches: historicStarshipMissions.filter((m: any) => m.outcome === "success" && m.id === "starship-ift-5").length,
+          upcomingCount: starshipLaunches.length,
+        },
+      };
+
+      starshipCache = { data: result, timestamp: now };
+      res.json(result);
+    } catch (error) {
+      console.error("Starship launches fetch error:", error);
+      if (starshipCache) return res.json(starshipCache.data);
+      res.status(500).json({ message: "Failed to fetch Starship launch data" });
+    }
+  });
+
   app.get("/api/oracle", async (req, res) => {
     try {
       const gridSize = 20;

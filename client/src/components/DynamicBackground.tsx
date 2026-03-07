@@ -12,6 +12,7 @@ const ROUTE_THEMES: Record<string, string> = {
   "/iit": "bg-theme-iit",
   "/serpent": "bg-theme-serpent",
   "/wallet": "bg-theme-wallet",
+  "/starship": "bg-theme-starship",
   "/admin": "bg-theme-admin",
 };
 
@@ -26,6 +27,7 @@ const ROUTE_COLORS: Record<string, [string, string, string]> = {
   "/iit": ["hsl(280 100% 60%)", "hsl(185 100% 50%)", "hsl(300 100% 60%)"],
   "/serpent": ["hsl(145 100% 50%)", "hsl(0 100% 60%)", "hsl(280 100% 60%)"],
   "/wallet": ["hsl(185 100% 50%)", "hsl(45 100% 50%)", "hsl(145 100% 50%)"],
+  "/starship": ["hsl(30 100% 55%)", "hsl(45 100% 50%)", "hsl(0 100% 60%)"],
   "/admin": ["hsl(0 100% 60%)", "hsl(30 100% 55%)", "hsl(210 100% 55%)"],
 };
 

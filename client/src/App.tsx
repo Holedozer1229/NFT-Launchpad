@@ -16,6 +16,7 @@ import Admin from "@/pages/Admin";
 import Marketplace from "@/pages/Marketplace";
 import OmegaSerpent from "@/pages/OmegaSerpent";
 import WalletPage from "@/pages/WalletPage";
+import StarshipLaunches from "@/pages/StarshipLaunches";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/not-found";
 import SphinxOracle from "@/components/SphinxOracle";
@@ -69,6 +70,7 @@ function AppRouter() {
           <Route path="/yield" component={YieldGenerator} />
           <Route path="/iit" component={IITConsciousness} />
           <Route path="/serpent" component={OmegaSerpent} />
+          <Route path="/starship" component={StarshipLaunches} />
           <Route path="/wallet" component={WalletPage} />
           <Route path="/admin" component={AdminGuard} />
           <Route component={NotFound} />
