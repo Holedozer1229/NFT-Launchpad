@@ -355,6 +355,39 @@ export function setupAuth(app: Express) {
     }
   });
 
+  app.post("/api/auth/link-wallet", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Must be logged in to link a wallet" });
+      }
+
+      const { address } = req.body;
+      if (!address || typeof address !== "string") {
+        return res.status(400).json({ message: "Wallet address is required" });
+      }
+
+      const normalized = address.trim();
+      if (!/^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/.test(normalized)) {
+        return res.status(400).json({ message: "Invalid wallet address format" });
+      }
+
+      const existingOwner = await storage.getUserByWalletAddress(normalized);
+      if (existingOwner && existingOwner.id !== req.user.id) {
+        return res.status(409).json({ message: "This wallet is already linked to another account" });
+      }
+
+      await db.update(users)
+        .set({ walletAddress: normalized })
+        .where(eq(users.id, req.user.id));
+
+      const updatedUser = await storage.getUser(req.user.id);
+      const { password: _, ...safeUser } = updatedUser!;
+      res.json(safeUser);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post("/api/logout", (req, res, next) => {
     const userId = req.user?.id;
     req.logout((err: any) => {

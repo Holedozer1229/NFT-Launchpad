@@ -27,16 +27,16 @@ const SESSION_KEY = "skynt_wallet_session";
 function saveSession(provider: WalletProvider, address: string | null) {
   try {
     if (provider && address) {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ provider, address }));
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ provider, address }));
     } else {
-      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SESSION_KEY);
     }
   } catch { /* storage unavailable */ }
 }
 
 function loadSession(): { provider: WalletProvider; address: string } | null {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    const raw = localStorage.getItem(SESSION_KEY);
     if (raw) return JSON.parse(raw);
   } catch { /* storage unavailable */ }
   return null;
