@@ -1,7 +1,4 @@
 import { create } from 'zustand';
-import { useActiveAccount, useActiveWallet, useDisconnect, useConnect } from "thirdweb/react";
-import { createWallet } from "thirdweb/wallets";
-import { thirdwebClient } from "./thirdweb";
 
 export type WalletProvider = "metamask" | "phantom" | null;
 
@@ -18,98 +15,6 @@ export const useWalletStore = create<WalletState>((set) => ({
   error: null,
   clearError: () => set({ error: null }),
 }));
-
-export function useWallet() {
-  const account = useActiveAccount();
-  const wallet = useActiveWallet();
-  const { connect: twConnect, isConnecting } = useConnect();
-  const { disconnect: twDisconnect } = useDisconnect();
-  const { showPicker, setShowPicker, error, clearError } = useWalletStore();
-
-  const isConnected = !!account;
-  const address = account?.address ?? null;
-
-  let provider: WalletProvider = null;
-  if (wallet) {
-    const wid = wallet.id;
-    if (wid === "io.metamask" || wid === "injected") provider = "metamask";
-    else if (wid === "app.phantom") provider = "phantom";
-    else provider = "metamask";
-  }
-
-  const chainName = null;
-  const chainId = null;
-  const balance = 0;
-
-  const connect = async (walletProvider?: WalletProvider) => {
-    if (!walletProvider) {
-      setShowPicker(true);
-      return;
-    }
-
-    try {
-      useWalletStore.setState({ error: null });
-      if (walletProvider === "metamask") {
-        const w = createWallet("io.metamask");
-        await twConnect(async () => {
-          await w.connect({ client: thirdwebClient });
-          return w;
-        });
-      } else if (walletProvider === "phantom") {
-        const w = createWallet("app.phantom");
-        await twConnect(async () => {
-          await w.connect({ client: thirdwebClient });
-          return w;
-        });
-      }
-    } catch (err: any) {
-      const message = err instanceof Error ? err.message : "Connection failed";
-      console.error(`${walletProvider} connection failed`, err);
-      useWalletStore.setState({ error: `${walletProvider === "metamask" ? "MetaMask" : "Phantom"}: ${message}` });
-    }
-  };
-
-  const disconnect = () => {
-    if (wallet) {
-      twDisconnect(wallet);
-    }
-  };
-
-  const refreshBalance = async () => {};
-
-  const getEthereumProvider = () => {
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      return (window as any).ethereum;
-    }
-    return null;
-  };
-
-  const getActivePhantomProvider = () => {
-    if (typeof window !== "undefined" && (window as any).phantom?.solana) {
-      return (window as any).phantom.solana;
-    }
-    return null;
-  };
-
-  return {
-    isConnected,
-    address,
-    balance,
-    isConnecting,
-    provider,
-    chainId,
-    chainName,
-    error,
-    showPicker,
-    setShowPicker,
-    connect,
-    disconnect,
-    refreshBalance,
-    clearError,
-    getEthereumProvider,
-    getActivePhantomProvider,
-  };
-}
 
 export interface LaunchMission {
   id: string;

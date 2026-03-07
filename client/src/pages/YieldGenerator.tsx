@@ -1,8 +1,12 @@
 import { useState, useEffect } from "react";
 import { TrendingUp, Lock, Unlock, Wallet, Coins, Percent, Clock, Zap, Shield, Gift, ArrowRight, Activity, CheckCircle, Fingerprint, Gauge, Loader2 } from "lucide-react";
 import MoltbotPortal from "@/components/MoltbotPortal";
-import { useWallet } from "@/lib/mock-web3";
+import { useActiveAccount, ConnectButton } from "thirdweb/react";
+import { createWallet, inAppWallet } from "thirdweb/wallets";
+import { ethereum, polygon, base } from "thirdweb/chains";
+import { thirdwebClient } from "@/lib/thirdweb";
 import { useQuery } from "@tanstack/react-query";
+import { Progress } from "@/components/ui/progress";
 
 interface StrategyData {
   id: number;
@@ -54,7 +58,9 @@ function calculateTreasuryRate(phi: number): number {
 }
 
 export default function YieldGenerator() {
-  const { isConnected, address, connect, isConnecting } = useWallet();
+  const account = useActiveAccount();
+  const isConnected = !!account;
+  const address = account?.address ?? null;
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
   const [stakeAmount, setStakeAmount] = useState("");
   const [staking, setStaking] = useState(false);
@@ -79,6 +85,21 @@ export default function YieldGenerator() {
   const phiBoost = phiBoostData?.phiBoost ?? calculatePhiBoost(phiTotal);
   const treasuryRate = calculateTreasuryRate(phiTotal);
   const projectedAPRMultiplier = 1 + qgScore * 0.15;
+
+  const { data: yieldStats } = useQuery<{
+    strategies: StrategyData[];
+    wallet: WalletData;
+    totalStaked: number;
+  }>({
+    queryKey: ["/api/yield/stats", address],
+    enabled: isConnected,
+  });
+
+  const strategies = yieldStats?.strategies ?? [];
+  const strategiesLoading = isConnected && !yieldStats;
+  const skyntBalance = yieldStats?.wallet?.balanceSkynt ?? "0";
+  const totalStaked = yieldStats?.totalStaked ?? 0;
+  const zkVerified = true;
 
   const handleStake = async () => {
     if (!stakeAmount || parseFloat(stakeAmount) <= 0) return;
@@ -122,14 +143,24 @@ export default function YieldGenerator() {
           <Wallet className="w-10 h-10 text-neon-magenta mx-auto" />
           <p className="text-sm font-heading">Connect Wallet to Start Earning</p>
           <p className="text-xs text-muted-foreground">Link your wallet to stake SKYNT and generate yield via the SphinxYieldAggregator.</p>
-          <button
-            data-testid="button-yield-connect"
-            onClick={() => connect()}
-            disabled={isConnecting}
-            className="connect-wallet-btn px-6 py-2.5 rounded-sm font-heading text-sm tracking-wider mx-auto"
-          >
-            {isConnecting ? "Connecting..." : "Connect Wallet"}
-          </button>
+          <div className="flex justify-center" data-testid="container-yield-connect">
+            <ConnectButton
+              client={thirdwebClient}
+              wallets={[
+                createWallet("io.metamask"),
+                createWallet("app.phantom"),
+                createWallet("com.coinbase.wallet"),
+                inAppWallet()
+              ]}
+              chains={[ethereum, polygon, base]}
+              theme="dark"
+              connectButton={{
+                label: "Connect Wallet to Start",
+                style: { fontFamily: "monospace", fontSize: "12px" }
+              }}
+              connectModal={{ title: "SKYNT Protocol", size: "compact" }}
+            />
+          </div>
         </div>
       )}
 

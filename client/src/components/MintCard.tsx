@@ -3,9 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { useWallet } from "@/lib/mock-web3";
+import { useActiveAccount, ConnectButton } from "thirdweb/react";
+import { createWallet, inAppWallet } from "thirdweb/wallets";
+import { ethereum, polygon, base } from "thirdweb/chains";
+import { thirdwebClient } from "@/lib/thirdweb";
+import { useWalletStore } from "@/lib/mock-web3";
 import { Launch, RARITY_TIERS, RarityTier, SUPPORTED_CHAINS, ChainId, SKYNT_CONTRACT_ADDRESS } from "@shared/schema";
-import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink, ShoppingBag, Server } from "lucide-react";
+import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink, ShoppingBag, Server, Shield } from "lucide-react";
 import { TermsGate } from "./TermsGate";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -28,7 +32,10 @@ const RARITY_ICONS: Record<RarityTier, typeof Crown> = {
 const RARITY_ORDER: RarityTier[] = ["mythic", "legendary", "rare", "common"];
 
 export function MintCard({ mission }: MintCardProps) {
-  const { isConnected, connect, address } = useWallet();
+  const account = useActiveAccount();
+  const isConnected = !!account;
+  const address = account?.address ?? null;
+  const { setShowPicker } = useWalletStore();
   const [isMinting, setIsMinting] = useState(false);
   const [selectedRarity, setSelectedRarity] = useState<RarityTier>("common");
   const [selectedChain, setSelectedChain] = useState<ChainId>("ethereum");
@@ -62,7 +69,7 @@ export function MintCard({ mission }: MintCardProps) {
 
   const handleMintClick = () => {
     if (!isConnected) {
-      connect();
+      setShowPicker(true);
       return;
     }
     const tier = RARITY_TIERS[selectedRarity];
@@ -444,13 +451,30 @@ export function MintCard({ mission }: MintCardProps) {
                 </div>
               </div>
             ) : (
-              <Button
-                data-testid="button-connect"
-                className="w-full text-lg py-7 font-heading font-bold bg-transparent border border-primary text-primary hover:bg-primary hover:text-black transition-all hover:shadow-[0_0_15px_rgba(255,215,0,0.3)]"
-                onClick={() => connect()}
-              >
-                CONNECT TERMINAL
-              </Button>
+              <ConnectButton
+                client={thirdwebClient}
+                wallets={[
+                  createWallet("io.metamask"),
+                  createWallet("app.phantom"),
+                  createWallet("com.coinbase.wallet"),
+                  inAppWallet()
+                ]}
+                chains={[ethereum, polygon, base]}
+                theme="dark"
+                connectButton={{
+                  label: "CONNECT TERMINAL",
+                  className: "w-full text-lg py-7 font-heading font-bold bg-transparent border border-primary text-primary hover:bg-primary hover:text-black transition-all hover:shadow-[0_0_15px_rgba(255,215,0,0.3)]",
+                  style: {
+                    width: "100%",
+                    height: "auto",
+                    padding: "1.75rem",
+                    fontSize: "1.125rem",
+                    lineHeight: "1.75rem",
+                    borderWidth: "1px",
+                  }
+                }}
+                connectModal={{ title: "SKYNT Protocol", size: "compact" }}
+              />
             )}
           </CardFooter>
         </Card>

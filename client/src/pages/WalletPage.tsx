@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, ExternalLink, Coins, Clock, Shield, ChevronDown, Fingerprint, AlertTriangle, Smartphone, Lock } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useWallet } from "@/lib/mock-web3";
+import { useActiveAccount, useActiveWallet, useConnect, ConnectButton } from "thirdweb/react";
+import { createWallet, inAppWallet } from "thirdweb/wallets";
+import { ethereum, polygon, base } from "thirdweb/chains";
+import { thirdwebClient } from "@/lib/thirdweb";
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
 import { usePrices } from "@/hooks/use-prices";
 
@@ -38,7 +41,15 @@ const TOKEN_OPTIONS = [
 export default function WalletPage() {
   const { user } = useAuth();
   const { data: prices } = usePrices();
-  const { isConnected: externalWalletConnected, address: externalAddress, provider: externalProvider, connect: connectExternal } = useWallet();
+  
+  const externalAccount = useActiveAccount();
+  const externalWallet = useActiveWallet();
+  const { connect: twConnect, isConnecting: isExternalConnecting } = useConnect();
+  
+  const externalWalletConnected = !!externalAccount;
+  const externalAddress = externalAccount?.address ?? null;
+  const externalProvider = externalWallet ? (externalWallet.id === "app.phantom" ? "phantom" : "metamask") : null;
+
   const mobile = isMobileDevice();
   const [wallets, setWallets] = useState<SphinxWallet[]>([]);
   const [activeWallet, setActiveWallet] = useState<SphinxWallet | null>(null);
@@ -519,26 +530,22 @@ export default function WalletPage() {
                       You can connect an external wallet for additional signing security, but it is not required for in-app transfers.
                     </p>
                     <div className="flex gap-2">
-                      <button
-                        data-testid="button-connect-metamask-optional"
-                        onClick={() => {
-                          if (mobile) { openWalletApp("metamask"); return; }
-                          connectExternal("metamask");
+                      <ConnectButton
+                        client={thirdwebClient}
+                        wallets={[
+                          createWallet("io.metamask"),
+                          createWallet("app.phantom"),
+                          createWallet("com.coinbase.wallet"),
+                          inAppWallet(),
+                        ]}
+                        chains={[ethereum, polygon, base]}
+                        theme="dark"
+                        connectButton={{
+                          label: "Connect External Wallet",
+                          className: "flex-1 py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider flex items-center justify-center gap-2 border border-white/10 bg-white/5 hover:bg-white/10 transition-colors",
                         }}
-                        className="flex-1 py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider flex items-center justify-center gap-2 border border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
-                      >
-                        🦊 MetaMask
-                      </button>
-                      <button
-                        data-testid="button-connect-phantom-optional"
-                        onClick={() => {
-                          if (mobile) { openWalletApp("phantom"); return; }
-                          connectExternal("phantom");
-                        }}
-                        className="flex-1 py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider flex items-center justify-center gap-2 border border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
-                      >
-                        👻 Phantom
-                      </button>
+                        connectModal={{ title: "Connect Wallet", size: "compact" }}
+                      />
                     </div>
                   </div>
                 )}
