@@ -97,6 +97,15 @@ const PLAYER_COLOR = "hsl(120,100%,55%)";
 interface Seg { x: number; y: number; }
 interface Dir { dx: number; dy: number; }
 
+type Rarity = "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
+
+const RARITY_COLORS: Record<Rarity, string> = {
+  COMMON: "#C8C8C8",
+  RARE: "#6496FF",
+  EPIC: "#FF64FF",
+  LEGENDARY: "#FFD700",
+};
+
 interface Snake {
   segments: Seg[];
   direction: Dir;
@@ -110,6 +119,7 @@ interface Treasure {
   chain: Chain;
   value: number;
   type: "normal" | "golden" | "skull";
+  rarity?: Rarity;
 }
 
 type GameState = "menu" | "playing" | "gameover";
@@ -128,10 +138,40 @@ function spawnTreasure(snakes: Snake[], existing: Treasure[]): Treasure {
     x = Math.floor(Math.random() * GRID_W);
     y = Math.floor(Math.random() * GRID_H);
   } while (occ.has(`${x},${y}`));
+
   const roll = Math.random();
-  const type = roll < 0.08 ? "skull" : roll < 0.2 ? "golden" : "normal";
-  const value = type === "golden" ? 5 : type === "skull" ? -3 : Math.floor(Math.random() * 3) + 1;
-  return { x, y, chain: CHAINS[Math.floor(Math.random() * 3)], value, type };
+  const chain = CHAINS[Math.floor(Math.random() * 3)];
+
+  if (roll < 0.08) {
+    return { x, y, chain, value: -3, type: "skull" };
+  }
+
+  // Rarity roll for non-skulls
+  const rarityRoll = Math.random();
+  let rarity: Rarity = "COMMON";
+  let baseValue = 1;
+
+  if (rarityRoll < 0.05) {
+    rarity = "LEGENDARY";
+    baseValue = Math.floor(Math.random() * 6) + 10; // 10-15
+  } else if (rarityRoll < 0.20) {
+    rarity = "EPIC";
+    baseValue = Math.floor(Math.random() * 3) + 5; // 5-7
+  } else if (rarityRoll < 0.50) {
+    rarity = "RARE";
+    baseValue = Math.floor(Math.random() * 2) + 3; // 3-4
+  } else {
+    rarity = "COMMON";
+    baseValue = Math.floor(Math.random() * 2) + 1; // 1-2
+  }
+
+  return {
+    x, y,
+    chain,
+    value: baseValue,
+    type: rarity === "LEGENDARY" ? "golden" : "normal",
+    rarity
+  };
 }
 
 function createAISnake(chain: Chain, startY: number): Snake {
@@ -206,12 +246,17 @@ export default function OmegaSerpent() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [shakeOffset, setShakeOffset] = useState({ x: 0, y: 0 });
   const [combo, setCombo] = useState(0);
+  const [eprPairs, setEprPairs] = useState(0);
+  const [wormholesActive, setWormholesActive] = useState(0);
+  const [blockHeight, setBlockHeight] = useState(0);
+  const [difficulty, setDifficulty] = useState(1.0);
+  const [phi, setPhi] = useState(0);
   const lastCollectTickRef = useRef(-999);
   const starsRef = useRef<Star[]>(createStars(120));
 
-  const stateRef = useRef({ player, aiSnakes, treasures, score, ergotropy, berryPhase, treasuresCollected, milestones, superMilestones, survivalTicks, lives, tick });
+  const stateRef = useRef({ player, aiSnakes, treasures, score, ergotropy, berryPhase, treasuresCollected, milestones, superMilestones, survivalTicks, lives, tick, phi, wormholesActive });
   useEffect(() => {
-    stateRef.current = { player, aiSnakes, treasures, score, ergotropy, berryPhase, treasuresCollected, milestones, superMilestones, survivalTicks, lives, tick };
+    stateRef.current = { player, aiSnakes, treasures, score, ergotropy, berryPhase, treasuresCollected, milestones, superMilestones, survivalTicks, lives, tick, phi, wormholesActive };
   });
 
   useEffect(() => {
@@ -238,6 +283,20 @@ export default function OmegaSerpent() {
   const { data: myScores } = useQuery<any[]>({
     queryKey: ["/api/game/scores"],
   });
+
+  const { data: quantumState } = useQuery<{ phi: number; blockHeight: number; difficulty: number }>({
+    queryKey: ["/api/game/quantum-state"],
+    enabled: gameState === "playing",
+  });
+
+  useEffect(() => {
+    if (quantumState) {
+      setPhi(quantumState.phi);
+      // We start from current block height but increment locally for game pace if needed, 
+      // but task says every 10s increment local blockHeight.
+      setBlockHeight(quantumState.blockHeight);
+    }
+  }, [quantumState]);
 
   const saveScoreMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -305,6 +364,10 @@ export default function OmegaSerpent() {
     setEventLog([]);
     setTick(0);
     setLives(3);
+    setEprPairs(0);
+    setWormholesActive(0);
+    setBlockHeight(0);
+    setDifficulty(1.0);
     setShowLeaderboard(false);
     setShowRewards(false);
     setParticles([]);
@@ -345,7 +408,26 @@ export default function OmegaSerpent() {
   useEffect(() => {
     if (gameState !== "playing") return;
     const loop = setInterval(() => {
-      setTick(t => t + 1);
+      setTick(t => {
+        const nextTick = t + 1;
+        // Mining simulation: every 10 seconds (83 ticks @ 120ms)
+        if (nextTick % 83 === 0) {
+          setBlockHeight(bh => bh + 1);
+        }
+
+        // Wormhole collapse: 0.5% chance per tick
+        if (Math.random() < 0.005) {
+          setWormholesActive(wa => {
+            if (wa > 0) {
+              addEvent("🌀 WORMHOLE COLLAPSED");
+              return wa - 1;
+            }
+            return wa;
+          });
+        }
+
+        return nextTick;
+      });
       setSurvivalTicks(t => t + 1);
 
       // Update particles
@@ -428,11 +510,24 @@ export default function OmegaSerpent() {
                 const rect = canvas.getBoundingClientRect();
                 const cW = rect.width / GRID_W;
                 const cH = rect.height / GRID_H;
-                const pColor = t.type === "golden" ? "hsl(50,100%,60%)" : CHAIN_COLORS[t.chain];
+                const pColor = t.rarity ? RARITY_COLORS[t.rarity] : (t.type === "golden" ? "hsl(50,100%,60%)" : CHAIN_COLORS[t.chain]);
                 setParticles(prev => [...prev, ...spawnParticles(nx * cW + cW / 2, ny * cH + cH / 2, pColor, t.type === "golden" ? 18 : 8)]);
               }
-              const points = t.type === "golden" ? t.value * 20 : t.value * 10;
+
+              // IIT Phi bonus: points *= (1 + phi * 0.3)
+              // Wormhole bonus: value *= (1 + 0.1 * wormholesActive)
+              const basePoints = t.type === "golden" ? t.value * 20 : t.value * 10;
+              const wormholeMult = 1 + 0.1 * stateRef.current.wormholesActive;
+              const phiMult = 1 + stateRef.current.phi * 0.3;
+              const points = Math.floor(basePoints * wormholeMult * phiMult);
+
               setScore(s => s + points);
+              setDifficulty(d => d * (1 + 0.01 * (points / 100))); // score_pressure simulation
+
+              setEprPairs(p => p + 1);
+              setWormholesActive(w => w + 1);
+              addEvent(`⚛️ EPR PAIR CREATED | WORMHOLE STABILIZED`);
+
               setErgotropy(e => {
                 const newE = e + t.value * 3;
                 const newM = Math.floor(newE / 50);
@@ -449,7 +544,8 @@ export default function OmegaSerpent() {
               });
               setBerryPhase(bp => bp + (2 * Math.PI / 3) * t.value);
               setTreasuresCollected(tc => tc + 1);
-              addEvent(`${t.type === "golden" ? "\u2728" : "\u{1F40D}"} Collected ${t.chain} ${t.type === "golden" ? "GOLDEN " : ""}treasure [+${points}]`);
+              const rarityMsg = t.rarity ? `[${t.rarity}] ` : "";
+              addEvent(`${t.type === "golden" ? "✨" : "🐍"} Collected ${t.chain} ${rarityMsg}treasure [+${points}]`);
             }
             const remaining = [...prevT];
             remaining.splice(hit, 1);
@@ -571,44 +667,46 @@ export default function OmegaSerpent() {
         ctx.font = `${Math.min(cellW, cellH) * 0.65}px monospace`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("\u2620", tx, ty + floatY);
-      } else if (t.type === "golden") {
-        // Glowing golden halo
-        const haloGrad = ctx.createRadialGradient(tx, ty + floatY, 0, tx, ty + floatY, Math.min(cellW, cellH) * 0.6);
-        haloGrad.addColorStop(0, `hsla(50,100%,60%,${0.3 * pulse})`);
-        haloGrad.addColorStop(1, "hsla(50,100%,60%,0)");
-        ctx.fillStyle = haloGrad;
-        ctx.fillRect(tx - cellW, ty + floatY - cellH, cellW * 2, cellH * 2);
-
-        ctx.shadowColor = "hsl(50,100%,60%)";
-        ctx.shadowBlur = 12 * pulse;
-        ctx.fillStyle = "hsl(50,100%,60%)";
-        ctx.beginPath();
-        const r = Math.min(cellW, cellH) * 0.35;
-        const rotAngle = tick * 0.05;
-        for (let i = 0; i < 5; i++) {
-          const a = rotAngle - Math.PI / 2 + (i * 2 * Math.PI / 5);
-          ctx.lineTo(tx + Math.cos(a) * r, ty + floatY + Math.sin(a) * r);
-          const ia = a + Math.PI / 5;
-          ctx.lineTo(tx + Math.cos(ia) * r * 0.4, ty + floatY + Math.sin(ia) * r * 0.4);
-        }
-        ctx.closePath();
-        ctx.fill();
+        ctx.fillText("💀", tx, ty + floatY);
       } else {
-        ctx.shadowColor = CHAIN_COLORS[t.chain];
-        ctx.shadowBlur = 8 * pulse;
-        ctx.fillStyle = CHAIN_COLORS[t.chain];
+        const color = t.rarity ? RARITY_COLORS[t.rarity] : (t.type === "golden" ? "#FFD700" : CHAIN_COLORS[t.chain]);
+        const glowIntensity = t.rarity === "LEGENDARY" ? 15 : t.rarity === "EPIC" ? 10 : t.rarity === "RARE" ? 6 : 4;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = glowIntensity * pulse;
+        ctx.fillStyle = color;
+
+        // Draw rarity-based shape
         ctx.beginPath();
-        const r = Math.min(cellW, cellH) * 0.3;
-        const rotAngle = tick * 0.04;
-        for (let i = 0; i < 4; i++) {
-          const a = rotAngle + (Math.PI / 4) + (i * Math.PI / 2);
-          const px = tx + Math.cos(a) * r;
-          const py = ty + floatY + Math.sin(a) * r;
-          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        if (t.rarity === "LEGENDARY") {
+          // Star shape
+          const r = Math.min(cellW, cellH) * 0.4;
+          for (let i = 0; i < 5; i++) {
+            const a = (i * 0.8 * Math.PI) - (Math.PI / 2);
+            const px = tx + Math.cos(a) * r;
+            const py = ty + floatY + Math.sin(a) * r;
+            i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+          }
+        } else if (t.rarity === "EPIC") {
+          ctx.arc(tx, ty + floatY, cellW * 0.35, 0, Math.PI * 2);
+        } else if (t.rarity === "RARE") {
+          // Diamond shape
+          const r = cellW * 0.35;
+          ctx.moveTo(tx, ty + floatY - r);
+          ctx.lineTo(tx + r, ty + floatY);
+          ctx.lineTo(tx, ty + floatY + r);
+          ctx.lineTo(tx - r, ty + floatY);
+        } else {
+          // Square for common
+          ctx.rect(tx - cellW * 0.25, ty + floatY - cellH * 0.25, cellW * 0.5, cellH * 0.5);
         }
         ctx.closePath();
         ctx.fill();
+
+        // Chain initial overlay
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.font = `bold ${Math.min(cellW, cellH) * 0.4}px sans-serif`;
+        ctx.fillText(t.chain[0], tx, ty + floatY);
       }
       ctx.shadowBlur = 0;
     }
@@ -730,6 +828,15 @@ export default function OmegaSerpent() {
               </span>
             )}
             <span className="text-neon-magenta">{"♥".repeat(lives)}</span>
+          </div>
+        )}
+        {gameState === "playing" && (
+          <div className="hidden sm:flex items-center gap-4 px-4 py-1 bg-white/5 border-x border-white/10 font-mono text-[10px] uppercase tracking-tighter overflow-hidden whitespace-nowrap">
+            <div className="flex items-center gap-1"><span className="text-white/40">BLK:</span><span className="text-neon-green">{blockHeight}</span></div>
+            <div className="flex items-center gap-1"><span className="text-white/40">WH:</span><span className="text-cyan-400">{wormholesActive}</span></div>
+            <div className="flex items-center gap-1"><span className="text-white/40">EPR:</span><span className="text-purple-400">{eprPairs}</span></div>
+            <div className="flex items-center gap-1"><span className="text-white/40">Φ:</span><span className="text-amber-400">{phi.toFixed(3)}</span></div>
+            <div className="flex items-center gap-1"><span className="text-white/40">DIFF:</span><span className="text-white/60">{difficulty.toFixed(4)}</span></div>
           </div>
         )}
         <div className="flex items-center gap-2">

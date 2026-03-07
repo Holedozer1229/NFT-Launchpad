@@ -110,8 +110,19 @@ export function setupAuth(app: Express) {
       if (err) return next(err);
       if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
 
-      req.login(user, (err: any) => {
+      req.login(user, async (err: any) => {
         if (err) return next(err);
+        
+        // Auto-create wallet for existing users who don't have one
+        try {
+          const userWallets = await storage.getWalletsByUser(user.id);
+          if (userWallets.length === 0) {
+            await storage.createWallet(user.id, "Main Wallet");
+          }
+        } catch (walletErr) {
+          console.error("Failed to auto-create wallet on login:", walletErr);
+        }
+
         const { password: _, ...safeUser } = user;
         return res.json(safeUser);
       });

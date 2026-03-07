@@ -192,8 +192,23 @@ export function generateAdjacencyMatrix(nodeCount: number, seed: string): number
 }
 
 const phiHistory: { timestamp: number; phi: number }[] = [];
+let latestPerception: NetworkPerception | null = null;
+let engineInterval: ReturnType<typeof setInterval> | null = null;
+let lastBlockHeight = 0;
 
-export function getNetworkPerception(blockHeight: number): NetworkPerception {
+const ENGINE_TICK_MS = 30_000;
+
+async function fetchBlockHeight(): Promise<number> {
+  try {
+    const res = await fetch("https://mempool.space/api/blocks/tip/height");
+    const text = await res.text();
+    return parseInt(text) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function tick(blockHeight: number): NetworkPerception {
   const now = Date.now();
   const blockData = `block-${blockHeight}-${Math.floor(now / 30000)}`;
   const currentPhi = calculatePhi(blockData);
@@ -203,10 +218,9 @@ export function getNetworkPerception(blockHeight: number): NetworkPerception {
 
   const totalNodes = 9;
   const consensusThreshold = Math.log2(totalNodes);
-
   const adjacencyMatrix = generateAdjacencyMatrix(totalNodes, blockData);
 
-  return {
+  const perception: NetworkPerception = {
     currentPhi,
     blockHeight,
     totalNodes,
@@ -215,4 +229,47 @@ export function getNetworkPerception(blockHeight: number): NetworkPerception {
     phiHistory: [...phiHistory],
     adjacencyMatrix,
   };
+
+  latestPerception = perception;
+  return perception;
+}
+
+export function getNetworkPerception(blockHeight?: number): NetworkPerception {
+  if (blockHeight !== undefined) {
+    lastBlockHeight = blockHeight;
+    return tick(blockHeight);
+  }
+  if (latestPerception) return latestPerception;
+  return tick(lastBlockHeight);
+}
+
+export function startEngine(): void {
+  if (engineInterval) return;
+  console.log("[IIT Engine] Starting continuous Φ computation (every 30s)");
+
+  fetchBlockHeight().then(h => {
+    lastBlockHeight = h;
+    tick(lastBlockHeight);
+  });
+
+  engineInterval = setInterval(async () => {
+    try {
+      lastBlockHeight = await fetchBlockHeight();
+      tick(lastBlockHeight);
+    } catch (e) {
+      tick(lastBlockHeight);
+    }
+  }, ENGINE_TICK_MS);
+}
+
+export function stopEngine(): void {
+  if (engineInterval) {
+    clearInterval(engineInterval);
+    engineInterval = null;
+    console.log("[IIT Engine] Stopped");
+  }
+}
+
+export function isEngineRunning(): boolean {
+  return engineInterval !== null;
 }

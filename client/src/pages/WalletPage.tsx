@@ -80,10 +80,27 @@ export default function WalletPage() {
       const res = await fetch("/api/wallet/list", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
-        setWallets(data);
-        if (data.length > 0 && !activeWallet) {
-          setActiveWallet(data[0]);
-          fetchTransactions(data[0].id);
+        
+        if (data.length === 0) {
+          // Auto-create fallback if no wallets found
+          const createRes = await fetch("/api/wallet/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ name: "Main Wallet" }),
+          });
+          if (createRes.ok) {
+            const newWallet = await createRes.json();
+            setWallets([newWallet]);
+            setActiveWallet(newWallet);
+            fetchTransactions(newWallet.id);
+          }
+        } else {
+          setWallets(data);
+          if (!activeWallet) {
+            setActiveWallet(data[0]);
+            fetchTransactions(data[0].id);
+          }
         }
       }
     } catch (err) {
@@ -397,142 +414,135 @@ export default function WalletPage() {
                 <Send className="w-4 h-4 text-neon-magenta" /> Send Tokens
               </h3>
 
-              {!externalWalletConnected && (
-                <div className="p-4 rounded-sm border border-neon-orange/30 bg-neon-orange/5 space-y-3 wallet-required-glow" data-testid="wallet-required-send">
-                  <div className="flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-neon-orange" />
-                    <p className="text-xs font-heading uppercase tracking-wider text-neon-orange">External Wallet Required</p>
-                  </div>
-                  <p className="text-[10px] font-mono text-muted-foreground">
-                    {mobile
-                      ? "Connect MetaMask or Phantom mobile wallet to sign and send transactions. Your SKYNT wallet verifies identity, but an external wallet is needed to authorize transfers."
-                      : "Connect MetaMask or Phantom browser wallet to sign and send transactions. Your SKYNT wallet verifies identity, but an external wallet is needed to authorize transfers."}
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      data-testid="button-connect-metamask-send"
-                      onClick={() => {
-                        if (mobile) { openWalletApp("metamask"); return; }
-                        connectExternal("metamask");
-                      }}
-                      className="flex-1 py-2.5 rounded-sm text-xs font-heading uppercase tracking-wider flex items-center justify-center gap-2 border border-[#E2761B]/40 bg-[#E2761B]/10 text-[#E2761B] hover:bg-[#E2761B]/20 transition-colors"
-                    >
-                      🦊 {mobile ? "Open MetaMask" : "MetaMask"}
-                    </button>
-                    <button
-                      data-testid="button-connect-phantom-send"
-                      onClick={() => {
-                        if (mobile) { openWalletApp("phantom"); return; }
-                        connectExternal("phantom");
-                      }}
-                      className="flex-1 py-2.5 rounded-sm text-xs font-heading uppercase tracking-wider flex items-center justify-center gap-2 border border-[#AB9FF2]/40 bg-[#AB9FF2]/10 text-[#AB9FF2] hover:bg-[#AB9FF2]/20 transition-colors"
-                    >
-                      👻 {mobile ? "Open Phantom" : "Phantom"}
-                    </button>
-                  </div>
-                  {mobile && (
-                    <div className="flex items-center gap-1.5 text-[9px] font-mono text-muted-foreground/60">
-                      <Smartphone className="w-3 h-3" /> Opens wallet app for transaction signing
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {externalWalletConnected && (
-                <>
+              <>
+                {externalWalletConnected && (
                   <div className="flex items-center gap-2 px-3 py-2 rounded-sm bg-neon-green/5 border border-neon-green/20 text-[10px] font-mono">
                     <span className="w-1.5 h-1.5 rounded-full bg-neon-green" />
                     <span className="text-neon-green">
                       Signing with {externalProvider === "phantom" ? "👻 Phantom" : "🦊 MetaMask"}: {externalAddress?.slice(0, 6)}...{externalAddress?.slice(-4)}
                     </span>
                   </div>
+                )}
 
-                  {sendSuccess && (
-                    <div className="p-3 bg-neon-green/10 border border-neon-green/30 rounded-sm text-center space-y-1">
-                      <CheckCircle className="w-5 h-5 text-neon-green mx-auto" />
-                      <p className="text-xs font-heading text-neon-green">Transaction Sent</p>
-                    </div>
-                  )}
-
-                  {sendError && (
-                    <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-sm text-center">
-                      <p className="text-xs text-red-400">{sendError}</p>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <label className="stat-label">Token</label>
-                    <div className="flex gap-2">
-                      {TOKEN_OPTIONS.map((t) => (
-                        <button
-                          key={t.symbol}
-                          data-testid={`send-token-${t.symbol}`}
-                          onClick={() => setSendToken(t.symbol)}
-                          className={`flex-1 py-2 rounded-sm text-xs font-heading uppercase flex items-center justify-center gap-1.5 border transition-all ${
-                            sendToken === t.symbol ? "bg-primary/20 text-primary border-primary/40" : "bg-black/20 text-muted-foreground border-border/30"
-                          }`}
-                        >
-                          <span>{t.icon}</span> {t.symbol}
-                        </button>
-                      ))}
-                    </div>
+                {sendSuccess && (
+                  <div className="p-3 bg-neon-green/10 border border-neon-green/30 rounded-sm text-center space-y-1">
+                    <CheckCircle className="w-5 h-5 text-neon-green mx-auto" />
+                    <p className="text-xs font-heading text-neon-green">Transaction Sent</p>
                   </div>
+                )}
 
-                  <div className="space-y-2">
-                    <label className="stat-label">Recipient Address</label>
-                    <input
-                      data-testid="input-send-to"
-                      type="text"
-                      placeholder="0x..."
-                      value={sendTo}
-                      onChange={(e) => { setSendTo(e.target.value); validateAddress(e.target.value); }}
-                      className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-sm focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40"
-                    />
-                    {addressError && <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-send-address">{addressError}</p>}
+                {sendError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-sm text-center">
+                    <p className="text-xs text-red-400">{sendError}</p>
                   </div>
+                )}
 
-                  <div className="space-y-2">
-                    <label className="stat-label">Amount</label>
-                    <div className="relative">
-                      <input
-                        data-testid="input-send-amount"
-                        type="number"
-                        placeholder="0.00"
-                        value={sendAmount}
-                        onChange={(e) => { setSendAmount(e.target.value); validateSendAmount(e.target.value); }}
-                        className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-lg focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-heading">{sendToken}</span>
-                    </div>
-                    {amountError && <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-send-amount">{amountError}</p>}
-                    <div className="flex justify-between text-[10px] font-mono text-muted-foreground px-1">
-                      <span>Balance: {getBalance(activeWallet, sendToken).toLocaleString()} {sendToken}</span>
+                <div className="space-y-2">
+                  <label className="stat-label">Token</label>
+                  <div className="flex gap-2">
+                    {TOKEN_OPTIONS.map((t) => (
                       <button
-                        data-testid="button-send-max"
-                        onClick={() => setSendAmount(getBalance(activeWallet, sendToken).toString())}
-                        className="text-primary hover:text-primary/80"
+                        key={t.symbol}
+                        data-testid={`send-token-${t.symbol}`}
+                        onClick={() => setSendToken(t.symbol)}
+                        className={`flex-1 py-2 rounded-sm text-xs font-heading uppercase flex items-center justify-center gap-1.5 border transition-all ${
+                          sendToken === t.symbol ? "bg-primary/20 text-primary border-primary/40" : "bg-black/20 text-muted-foreground border-border/30"
+                        }`}
                       >
-                        MAX
+                        <span>{t.icon}</span> {t.symbol}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="stat-label">Recipient Address</label>
+                  <input
+                    data-testid="input-send-to"
+                    type="text"
+                    placeholder="0x..."
+                    value={sendTo}
+                    onChange={(e) => { setSendTo(e.target.value); validateAddress(e.target.value); }}
+                    className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-sm focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40"
+                  />
+                  {addressError && <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-send-address">{addressError}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="stat-label">Amount</label>
+                  <div className="relative">
+                    <input
+                      data-testid="input-send-amount"
+                      type="number"
+                      placeholder="0.00"
+                      value={sendAmount}
+                      onChange={(e) => { setSendAmount(e.target.value); validateSendAmount(e.target.value); }}
+                      className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-lg focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-heading">{sendToken}</span>
+                  </div>
+                  {amountError && <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-send-amount">{amountError}</p>}
+                  <div className="flex justify-between text-[10px] font-mono text-muted-foreground px-1">
+                    <span>Balance: {activeWallet ? getBalance(activeWallet, sendToken).toLocaleString() : 0} {sendToken}</span>
+                    <button
+                      data-testid="button-send-max"
+                      onClick={() => activeWallet && setSendAmount(getBalance(activeWallet, sendToken).toString())}
+                      className="text-primary hover:text-primary/80"
+                    >
+                      MAX
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  data-testid="button-send-submit"
+                  onClick={handleSend}
+                  disabled={sending || !sendTo || !sendAmount || !!addressError || !!amountError}
+                  className="w-full py-4 rounded-sm bg-primary text-primary-foreground font-heading uppercase tracking-widest flex items-center justify-center gap-2 hover-elevate active-elevate-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all mt-4"
+                >
+                  {sending ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" /> Send {sendToken}
+                    </>
+                  )}
+                </button>
+
+                {!externalWalletConnected && (
+                  <div className="mt-6 p-4 rounded-sm border border-white/10 bg-white/5 space-y-3" data-testid="wallet-connect-optional">
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 text-muted-foreground" />
+                      <p className="text-[10px] font-heading uppercase tracking-wider text-muted-foreground">External Wallet (Optional)</p>
+                    </div>
+                    <p className="text-[9px] font-mono text-muted-foreground/60">
+                      You can connect an external wallet for additional signing security, but it is not required for in-app transfers.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        data-testid="button-connect-metamask-optional"
+                        onClick={() => {
+                          if (mobile) { openWalletApp("metamask"); return; }
+                          connectExternal("metamask");
+                        }}
+                        className="flex-1 py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider flex items-center justify-center gap-2 border border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        🦊 MetaMask
+                      </button>
+                      <button
+                        data-testid="button-connect-phantom-optional"
+                        onClick={() => {
+                          if (mobile) { openWalletApp("phantom"); return; }
+                          connectExternal("phantom");
+                        }}
+                        className="flex-1 py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider flex items-center justify-center gap-2 border border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        👻 Phantom
                       </button>
                     </div>
                   </div>
-
-                  <button
-                    data-testid="button-send-tx"
-                    disabled={!sendTo || !sendAmount || parseFloat(sendAmount) <= 0 || !!addressError || !!amountError || sending}
-                    onClick={handleSend}
-                    className="connect-wallet-btn w-full py-3 rounded-sm font-heading text-sm tracking-wider disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      {sending ? (
-                        <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Signing & Sending...</>
-                      ) : (
-                        <><Send className="w-4 h-4" /> {sendAmount ? `Send ${sendAmount} ${sendToken}` : "Enter Amount"}</>
-                      )}
-                    </div>
-                  </button>
-                </>
-              )}
+                )}
+              </>
             </div>
           )}
 

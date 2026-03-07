@@ -18,7 +18,11 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Updated Bridge page with guardian multi-sig validation, lock/mint/burn/release mechanics
 - Added AnubisCore Python module: Algebraic Enforcement Principle (AEP) implementation
 - Added in-app SphinxOS Wallet: per-user wallets with SKYNT/STX/ETH balances, send/receive, transaction history, Zod-validated API
+- Wallet auto-creation on registration AND login (existing users get wallet on first login)
+- In-app wallet send works without requiring external wallet connection (MetaMask/Phantom optional for on-chain signing)
+- Mobile wallet connect opens MetaMask/Phantom apps with "Sign to Connect" deep-link flow
 - Integrated IIT Quantum Consciousness Engine from SphinxOS GitHub repo (Φ calculator, density matrix, von Neumann entropy, consciousness levels)
+- IIT Engine runs continuously every 30s via background loop (auto-started on server boot)
 - Added IIT Consciousness page with Φ gauge, eigenvalue spectrum chart, adjacency heatmap, density matrix visualization, Φ timeline, custom Φ calculator
 - Updated Sphinx Oracle with Omniscient Sphinx persona (network consciousness, IIT formulas, prophecy/vision/wisdom response structure)
 - Integrated OpenSea API (Seaport v1.6 protocol) for NFT marketplace listings — auto-lists minted NFTs on OpenSea
@@ -28,7 +32,8 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Server-side OpenSea service (server/opensea.ts) handles REST API calls to OpenSea v2 endpoints
 - Added contract deployment system: auto-deploys SpaceFlightNFT, SphinxBridge, SphinxYieldAggregator when wallet created
 - Gamified QuantumMiner into Omega Serpent arcade miner: 3 autonomous snakes (ETH/SOL/STX) on canvas grid, qutrit state tracking, berry phase/ergotropy accumulation, treasure collection, per-chain milestones, cross-chain super milestones, GHZ quantum proof hash
-- Added playable Omega Serpent Arena page (/serpent): player-controlled snake (WASD/arrows), 3 AI opponents, 3 treasure types (normal/golden/skull), 3-lives system, SKYNT play-to-earn rewards (score×0.1), leaderboard, claim-to-wallet flow, server-side score validation with caps
+- Added playable Omega Serpent Arena page (/serpent): player-controlled snake (WASD/arrows), 3 AI opponents, 3-lives system, SKYNT play-to-earn rewards (score×0.1), leaderboard, claim-to-wallet flow, server-side score validation with caps
+- Enhanced Omega Serpent with quantum-pirate roguelite mining: rarity treasures (COMMON/RARE/EPIC/LEGENDARY), EPR entanglement pair tracking, wormhole score multipliers, block mining simulation, IIT Φ reward bonus, `/api/game/quantum-state` endpoint
 - Added multi-chain NFT Marketplace (/marketplace): browse/filter by chain, create listings, buy NFTs with wallet balance, cancel listings, atomic buy transactions, price/currency validation, stats cards
 - Added dynamic background themes: page-specific nebula colors and ambient glow that change per route (mint=cyan/green, gallery=purple, bridge=orange, etc.)
 - Added interactive 3D NFT preview in Gallery: mouse-tracking rotation, auto-rotate mode, zoom controls, rarity-based glow animations, floating particles
@@ -76,7 +81,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - `server/auth.ts` - Passport.js setup with session store
 - `server/routes.ts` - API routes including /api/space-launches proxy and /api/oracle/chat
 - `server/storage.ts` - Database storage interface (users, launches, miners)
-- `server/iit-engine.ts` - IIT Quantum Consciousness Engine (Φ calculator, density matrix, eigenvalues, network perception)
+- `server/iit-engine.ts` - IIT Quantum Consciousness Engine (Φ calculator, density matrix, eigenvalues, network perception) — runs continuously every 30s via `startEngine()`, auto-started on server boot
 - `shared/schema.ts` - Drizzle schema (users, launches, miners tables)
 - `client/src/pages/IITConsciousness.tsx` - IIT Consciousness page with Φ gauge, eigenvalue spectrum, adjacency heatmap, density matrix, Φ calculator
 - `client/src/index.css` - Cosmic theme with neon CSS variables and sidebar styles

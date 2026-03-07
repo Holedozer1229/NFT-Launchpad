@@ -6,7 +6,7 @@ import { randomBytes, createHash } from "crypto";
 import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./thirdweb-engine";
 import { z } from "zod";
 import OpenAI from "openai";
-import { calculatePhi, getNetworkPerception } from "./iit-engine";
+import { calculatePhi, getNetworkPerception, startEngine, isEngineRunning } from "./iit-engine";
 import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
 import { getChainInfo, getBalance, getTransaction, getBlock, mintNftOnSkynt, isChainValid } from "./skynt-blockchain";
 import { rosettaRouter } from "./rosetta/routes";
@@ -810,15 +810,15 @@ export async function registerRoutes(
 
   app.get("/api/iit/network", async (_req, res) => {
     try {
-      const [mempoolRes] = await Promise.allSettled([
-        fetch("https://mempool.space/api/blocks/tip/height").then(r => r.text()),
-      ]);
-      const blockHeight = mempoolRes.status === "fulfilled" ? parseInt(mempoolRes.value) || 0 : 0;
-      const perception = getNetworkPerception(blockHeight);
+      const perception = getNetworkPerception();
       res.json(perception);
     } catch (error) {
       res.status(500).json({ message: "Failed to perceive network" });
     }
+  });
+
+  app.get("/api/iit/status", (_req, res) => {
+    res.json({ running: isEngineRunning() });
   });
 
   app.post("/api/iit/compute", async (req, res) => {
@@ -886,6 +886,21 @@ export async function registerRoutes(
       res.json(scores);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch scores" });
+    }
+  });
+
+  app.get("/api/game/quantum-state", async (_req, res) => {
+    try {
+      const perception = getNetworkPerception();
+      res.json({
+        phi: perception.currentPhi.phi,
+        blockHeight: perception.blockHeight,
+        difficulty: 1.0, // Base difficulty for simulation
+        networkNodes: perception.totalNodes,
+        meetsConsensus: perception.meetsConsensus
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch quantum state" });
     }
   });
 

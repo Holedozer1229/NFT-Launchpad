@@ -4,6 +4,7 @@ import { setupAuth } from "./auth";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { seedDatabase } from "./seed";
+import { startEngine } from "./iit-engine";
 
 const app = express();
 
@@ -131,6 +132,7 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      startEngine();
     },
   );
 })();

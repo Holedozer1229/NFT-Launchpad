@@ -82,13 +82,15 @@ export function WalletPicker() {
         {mobile && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-sm bg-neon-cyan/5 border border-neon-cyan/20 text-[10px] font-mono text-neon-cyan">
             <Smartphone className="w-3.5 h-3.5 shrink-0" />
-            Mobile detected — will open wallet app for signing
+            Mobile detected — tap to open wallet app for signing
           </div>
         )}
 
         <div className="space-y-2">
           {WALLET_OPTIONS.map((wallet) => {
             const status = getAvailability(wallet.id);
+            const showMobileSign = mobile && !status.available;
+            
             return (
               <button
                 key={wallet.id}
@@ -104,10 +106,10 @@ export function WalletPicker() {
                 )}
                 <div className="flex-1 text-left">
                   <p className="font-heading text-sm tracking-wider" style={{ color: wallet.color }}>
-                    {wallet.name}
+                    {showMobileSign ? `Open ${wallet.name} to Sign` : wallet.name}
                   </p>
                   <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                    {isConnecting ? "Connecting…" : mobile ? wallet.mobileDescription : wallet.description}
+                    {isConnecting ? "Connecting…" : showMobileSign ? "Sign to Connect" : mobile ? wallet.mobileDescription : wallet.description}
                   </p>
                   <div className="flex items-center gap-1 mt-1">
                     <span className={`w-1.5 h-1.5 rounded-full ${status.available ? "bg-neon-green" : "bg-neon-orange"}`} />
