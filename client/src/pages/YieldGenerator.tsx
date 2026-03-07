@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { TrendingUp, Lock, Unlock, Wallet, Coins, Percent, Clock, Zap, Shield, Gift, ArrowRight, Activity, CheckCircle, Fingerprint, Gauge, Loader2 } from "lucide-react";
+import MoltbotPortal from "@/components/MoltbotPortal";
 import { useWallet } from "@/lib/mock-web3";
 import { useQuery } from "@tanstack/react-query";
 
@@ -233,6 +234,8 @@ export default function YieldGenerator() {
               </p>
             </div>
           </div>
+
+          <MoltbotPortal />
 
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-4">

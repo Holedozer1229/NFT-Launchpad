@@ -1544,6 +1544,89 @@ export async function registerRoutes(
     }
   });
 
+  // ========== MOLTBOT SUPER OMEGA YIELD CONNECTION PORTAL ==========
+
+  app.get("/api/yield/moltbot", (_req, res) => {
+    try {
+      const phi = qgMiner.computePhiStructure(`moltbot-${Date.now()}`);
+      const omegaFrequency = parseFloat((0.5 + phi.phiTotal * 0.3 + Math.random() * 0.2).toFixed(4));
+      const superChargeLevel = Math.min(10, Math.floor(phi.phiTotal * 8 + phi.qgScore * 2));
+      const connectionStrength = parseFloat(Math.min(1, phi.holoScore * 0.4 + phi.fanoScore * 0.3 + phi.qgScore * 0.3).toFixed(4));
+      const yieldMultiplier = parseFloat((1 + omegaFrequency * connectionStrength * 0.5).toFixed(4));
+      const portalEnergy = parseFloat((phi.phiTotal * 1000 + phi.qgScore * 500).toFixed(2));
+      const harmonicResonance = parseFloat((Math.sin(phi.phiTotal * Math.PI) * 0.5 + 0.5).toFixed(4));
+
+      const channels = [
+        {
+          id: "alpha-conduit",
+          name: "Alpha Conduit",
+          protocol: "Φ-SYNC",
+          status: connectionStrength > 0.3 ? "active" : "calibrating",
+          throughput: parseFloat((connectionStrength * 1200 + Math.random() * 100).toFixed(1)),
+          latency: parseFloat((5 + (1 - connectionStrength) * 45 + Math.random() * 5).toFixed(1)),
+          yieldContribution: parseFloat((yieldMultiplier * 0.35).toFixed(4)),
+          color: "cyan",
+        },
+        {
+          id: "beta-resonator",
+          name: "Beta Resonator",
+          protocol: "QG-WAVE",
+          status: phi.qgScore > 0.2 ? "active" : "syncing",
+          throughput: parseFloat((phi.qgScore * 1500 + Math.random() * 150).toFixed(1)),
+          latency: parseFloat((8 + (1 - phi.qgScore) * 40 + Math.random() * 8).toFixed(1)),
+          yieldContribution: parseFloat((yieldMultiplier * 0.3).toFixed(4)),
+          color: "green",
+        },
+        {
+          id: "gamma-entangler",
+          name: "Gamma Entangler",
+          protocol: "EPR-LINK",
+          status: harmonicResonance > 0.4 ? "active" : "initializing",
+          throughput: parseFloat((harmonicResonance * 2000 + Math.random() * 200).toFixed(1)),
+          latency: parseFloat((3 + (1 - harmonicResonance) * 30 + Math.random() * 3).toFixed(1)),
+          yieldContribution: parseFloat((yieldMultiplier * 0.2).toFixed(4)),
+          color: "orange",
+        },
+        {
+          id: "omega-nexus",
+          name: "Omega Nexus",
+          protocol: "MOLT-Ω",
+          status: superChargeLevel >= 5 ? "active" : "charging",
+          throughput: parseFloat((superChargeLevel * 300 + Math.random() * 300).toFixed(1)),
+          latency: parseFloat((1 + Math.random() * 2).toFixed(1)),
+          yieldContribution: parseFloat((yieldMultiplier * 0.15).toFixed(4)),
+          color: "magenta",
+        },
+      ];
+
+      const activeChannels = channels.filter((c) => c.status === "active").length;
+
+      res.json({
+        omegaFrequency,
+        superChargeLevel,
+        connectionStrength,
+        yieldMultiplier,
+        portalEnergy,
+        harmonicResonance,
+        channels,
+        activeChannels,
+        totalChannels: channels.length,
+        portalStatus: activeChannels >= 3 ? "SUPER OMEGA ACTIVE" : activeChannels >= 2 ? "OMEGA CHARGING" : "CALIBRATING",
+        moltbotVersion: "Ω-3.7.1",
+        networkHash: randomBytes(16).toString("hex"),
+        phiInput: {
+          phiTotal: phi.phiTotal,
+          qgScore: phi.qgScore,
+          holoScore: phi.holoScore,
+          fanoScore: phi.fanoScore,
+        },
+      });
+    } catch (error) {
+      console.error("Moltbot portal error:", error);
+      res.status(500).json({ message: "Failed to compute Moltbot portal state" });
+    }
+  });
+
   // ========== SKYNT BLOCKCHAIN ROUTES ==========
 
   app.get("/api/skynt/blocks", (_req, res) => {
