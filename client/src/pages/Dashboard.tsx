@@ -8,6 +8,7 @@ import {
   ChevronUp, ChevronDown, Loader2, Zap
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { ResonanceDrop } from "@/components/ResonanceDrop";
 
 interface MempoolStats {
   mempoolSize: number;
@@ -204,6 +205,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ResonanceDrop />
         <div className="cosmic-card cosmic-card-cyan p-5" data-testid="chart-hashrate">
           <h3 className="stat-label mb-4">Network Hashrate (EH/s) — Live from mempool.space</h3>
           <div className="h-[200px] sm:h-[250px]">

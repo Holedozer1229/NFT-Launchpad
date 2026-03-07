@@ -17,11 +17,13 @@ import Marketplace from "@/pages/Marketplace";
 import OmegaSerpent from "@/pages/OmegaSerpent";
 import WalletPage from "@/pages/WalletPage";
 import StarshipLaunches from "@/pages/StarshipLaunches";
+import PublicLab from "@/pages/PublicLab";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/not-found";
 import SphinxOracle from "@/components/SphinxOracle";
 import PageTransition from "@/components/PageTransition";
 import OfflineBanner from "@/components/OfflineBanner";
+import { AccessGate } from "@/components/AccessGate";
 import { Loader2, ShieldAlert } from "lucide-react";
 
 function AdminGuard() {
@@ -53,6 +55,17 @@ function AppRouter() {
     );
   }
 
+  // Public Routes (Accessible without login)
+  if (location === "/lab") {
+    return (
+      <SidebarLayout>
+        <PageTransition key={location}>
+          <PublicLab />
+        </PageTransition>
+      </SidebarLayout>
+    );
+  }
+
   if (!user) {
     return <AuthPage />;
   }
@@ -62,15 +75,52 @@ function AppRouter() {
       <PageTransition key={location}>
         <Switch>
           <Route path="/" component={MintNFT} />
-          <Route path="/dashboard" component={Dashboard} />
-          <Route path="/gallery" component={Gallery} />
-          <Route path="/marketplace" component={Marketplace} />
-          <Route path="/analytics" component={Analytics} />
-          <Route path="/bridge" component={Bridge} />
-          <Route path="/yield" component={YieldGenerator} />
-          <Route path="/iit" component={IITConsciousness} />
-          <Route path="/serpent" component={OmegaSerpent} />
-          <Route path="/starship" component={StarshipLaunches} />
+          <Route path="/dashboard">
+            <AccessGate requiredTier={1}>
+              <Dashboard />
+            </AccessGate>
+          </Route>
+          <Route path="/lab" component={PublicLab} />
+          <Route path="/gallery">
+            <AccessGate requiredTier={1}>
+              <Gallery />
+            </AccessGate>
+          </Route>
+          <Route path="/marketplace">
+            <AccessGate requiredTier={2}>
+              <Marketplace />
+            </AccessGate>
+          </Route>
+          <Route path="/analytics">
+            <AccessGate requiredTier={1}>
+              <Analytics />
+            </AccessGate>
+          </Route>
+          <Route path="/bridge">
+            <AccessGate requiredTier={2}>
+              <Bridge />
+            </AccessGate>
+          </Route>
+          <Route path="/yield">
+            <AccessGate requiredTier={3}>
+              <YieldGenerator />
+            </AccessGate>
+          </Route>
+          <Route path="/iit">
+            <AccessGate requiredTier={3}>
+              <IITConsciousness />
+            </AccessGate>
+          </Route>
+          <Route path="/serpent">
+            <AccessGate requiredTier={2}>
+              <OmegaSerpent />
+            </AccessGate>
+          </Route>
+          <Route path="/starship">
+            <AccessGate requiredTier={4}>
+              <StarshipLaunches />
+            </AccessGate>
+          </Route>
           <Route path="/wallet" component={WalletPage} />
           <Route path="/admin" component={AdminGuard} />
           <Route component={NotFound} />

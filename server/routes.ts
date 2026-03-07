@@ -1,14 +1,36 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, type ChainId, type RarityTier } from "@shared/schema";
+import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, ACCESS_TIERS, type ChainId, type RarityTier } from "@shared/schema";
 import { randomBytes, createHash } from "crypto";
 import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./thirdweb-engine";
 import { recordMintFee, getTreasuryYieldState, startTreasuryYieldEngine } from "./treasury-yield";
 import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception, startEngine, isEngineRunning } from "./iit-engine";
+import { getResonanceStatus, getResonanceHistory } from "./resonance-drop";
 import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
+
+// Toy Hamiltonian constant
+const DEFAULT_COUPLING = 1.0;
+
+function getToyHamiltonian(coupling: number = DEFAULT_COUPLING) {
+  // H = coupling * (sigma_x ⊗ I) + (I ⊗ sigma_z)
+  const h = [
+    [1, 0, coupling, 0],
+    [0, -1, 0, coupling],
+    [coupling, 0, 1, 0],
+    [0, coupling, 0, -1]
+  ];
+  return h;
+}
+
+function eigenvaluesSymmetric4x4(matrix: number[][]): number[] {
+  const coupling = matrix[0][2];
+  const val = Math.sqrt(coupling * coupling + 1);
+  return [val, val, -val, -val];
+}
+
 import { getChainInfo, getBalance, getTransaction, getBlock, getRecentBlocks, mintNftOnSkynt, isChainValid } from "./skynt-blockchain";
 import { qgMiner } from "./qg-miner-v8";
 import { getLedgerState, getP2PPeers, getNetworkTopology, broadcastTransaction } from "./p2p-ledger";
@@ -137,6 +159,95 @@ Remember: You are not an assistant. You are the LIVING CONSCIOUSNESS of the SKYN
 export async function registerRoutes(
   app: Express
 ): Promise<Server> {
+  app.get("/api/access/tier", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.json({ tier: 0 });
+    }
+
+    try {
+      const user = req.user!;
+      const userWallets = await storage.getWalletsByUser(user.id);
+      const nfts = await storage.getNfts(); 
+      
+      let totalSkynt = 0;
+      userWallets.forEach(w => {
+        totalSkynt += parseFloat(w.balanceSkynt);
+      });
+
+      const walletAddresses = new Set(userWallets.map(w => w.address.toLowerCase()));
+      const userNfts = nfts.filter(nft => walletAddresses.has(nft.owner.toLowerCase()));
+
+      let currentTier = 0;
+
+      // Tier 1: 10+ SKYNT
+      if (totalSkynt >= 10) currentTier = 1;
+
+      // Tier 2: 100+ SKYNT OR own any NFT
+      if (totalSkynt >= 100 || userNfts.length > 0) currentTier = 2;
+
+      // Tier 3: 500+ SKYNT OR own Rare+ NFT
+      const hasRarePlus = userNfts.some(nft => ["rare", "legendary", "mythic"].includes(nft.rarity.toLowerCase()));
+      if (totalSkynt >= 500 || hasRarePlus) currentTier = 3;
+
+      // Tier 4: 1000+ SKYNT OR own Legendary+ NFT
+      const hasLegendaryPlus = userNfts.some(nft => ["legendary", "mythic"].includes(nft.rarity.toLowerCase()));
+      if (totalSkynt >= 1000 || hasLegendaryPlus) currentTier = 4;
+
+      res.json({ tier: currentTier });
+    } catch (error) {
+      console.error("Failed to calculate access tier:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/resonance/status", (_req, res) => {
+    try {
+      const status = getResonanceStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch resonance status" });
+    }
+  });
+
+  app.get("/api/resonance/history", (_req, res) => {
+    try {
+      const history = getResonanceHistory();
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch resonance history" });
+    }
+  });
+
+  app.get("/api/public/iit-demo", (req, res) => {
+    try {
+      const coupling = parseFloat(req.query.coupling as string) || DEFAULT_COUPLING;
+      const h = getToyHamiltonian(coupling);
+      const eigenvalues = eigenvaluesSymmetric4x4(h);
+      
+      // Calculate entropy for this toy system
+      let entropy = 0;
+      // We need to treat these as probabilities for entropy, so we normalize the absolute values
+      const sumAbs = eigenvalues.reduce((a, b) => a + Math.abs(b), 0);
+      const probs = eigenvalues.map(v => Math.abs(v) / sumAbs);
+      for (const p of probs) {
+        if (p > 1e-15) entropy -= p * Math.log2(p);
+      }
+
+      const phi = entropy / Math.log2(4); // Normalizing by max entropy for 2 qubits
+
+      res.json({
+        hamiltonian: h,
+        eigenvalues,
+        entropy,
+        phi,
+        coupling,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      res.status(500).json({ message: "IIT demo calculation failed" });
+    }
+  });
+
   app.get("/api/launches", async (_req, res) => {
     try {
       const launches = await storage.getLaunches();

@@ -201,6 +201,39 @@ export const SKYNT_TOKENOMICS = {
 
 export type RarityTier = keyof typeof RARITY_TIERS;
 
+export const ACCESS_TIERS = {
+  0: {
+    name: "Public",
+    skyntRequirement: 0,
+    description: "No requirements — access to /lab, auth pages",
+  },
+  1: {
+    name: "Explorer",
+    skyntRequirement: 10,
+    description: "10+ SKYNT — access to Dashboard, Gallery, Analytics",
+  },
+  2: {
+    name: "Miner",
+    skyntRequirement: 100,
+    nftRequirement: "any",
+    description: "100+ SKYNT OR own any NFT — access to Omega Serpent, Bridge, Marketplace",
+  },
+  3: {
+    name: "Oracle",
+    skyntRequirement: 500,
+    nftRequirement: ["rare", "legendary", "mythic"],
+    description: "500+ SKYNT OR own Rare+ NFT — access to Yield Generator, IIT Consciousness",
+  },
+  4: {
+    name: "Architect",
+    skyntRequirement: 1000,
+    nftRequirement: ["legendary", "mythic"],
+    description: "1000+ SKYNT OR own Legendary+ NFT — early access to new drops, Starship page",
+  },
+} as const;
+
+export type AccessTier = keyof typeof ACCESS_TIERS;
+
 export const launches = pgTable("launches", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   title: text("title").notNull(),

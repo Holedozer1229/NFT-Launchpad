@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame } from "lucide-react";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
 import { WalletPicker } from "@/components/WalletPicker";
 import { useAuth } from "@/hooks/use-auth";
@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navItems = [
   { path: "/", label: "Mint NFT", icon: Sparkles, adminOnly: false },
+  { path: "/lab", label: "Public Lab", icon: FlaskConical, adminOnly: false },
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
   { path: "/gallery", label: "Gallery", icon: Image, adminOnly: false },
   { path: "/marketplace", label: "Marketplace", icon: Store, adminOnly: false },

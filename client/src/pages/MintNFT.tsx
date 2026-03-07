@@ -6,6 +6,7 @@ import { QuantumMiner } from "@/components/QuantumMiner";
 import { MintCard } from "@/components/MintCard";
 import { LaunchSelector } from "@/components/LaunchSelector";
 import { OracleOverlay } from "@/components/OracleOverlay";
+import { ResonanceDrop } from "@/components/ResonanceDrop";
 import { Cpu, Eye, Database } from "lucide-react";
 import LaunchCountdown from "@/components/LaunchCountdown";
 
@@ -48,6 +49,8 @@ export default function MintNFT() {
                 IDENTITY
               </span>
             </h1>
+
+            <ResonanceDrop />
 
             <EmbeddedWallet />
 

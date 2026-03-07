@@ -92,6 +92,25 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
   - Started on server boot via `startTreasuryYieldEngine()` in `server/index.ts`
   - `GET /api/treasury/yield` returns full treasury yield state
   - `miningFees` config added to `SKYNT_TOKENOMICS` in shared schema
+- **Public Lab — Equation Renderer Page** (`/lab`): Publicly accessible IIT math demo (no auth required)
+  - Interactive 2-qubit Hamiltonian time evolution: H = gσ_x⊗I + I⊗σ_z with adjustable coupling constant
+  - Density matrix color-coded heatmap, eigenvalue spectrum chart, Von Neumann entropy calculator
+  - Phi (Φ) consciousness level gauge with real-time computation
+  - Backend: `GET /api/public/iit-demo?coupling=N` — returns safe math subset (no mining/treasury IP exposed)
+  - Route `/lab` accessible before auth check in App.tsx, FlaskConical icon in sidebar
+- **Token-Gating Access System**: Tier-based access control via SKYNT balance / NFT ownership
+  - `ACCESS_TIERS` in `shared/schema.ts`: Tier 0 (Public), 1 (Explorer/10+ SKYNT), 2 (Miner/100+ SKYNT or any NFT), 3 (Oracle/500+ SKYNT or Rare+ NFT), 4 (Architect/1000+ SKYNT or Legendary+ NFT)
+  - `GET /api/access/tier` — calculates user's current tier from wallet balance + NFT holdings
+  - `client/src/hooks/use-access-tier.ts` — hook with `hasAccess(requiredTier)` helper
+  - `client/src/components/AccessGate.tsx` — wraps protected routes, shows locked overlay with unlock requirements
+  - All pages wrapped with appropriate tier gates in App.tsx
+- **Resonance-Timed Drop Mechanic**: Schumann resonance + Phi threshold event engine
+  - `server/resonance-drop.ts` — Schumann frequency simulation (7.83 Hz base + fluctuations), Phi threshold monitoring (golden ratio 1.618 trigger)
+  - Status states: DORMANT → CHARGING → RESONANCE_ACTIVE
+  - `GET /api/resonance/status` — current frequency, Phi, countdown, active status
+  - `GET /api/resonance/history` — past resonance events
+  - `client/src/components/ResonanceDrop.tsx` — sine wave visualization, Phi progress bar, countdown timer, mint multiplier display
+  - Embedded in Mint NFT page and Dashboard
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts
@@ -116,6 +135,12 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - `server/p2p-ledger.ts` - P2P serverless ledger: 9 guardian peers, gossip protocol, longest-chain consensus, background simulation tick
 - `shared/schema.ts` - Drizzle schema (users, launches, miners tables)
 - `client/src/pages/IITConsciousness.tsx` - IIT Consciousness page with Φ gauge, eigenvalue spectrum, adjacency heatmap, density matrix, Φ calculator
+- `client/src/pages/PublicLab.tsx` - Public IIT equation renderer (no auth required), toy Hamiltonian visualizer
+- `client/src/hooks/use-access-tier.ts` - Token-gating hook (queries user tier, provides hasAccess helper)
+- `client/src/components/AccessGate.tsx` - Tier-based access gate component (wraps protected routes)
+- `client/src/components/ResonanceDrop.tsx` - Resonance countdown/status component (Schumann sine wave, Phi progress)
+- `server/resonance-drop.ts` - Resonance event engine (Schumann frequency simulation, Phi threshold detection)
+- `server/treasury-yield.ts` - Treasury yield auto-compound engine (4-strategy allocation, Phi boost)
 - `client/src/index.css` - Cosmic theme with neon CSS variables and sidebar styles
 
 ### Smart Contracts & Core Modules
