@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import compression from "compression";
 import { registerRoutes } from "./routes";
 import { setupAuth } from "./auth";
 import { serveStatic } from "./static";
@@ -9,6 +10,8 @@ import { startP2PLedger } from "./p2p-ledger";
 import { startTreasuryYieldEngine } from "./treasury-yield";
 
 const app = express();
+
+app.use(compression());
 
 declare module "http" {
   interface IncomingMessage {
@@ -83,7 +86,8 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        const body = JSON.stringify(capturedJsonResponse);
+        logLine += ` :: ${body.length > 200 ? body.slice(0, 200) + "…" : body}`;
       }
 
       log(logLine);

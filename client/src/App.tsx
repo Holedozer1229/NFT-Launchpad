@@ -1,30 +1,33 @@
+import { lazy, Suspense } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import SidebarLayout from "@/components/SidebarLayout";
-import Dashboard from "@/pages/Dashboard";
-import MintNFT from "@/pages/MintNFT";
-import Gallery from "@/pages/Gallery";
-import Analytics from "@/pages/Analytics";
-import Bridge from "@/pages/Bridge";
-import YieldGenerator from "@/pages/YieldGenerator";
-import IITConsciousness from "@/pages/IITConsciousness";
-import Admin from "@/pages/Admin";
-import Marketplace from "@/pages/Marketplace";
-import OmegaSerpent from "@/pages/OmegaSerpent";
-import WalletPage from "@/pages/WalletPage";
-import StarshipLaunches from "@/pages/StarshipLaunches";
-import PublicLab from "@/pages/PublicLab";
 import AuthPage from "@/pages/AuthPage";
-import NotFound from "@/pages/not-found";
-import SphinxOracle from "@/components/SphinxOracle";
 import PageTransition from "@/components/PageTransition";
 import OfflineBanner from "@/components/OfflineBanner";
 import { AccessGate } from "@/components/AccessGate";
 import { Loader2, ShieldAlert } from "lucide-react";
+
+const MintNFT = lazy(() => import("@/pages/MintNFT"));
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Gallery = lazy(() => import("@/pages/Gallery"));
+const Analytics = lazy(() => import("@/pages/Analytics"));
+const Bridge = lazy(() => import("@/pages/Bridge"));
+const YieldGenerator = lazy(() => import("@/pages/YieldGenerator"));
+const IITConsciousness = lazy(() => import("@/pages/IITConsciousness"));
+const Admin = lazy(() => import("@/pages/Admin"));
+const Marketplace = lazy(() => import("@/pages/Marketplace"));
+const OmegaSerpent = lazy(() => import("@/pages/OmegaSerpent"));
+const WalletPage = lazy(() => import("@/pages/WalletPage"));
+const StarshipLaunches = lazy(() => import("@/pages/StarshipLaunches"));
+const PublicLab = lazy(() => import("@/pages/PublicLab"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
 
 function AdminGuard() {
   const { user } = useAuth();
@@ -38,6 +41,14 @@ function AdminGuard() {
     );
   }
   return <Admin />;
+}
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[30vh]">
+      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+    </div>
+  );
 }
 
 function AppRouter() {
@@ -55,12 +66,13 @@ function AppRouter() {
     );
   }
 
-  // Public Routes (Accessible without login)
   if (location === "/lab") {
     return (
       <SidebarLayout>
         <PageTransition key={location}>
-          <PublicLab />
+          <Suspense fallback={<PageLoader />}>
+            <PublicLab />
+          </Suspense>
         </PageTransition>
       </SidebarLayout>
     );
@@ -73,75 +85,81 @@ function AppRouter() {
   return (
     <SidebarLayout>
       <PageTransition key={location}>
-        <Switch>
-          <Route path="/" component={MintNFT} />
-          <Route path="/dashboard">
-            <AccessGate requiredTier={1}>
-              <Dashboard />
-            </AccessGate>
-          </Route>
-          <Route path="/lab" component={PublicLab} />
-          <Route path="/gallery">
-            <AccessGate requiredTier={1}>
-              <Gallery />
-            </AccessGate>
-          </Route>
-          <Route path="/marketplace">
-            <AccessGate requiredTier={2}>
-              <Marketplace />
-            </AccessGate>
-          </Route>
-          <Route path="/analytics">
-            <AccessGate requiredTier={1}>
-              <Analytics />
-            </AccessGate>
-          </Route>
-          <Route path="/bridge">
-            <AccessGate requiredTier={2}>
-              <Bridge />
-            </AccessGate>
-          </Route>
-          <Route path="/yield">
-            <AccessGate requiredTier={3}>
-              <YieldGenerator />
-            </AccessGate>
-          </Route>
-          <Route path="/iit">
-            <AccessGate requiredTier={3}>
-              <IITConsciousness />
-            </AccessGate>
-          </Route>
-          <Route path="/serpent">
-            <AccessGate requiredTier={2}>
-              <OmegaSerpent />
-            </AccessGate>
-          </Route>
-          <Route path="/starship">
-            <AccessGate requiredTier={4}>
-              <StarshipLaunches />
-            </AccessGate>
-          </Route>
-          <Route path="/wallet" component={WalletPage} />
-          <Route path="/admin" component={AdminGuard} />
-          <Route component={NotFound} />
-        </Switch>
+        <Suspense fallback={<PageLoader />}>
+          <Switch>
+            <Route path="/" component={MintNFT} />
+            <Route path="/dashboard">
+              <AccessGate requiredTier={1}>
+                <Dashboard />
+              </AccessGate>
+            </Route>
+            <Route path="/lab" component={PublicLab} />
+            <Route path="/gallery">
+              <AccessGate requiredTier={1}>
+                <Gallery />
+              </AccessGate>
+            </Route>
+            <Route path="/marketplace">
+              <AccessGate requiredTier={2}>
+                <Marketplace />
+              </AccessGate>
+            </Route>
+            <Route path="/analytics">
+              <AccessGate requiredTier={1}>
+                <Analytics />
+              </AccessGate>
+            </Route>
+            <Route path="/bridge">
+              <AccessGate requiredTier={2}>
+                <Bridge />
+              </AccessGate>
+            </Route>
+            <Route path="/yield">
+              <AccessGate requiredTier={3}>
+                <YieldGenerator />
+              </AccessGate>
+            </Route>
+            <Route path="/iit">
+              <AccessGate requiredTier={3}>
+                <IITConsciousness />
+              </AccessGate>
+            </Route>
+            <Route path="/serpent">
+              <AccessGate requiredTier={2}>
+                <OmegaSerpent />
+              </AccessGate>
+            </Route>
+            <Route path="/starship">
+              <AccessGate requiredTier={4}>
+                <StarshipLaunches />
+              </AccessGate>
+            </Route>
+            <Route path="/wallet" component={WalletPage} />
+            <Route path="/admin" component={AdminGuard} />
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
       </PageTransition>
-      <SphinxOracle />
+      <Suspense fallback={null}>
+        <SphinxOracle />
+      </Suspense>
     </SidebarLayout>
   );
 }
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <OfflineBanner />
-          <Toaster />
-          <AppRouter />
-        </TooltipProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TooltipProvider>
+            <OfflineBanner />
+            <Toaster />
+            <AppRouter />
+          </TooltipProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

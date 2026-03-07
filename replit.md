@@ -124,9 +124,18 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
   - Sidebar shows mining status badge (pickaxe icon + hash rate + earned) when mining is active
   - Embedded in Mint NFT page and Dashboard
 
+## Performance Optimizations
+- **Lazy loading**: All 14+ page components use `React.lazy()` with `Suspense` for code-splitting (reduces initial bundle significantly)
+- **Error boundary**: `ErrorBoundary` component wraps the entire app to prevent full crashes
+- **Response compression**: `compression` middleware on Express for gzip/brotli API + static responses
+- **Static asset caching**: Production assets served with 1-year immutable cache headers (HTML excluded)
+- **API log truncation**: Server response logs capped at 200 chars to prevent memory bloat
+- **StarField memoization**: Star positions computed once at module level instead of every render
+- **Query staleness**: 5-minute staleTime with window-focus refetch and 1 retry (was Infinity/no retry)
+
 ## Project Architecture
-- **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts
-- **Backend**: Express.js with passport-local authentication
+- **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts, lazy-loaded pages
+- **Backend**: Express.js with passport-local authentication, compression middleware
 - **Database**: PostgreSQL with Drizzle ORM
 - **Styling**: Tailwind CSS with custom cosmic theme variables
 - **Fonts**: Orbitron (headings), Rajdhani (body), Space Mono (code)

@@ -29,21 +29,31 @@ const navItems = [
   { path: "/admin", label: "Admin", icon: Shield, adminOnly: true },
 ];
 
+const starData = Array.from({ length: 80 }, (_, i) => ({
+  id: i,
+  width: Math.random() * 2 + 1,
+  top: Math.random() * 100,
+  left: Math.random() * 100,
+  opacity: Math.random() * 0.7 + 0.1,
+  duration: Math.random() * 4 + 2,
+  delay: Math.random() * 3,
+}));
+
 function StarField() {
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-      {Array.from({ length: 80 }).map((_, i) => (
+      {starData.map((s) => (
         <div
-          key={i}
+          key={s.id}
           className="absolute rounded-full bg-white"
           style={{
-            width: `${Math.random() * 2 + 1}px`,
-            height: `${Math.random() * 2 + 1}px`,
-            top: `${Math.random() * 100}%`,
-            left: `${Math.random() * 100}%`,
-            opacity: Math.random() * 0.7 + 0.1,
-            animation: `twinkle ${Math.random() * 4 + 2}s ease-in-out infinite`,
-            animationDelay: `${Math.random() * 3}s`,
+            width: `${s.width}px`,
+            height: `${s.width}px`,
+            top: `${s.top}%`,
+            left: `${s.left}%`,
+            opacity: s.opacity,
+            animation: `twinkle ${s.duration}s ease-in-out infinite`,
+            animationDelay: `${s.delay}s`,
           }}
         />
       ))}
