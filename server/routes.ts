@@ -72,7 +72,7 @@ async function deployContractsForWallet(walletAddress: string, chain: string, wa
 const sendTokenSchema = z.object({
   toAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid address format"),
   amount: z.string().refine((v) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0; }, "Amount must be a positive number"),
-  token: z.enum(["SKYNT", "STX", "ETH"]).default("SKYNT"),
+  token: z.enum(["SKYNT", "STX", "ETH", "DOGE", "XMR"]).default("SKYNT"),
 });
 
 let _openai: OpenAI | null = null;

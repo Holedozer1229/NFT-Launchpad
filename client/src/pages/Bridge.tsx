@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle, Loader2, Smartphone, DollarSign } from "lucide-react";
+import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle, Loader2, Smartphone, DollarSign, Pickaxe, Activity, Hash } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
 import { usePrices } from "@/hooks/use-prices";
+import { SKYNT_CONTRACT_ADDRESS } from "@shared/schema";
 
 const chains = [
   { id: "ethereum", name: "Ethereum", symbol: "ETH", icon: "⟠", color: "hsl(210 100% 55%)" },
@@ -13,6 +14,17 @@ const chains = [
   { id: "polygon", name: "Polygon", symbol: "MATIC", icon: "⬡", color: "hsl(300 100% 60%)" },
   { id: "arbitrum", name: "Arbitrum", symbol: "ARB", icon: "🔷", color: "hsl(210 100% 55%)" },
   { id: "base", name: "Base", symbol: "BASE", icon: "🔵", color: "hsl(210 100% 55%)" },
+  { id: "zksync", name: "zkSync Era", symbol: "ETH", icon: "◆", color: "hsl(245 98% 77%)" },
+  { id: "dogecoin", name: "Dogecoin", symbol: "DOGE", icon: "🐕", color: "hsl(43 60% 48%)" },
+  { id: "monero", name: "Monero", symbol: "XMR", icon: "ⓜ", color: "hsl(24 100% 50%)" },
+  { id: "stacks", name: "Stacks", symbol: "STX", icon: "⟐", color: "hsl(16 97% 59%)" },
+];
+
+const ZK_MINING_CHAINS = [
+  { id: "ethereum", label: "ETH", multiplier: "1.0×", color: "#627EEA", hashRate: "~142 TH/s" },
+  { id: "stacks", label: "STX", multiplier: "0.8×", color: "#FC6432", hashRate: "~28 GH/s" },
+  { id: "dogecoin", label: "DOGE", multiplier: "0.5×", color: "#C2A633", hashRate: "~850 TH/s" },
+  { id: "monero", label: "XMR", multiplier: "1.2×", color: "#FF6600", hashRate: "~3.1 GH/s" },
 ];
 
 interface BridgeTx {
@@ -401,16 +413,64 @@ export default function Bridge() {
         )}
       </div>
 
+      <div className="cosmic-card cosmic-card-magenta p-4" data-testid="zk-bridge-mining-panel">
+        <h3 className="font-heading text-sm uppercase tracking-wider mb-4 flex items-center gap-2">
+          <Pickaxe className="w-4 h-4 text-neon-magenta" /> zkSync Bridge Mining
+        </h3>
+        <p className="text-[10px] text-muted-foreground mb-4 font-mono">
+          Cross-chain bridge mining via zk-SNARK mint proofs. Mine on source chains, verify on zkSync Era, mint SKYNT rewards.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          {ZK_MINING_CHAINS.map((mc) => (
+            <div key={mc.id} className="p-3 bg-black/30 border border-border/50 rounded-sm space-y-2" data-testid={`zk-mining-${mc.id}`}>
+              <div className="flex items-center justify-between">
+                <span className="font-heading text-xs uppercase tracking-wider" style={{ color: mc.color }}>{mc.label}</span>
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-neon-green/10 text-neon-green">ACTIVE</span>
+              </div>
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-muted-foreground flex items-center gap-1"><Activity className="w-2.5 h-2.5" /> Hash Rate</span>
+                <span className="font-mono">{mc.hashRate}</span>
+              </div>
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-muted-foreground flex items-center gap-1"><Zap className="w-2.5 h-2.5" /> Reward</span>
+                <span className="font-mono text-primary">{mc.multiplier}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-3 bg-black/20 border border-neon-magenta/20 rounded-sm space-y-2">
+          <div className="flex items-center gap-2 mb-2">
+            <Hash className="w-3.5 h-3.5 text-neon-cyan" />
+            <span className="text-[10px] font-heading uppercase tracking-wider text-neon-cyan">zk-Proof Verification Pipeline</span>
+          </div>
+          <div className="flex items-center gap-3 text-[10px] font-mono">
+            <span className="px-2 py-1 bg-neon-green/10 text-neon-green rounded-sm border border-neon-green/20">1. Mine</span>
+            <span className="text-muted-foreground">→</span>
+            <span className="px-2 py-1 bg-neon-cyan/10 text-neon-cyan rounded-sm border border-neon-cyan/20">2. zk-Proof</span>
+            <span className="text-muted-foreground">→</span>
+            <span className="px-2 py-1 bg-neon-orange/10 text-neon-orange rounded-sm border border-neon-orange/20">3. Guardian</span>
+            <span className="text-muted-foreground">→</span>
+            <span className="px-2 py-1 bg-primary/10 text-primary rounded-sm border border-primary/20">4. Mint</span>
+          </div>
+        </div>
+      </div>
+
       <div className="cosmic-card p-4">
         <h3 className="font-heading text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
           <Fingerprint className="w-3.5 h-3.5 text-primary" /> Contract Details
         </h3>
         <div className="space-y-2 text-xs font-mono">
-          <div className="flex justify-between"><span className="text-muted-foreground">Contract</span><span className="text-primary">SphinxBridge.sol</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Solidity</span><span>^0.8.0</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">SKYNT Contract</span><span className="text-primary truncate max-w-[200px]">{SKYNT_CONTRACT_ADDRESS}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Bridge</span><span className="text-primary">SkynetZkBridge.sol</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Network</span><span>zkSync Era (Chain 324)</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Solidity</span><span>^0.8.20</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Guardians</span><span>9 (5 required)</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Fee</span><span>0.1% (1/1000 basis)</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Fee</span><span>0.1% (10 BPS)</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Mechanism</span><span>Lock/Mint + Burn/Release</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Mining Chains</span><span>ETH / STX / DOGE / XMR</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Proof System</span><span>Groth16 zk-SNARK</span></div>
         </div>
       </div>
     </div>

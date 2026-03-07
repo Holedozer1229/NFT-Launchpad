@@ -65,14 +65,21 @@ export function MintCard({ mission }: MintCardProps) {
     setProgress(0);
 
     const tier = RARITY_TIERS[selectedRarity];
+    const isZkChain = selectedChain === "zksync" || selectedChain === "dogecoin" || selectedChain === "monero";
     const steps = [
       "CONSULTING THE ORACLE...",
       `CONNECTING TO ${chain.name.toUpperCase()} NETWORK...`,
       `VERIFYING ${tier.label.toUpperCase()} RARITY SHARD...`,
-      "SYNCING CROSS-CHANNEL STX YIELD...",
-      "MERGE MINING PROOF GENERATED...",
+      ...(isZkChain ? [
+        "GENERATING zk-SNARK MINT PROOF...",
+        "SUBMITTING PROOF TO GROTH16 VERIFIER...",
+        "zk-PROOF VALIDATED — AWAITING GUARDIAN SIGS...",
+      ] : [
+        "SYNCING CROSS-CHANNEL STX YIELD...",
+        "MERGE MINING PROOF GENERATED...",
+      ]),
       "CALCULATING Φ ALGEBRA...",
-      `DEPLOYING TO ${chain.name.toUpperCase()} (Chain ${chain.chainId})...`,
+      `DEPLOYING TO ${chain.name.toUpperCase()} (Chain ${chain.chainId || "L1"})...`,
       `${tier.label.toUpperCase()} ARTIFACT MATERIALIZED ON ${chain.name.toUpperCase()}...`,
       "SUBMITTING TO OPENSEA SEAPORT PROTOCOL...",
       "LISTING ON OPENSEA MARKETPLACE..."

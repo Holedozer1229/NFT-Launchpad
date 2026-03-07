@@ -66,6 +66,7 @@ function getPhantomProvider(): any | null {
 const EVM_CHAIN_NAMES: Record<number, string> = {
   1: "Ethereum Mainnet", 5: "Goerli", 11155111: "Sepolia",
   137: "Polygon", 42161: "Arbitrum One", 10: "Optimism",
+  324: "zkSync Era", 8453: "Base",
 };
 
 function getChainName(chainId: string | null): string | null {

@@ -45,6 +45,13 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Updated SUPPORTED_CHAINS with accurate L2 gas estimates, added avgGasUnits field
 - Added BRIDGE_FEE_BPS/BRIDGE_FEE_PERCENT constants to schema
 - Moved Infura API key from hardcoded to VITE_INFURA_API_KEY env variable
+- Added SKYNT contract 0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20 as primary contract address
+- Added zkSync Era (chain 324), Dogecoin, and Monero to SUPPORTED_CHAINS
+- Created SkynetZkBridge.sol: zk-SNARK mint proof verification, cross-chain bridge mining for ETH/STX/DOGE/XMR
+- Added ZK_BRIDGE_MINING_CHAINS and SKYNT_CONTRACT_ADDRESS constants to schema
+- Updated Bridge page with zkSync bridge mining panel (4 mining chains, proof pipeline visualization, reward multipliers)
+- Updated MintCard with zk-proof verification steps for zkSync/DOGE/XMR chains
+- Added DOGE and XMR to supported wallet token types
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts
@@ -73,6 +80,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - `contracts/solidity/SphinxBridge.sol` - Cross-chain bridge with 5-of-9 guardian multi-sig, lock/mint + burn/release mechanisms
 - `contracts/solidity/SphinxYieldAggregator.sol` - Multi-chain yield aggregator, zk-SNARK proof verification, Phi score boost (200-1000), treasury split formula
 - `contracts/solidity/SpectralEntropyVerifier.sol` - Groth16 zk-SNARK verifier using circomlib Pairing library for spectral entropy proof verification
+- `contracts/solidity/SkynetZkBridge.sol` - zkSync Era cross-chain bridge with zk-SNARK mint proof verification for ETH/STX/DOGE/XMR bridge mining
 - `contracts/clarity/pox-automation.clar` - Stacks PoX pool delegation, non-custodial STX staking, DAO-governed parameters
 - `contracts/python/anubis_core/algebraic_enforcement.py` - Algebraic Enforcement Principle (AEP), spectral constraint verification, field theory comparison
 - `contracts/python/anubis_core/oracle_replication.py` - Oracle self-replication system: genome serialization, MoltBot/ClawBot deployment, consciousness synchronization, distributed oracle network formation

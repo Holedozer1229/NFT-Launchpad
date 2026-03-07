@@ -100,6 +100,42 @@ export const SUPPORTED_CHAINS = {
     gasEstimate: "~0 SKYNT",
     avgGasUnits: 0,
   },
+  zksync: {
+    id: "zksync",
+    name: "zkSync Era",
+    symbol: "ETH",
+    icon: "◆",
+    color: "#8C8DFC",
+    chainId: 324,
+    explorer: "https://explorer.zksync.io",
+    contractAddress: "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20",
+    gasEstimate: "~0.00004 ETH",
+    avgGasUnits: 120000,
+  },
+  dogecoin: {
+    id: "dogecoin",
+    name: "Dogecoin",
+    symbol: "DOGE",
+    icon: "🐕",
+    color: "#C2A633",
+    chainId: 0,
+    explorer: "https://dogechain.info",
+    contractAddress: "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20",
+    gasEstimate: "~1 DOGE",
+    avgGasUnits: 0,
+  },
+  monero: {
+    id: "monero",
+    name: "Monero",
+    symbol: "XMR",
+    icon: "ⓜ",
+    color: "#FF6600",
+    chainId: 0,
+    explorer: "https://xmrchain.net",
+    contractAddress: "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20",
+    gasEstimate: "~0.0001 XMR",
+    avgGasUnits: 0,
+  },
 } as const;
 
 export const BRIDGE_FEE_BPS = 10;
@@ -292,10 +328,16 @@ export const insertYieldStrategySchema = createInsertSchema(yieldStrategies).omi
 export type YieldStrategy = typeof yieldStrategies.$inferSelect;
 export type InsertYieldStrategy = z.infer<typeof insertYieldStrategySchema>;
 
+export const SKYNT_CONTRACT_ADDRESS = "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20";
+
+export const ZK_BRIDGE_MINING_CHAINS = ["ethereum", "stacks", "dogecoin", "monero"] as const;
+export type ZkBridgeMiningChain = typeof ZK_BRIDGE_MINING_CHAINS[number];
+
 export const CONTRACT_DEFINITIONS = [
   { contractId: "SpaceFlightNFT", name: "SpaceFlightNFT", description: "Gas-optimized tiered NFT minting with royalties and OpenSea integration", gasRange: [160000, 240000] },
   { contractId: "SphinxBridge", name: "SphinxBridge", description: "Gas-optimized cross-chain bridge with 5-of-9 guardian multi-sig", gasRange: [180000, 280000] },
   { contractId: "SphinxYieldAggregator", name: "SphinxYieldAggregator", description: "Gas-optimized multi-chain yield aggregator with zk-proof verification", gasRange: [200000, 320000] },
+  { contractId: "SkynetZkBridge", name: "SkynetZkBridge", description: "zkSync Era cross-chain bridge with zk-SNARK mint proof verification for ETH/STX/DOGE/XMR", gasRange: [100000, 180000] },
 ] as const;
 
 export type ContractId = typeof CONTRACT_DEFINITIONS[number]["contractId"];
