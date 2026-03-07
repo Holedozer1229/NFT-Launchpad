@@ -4,6 +4,8 @@
 Multi-page NFT minting protocol application combining SphinxOS Oracle Minter with Cosmos Launchpad design. Features sidebar navigation, cosmic theme with neon accents, and user authentication.
 
 ## Recent Changes
+- **Mar 2026**: Fixed wallet sign-in gateway — EmbeddedWallet now performs real cryptographic signing (SIWE pattern: nonce request → personal_sign → backend verification) instead of simulated timeout. Supports both MetaMask (personal_sign) and Phantom (signMessage). Gateway shows authenticated state when user is signed in.
+- **Mar 2026**: IIT Engine continuous loop hardened — added graceful shutdown on SIGTERM/SIGINT, frontend polls every 10s with live "LOOP ACTIVE" status indicator and countdown to next refresh.
 - **Feb 2026**: Restructured from single-page to multi-page app with sidebar navigation
 - Added 6 pages: Dashboard, Mint NFT, Gallery, Analytics, Bridge, Admin
 - Implemented authentication system (passport.js + sessions + PostgreSQL)

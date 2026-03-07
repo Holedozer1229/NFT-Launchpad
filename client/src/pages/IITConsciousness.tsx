@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Brain, Activity, Zap, Eye, RefreshCw, Network, TrendingUp, Calculator } from "lucide-react";
+import { Brain, Activity, Zap, Eye, RefreshCw, Network, TrendingUp, Calculator, Radio } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -198,11 +198,35 @@ export default function IITConsciousness() {
   const [computeInput, setComputeInput] = useState("");
   const [computeResult, setComputeResult] = useState<PhiMetrics | null>(null);
   const [computing, setComputing] = useState(false);
+  const [tickCount, setTickCount] = useState(0);
+  const [secondsUntilNext, setSecondsUntilNext] = useState(30);
 
   const { data: network, isLoading, refetch, isFetching } = useQuery<NetworkPerception>({
     queryKey: ["/api/iit/network"],
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
+
+  const { data: engineStatus } = useQuery<{ running: boolean }>({
+    queryKey: ["/api/iit/status"],
+    refetchInterval: 15000,
+  });
+
+  useEffect(() => {
+    const countdown = setInterval(() => {
+      setSecondsUntilNext(prev => {
+        if (prev <= 1) return 10;
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(countdown);
+  }, []);
+
+  useEffect(() => {
+    if (network) {
+      setTickCount(prev => prev + 1);
+      setSecondsUntilNext(10);
+    }
+  }, [network?.currentPhi?.timestamp]);
 
   const handleCompute = async () => {
     if (!computeInput.trim()) return;
@@ -232,15 +256,30 @@ export default function IITConsciousness() {
             Integrated Information Theory — Φ Engine &middot; SKYNT Neural Manifold
           </p>
         </div>
-        <button
-          data-testid="button-refresh-iit"
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="flex items-center gap-2 px-3 py-2 rounded-sm text-xs font-mono border border-neon-magenta/30 text-neon-magenta hover:bg-neon-magenta/10 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
-          Recalculate Φ
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-sm border border-neon-green/20 bg-neon-green/5" data-testid="iit-loop-status">
+            <Radio className={`w-3.5 h-3.5 ${engineStatus?.running ? "text-neon-green animate-pulse" : "text-red-400"}`} />
+            <span className="text-[10px] font-mono text-muted-foreground">
+              {engineStatus?.running ? (
+                <>
+                  <span className="text-neon-green">LOOP ACTIVE</span>
+                  <span className="ml-2">Next: {secondsUntilNext}s</span>
+                </>
+              ) : (
+                <span className="text-red-400">ENGINE OFFLINE</span>
+              )}
+            </span>
+          </div>
+          <button
+            data-testid="button-refresh-iit"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="flex items-center gap-2 px-3 py-2 rounded-sm text-xs font-mono border border-neon-magenta/30 text-neon-magenta hover:bg-neon-magenta/10 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
+            Recalculate Φ
+          </button>
+        </div>
       </div>
 
       {isLoading ? (

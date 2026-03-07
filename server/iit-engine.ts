@@ -245,21 +245,22 @@ export function getNetworkPerception(blockHeight?: number): NetworkPerception {
 
 export function startEngine(): void {
   if (engineInterval) return;
-  console.log("[IIT Engine] Starting continuous Φ computation (every 30s)");
+  console.log("[IIT Engine] Starting continuous Φ computation loop (every 30s)");
 
-  fetchBlockHeight().then(h => {
-    lastBlockHeight = h;
-    tick(lastBlockHeight);
-  });
-
-  engineInterval = setInterval(async () => {
+  const runTick = async () => {
     try {
       lastBlockHeight = await fetchBlockHeight();
-      tick(lastBlockHeight);
-    } catch (e) {
-      tick(lastBlockHeight);
+    } catch {
     }
-  }, ENGINE_TICK_MS);
+    tick(lastBlockHeight);
+  };
+
+  runTick();
+
+  engineInterval = setInterval(runTick, ENGINE_TICK_MS);
+
+  process.on("SIGTERM", () => stopEngine());
+  process.on("SIGINT", () => stopEngine());
 }
 
 export function stopEngine(): void {

@@ -1,29 +1,65 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { useWallet } from "@/lib/mock-web3";
-import { Wallet, ShieldCheck, Key, Loader2, CheckCircle2, AlertCircle, RefreshCw, Link2 } from "lucide-react";
+import { Wallet, ShieldCheck, Loader2, CheckCircle2, AlertCircle, RefreshCw, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 export function EmbeddedWallet() {
   const { isConnected, address, balance, connect, disconnect, provider, chainName, error, clearError, refreshBalance } = useWallet();
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
-  const [signature, setSignature] = useState("");
   const { toast } = useToast();
+  const { loginWithWallet, user } = useAuth();
 
   const handleVerify = async () => {
+    if (!address || !provider) return;
     setIsVerifying(true);
-    // Simulate cryptographic verification
-    await new Promise(r => setTimeout(r, 2000));
-    setIsVerified(true);
-    setIsVerifying(false);
-    toast({
-      title: "IDENTITY_VERIFIED",
-      description: "Wallet ownership cryptographically confirmed via SKYNT.",
-    });
+    try {
+      const nonceRes = await fetch(`/api/auth/nonce?address=${address}`);
+      if (!nonceRes.ok) throw new Error("Failed to get nonce");
+      const { nonce } = await nonceRes.json();
+
+      const message = `Sign this message to authenticate with SKYNT Protocol (Contract: 0x22d3f06afB69e5FCFAa98C20009510dD11aF2517)\nNonce: ${nonce}`;
+
+      let signature: string;
+
+      if (provider === "metamask") {
+        const ethereum = (window as any).ethereum;
+        if (!ethereum) throw new Error("MetaMask provider not available");
+        signature = await ethereum.request({
+          method: "personal_sign",
+          params: [message, address],
+        });
+      } else if (provider === "phantom") {
+        const phantom = (window as any).phantom?.solana;
+        if (!phantom) throw new Error("Phantom provider not available");
+        const encoded = new TextEncoder().encode(message);
+        const signed = await phantom.signMessage(encoded, "utf8");
+        const bytes = signed.signature instanceof Uint8Array ? signed.signature : new Uint8Array(signed.signature);
+        signature = "0x" + Array.from(bytes).map((b: number) => b.toString(16).padStart(2, "0")).join("");
+      } else {
+        throw new Error("Unsupported wallet provider");
+      }
+
+      await loginWithWallet(address, signature, nonce);
+      setIsVerified(true);
+      toast({
+        title: "IDENTITY_VERIFIED",
+        description: "Wallet ownership cryptographically confirmed via SKYNT.",
+      });
+    } catch (err: any) {
+      const msg = err?.message || "Signature denied or verification failed";
+      toast({
+        title: "Verification Failed",
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   if (!isConnected) {
@@ -60,8 +96,8 @@ export function EmbeddedWallet() {
             <ShieldCheck className={`w-5 h-5 ${isVerified ? 'text-green-500' : 'text-primary'}`} />
             <CardTitle className="font-heading text-lg text-primary">IDENTITY_NODE</CardTitle>
           </div>
-          <Badge variant="outline" className={isVerified ? "border-green-500 text-green-500" : "border-primary text-primary"}>
-            {isVerified ? "VERIFIED" : "UNVERIFIED"}
+          <Badge variant="outline" className={(isVerified || user) ? "border-green-500 text-green-500" : "border-primary text-primary"}>
+            {(isVerified || user) ? "VERIFIED" : "UNVERIFIED"}
           </Badge>
         </div>
       </CardHeader>
@@ -99,32 +135,32 @@ export function EmbeddedWallet() {
           </div>
         )}
 
-        {!isVerified && (
+        {!isVerified && !user && (
           <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
             <div className="flex items-center gap-2 text-xs font-mono text-yellow-500/80">
               <AlertCircle className="w-3 h-3" />
-              <span>Cryptographic challenge required for full access.</span>
+              <span>Sign with your wallet to authenticate and unlock full access.</span>
             </div>
-            <Input 
-              placeholder="Enter challenge nonce..." 
-              value={signature}
-              onChange={(e) => setSignature(e.target.value)}
-              className="bg-black/40 border-primary/20 text-primary font-mono text-xs"
-            />
             <Button 
+              data-testid="button-sign-verify"
               onClick={handleVerify} 
-              disabled={isVerifying || !signature}
+              disabled={isVerifying}
               className="w-full bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 font-heading"
             >
-              {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : "VERIFY_SITE_OWNERSHIP"}
+              {isVerifying ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  SIGNING...
+                </>
+              ) : "SIGN & AUTHENTICATE"}
             </Button>
           </div>
         )}
 
-        {isVerified && (
+        {(isVerified || user) && (
           <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-sm text-green-500 font-mono text-xs animate-in zoom-in-95">
             <CheckCircle2 className="w-4 h-4" />
-            <span>SESSION_SECURED: TEMPORAL_REVERTS_DISABLED</span>
+            <span>SESSION_SECURED: AUTHENTICATED{user ? ` as ${user.username}` : ""}</span>
           </div>
         )}
 
