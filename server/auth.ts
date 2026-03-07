@@ -1,8 +1,9 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Express } from "express";
 import session from "express-session";
-import { scrypt, randomBytes, timingSafeEqual } from "crypto";
+import { scrypt, randomBytes, timingSafeEqual, createHash } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User } from "@shared/schema";
@@ -24,6 +25,64 @@ async function comparePasswords(supplied: string, stored: string): Promise<boole
   const hashedBuf = Buffer.from(hashed, "hex");
   const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
   return timingSafeEqual(hashedBuf, suppliedBuf);
+}
+
+function getBaseUrl(): string {
+  if (process.env.REPLIT_DEPLOYMENT_URL) {
+    return `https://${process.env.REPLIT_DEPLOYMENT_URL}`;
+  }
+  if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
+    return `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+  }
+  return `http://localhost:${process.env.PORT || 5000}`;
+}
+
+async function findOrCreateOAuthUser(opts: {
+  provider: "google" | "apple";
+  providerId: string;
+  email?: string | null;
+  displayName?: string;
+  avatarUrl?: string | null;
+}): Promise<User> {
+  const { provider, providerId, email, displayName, avatarUrl } = opts;
+
+  const lookupFn = provider === "google"
+    ? storage.getUserByGoogleId.bind(storage)
+    : storage.getUserByAppleId.bind(storage);
+  let user = await lookupFn(providerId);
+  if (user) return user;
+
+  if (email) {
+    user = await storage.getUserByEmail(email);
+    if (user) {
+      return user;
+    }
+  }
+
+  const baseUsername = displayName
+    ? displayName.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 20)
+    : `${provider}_${providerId.slice(0, 8)}`;
+
+  let username = baseUsername;
+  let counter = 1;
+  while (await storage.getUserByUsername(username)) {
+    username = `${baseUsername}_${counter}`;
+    counter++;
+  }
+
+  const providerIdField = provider === "google" ? "googleId" : "appleId";
+
+  user = await storage.createUser({
+    username,
+    password: await hashPassword(randomBytes(32).toString("hex")),
+    [providerIdField]: providerId,
+    email: email || null,
+    avatarUrl: avatarUrl || null,
+    authProvider: provider,
+  });
+
+  await storage.createWallet(user.id, "Main Wallet");
+  return user;
 }
 
 export function setupAuth(app: Express) {
@@ -63,6 +122,38 @@ export function setupAuth(app: Express) {
     }),
   );
 
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    passport.use(
+      new GoogleStrategy(
+        {
+          clientID: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          callbackURL: "/api/auth/google/callback",
+          scope: ["profile", "email"],
+        },
+        async (_accessToken, _refreshToken, profile, done) => {
+          try {
+            const email = profile.emails?.[0]?.value || null;
+            const avatarUrl = profile.photos?.[0]?.value || null;
+            const user = await findOrCreateOAuthUser({
+              provider: "google",
+              providerId: profile.id,
+              email,
+              displayName: profile.displayName,
+              avatarUrl,
+            });
+            done(null, user);
+          } catch (err) {
+            done(err as Error);
+          }
+        },
+      ),
+    );
+    console.log("[Auth] Google OAuth strategy configured");
+  } else {
+    console.log("[Auth] Google OAuth not configured (missing GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)");
+  }
+
   passport.serializeUser((user: any, done) => {
     done(null, user.id);
   });
@@ -91,6 +182,7 @@ export function setupAuth(app: Express) {
       const user = await storage.createUser({
         username,
         password: await hashPassword(password),
+        authProvider: "local",
       });
 
       await storage.createWallet(user.id, "Main Wallet");
@@ -113,7 +205,6 @@ export function setupAuth(app: Express) {
       req.login(user, async (err: any) => {
         if (err) return next(err);
         
-        // Auto-create wallet for existing users who don't have one
         try {
           const userWallets = await storage.getWalletsByUser(user.id);
           if (userWallets.length === 0) {
@@ -127,6 +218,64 @@ export function setupAuth(app: Express) {
         return res.json(safeUser);
       });
     })(req, res, next);
+  });
+
+  app.get("/api/auth/google", (req, res, next) => {
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(501).json({ message: "Google authentication is not configured" });
+    }
+    passport.authenticate("google", { scope: ["profile", "email"] })(req, res, next);
+  });
+
+  app.get("/api/auth/google/callback", (req, res, next) => {
+    passport.authenticate("google", { failureRedirect: "/auth?error=google_failed" })(req, res, () => {
+      res.redirect("/");
+    });
+  });
+
+  app.post("/api/auth/apple/callback", rateLimit(60000, 10), async (req, res, next) => {
+    try {
+      const { id_token } = req.body;
+      if (!id_token) {
+        return res.status(400).json({ message: "Missing id_token" });
+      }
+
+      const parts = id_token.split(".");
+      if (parts.length !== 3) {
+        return res.status(400).json({ message: "Invalid token format" });
+      }
+
+      const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString());
+
+      if (!payload.sub) {
+        return res.status(400).json({ message: "Invalid token payload" });
+      }
+
+      const user = await findOrCreateOAuthUser({
+        provider: "apple",
+        providerId: payload.sub,
+        email: payload.email || null,
+        displayName: payload.email ? payload.email.split("@")[0] : undefined,
+      });
+
+      req.login(user, (err) => {
+        if (err) return next(err);
+        const { password: _, ...safeUser } = user;
+        res.json(safeUser);
+      });
+    } catch (error) {
+      console.error("Apple auth error:", error);
+      next(error);
+    }
+  });
+
+  app.get("/api/auth/providers", (_req, res) => {
+    res.json({
+      google: !!process.env.GOOGLE_CLIENT_ID,
+      apple: !!process.env.APPLE_CLIENT_ID,
+      wallet: true,
+      local: true,
+    });
   });
 
   app.get("/api/auth/nonce", async (req, res) => {
@@ -163,12 +312,12 @@ export function setupAuth(app: Express) {
 
       let user = await storage.getUserByWalletAddress(address);
       if (!user) {
-        // Auto-register for wallet login
         user = await storage.createUser({
           username: `wallet_${address.slice(2, 8)}`,
           password: await hashPassword(randomBytes(32).toString("hex")),
           walletAddress: address,
           authNonce: null,
+          authProvider: "wallet",
         });
         await storage.createWallet(user.id, "Primary Wallet");
       } else {
