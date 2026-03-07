@@ -6,9 +6,10 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual, createHash } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User } from "@shared/schema";
+import { User, users } from "@shared/schema";
 import connectPg from "connect-pg-simple";
-import { pool } from "./db";
+import { pool, db } from "./db";
+import { eq } from "drizzle-orm";
 import { rateLimit } from "./routes";
 import { verifyMessage } from "viem";
 
@@ -308,6 +309,23 @@ export function setupAuth(app: Express) {
 
       if (!isValid) {
         return res.status(401).json({ message: "Invalid signature" });
+      }
+
+      if (req.isAuthenticated() && req.user) {
+        const existingOwner = await storage.getUserByWalletAddress(address);
+        if (existingOwner && existingOwner.id !== req.user.id) {
+          return res.status(409).json({ message: "This wallet is already linked to another account" });
+        }
+
+        if (!existingOwner || existingOwner.id === req.user.id) {
+          await db.update(users)
+            .set({ walletAddress: address, authNonce: null })
+            .where(eq(users.id, req.user.id));
+        }
+
+        const updatedUser = await storage.getUser(req.user.id);
+        const { password: _, ...safeUser } = updatedUser!;
+        return res.json(safeUser);
       }
 
       let user = await storage.getUserByWalletAddress(address);
