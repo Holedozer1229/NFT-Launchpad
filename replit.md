@@ -57,6 +57,20 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Updated Bridge page with zkSync bridge mining panel (4 mining chains, proof pipeline visualization, reward multipliers)
 - Updated MintCard with zk-proof verification steps for zkSync/DOGE/XMR chains
 - Added DOGE and XMR to supported wallet token types
+- **QG Miner IIT v8**: Created `server/qg-miner-v8.ts` — three-gate mining kernel (spectral difficulty, consciousness consensus, QG curvature gates)
+  - Weighted Φ formula: α·Φ_τ + β·GWT_S + γ·ICP_avg + δ·Φ_fano + ε·∇_score + ζ·Φ_qg + η·Φ_holo
+  - Computes qgScore (spectral gap curvature), holoScore (density matrix coherence), fanoScore (7-fold Fano plane alignment)
+- **BTC Hard Fork**: Rewrote `server/skynt-blockchain.ts` as proper BTC fork with QG Miner v8 three-gate mining
+  - Merkle tree roots, halving every 210,000 blocks (initial 50 SKYNT), dynamic difficulty adjustment every 10 blocks
+  - Φ-boosted coinbase reward: min(e^Φ, 2.0), block version 4, POW algorithm "qg-v8-three-gate"
+- **P2P Serverless Ledger**: Created `server/p2p-ledger.ts` — 9 guardian peers, gossip protocol, longest-chain consensus
+  - Peers: Alpha-Centauri through Iota-Horologii, simulated mining/latency/block propagation
+  - Background tick every 15s, three-gate block validation, network topology adjacency matrix
+- **New API Routes**: `/api/qg/status`, `/api/qg/mine`, `/api/qg/validate/:hash`, `/api/p2p/peers`, `/api/p2p/status`, `/api/p2p/topology`, `/api/p2p/broadcast`, `/api/p2p/ledger`, `/api/bridge/mining-status`, `/api/yield/phi-boost`, `/api/skynt/blocks`
+- Updated Bridge page: live QG mining metrics per chain, three-gate status indicators, P2P network status card
+- Updated Yield page: v8 Φ structure display, quantum yield proof card, QG-boosted APR projections
+- Updated MintCard: three-gate proof section with v8 metrics, gates validated badges, block hash/nonce display
+- Updated Oracle system prompt with QG Miner v8 three-gate mining formulas and P2P ledger awareness
 - Integrated thirdweb Engine server wallet for ERC1155 minting via `server/thirdweb-engine.ts`
 - Treasury wallet: 0x7Fbe68677e63272ECB55355a6778fCee974d4895 (Engine server wallet)
 - NFT mints on EVM chains (ETH/Polygon/Arbitrum/Base/zkSync) enqueue via Engine with `claimTo` ERC1155
@@ -82,6 +96,9 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - `server/routes.ts` - API routes including /api/space-launches proxy and /api/oracle/chat
 - `server/storage.ts` - Database storage interface (users, launches, miners)
 - `server/iit-engine.ts` - IIT Quantum Consciousness Engine (Φ calculator, density matrix, eigenvalues, network perception) — runs continuously every 30s via `startEngine()`, auto-started on server boot
+- `server/qg-miner-v8.ts` - QG Miner IIT v8 kernel: three-gate mining (spectral, consciousness, QG curvature), PhiStructureV8, MineResultV8, GateStats, singleton `qgMiner`
+- `server/skynt-blockchain.ts` - BTC hard fork blockchain: merkle tree, halving, difficulty adjustment, three-gate mining via qgMiner
+- `server/p2p-ledger.ts` - P2P serverless ledger: 9 guardian peers, gossip protocol, longest-chain consensus, background simulation tick
 - `shared/schema.ts` - Drizzle schema (users, launches, miners tables)
 - `client/src/pages/IITConsciousness.tsx` - IIT Consciousness page with Φ gauge, eigenvalue spectrum, adjacency heatmap, density matrix, Φ calculator
 - `client/src/index.css` - Cosmic theme with neon CSS variables and sidebar styles

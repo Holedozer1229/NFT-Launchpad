@@ -9,6 +9,7 @@
 
 import { createHash, randomBytes } from "crypto";
 import { calculatePhi } from "./iit-engine";
+import { qgMiner } from "./qg-miner-v8";
 
 // ==================== Types ====================
 
@@ -18,8 +19,14 @@ export interface SkyntBlock {
   previousHash: string;
   timestamp: number;
   transactions: SkyntTransaction[];
+  merkleRoot: string;
+  version: number;
   miner: string;
   phiScore: number;
+  qgScore: number;
+  holoScore: number;
+  fanoScore: number;
+  gatesPassed: string[];
   difficulty: number;
   nonce: number;
   powAlgorithm: string;
@@ -59,6 +66,11 @@ export interface SkyntChainInfo {
   networkPhiScore: number;
   isValid: boolean;
   powAlgorithm: string;
+  version: number;
+  halvingEpoch: number;
+  nextHalving: number;
+  currentReward: number;
+  difficultyAdjustmentBlock: number;
 }
 
 export interface SkyntMintResult {
@@ -67,6 +79,11 @@ export interface SkyntMintResult {
   blockIndex: number;
   tokenId: string;
   phiProof: number;
+  phiTotal: number;
+  qgScore: number;
+  holoScore: number;
+  fanoScore: number;
+  gatesPassed: string[];
   gasUsed: number;
   chain: "skynt";
   explorerUrl: string;
@@ -74,11 +91,15 @@ export interface SkyntMintResult {
 
 // ==================== Constants ====================
 
-const MINING_REWARD = 50.0;
-const BLOCK_DIFFICULTY = 2;
+const INITIAL_MINING_REWARD = 50.0;
+const SKYNT_HALVING_INTERVAL = 210_000;
+const BLOCK_DIFFICULTY = 2; // Starting difficulty
 const MAX_SUPPLY = 21_000_000;
 const TRANSACTION_FEE = 0.0; // Gasless
-const POW_ALGORITHM = "phi-spectral";
+const POW_ALGORITHM = "qg-v8-three-gate";
+const BLOCK_TIME_TARGET_MS = 30_000; // 30s for simulation
+const DIFFICULTY_ADJUSTMENT_INTERVAL = 10; // Every 10 blocks for simulation
+const BLOCK_VERSION = 4;
 
 // ==================== In-memory state ====================
 
@@ -89,15 +110,64 @@ const txIndex = new Map<string, SkyntTransaction>();
 
 // ==================== Core helpers ====================
 
+function computeMerkleRoot(transactions: SkyntTransaction[]): string {
+  if (transactions.length === 0) return createHash("sha256").update("").digest("hex");
+  
+  let hashes = transactions.map(tx => tx.txHash);
+  
+  while (hashes.length > 1) {
+    const nextLevel: string[] = [];
+    for (let i = 0; i < hashes.length; i += 2) {
+      if (i + 1 < hashes.length) {
+        nextLevel.push(createHash("sha256").update(hashes[i] + hashes[i + 1]).digest("hex"));
+      } else {
+        nextLevel.push(createHash("sha256").update(hashes[i] + hashes[i]).digest("hex"));
+      }
+    }
+    hashes = nextLevel;
+  }
+  
+  return hashes[0];
+}
+
+function getBlockReward(height: number): number {
+  const halvings = Math.floor(height / SKYNT_HALVING_INTERVAL);
+  if (halvings >= 64) return 0;
+  
+  const reward = INITIAL_MINING_REWARD / Math.pow(2, halvings);
+  return Math.max(reward, 0.00000001);
+}
+
+function adjustDifficulty(): number {
+  const latest = chain[chain.length - 1];
+  if (latest.index === 0 || latest.index % DIFFICULTY_ADJUSTMENT_INTERVAL !== 0) {
+    return latest.difficulty;
+  }
+  
+  const lastAdjustmentBlock = chain[chain.length - DIFFICULTY_ADJUSTMENT_INTERVAL];
+  const timeExpected = BLOCK_TIME_TARGET_MS * DIFFICULTY_ADJUSTMENT_INTERVAL;
+  const timeTaken = latest.timestamp - lastAdjustmentBlock.timestamp;
+  
+  let newDifficulty = latest.difficulty;
+  if (timeTaken < timeExpected / 2) {
+    newDifficulty++;
+  } else if (timeTaken > timeExpected * 2) {
+    newDifficulty = Math.max(1, newDifficulty - 1);
+  }
+  
+  return newDifficulty;
+}
+
 function calculateBlockHash(block: Omit<SkyntBlock, "hash">): string {
   const data = JSON.stringify({
     index: block.index,
     previousHash: block.previousHash,
     timestamp: block.timestamp,
+    merkleRoot: block.merkleRoot,
     miner: block.miner,
     nonce: block.nonce,
-    phiScore: block.phiScore,
-    txCount: block.transactions.length,
+    phiTotal: block.phiScore,
+    qgScore: block.qgScore,
   });
   return createHash("sha256").update(data).digest("hex");
 }
@@ -135,8 +205,14 @@ function createGenesisBlock(): SkyntBlock {
     previousHash: "0".repeat(64),
     timestamp: 0,
     transactions: [coinbase],
+    merkleRoot: computeMerkleRoot([coinbase]),
+    version: BLOCK_VERSION,
     miner: "GENESIS",
     phiScore: 1.0,
+    qgScore: 1.0,
+    holoScore: 1.0,
+    fanoScore: 1.0,
+    gatesPassed: ["spectral", "consciousness", "qg_curvature"],
     difficulty: BLOCK_DIFFICULTY,
     nonce: 0,
     powAlgorithm: POW_ALGORITHM,
@@ -153,14 +229,31 @@ chain.push(createGenesisBlock());
 function mineBlock(
   miner: string,
   transactions: SkyntTransaction[],
-  phiScore: number
+  phiScore: number // Use for legacy phiScore compatibility if needed
 ): SkyntBlock {
   const latest = chain[chain.length - 1];
+  const height = latest.index + 1;
+  const currentDifficulty = adjustDifficulty();
 
-  // Φ-boosted coinbase reward; phiScore is clamped to [0,1] for stable exp
-  const clampedPhi = Math.max(0, Math.min(1, phiScore));
+  // BTC-style halving reward
+  const baseReward = getBlockReward(height);
+  
+  // Φ-boosted reward; clamped phi from qgMiner result if available
+  // Here we'll start mining and get the real v8 metrics
+  const merkleRoot = computeMerkleRoot(transactions);
+  const blockData = JSON.stringify({
+    index: height,
+    previousHash: latest.hash,
+    timestamp: Date.now(),
+    merkleRoot,
+    miner,
+  });
+
+  const mineResult = qgMiner.mine(blockData, currentDifficulty);
+  
+  const clampedPhi = Math.max(0, Math.min(1, mineResult.phiTotal));
   const phiBoost = Math.exp(clampedPhi);
-  const reward = MINING_REWARD * Math.min(phiBoost, 2.0);
+  const reward = baseReward * Math.min(phiBoost, 2.0);
 
   const coinbase: SkyntTransaction = {
     txHash: generateTxHash(),
@@ -169,35 +262,47 @@ function mineBlock(
     amount: reward,
     type: "coinbase",
     timestamp: Date.now(),
-    signature: "PHI_BOOSTED_COINBASE",
+    signature: "PHI_BOOSTED_V8_COINBASE",
     fee: 0,
   };
 
   const allTransactions = [coinbase, ...transactions];
+  const finalMerkleRoot = computeMerkleRoot(allTransactions);
 
-  let nonce = 0;
-  let candidate: Omit<SkyntBlock, "hash"> = {
-    index: latest.index + 1,
+  return {
+    index: height,
+    hash: mineResult.blockHash || calculateBlockHash({
+      index: height,
+      previousHash: latest.hash,
+      timestamp: Date.now(),
+      transactions: allTransactions,
+      merkleRoot: finalMerkleRoot,
+      version: BLOCK_VERSION,
+      miner,
+      phiScore: mineResult.phiTotal,
+      qgScore: mineResult.qgScore,
+      holoScore: mineResult.holoScore,
+      fanoScore: mineResult.fanoScore,
+      gatesPassed: mineResult.gatesPassed,
+      difficulty: currentDifficulty,
+      nonce: mineResult.nonce || 0,
+      powAlgorithm: POW_ALGORITHM,
+    }),
     previousHash: latest.hash,
     timestamp: Date.now(),
     transactions: allTransactions,
+    merkleRoot: finalMerkleRoot,
+    version: BLOCK_VERSION,
     miner,
-    phiScore,
-    difficulty: BLOCK_DIFFICULTY,
-    nonce,
+    phiScore: mineResult.phiTotal,
+    qgScore: mineResult.qgScore,
+    holoScore: mineResult.holoScore,
+    fanoScore: mineResult.fanoScore,
+    gatesPassed: mineResult.gatesPassed,
+    difficulty: currentDifficulty,
+    nonce: mineResult.nonce || 0,
     powAlgorithm: POW_ALGORITHM,
   };
-
-  // Proof of Work with reduced difficulty for gasless speed
-  const prefix = "0".repeat(BLOCK_DIFFICULTY);
-  let hash = calculateBlockHash(candidate);
-  while (!hash.startsWith(prefix)) {
-    nonce++;
-    candidate = { ...candidate, nonce };
-    hash = calculateBlockHash(candidate);
-  }
-
-  return { ...candidate, hash };
 }
 
 function updateBalances(block: SkyntBlock): void {
@@ -221,6 +326,11 @@ export function getChainInfo(): SkyntChainInfo {
     return sum + (coinbase?.amount ?? 0);
   }, 0);
 
+  const halvingEpoch = Math.floor(latest.index / SKYNT_HALVING_INTERVAL);
+  const nextHalving = (halvingEpoch + 1) * SKYNT_HALVING_INTERVAL;
+  const currentReward = getBlockReward(latest.index);
+  const difficultyAdjustmentBlock = Math.floor(latest.index / DIFFICULTY_ADJUSTMENT_INTERVAL + 1) * DIFFICULTY_ADJUSTMENT_INTERVAL;
+
   return {
     chainLength: chain.length,
     latestBlockHash: latest.hash,
@@ -228,11 +338,16 @@ export function getChainInfo(): SkyntChainInfo {
     totalTransactions: totalTx,
     totalSupply: totalMined,
     maxSupply: MAX_SUPPLY,
-    difficulty: BLOCK_DIFFICULTY,
+    difficulty: latest.difficulty,
     pendingTransactions: pendingTransactions.length,
     networkPhiScore: latest.phiScore,
     isValid: isChainValid(),
     powAlgorithm: POW_ALGORITHM,
+    version: latest.version,
+    halvingEpoch,
+    nextHalving,
+    currentReward,
+    difficultyAdjustmentBlock,
   };
 }
 
@@ -310,6 +425,11 @@ export function mintNftOnSkynt(params: {
     blockIndex: newBlock.index,
     tokenId,
     phiProof: phiScore,
+    phiTotal: newBlock.phiScore,
+    qgScore: newBlock.qgScore,
+    holoScore: newBlock.holoScore,
+    fanoScore: newBlock.fanoScore,
+    gatesPassed: newBlock.gatesPassed,
     gasUsed: 0,
     chain: "skynt",
     explorerUrl,
@@ -327,6 +447,10 @@ export function addPendingTransaction(tx: Omit<SkyntTransaction, "txHash" | "sig
   };
   pendingTransactions.push(full);
   return full;
+}
+
+export function getRecentBlocks(limit = 20): SkyntBlock[] {
+  return chain.slice(-limit).reverse();
 }
 
 export function isChainValid(): boolean {

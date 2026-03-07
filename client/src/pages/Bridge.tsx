@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle, Loader2, Smartphone, DollarSign, Pickaxe, Activity, Hash } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle, Loader2, Smartphone, DollarSign, Pickaxe, Activity, Hash, Share2, Server, Globe, Cpu } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -20,12 +20,27 @@ const chains = [
   { id: "stacks", name: "Stacks", symbol: "STX", icon: "⟐", color: "hsl(16 97% 59%)" },
 ];
 
-const ZK_MINING_CHAINS = [
-  { id: "ethereum", label: "ETH", multiplier: "1.0×", color: "#627EEA", hashRate: "~142 TH/s" },
-  { id: "stacks", label: "STX", multiplier: "0.8×", color: "#FC6432", hashRate: "~28 GH/s" },
-  { id: "dogecoin", label: "DOGE", multiplier: "0.5×", color: "#C2A633", hashRate: "~850 TH/s" },
-  { id: "monero", label: "XMR", multiplier: "1.2×", color: "#FF6600", hashRate: "~3.1 GH/s" },
-];
+interface BridgeMiningStatus {
+  chain: string;
+  phiTotal: number;
+  qgScore: number;
+  holoScore: number;
+  fanoScore: number;
+  spectralHash: string;
+  gatesPassed: string[];
+  rewardMultiplier: number;
+  level: number;
+}
+
+interface P2PStatus {
+  status: string;
+  peerCount: number;
+  activePeers: number;
+  blockHeight: number;
+  networkHashRate: string;
+  consensusStatus: string;
+  lastBlockTime: number;
+}
 
 interface BridgeTx {
   id: number;
@@ -68,6 +83,16 @@ export default function Bridge() {
   const { data: guardiansList = [], isLoading: guardiansLoading } = useQuery<GuardianData[]>({
     queryKey: ["/api/bridge/guardians"],
     refetchInterval: 30000,
+  });
+
+  const { data: miningStatus = [], isLoading: miningLoading } = useQuery<BridgeMiningStatus[]>({
+    queryKey: ["/api/bridge/mining-status"],
+    refetchInterval: 10000,
+  });
+
+  const { data: p2pStatus, isLoading: p2pLoading } = useQuery<P2PStatus>({
+    queryKey: ["/api/p2p/status"],
+    refetchInterval: 15000,
   });
 
   const bridgeMutation = useMutation({
@@ -413,46 +438,129 @@ export default function Bridge() {
         )}
       </div>
 
+      <div className="cosmic-card cosmic-card-cyan p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-heading text-sm uppercase tracking-wider flex items-center gap-2">
+            <Globe className="w-4 h-4 text-neon-cyan" /> P2P Network Status
+          </h3>
+          {p2pLoading ? (
+            <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${p2pStatus?.status === "online" ? "bg-neon-green animate-pulse" : "bg-red-500"}`} />
+              <span className="text-[10px] font-mono uppercase text-muted-foreground">{p2pStatus?.status || "Offline"}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-2.5 bg-black/20 border border-border/50 rounded-sm">
+            <div className="text-[9px] text-muted-foreground font-heading uppercase tracking-tighter mb-1">Peers</div>
+            <div className="text-sm font-mono flex items-baseline gap-1">
+              <span className="text-neon-cyan">{p2pStatus?.activePeers ?? 0}</span>
+              <span className="text-[10px] text-muted-foreground">/ {p2pStatus?.peerCount ?? 0}</span>
+            </div>
+          </div>
+          <div className="p-2.5 bg-black/20 border border-border/50 rounded-sm">
+            <div className="text-[9px] text-muted-foreground font-heading uppercase tracking-tighter mb-1">Height</div>
+            <div className="text-sm font-mono text-primary">{p2pStatus?.blockHeight?.toLocaleString() ?? "—"}</div>
+          </div>
+          <div className="p-2.5 bg-black/20 border border-border/50 rounded-sm">
+            <div className="text-[9px] text-muted-foreground font-heading uppercase tracking-tighter mb-1">Consensus</div>
+            <div className="text-[10px] font-mono text-neon-green truncate">{p2pStatus?.consensusStatus ?? "—"}</div>
+          </div>
+          <div className="p-2.5 bg-black/20 border border-border/50 rounded-sm">
+            <div className="text-[9px] text-muted-foreground font-heading uppercase tracking-tighter mb-1">Hash Rate</div>
+            <div className="text-xs font-mono text-neon-magenta truncate">{p2pStatus?.networkHashRate ?? "—"}</div>
+          </div>
+        </div>
+      </div>
+
       <div className="cosmic-card cosmic-card-magenta p-4" data-testid="zk-bridge-mining-panel">
         <h3 className="font-heading text-sm uppercase tracking-wider mb-4 flex items-center gap-2">
           <Pickaxe className="w-4 h-4 text-neon-magenta" /> zkSync Bridge Mining
         </h3>
         <p className="text-[10px] text-muted-foreground mb-4 font-mono">
-          Cross-chain bridge mining via zk-SNARK mint proofs. Mine on source chains, verify on zkSync Era, mint SKYNT rewards.
+          Cross-chain bridge mining via QG Miner v8 three-gate validity. {"Φ_total > log₂(n) + Φ_fano + Φ_qg."}
         </p>
 
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          {ZK_MINING_CHAINS.map((mc) => (
-            <div key={mc.id} className="p-3 bg-black/30 border border-border/50 rounded-sm space-y-2" data-testid={`zk-mining-${mc.id}`}>
-              <div className="flex items-center justify-between">
-                <span className="font-heading text-xs uppercase tracking-wider" style={{ color: mc.color }}>{mc.label}</span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-neon-green/10 text-neon-green">ACTIVE</span>
-              </div>
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-muted-foreground flex items-center gap-1"><Activity className="w-2.5 h-2.5" /> Hash Rate</span>
-                <span className="font-mono">{mc.hashRate}</span>
-              </div>
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-muted-foreground flex items-center gap-1"><Zap className="w-2.5 h-2.5" /> Reward</span>
-                <span className="font-mono text-primary">{mc.multiplier}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+        {miningLoading && miningStatus.length === 0 ? (
+          <div className="flex items-center justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-neon-magenta" /></div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {miningStatus.map((ms) => {
+              const chainInfo = chains.find(c => c.id === ms.chain);
+              return (
+                <div key={ms.chain} className="p-3 bg-black/30 border border-border/50 rounded-sm space-y-3" data-testid={`zk-mining-${ms.chain}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{chainInfo?.icon || "⛓️"}</span>
+                      <span className="font-heading text-xs uppercase tracking-wider" style={{ color: chainInfo?.color }}>{chainInfo?.name || ms.chain}</span>
+                    </div>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-neon-green/10 text-neon-green">GATE PASSED</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[9px]">
+                        <span className="text-muted-foreground">Φ_TOTAL</span>
+                        <span className="font-mono text-neon-cyan">{ms.phiTotal.toFixed(4)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[9px]">
+                        <span className="text-muted-foreground">Φ_QG</span>
+                        <span className="font-mono text-neon-magenta">{ms.qgScore.toFixed(4)}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[9px]">
+                        <span className="text-muted-foreground">Φ_HOLO</span>
+                        <span className="font-mono text-primary">{ms.holoScore.toFixed(4)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[9px]">
+                        <span className="text-muted-foreground">Φ_FANO</span>
+                        <span className="font-mono text-neon-orange">{ms.fanoScore.toFixed(4)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-border/30 flex items-center justify-between">
+                    <div className="flex gap-1">
+                      {["spectral", "consciousness", "qg_curvature"].map(gate => (
+                        <div key={gate} title={gate.replace("_", " ")} className={`w-4 h-4 rounded-full flex items-center justify-center border ${
+                          ms.gatesPassed.includes(gate) ? "border-neon-green bg-neon-green/10 text-neon-green" : "border-red-500/30 bg-red-500/5 text-red-500/40"
+                        }`}>
+                          <CheckCircle className="w-2.5 h-2.5" />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[8px] text-muted-foreground font-mono uppercase tracking-tighter">Reward Multiplier</div>
+                      <div className="text-xs font-mono text-neon-green">{ms.rewardMultiplier.toFixed(2)}x</div>
+                    </div>
+                  </div>
+
+                  <div className="text-[8px] font-mono text-muted-foreground/60 truncate">
+                    SPECTRAL_HASH: {ms.spectralHash}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="p-3 bg-black/20 border border-neon-magenta/20 rounded-sm space-y-2">
           <div className="flex items-center gap-2 mb-2">
             <Hash className="w-3.5 h-3.5 text-neon-cyan" />
-            <span className="text-[10px] font-heading uppercase tracking-wider text-neon-cyan">zk-Proof Verification Pipeline</span>
+            <span className="text-[10px] font-heading uppercase tracking-wider text-neon-cyan">Three-Gate Validity Pipeline</span>
           </div>
           <div className="flex items-center gap-3 text-[10px] font-mono">
-            <span className="px-2 py-1 bg-neon-green/10 text-neon-green rounded-sm border border-neon-green/20">1. Mine</span>
+            <span className={`px-2 py-1 rounded-sm border ${miningStatus[0]?.gatesPassed.includes("spectral") ? "bg-neon-green/10 text-neon-green border-neon-green/20" : "bg-muted/10 text-muted-foreground border-border/20"}`}>1. Spectral</span>
             <span className="text-muted-foreground">→</span>
-            <span className="px-2 py-1 bg-neon-cyan/10 text-neon-cyan rounded-sm border border-neon-cyan/20">2. zk-Proof</span>
+            <span className={`px-2 py-1 rounded-sm border ${miningStatus[0]?.gatesPassed.includes("consciousness") ? "bg-neon-cyan/10 text-neon-cyan border-neon-cyan/20" : "bg-muted/10 text-muted-foreground border-border/20"}`}>2. Consciousness</span>
             <span className="text-muted-foreground">→</span>
-            <span className="px-2 py-1 bg-neon-orange/10 text-neon-orange rounded-sm border border-neon-orange/20">3. Guardian</span>
+            <span className={`px-2 py-1 rounded-sm border ${miningStatus[0]?.gatesPassed.includes("qg_curvature") ? "bg-neon-orange/10 text-neon-orange border-neon-orange/20" : "bg-muted/10 text-muted-foreground border-border/20"}`}>3. QG Curvature</span>
             <span className="text-muted-foreground">→</span>
-            <span className="px-2 py-1 bg-primary/10 text-primary rounded-sm border border-primary/20">4. Mint</span>
+            <span className="px-2 py-1 bg-primary/10 text-primary rounded-sm border border-primary/20">4. zk-Proof</span>
           </div>
         </div>
       </div>

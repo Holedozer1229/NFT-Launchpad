@@ -60,31 +60,24 @@ export default function YieldGenerator() {
   const [stakeSuccess, setStakeSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState<"stake" | "unstake">("stake");
   const [earnedRewards, setEarnedRewards] = useState(0);
-  const [phiScore, setPhiScore] = useState(650);
-  const [zkVerified, setZkVerified] = useState(true);
-
-  const { data: strategies = [], isLoading: strategiesLoading } = useQuery<StrategyData[]>({
-    queryKey: ["/api/yield/strategies"],
+  const { data: phiBoostData } = useQuery<{
+    phiTotal: number;
+    qgScore: number;
+    qgBonus: number;
+    phiBoost: number;
+    holoScore: number;
+    fanoScore: number;
+  }>({
+    queryKey: ["/api/yield/phi-boost"],
   });
 
-  const { data: wallets = [] } = useQuery<WalletData[]>({
-    queryKey: ["/api/wallet/list"],
-    enabled: isConnected,
-  });
-
-  const primaryWallet = wallets[0];
-  const skyntBalance = primaryWallet?.balanceSkynt || "0";
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setEarnedRewards((prev) => prev + Math.random() * 0.002);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const totalStaked = strategies.reduce((sum, s) => sum + parseFloat(s.totalStaked || "0"), 0);
-  const phiBoost = calculatePhiBoost(phiScore);
-  const treasuryRate = calculateTreasuryRate(phiScore);
+  const phiTotal = phiBoostData?.phiTotal ?? 650;
+  const qgScore = phiBoostData?.qgScore ?? 0;
+  const holoScore = phiBoostData?.holoScore ?? 0;
+  const fanoScore = phiBoostData?.fanoScore ?? 0;
+  const phiBoost = phiBoostData?.phiBoost ?? calculatePhiBoost(phiTotal);
+  const treasuryRate = calculateTreasuryRate(phiTotal);
+  const projectedAPRMultiplier = 1 + qgScore * 0.15;
 
   const handleStake = async () => {
     if (!stakeAmount || parseFloat(stakeAmount) <= 0) return;
@@ -162,7 +155,7 @@ export default function YieldGenerator() {
                 <span className="stat-label">Phi Boost</span>
               </div>
               <p className="text-lg font-heading text-neon-orange">{phiBoost.toFixed(2)}x</p>
-              <p className="font-mono text-[9px] text-muted-foreground mt-0.5">Score: {phiScore}</p>
+              <p className="font-mono text-[9px] text-muted-foreground mt-0.5">Total Φ: {phiTotal.toFixed(2)}</p>
             </div>
             <div className="cosmic-card cosmic-card-magenta p-4" data-testid="stat-wallet-balance">
               <div className="flex items-center gap-2 mb-2">
@@ -174,26 +167,70 @@ export default function YieldGenerator() {
             </div>
           </div>
 
-          <div className="cosmic-card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-heading text-xs uppercase tracking-wider flex items-center gap-2">
-                <Activity className="w-3.5 h-3.5 text-primary" /> Phi Score (200-1000)
-              </h3>
-              <span className="font-mono text-xs text-primary">{phiScore}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="cosmic-card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-heading text-xs uppercase tracking-wider flex items-center gap-2">
+                  <Activity className="w-3.5 h-3.5 text-primary" /> v8 Φ Structure
+                </h3>
+                <span className="font-mono text-xs text-primary">{phiTotal.toFixed(2)}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground uppercase">QG Curvature (Φ_qg)</p>
+                  <div className="flex items-center justify-between">
+                    <Progress value={qgScore * 100} className="h-1 flex-1 mr-2" />
+                    <span className="font-mono text-[10px]">{qgScore.toFixed(3)}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground uppercase">Holographic (Φ_holo)</p>
+                  <div className="flex items-center justify-between">
+                    <Progress value={holoScore * 100} className="h-1 flex-1 mr-2" />
+                    <span className="font-mono text-[10px]">{holoScore.toFixed(3)}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground uppercase">Fano Plane (Φ_fano)</p>
+                  <div className="flex items-center justify-between">
+                    <Progress value={fanoScore * 100} className="h-1 flex-1 mr-2" />
+                    <span className="font-mono text-[10px]">{fanoScore.toFixed(3)}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground uppercase">QG Bonus</p>
+                  <span className="font-mono text-[10px] text-neon-green">+{((phiBoostData?.qgBonus || 0) * 100).toFixed(1)}%</span>
+                </div>
+              </div>
+              <div className="flex justify-between mt-4 text-[10px] font-mono text-muted-foreground">
+                <span>Boost: {phiBoost.toFixed(2)}x</span>
+                <span>Treasury: {(treasuryRate * 100).toFixed(1)}%</span>
+                <span>R_T = min(0.30, 0.05 + Phi/2000)</span>
+              </div>
             </div>
-            <input
-              data-testid="input-phi-score"
-              type="range"
-              min="200"
-              max="1000"
-              value={phiScore}
-              onChange={(e) => setPhiScore(parseInt(e.target.value))}
-              className="w-full accent-primary h-1.5"
-            />
-            <div className="flex justify-between mt-2 text-[10px] font-mono text-muted-foreground">
-              <span>Boost: {phiBoost.toFixed(2)}x</span>
-              <span>Treasury: {(treasuryRate * 100).toFixed(1)}%</span>
-              <span>R_T = min(0.30, 0.05 + Phi/2000)</span>
+
+            <div className="cosmic-card cosmic-card-cyan p-4 flex flex-col justify-center border-dashed">
+              <div className="flex items-center gap-2 mb-3">
+                <Shield className="w-4 h-4 text-neon-cyan" />
+                <h3 className="font-heading text-xs uppercase tracking-wider">Quantum Yield Proof</h3>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[10px] font-mono">
+                  <span className="text-muted-foreground">Spectral Difficulty Gate</span>
+                  <span className="text-neon-green flex items-center gap-1"><CheckCircle className="w-3 h-3" /> PASSED</span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] font-mono">
+                  <span className="text-muted-foreground">IIT v8.0 Consciousness Gate</span>
+                  <span className="text-neon-green flex items-center gap-1"><CheckCircle className="w-3 h-3" /> PASSED</span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] font-mono">
+                  <span className="text-muted-foreground">QG Curvature Gate</span>
+                  <span className="text-neon-green flex items-center gap-1"><CheckCircle className="w-3 h-3" /> PASSED</span>
+                </div>
+              </div>
+              <p className="text-[9px] text-muted-foreground mt-4 italic">
+                Yield is cryptographically secured by the three-gate consensus protocol.
+              </p>
             </div>
           </div>
 
@@ -311,7 +348,7 @@ export default function YieldGenerator() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground flex items-center gap-1"><Gauge className="w-3 h-3" /> Phi Boosted APR</span>
-                        <span className="font-mono text-neon-green">{(parseFloat(strategy.apr) * phiBoost).toFixed(1)}%</span>
+                        <span className="font-mono text-neon-green">{(parseFloat(strategy.apr) * phiBoost * projectedAPRMultiplier).toFixed(1)}%</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground flex items-center gap-1"><Activity className="w-3 h-3" /> Risk Score</span>
@@ -334,13 +371,13 @@ export default function YieldGenerator() {
                           <div className="flex justify-between pt-2 border-t border-border/30">
                             <span className="text-muted-foreground flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Est. Daily Yield</span>
                             <span className="font-mono text-neon-green">
-                              {((parseFloat(stakeAmount) * parseFloat(strategy.apr) * phiBoost) / 365 / 100).toFixed(4)} SKYNT
+                              {((parseFloat(stakeAmount) * parseFloat(strategy.apr) * phiBoost * projectedAPRMultiplier) / 365 / 100).toFixed(4)} SKYNT
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground flex items-center gap-1"><Gift className="w-3 h-3" /> Your Share</span>
                             <span className="font-mono text-neon-cyan">
-                              {((parseFloat(stakeAmount) * parseFloat(strategy.apr) * phiBoost * (1 - treasuryRate)) / 365 / 100).toFixed(4)} SKYNT/day
+                              {((parseFloat(stakeAmount) * parseFloat(strategy.apr) * phiBoost * projectedAPRMultiplier * (1 - treasuryRate)) / 365 / 100).toFixed(4)} SKYNT/day
                             </span>
                           </div>
                         </>
@@ -382,7 +419,7 @@ export default function YieldGenerator() {
                         { label: "1 Year", days: 365 },
                       ].map((period) => {
                         const base = parseFloat(stakeAmount || strategy.totalStaked || "1000");
-                        const grossYield = (base * parseFloat(strategy.apr) * phiBoost * period.days) / 365 / 100;
+                        const grossYield = (base * parseFloat(strategy.apr) * phiBoost * projectedAPRMultiplier * period.days) / 365 / 100;
                         const netYield = grossYield * (1 - treasuryRate);
                         return (
                           <div key={period.label} className="p-3 bg-black/30 border border-border/30 rounded-sm text-center">

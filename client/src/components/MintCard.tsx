@@ -35,7 +35,20 @@ export function MintCard({ mission }: MintCardProps) {
   const [showTerms, setShowTerms] = useState(false);
   const [progress, setProgress] = useState(0);
   const [lastOpenseaUrl, setLastOpenseaUrl] = useState<string | null>(null);
-  const [lastEngineResult, setLastEngineResult] = useState<{ transactionId: string; txHash: string | null; status: string; contract: string; treasury: string } | null>(null);
+  const [lastEngineResult, setLastEngineResult] = useState<{
+    transactionId: string;
+    txHash: string | null;
+    status: string;
+    contract: string;
+    treasury: string;
+    phiTotal?: number;
+    qgScore?: number;
+    holoScore?: number;
+    fanoScore?: number;
+    gatesPassed?: string[];
+    blockHash?: string;
+    nonce?: number;
+  } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const chain = SUPPORTED_CHAINS[selectedChain];
@@ -350,22 +363,76 @@ export function MintCard({ mission }: MintCardProps) {
                 )}
 
                 {lastEngineResult && !isMinting && (
-                  <div className="p-3 bg-black/30 border border-neon-cyan/20 rounded-sm space-y-1.5" data-testid="engine-mint-result">
-                    <div className="flex items-center gap-1.5 text-[10px] font-heading uppercase tracking-wider text-neon-cyan">
-                      <Server className="w-3 h-3" /> Engine Mint — {lastEngineResult.status}
-                    </div>
-                    <div className="flex justify-between text-[9px] font-mono">
-                      <span className="text-muted-foreground">Contract</span>
-                      <span className="text-primary truncate max-w-[160px]">{lastEngineResult.contract}</span>
-                    </div>
-                    <div className="flex justify-between text-[9px] font-mono">
-                      <span className="text-muted-foreground">Treasury</span>
-                      <span className="text-neon-green truncate max-w-[160px]">{lastEngineResult.treasury}</span>
-                    </div>
-                    {lastEngineResult.txHash && (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-black/30 border border-neon-cyan/20 rounded-sm space-y-1.5" data-testid="engine-mint-result">
+                      <div className="flex items-center gap-1.5 text-[10px] font-heading uppercase tracking-wider text-neon-cyan">
+                        <Server className="w-3 h-3" /> Engine Mint — {lastEngineResult.status}
+                      </div>
                       <div className="flex justify-between text-[9px] font-mono">
-                        <span className="text-muted-foreground">Tx Hash</span>
-                        <span className="text-primary truncate max-w-[160px]">{lastEngineResult.txHash}</span>
+                        <span className="text-muted-foreground">Contract</span>
+                        <span className="text-primary truncate max-w-[160px]">{lastEngineResult.contract}</span>
+                      </div>
+                      <div className="flex justify-between text-[9px] font-mono">
+                        <span className="text-muted-foreground">Treasury</span>
+                        <span className="text-neon-green truncate max-w-[160px]">{lastEngineResult.treasury}</span>
+                      </div>
+                      {lastEngineResult.txHash && (
+                        <div className="flex justify-between text-[9px] font-mono">
+                          <span className="text-muted-foreground">Tx Hash</span>
+                          <span className="text-primary truncate max-w-[160px]">{lastEngineResult.txHash}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {lastEngineResult.phiTotal !== undefined && (
+                      <div className="p-3 bg-black/30 border border-primary/20 rounded-sm space-y-2" data-testid="v8-proof-result">
+                        <div className="flex items-center gap-1.5 text-[10px] font-heading uppercase tracking-wider text-primary">
+                          <Shield className="w-3 h-3" /> Three-Gate Proof (v8.0)
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[9px] font-mono">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Φ_total</span>
+                            <span className="text-foreground">{lastEngineResult.phiTotal.toFixed(3)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Φ_qg</span>
+                            <span className="text-foreground">{lastEngineResult.qgScore?.toFixed(3)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Φ_holo</span>
+                            <span className="text-foreground">{lastEngineResult.holoScore?.toFixed(3)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Φ_fano</span>
+                            <span className="text-foreground">{lastEngineResult.fanoScore?.toFixed(3)}</span>
+                          </div>
+                        </div>
+
+                        {lastEngineResult.gatesPassed && (
+                          <div className="pt-1.5 border-t border-white/5 space-y-1">
+                            <span className="text-[8px] font-mono uppercase text-muted-foreground/60">Gates Validated</span>
+                            <div className="flex flex-wrap gap-1">
+                              {lastEngineResult.gatesPassed.map(gate => (
+                                <Badge key={gate} variant="outline" className="text-[7px] py-0 px-1 border-neon-green/30 text-neon-green bg-neon-green/5">
+                                  {gate.toUpperCase()}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {(lastEngineResult.blockHash || lastEngineResult.nonce !== undefined) && (
+                          <div className="pt-1.5 border-t border-white/5 text-[8px] font-mono space-y-0.5">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Block Hash</span>
+                              <span className="text-primary truncate max-w-[140px]">{lastEngineResult.blockHash}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Nonce</span>
+                              <span className="text-foreground">{lastEngineResult.nonce}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
