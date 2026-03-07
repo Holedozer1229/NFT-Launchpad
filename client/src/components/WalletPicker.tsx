@@ -29,12 +29,6 @@ export function WalletPicker() {
 
   const handleConnect = (walletId: WalletProvider) => {
     if (!walletId) return;
-
-    if (mobile) {
-      const redirected = openWalletApp(walletId);
-      if (redirected) return;
-    }
-
     connect(walletId);
   };
 

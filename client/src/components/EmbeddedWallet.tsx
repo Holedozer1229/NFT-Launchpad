@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 
 export function EmbeddedWallet() {
-  const { isConnected, address, balance, connect, disconnect, provider, chainName, error, clearError, refreshBalance, getEthereumProvider } = useWallet();
+  const { isConnected, address, balance, connect, disconnect, provider, chainName, error, clearError, refreshBalance, getEthereumProvider, getActivePhantomProvider } = useWallet();
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const { toast } = useToast();
@@ -34,8 +34,8 @@ export function EmbeddedWallet() {
           params: [message, address],
         });
       } else if (provider === "phantom") {
-        const phantom = (window as any).phantom?.solana;
-        if (!phantom) throw new Error("Phantom provider not available");
+        const phantom = getActivePhantomProvider();
+        if (!phantom) throw new Error("Phantom provider not available. Make sure the Phantom extension or app is active.");
         const encoded = new TextEncoder().encode(message);
         const signed = await phantom.signMessage(encoded, "utf8");
         const bytes = signed.signature instanceof Uint8Array ? signed.signature : new Uint8Array(signed.signature);

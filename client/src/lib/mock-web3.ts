@@ -19,6 +19,7 @@ type WalletState = {
   refreshBalance: () => Promise<void>;
   clearError: () => void;
   getEthereumProvider: () => any;
+  getActivePhantomProvider: () => any;
 };
 
 const SESSION_KEY = "skynt_wallet_session";
@@ -43,6 +44,7 @@ function loadSession(): { provider: WalletProvider; address: string } | null {
 
 let mmSDK: MetaMaskSDK | null = null;
 let activeEthProvider: any = null;
+let activePhantomProvider: any = null;
 
 function getInjectedEthereum(): any | null {
   if (typeof window !== "undefined" && (window as any).ethereum) {
@@ -62,8 +64,10 @@ function getMetaMaskSDK() {
     mmSDK = new MetaMaskSDK({
       dappMetadata: {
         name: "SKYNT Protocol",
-        url: window.location.href,
+        url: window.location.origin,
       },
+      useDeeplink: true,
+      preferDesktop: false,
       ...(infuraKey ? { infuraAPIKey: infuraKey } : {}),
     });
   }
@@ -147,9 +151,22 @@ export const useWallet = create<WalletState>((set, get) => ({
           accounts = result as string[];
         } else {
           const sdk = getMetaMaskSDK();
-          const sdkAccounts = await sdk.connect();
-          ethereum = sdk.getProvider();
-          accounts = sdkAccounts || [];
+          try {
+            const sdkAccounts = await sdk.connect();
+            ethereum = sdk.getProvider();
+            accounts = sdkAccounts || [];
+          } catch (sdkErr: any) {
+            if (sdkErr?.message?.includes("User rejected") || sdkErr?.code === 4001) {
+              throw sdkErr;
+            }
+            ethereum = sdk.getProvider();
+            if (ethereum) {
+              const result = await ethereum.request({ method: "eth_requestAccounts" });
+              accounts = result as string[];
+            } else {
+              throw new Error("Could not connect to MetaMask. Please make sure the MetaMask app is installed.");
+            }
+          }
         }
 
         if (accounts && accounts.length > 0) {
@@ -182,16 +199,46 @@ export const useWallet = create<WalletState>((set, get) => ({
       } else if (walletProvider === "phantom") {
         const phantom = getPhantomProvider();
         if (!phantom) {
-          window.open("https://phantom.app/", "_blank");
-          set({ isConnecting: false, error: "Phantom wallet not detected. Please install the extension." });
+          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+          if (isMobile) {
+            const appUrl = encodeURIComponent(window.location.origin);
+            const redirectUrl = encodeURIComponent(window.location.href);
+            window.location.href = `https://phantom.app/ul/v1/connect?app_url=${appUrl}&redirect_link=${redirectUrl}`;
+            set({ isConnecting: false });
+          } else {
+            window.open("https://phantom.app/", "_blank");
+            set({ isConnecting: false, error: "Phantom wallet not detected. Please install the Phantom extension or use the Phantom mobile app." });
+          }
           return;
         }
 
-        const resp = await phantom.connect();
-        const addr = resp.publicKey.toString();
-        const balance = await fetchPhantomBalance(phantom);
-        saveSession("phantom", addr);
-        set({ isConnected: true, address: addr, balance, isConnecting: false, provider: "phantom", chainId: null, chainName: "Solana" });
+        try {
+          const resp = await phantom.connect();
+          const addr = resp.publicKey.toString();
+          activePhantomProvider = phantom;
+          const balance = await fetchPhantomBalance(phantom);
+          saveSession("phantom", addr);
+          set({ isConnected: true, address: addr, balance, isConnecting: false, provider: "phantom", chainId: null, chainName: "Solana" });
+
+          phantom.on?.("accountChanged", (publicKey: any) => {
+            if (publicKey) {
+              const newAddr = publicKey.toString();
+              saveSession("phantom", newAddr);
+              set({ address: newAddr });
+              get().refreshBalance();
+            } else {
+              get().disconnect();
+            }
+          });
+          phantom.on?.("disconnect", () => {
+            get().disconnect();
+          });
+        } catch (phantomErr: any) {
+          if (phantomErr?.code === 4001 || phantomErr?.message?.includes("User rejected")) {
+            throw phantomErr;
+          }
+          throw new Error("Failed to connect to Phantom. Please unlock your wallet and try again.");
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Connection failed";
@@ -208,16 +255,20 @@ export const useWallet = create<WalletState>((set, get) => ({
         mmSDK = null;
       }
     } else if (provider === "phantom") {
-      const phantom = getPhantomProvider();
+      const phantom = activePhantomProvider || getPhantomProvider();
       if (phantom) {
         try { phantom.disconnect(); } catch {}
       }
+      activePhantomProvider = null;
     }
     saveSession(null, null);
     set({ isConnected: false, address: null, balance: 0, provider: null, chainId: null, chainName: null, error: null });
   },
   getEthereumProvider: () => {
     return activeEthProvider || getInjectedEthereum();
+  },
+  getActivePhantomProvider: () => {
+    return activePhantomProvider || getPhantomProvider();
   },
   refreshBalance: async () => {
     const { provider, address } = get();
