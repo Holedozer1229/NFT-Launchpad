@@ -111,6 +111,17 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
   - `GET /api/resonance/history` — past resonance events
   - `client/src/components/ResonanceDrop.tsx` — sine wave visualization, Phi progress bar, countdown timer, mint multiplier display
   - Embedded in Mint NFT page and Dashboard
+- **Background Mining System**: Persistent per-user PoW mining that runs until user stops or logs out
+  - `server/background-miner.ts` — session manager with per-user mining intervals (15s cycles)
+  - Mining fee: 0.01 SKYNT/cycle, base reward: 0.25 SKYNT/block, Φ-boosted up to 2.0x
+  - Auto-stops on logout (via auth.ts logout handler) or insufficient balance
+  - `POST /api/mining/start` — start background mining session
+  - `POST /api/mining/stop` — stop mining session, returns final stats
+  - `GET /api/mining/status` — current mining stats (hashRate, blocks, earned, phi boost, uptime)
+  - `GET /api/mining/network` — active miner count (public)
+  - `client/src/components/BackgroundMiner.tsx` — mining UI with canvas visualization, hash rate, blocks found, SKYNT earned, Φ boost, difficulty, uptime
+  - Sidebar shows mining status badge (pickaxe icon + hash rate + earned) when mining is active
+  - Embedded in Mint NFT page and Dashboard
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts

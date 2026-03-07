@@ -1,7 +1,8 @@
 import { ReactNode, useState } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical } from "lucide-react";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe } from "lucide-react";
 import { useWallet } from "@/lib/mock-web3";
+import { useQuery } from "@tanstack/react-query";
 import { WalletPicker } from "@/components/WalletPicker";
 import { useAuth } from "@/hooks/use-auth";
 import DynamicBackground from "@/components/DynamicBackground";
@@ -115,6 +116,8 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
+        <MinerStatusBadge collapsed={collapsed} />
+
         <div className={`p-3 border-t border-[hsl(var(--sidebar-border))] ${collapsed ? "flex justify-center" : ""}`}>
           {isConnected ? (
             <div className={`${collapsed ? "" : "px-1"}`}>
@@ -202,6 +205,28 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
 
       <WalletPicker />
       <OnboardingTour />
+    </div>
+  );
+}
+
+function MinerStatusBadge({ collapsed }: { collapsed: boolean }) {
+  const { data } = useQuery<{ isActive: boolean; hashRate: number; totalSkyntEarned: number }>({
+    queryKey: ["/api/mining/status"],
+    refetchInterval: 10000,
+  });
+
+  if (!data?.isActive) return null;
+
+  return (
+    <div className={`mx-2 mb-2 px-2 py-1.5 rounded border border-neon-green/30 bg-neon-green/5 ${collapsed ? "flex justify-center" : ""}`} data-testid="sidebar-miner-status">
+      <div className="flex items-center gap-1.5">
+        <Pickaxe className="w-3 h-3 text-neon-green animate-pulse shrink-0" />
+        {!collapsed && (
+          <div className="flex-1 min-w-0">
+            <div className="font-mono text-[9px] text-neon-green truncate">{data.hashRate} H/s | {data.totalSkyntEarned.toFixed(2)} SKYNT</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

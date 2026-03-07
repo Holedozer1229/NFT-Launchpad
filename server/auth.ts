@@ -338,8 +338,15 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/logout", (req, res, next) => {
+    const userId = req.user?.id;
     req.logout((err: any) => {
       if (err) return next(err);
+      if (userId) {
+        try {
+          const { stopMining } = require("./background-miner");
+          stopMining(userId);
+        } catch {}
+      }
       res.sendStatus(200);
     });
   });

@@ -9,6 +9,7 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception, startEngine, isEngineRunning } from "./iit-engine";
 import { getResonanceStatus, getResonanceHistory } from "./resonance-drop";
+import { startMining, stopMining, getMiningStatus, getActiveMinerCount } from "./background-miner";
 import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
 
 // Toy Hamiltonian constant
@@ -2047,6 +2048,47 @@ export async function registerRoutes(
       res.json({ message: "Submission confirmed" });
     } catch (error) {
       res.status(500).json({ message: "Failed to confirm submission" });
+    }
+  });
+
+  // ========== BACKGROUND MINING ROUTES ==========
+
+  app.post("/api/mining/start", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const result = await startMining(req.user!.id, req.user!.username);
+      if (!result.success) return res.status(400).json({ message: result.message });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to start mining" });
+    }
+  });
+
+  app.post("/api/mining/stop", (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const result = stopMining(req.user!.id);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to stop mining" });
+    }
+  });
+
+  app.get("/api/mining/status", (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const stats = getMiningStatus(req.user!.id);
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch mining status" });
+    }
+  });
+
+  app.get("/api/mining/network", (_req, res) => {
+    try {
+      res.json({ activeMiners: getActiveMinerCount() });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch network status" });
     }
   });
 
