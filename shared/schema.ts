@@ -9,6 +9,11 @@ export const users = pgTable("users", {
   isAdmin: boolean("is_admin").notNull().default(false),
   walletAddress: text("wallet_address").unique(),
   authNonce: text("auth_nonce"),
+  googleId: text("google_id").unique(),
+  appleId: text("apple_id").unique(),
+  email: text("email"),
+  avatarUrl: text("avatar_url"),
+  authProvider: text("auth_provider").default("local"),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
