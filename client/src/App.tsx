@@ -27,6 +27,7 @@ const WalletPage = lazy(() => import("@/pages/WalletPage"));
 const StarshipLaunches = lazy(() => import("@/pages/StarshipLaunches"));
 const PublicLab = lazy(() => import("@/pages/PublicLab"));
 const NotFound = lazy(() => import("@/pages/not-found"));
+const GenesisMiner = lazy(() => import("@/pages/GenesisMiner"));
 const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
 
 function AdminGuard() {
@@ -132,6 +133,11 @@ function AppRouter() {
             <Route path="/starship">
               <AccessGate requiredTier={4}>
                 <StarshipLaunches />
+              </AccessGate>
+            </Route>
+            <Route path="/genesis-miner">
+              <AccessGate requiredTier={2}>
+                <GenesisMiner />
               </AccessGate>
             </Route>
             <Route path="/wallet" component={WalletPage} />

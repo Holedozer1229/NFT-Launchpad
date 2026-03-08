@@ -27,6 +27,7 @@ const navItems = [
   { path: "/iit", label: "IIT Consciousness", icon: Brain, adminOnly: false },
   { path: "/starship", label: "Starship", icon: Flame, adminOnly: false },
   { path: "/serpent", label: "Omega Serpent", icon: Gamepad2, adminOnly: false },
+  { path: "/genesis-miner", label: "Genesis Miner", icon: Pickaxe, adminOnly: false },
   { path: "/wallet", label: "Wallet", icon: WalletCards, adminOnly: false },
   { path: "/admin", label: "Admin", icon: Shield, adminOnly: true },
 ];

@@ -374,6 +374,129 @@ export const insertYieldStrategySchema = createInsertSchema(yieldStrategies).omi
 export type YieldStrategy = typeof yieldStrategies.$inferSelect;
 export type InsertYieldStrategy = z.infer<typeof insertYieldStrategySchema>;
 
+// ==================== Merge Mining Chains ====================
+
+export const MERGE_MINING_CHAINS = {
+  auxpow_btc: {
+    id: "auxpow_btc",
+    name: "BTC (AuxPoW)",
+    symbol: "BTC",
+    algorithm: "auxpow",
+    color: "#F7931A",
+    icon: "₿",
+    difficultyFactor: 1.5,
+    rewardMultiplier: 0.0001,
+    blockTime: 600,
+  },
+  zkevm: {
+    id: "zkevm",
+    name: "zkEVM",
+    symbol: "ETH",
+    algorithm: "zkevm",
+    color: "#8247E5",
+    icon: "◈",
+    difficultyFactor: 0.8,
+    rewardMultiplier: 0.005,
+    blockTime: 12,
+  },
+  zksync: {
+    id: "zksync",
+    name: "ZKsync Era",
+    symbol: "ETH",
+    algorithm: "zksync",
+    color: "#8C8DFC",
+    icon: "◆",
+    difficultyFactor: 0.7,
+    rewardMultiplier: 0.004,
+    blockTime: 10,
+  },
+  wbtc: {
+    id: "wbtc",
+    name: "Wrapped BTC",
+    symbol: "WBTC",
+    algorithm: "auxpow",
+    color: "#F09242",
+    icon: "₩",
+    difficultyFactor: 1.2,
+    rewardMultiplier: 0.00008,
+    blockTime: 300,
+  },
+  polygon: {
+    id: "polygon",
+    name: "Polygon PoS",
+    symbol: "MATIC",
+    algorithm: "zkevm",
+    color: "#8247E5",
+    icon: "⬡",
+    difficultyFactor: 0.6,
+    rewardMultiplier: 0.05,
+    blockTime: 2,
+  },
+  solana: {
+    id: "solana",
+    name: "Solana",
+    symbol: "SOL",
+    algorithm: "auxpow",
+    color: "#9945FF",
+    icon: "◎",
+    difficultyFactor: 0.5,
+    rewardMultiplier: 0.002,
+    blockTime: 0.4,
+  },
+} as const;
+
+export type MergeMiningChainId = keyof typeof MERGE_MINING_CHAINS;
+
+export const RANDOMX_CONFIG = {
+  algorithm: "randomx",
+  scratchpadSize: 2097152,
+  programSize: 256,
+  iterationsPerHash: 2048,
+  hashTargetTime: 120,
+  soloMiningDifficulty: 4,
+  blockReward: 0.00000625,
+  maxNonceRange: 4294967295,
+  cpuThreads: 1,
+} as const;
+
+export const STX_LENDING_TIERS = {
+  conservative: {
+    id: "conservative",
+    name: "Conservative",
+    aprPercent: 12,
+    minStake: 10,
+    lockDays: 30,
+    riskScore: 15,
+    poxBonus: 1.0,
+    color: "#22C55E",
+    description: "Low-risk PoX delegation yield with STX collateral",
+  },
+  balanced: {
+    id: "balanced",
+    name: "Balanced",
+    aprPercent: 28,
+    minStake: 50,
+    lockDays: 90,
+    riskScore: 35,
+    poxBonus: 1.5,
+    color: "#3B82F6",
+    description: "Medium-risk cross-chain lending with BTC/STX pair yield",
+  },
+  aggressive: {
+    id: "aggressive",
+    name: "Aggressive",
+    aprPercent: 45,
+    minStake: 200,
+    lockDays: 180,
+    riskScore: 60,
+    poxBonus: 2.2,
+    color: "#EF4444",
+    description: "High-risk leveraged PoX + cross-chain arbitrage yield",
+  },
+} as const;
+
+export type StxLendingTierId = keyof typeof STX_LENDING_TIERS;
+
 export const SKYNT_CONTRACT_ADDRESS = "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20";
 export const TREASURY_WALLET_ADDRESS = "0x7Fbe68677e63272ECB55355a6778fCee974d4895";
 

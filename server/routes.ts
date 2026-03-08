@@ -10,6 +10,8 @@ import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception, startEngine, isEngineRunning } from "./iit-engine";
 import { getResonanceStatus, getResonanceHistory } from "./resonance-drop";
 import { startMining, stopMining, getMiningStatus, getActiveMinerCount } from "./background-miner";
+import { startMergeMining, stopMergeMining, getMergeMiningStatus, getAllMergeMiningStats, getBtcGenesisBlock, getRecentBlocks, getStxLendingState, stakeStxLending } from "./merge-miner";
+import { MERGE_MINING_CHAINS, STX_LENDING_TIERS, type MergeMiningChainId, type StxLendingTierId } from "@shared/schema";
 import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
 
 // Toy Hamiltonian constant
@@ -2100,6 +2102,89 @@ export async function registerRoutes(
       res.json(yieldState);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch treasury yield state" });
+    }
+  });
+
+  // ========== MERGE MINING ROUTES ==========
+
+  app.get("/api/merge-mine/chains", (_req, res) => {
+    res.json(MERGE_MINING_CHAINS);
+  });
+
+  app.get("/api/merge-mine/genesis", (_req, res) => {
+    res.json(getBtcGenesisBlock());
+  });
+
+  app.post("/api/merge-mine/start", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { chain } = req.body;
+      if (!chain || !(chain in MERGE_MINING_CHAINS)) {
+        return res.status(400).json({ message: "Invalid chain" });
+      }
+      const result = startMergeMining(req.user!.id, chain as MergeMiningChainId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to start merge mining" });
+    }
+  });
+
+  app.post("/api/merge-mine/stop", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { chain } = req.body;
+      if (!chain || !(chain in MERGE_MINING_CHAINS)) {
+        return res.status(400).json({ message: "Invalid chain" });
+      }
+      const result = stopMergeMining(req.user!.id, chain as MergeMiningChainId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to stop merge mining" });
+    }
+  });
+
+  app.get("/api/merge-mine/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const stats = getMergeMiningStatus(req.user!.id);
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch merge mining status" });
+    }
+  });
+
+  app.get("/api/merge-mine/blocks/:chain", (req, res) => {
+    try {
+      const blocks = getRecentBlocks(req.params.chain);
+      res.json(blocks);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch blocks" });
+    }
+  });
+
+  // ========== STX LENDING ROUTES ==========
+
+  app.get("/api/stx-lending/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const state = getStxLendingState(req.user!.id);
+      res.json(state);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch lending status" });
+    }
+  });
+
+  app.post("/api/stx-lending/stake", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { amount, tier } = req.body;
+      if (!amount || !tier || !(tier in STX_LENDING_TIERS)) {
+        return res.status(400).json({ message: "Invalid amount or tier" });
+      }
+      const result = await stakeStxLending(req.user!.id, parseFloat(amount), tier as StxLendingTierId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to stake" });
     }
   });
 

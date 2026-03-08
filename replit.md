@@ -123,6 +123,18 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
   - `client/src/components/BackgroundMiner.tsx` — standalone mining UI with canvas visualization (available for embedding)
   - `PersistentMiner` in SidebarLayout — always-visible sidebar miner panel with start/stop controls, stats (hash rate, earned, blocks, Φ boost, uptime), persists across all pages
   - Mining runs server-side via `setInterval` — continues when switching pages, stops only on explicit stop or logout
+- **Cross-Chain Merge Mining** (`/genesis-miner`): BTC hard fork miner page with multi-chain merge mining
+  - `server/merge-miner.ts` — merge mining engine with AuxPoW, RandomX, zkEVM/ZKsync algorithms
+  - 6 merge mining chains: BTC (AuxPoW), zkEVM, ZKsync Era, WBTC, Polygon, Solana
+  - `MERGE_MINING_CHAINS`, `RANDOMX_CONFIG`, `STX_LENDING_TIERS` constants in `shared/schema.ts`
+  - Per-user mining sessions with per-chain stats (hash rate, blocks found, rewards, difficulty)
+  - BTC hard fork genesis block from mainnet (block 0, Jan 3 2009, 50 BTC reward)
+  - RandomX solo BTC mining: CPU-friendly PoW simulation with canvas visualization
+  - AuxPoW merge mining: parent chain (SKYNT) proof accepted on child chains
+  - STX cross-chain lending yield: 3 tiers (Conservative 12%, Balanced 28%, Aggressive 45% APR) with PoX delegation bonus
+  - API routes: `POST /api/merge-mine/start`, `POST /api/merge-mine/stop`, `GET /api/merge-mine/status`, `GET /api/merge-mine/chains`, `GET /api/merge-mine/genesis`, `GET /api/merge-mine/blocks/:chain`, `POST /api/stx-lending/stake`, `GET /api/stx-lending/status`
+  - `client/src/pages/GenesisMiner.tsx` — full miner page with merge mining grid, RandomX panel, STX lending, block explorer, network stats
+  - Tier 2 access required (Miner tier: 100+ SKYNT or any NFT)
 
 ## Performance Optimizations
 - **Lazy loading**: All 14+ page components use `React.lazy()` with `Suspense` for code-splitting (reduces initial bundle significantly)
