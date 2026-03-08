@@ -6,6 +6,7 @@
   "scripts": {
     "dev:client": "vite dev --port 5000",
     "dev": "NODE_ENV=development tsx server/index.ts",
+    "clean": "rm -rf node_modules/.cache",
     "build": "tsx script/build.ts",
     "vercel-build": "npm run build",
     "start": "NODE_ENV=production node dist/index.cjs",
