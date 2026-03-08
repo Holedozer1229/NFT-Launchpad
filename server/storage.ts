@@ -1,4 +1,4 @@
-import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, marketplaceListings, powChallenges, powSubmissions, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing, type PowChallenge, type InsertPowChallenge, type PowSubmission, type InsertPowSubmission } from "@shared/schema";
+import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, marketplaceListings, powChallenges, powSubmissions, zkWormholes, zkWormholeTransfers, rarityCertificates, type RarityCertificate, type InsertRarityCertificate, type ZkWormhole, type InsertZkWormhole, type ZkWormholeTransfer, type InsertZkWormholeTransfer, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing, type PowChallenge, type InsertPowChallenge, type PowSubmission, type InsertPowSubmission } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -78,6 +78,22 @@ export interface IStorage {
   getPowSubmissions(challengeId: string): Promise<PowSubmission[]>;
   getMinerSubmission(challengeId: string, minerAddress: string): Promise<PowSubmission | undefined>;
   updatePowSubmissionStatus(id: number, status: string, solanaTxHash?: string): Promise<void>;
+
+  createZkWormhole(wormhole: InsertZkWormhole): Promise<ZkWormhole>;
+  getZkWormholesByUser(userId: number): Promise<ZkWormhole[]>;
+  getZkWormhole(id: number): Promise<ZkWormhole | undefined>;
+  getZkWormholeByWormholeId(wormholeId: string): Promise<ZkWormhole | undefined>;
+  updateZkWormholeStatus(id: number, status: string): Promise<void>;
+  updateZkWormholeStats(id: number, totalTransferred: string, transferCount: number): Promise<void>;
+  createZkWormholeTransfer(transfer: InsertZkWormholeTransfer): Promise<ZkWormholeTransfer>;
+  getZkWormholeTransfers(wormholeId: number): Promise<ZkWormholeTransfer[]>;
+  getZkWormholeTransfersByUser(userId: number): Promise<ZkWormholeTransfer[]>;
+  updateZkWormholeTransferStatus(id: number, status: string, txHash?: string): Promise<void>;
+
+  createRarityCertificate(cert: InsertRarityCertificate): Promise<RarityCertificate>;
+  getRarityCertificatesByUser(userId: number): Promise<RarityCertificate[]>;
+  getRarityCertificateByNft(nftId: number, userId: number): Promise<RarityCertificate | undefined>;
+  getRarityCertificateById(certificateId: string): Promise<RarityCertificate | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -485,6 +501,73 @@ export class DatabaseStorage implements IStorage {
       .update(powSubmissions)
       .set({ status, ...(solanaTxHash !== undefined ? { solanaTxHash } : {}) })
       .where(eq(powSubmissions.id, id));
+  }
+
+  async createZkWormhole(wormhole: InsertZkWormhole): Promise<ZkWormhole> {
+    const [created] = await db.insert(zkWormholes).values(wormhole).returning();
+    return created;
+  }
+
+  async getZkWormholesByUser(userId: number): Promise<ZkWormhole[]> {
+    return await db.select().from(zkWormholes).where(eq(zkWormholes.userId, userId)).orderBy(desc(zkWormholes.createdAt));
+  }
+
+  async getZkWormhole(id: number): Promise<ZkWormhole | undefined> {
+    const [wormhole] = await db.select().from(zkWormholes).where(eq(zkWormholes.id, id));
+    return wormhole;
+  }
+
+  async getZkWormholeByWormholeId(wormholeId: string): Promise<ZkWormhole | undefined> {
+    const [wormhole] = await db.select().from(zkWormholes).where(eq(zkWormholes.wormholeId, wormholeId));
+    return wormhole;
+  }
+
+  async updateZkWormholeStatus(id: number, status: string): Promise<void> {
+    await db.update(zkWormholes).set({ status }).where(eq(zkWormholes.id, id));
+  }
+
+  async updateZkWormholeStats(id: number, totalTransferred: string, transferCount: number): Promise<void> {
+    await db.update(zkWormholes).set({ totalTransferred, transferCount }).where(eq(zkWormholes.id, id));
+  }
+
+  async createZkWormholeTransfer(transfer: InsertZkWormholeTransfer): Promise<ZkWormholeTransfer> {
+    const [created] = await db.insert(zkWormholeTransfers).values(transfer).returning();
+    return created;
+  }
+
+  async getZkWormholeTransfers(wormholeId: number): Promise<ZkWormholeTransfer[]> {
+    return await db.select().from(zkWormholeTransfers).where(eq(zkWormholeTransfers.wormholeId, wormholeId)).orderBy(desc(zkWormholeTransfers.createdAt));
+  }
+
+  async getZkWormholeTransfersByUser(userId: number): Promise<ZkWormholeTransfer[]> {
+    return await db.select().from(zkWormholeTransfers).where(eq(zkWormholeTransfers.userId, userId)).orderBy(desc(zkWormholeTransfers.createdAt));
+  }
+
+  async updateZkWormholeTransferStatus(id: number, status: string, txHash?: string): Promise<void> {
+    await db.update(zkWormholeTransfers).set({ status, ...(txHash ? { txHash } : {}) }).where(eq(zkWormholeTransfers.id, id));
+  }
+
+  async createRarityCertificate(cert: InsertRarityCertificate): Promise<RarityCertificate> {
+    const [created] = await db.insert(rarityCertificates).values(cert).returning();
+    return created;
+  }
+
+  async getRarityCertificatesByUser(userId: number): Promise<RarityCertificate[]> {
+    return await db.select().from(rarityCertificates)
+      .where(eq(rarityCertificates.userId, userId))
+      .orderBy(desc(rarityCertificates.createdAt));
+  }
+
+  async getRarityCertificateByNft(nftId: number, userId: number): Promise<RarityCertificate | undefined> {
+    const [cert] = await db.select().from(rarityCertificates)
+      .where(and(eq(rarityCertificates.nftId, nftId), eq(rarityCertificates.userId, userId)));
+    return cert;
+  }
+
+  async getRarityCertificateById(certificateId: string): Promise<RarityCertificate | undefined> {
+    const [cert] = await db.select().from(rarityCertificates)
+      .where(eq(rarityCertificates.certificateId, certificateId));
+    return cert;
   }
 }
 

@@ -4,6 +4,15 @@
 Multi-page NFT minting protocol application combining SphinxOS Oracle Minter with Cosmos Launchpad design. Features sidebar navigation, cosmic theme with neon accents, and user authentication.
 
 ## Recent Changes
+- **Mar 2026**: Added **Starship Flight NFT Showcase** to Mint NFT page — horizontal scroll of 7 IFT mission cards with crew rosters, mission objectives, outcome badges, and "Mint Flight" buttons
+- **Mar 2026**: Added **NFT Rarity Proof Engine** page (`/rarity-proof`) — ZK-proof certificate system for NFT rarity verification
+  - `server/rarity-proof-engine.ts` — Groth16-BN254 simulated ZK proof generation, rarity scoring, Phi-boost from IIT engine
+  - `rarityCertificates` DB table — stores certificates with zkProofHash, verificationKeyHash, rarityScore, rarityPercentile, phiBoost
+  - Certificate fee: 0.5 SKYNT per generation (deducted from wallet balance)
+  - API routes: `POST /api/rarity-proof/generate`, `GET /api/rarity-proof/verify/:id`, `GET /api/rarity-proof/certificates`, `GET /api/rarity-proof/download/:id`
+  - Frontend: NFT grid with generate/view buttons, 4-step proof pipeline animation, certificate list with download, certificate preview modal
+  - Access tier 2 (Miner), ShieldCheck icon in sidebar
+- **Mar 2026**: Added **ZK-Wormhole** cross-chain bridge page (`/wormhole`) — 11-chain bridging with ZK-SNARK proofs
 - **Mar 2026**: Migrated wallet system to **Thirdweb SDK v5** — replaces MetaMask SDK + manual Phantom integration with Thirdweb's unified ConnectButton. Supports MetaMask, Phantom, Coinbase Wallet, Rainbow, and in-app wallet (email/social). Auto-links connected wallet address to user account via `/api/auth/link-wallet`. Wallet connection persists across sessions. Thirdweb client ID stored as `VITE_THIRDWEB_CLIENT_ID` env var.
 - **Mar 2026**: Fixed wallet sign-in gateway — wallet linking no longer replaces the user session. Already-authenticated users get their wallet address linked to their existing account instead of being logged out.
 - **Mar 2026**: IIT Engine continuous loop hardened — added graceful shutdown on SIGTERM/SIGINT, frontend polls every 10s with live "LOOP ACTIVE" status indicator and countdown to next refresh.
@@ -158,7 +167,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - `client/src/components/SphinxOracle.tsx` - AI chat oracle (streaming SSE, cosmic UI)
 - `client/src/components/LaunchCountdown.tsx` - Live space launch countdown (Launch Library 2 API)
 - `client/src/hooks/use-auth.tsx` - Auth context with login/register/logout
-- `client/src/pages/` - MintNFT (home), Dashboard, Gallery, Analytics, Bridge, Admin, AuthPage, WalletPage
+- `client/src/pages/` - MintNFT (home), Dashboard, Gallery, Analytics, Bridge, Admin, AuthPage, WalletPage, RarityProofEngine, ZkWormhole, GenesisMiner, OmegaSerpent, StarshipLaunches
 - `server/auth.ts` - Passport.js setup with session store
 - `server/routes.ts` - API routes including /api/space-launches proxy and /api/oracle/chat
 - `server/storage.ts` - Database storage interface (users, launches, miners)

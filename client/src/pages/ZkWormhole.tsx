@@ -1,0 +1,591 @@
+import { useState, useEffect } from "react";
+import { 
+  Orbit, 
+  Zap, 
+  Shield, 
+  ArrowDownUp, 
+  Hash, 
+  Activity, 
+  CheckCircle, 
+  Loader2, 
+  X, 
+  ChevronDown, 
+  Lock, 
+  Unlock, 
+  Globe, 
+  Cpu, 
+  ExternalLink,
+  ArrowRight,
+  TrendingUp,
+  History,
+  AlertTriangle
+} from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { ZK_WORMHOLE_CHAINS, type ZkWormholeChainId } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+
+interface WormholeNetworkStats {
+  totalPortals: number;
+  volumeTransferred: string;
+  activeWormholes: number;
+  proofsVerified: number;
+}
+
+interface WormholeStatus {
+  id: string;
+  sourceChain: ZkWormholeChainId;
+  destChain: ZkWormholeChainId;
+  status: 'open' | 'bridging' | 'sealed' | 'dormant';
+  totalTransferred: string;
+  capacity: number;
+  transferCount: number;
+  phiBoost: number;
+  zkProofHash: string;
+}
+
+interface WormholeTransfer {
+  id: string;
+  wormholeId: string;
+  sourceChain: ZkWormholeChainId;
+  destChain: ZkWormholeChainId;
+  amount: string;
+  token: string;
+  status: 'pending' | 'verified' | 'completed' | 'failed';
+  proofHash: string;
+  createdAt: string;
+}
+
+export default function ZkWormhole() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Form State
+  const [sourceChain, setSourceChain] = useState<ZkWormholeChainId>("ethereum");
+  const [destChain, setDestChain] = useState<ZkWormholeChainId>("skynt");
+  const [amount, setAmount] = useState("");
+  const [token, setToken] = useState("SKYNT");
+  const [selectedWormholeId, setSelectedWormholeId] = useState<string>("");
+  const [transferStep, setTransferStep] = useState<number>(0);
+
+  // Queries
+  const { data: networkStats, isLoading: statsLoading } = useQuery<WormholeNetworkStats>({
+    queryKey: ['/api/wormhole/network'],
+  });
+
+  const { data: wormholes = [], isLoading: statusLoading } = useQuery<WormholeStatus[]>({
+    queryKey: ['/api/wormhole/status'],
+  });
+
+  const { data: transfers = [], isLoading: transfersLoading } = useQuery<WormholeTransfer[]>({
+    queryKey: ['/api/wormhole/all-transfers'],
+  });
+
+  // Mutations
+  const openWormholeMutation = useMutation({
+    mutationFn: async (body: { sourceChain: string; destChain: string }) => {
+      const res = await apiRequest("POST", "/api/wormhole/open", body);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/wormhole/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/wormhole/network'] });
+      toast({ title: "Wormhole Opened", description: "Your per-user cross-chain tunnel is now active." });
+    },
+    onError: (error) => {
+      toast({ title: "Failed to Open Wormhole", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const closeWormholeMutation = useMutation({
+    mutationFn: async (wormholeId: string) => {
+      const res = await apiRequest("POST", "/api/wormhole/close", { wormholeId });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/wormhole/status'] });
+      toast({ title: "Wormhole Sealed", description: "The cross-chain tunnel has been safely closed." });
+    },
+    onError: (error) => {
+      toast({ title: "Failed to Close Wormhole", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const initiateTransferMutation = useMutation({
+    mutationFn: async (body: { wormholeId: string; amount: string; token: string }) => {
+      const res = await apiRequest("POST", "/api/wormhole/transfer", body);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/wormhole/all-transfers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/wormhole/status'] });
+      setTransferStep(1);
+      // Simulate pipeline progress
+      let step = 1;
+      const interval = setInterval(() => {
+        step += 1;
+        setTransferStep(step);
+        if (step >= 4) {
+          clearInterval(interval);
+          toast({ title: "Transfer Complete", description: "Assets have been successfully wormholed." });
+          setTimeout(() => setTransferStep(0), 5000);
+        }
+      }, 2000);
+    },
+    onError: (error) => {
+      toast({ title: "Transfer Failed", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const handleOpenWormhole = () => {
+    if (sourceChain === destChain) {
+      toast({ title: "Invalid Route", description: "Source and destination chains must be different.", variant: "destructive" });
+      return;
+    }
+    openWormholeMutation.mutate({ sourceChain, destChain });
+  };
+
+  const handleInitiateTransfer = () => {
+    if (!selectedWormholeId || !amount || parseFloat(amount) <= 0) {
+      toast({ title: "Invalid Input", description: "Please select a wormhole and enter a valid amount.", variant: "destructive" });
+      return;
+    }
+    initiateTransferMutation.mutate({ wormholeId: selectedWormholeId, amount, token });
+  };
+
+  const getComplexityLabel = (source: ZkWormholeChainId, dest: ZkWormholeChainId) => {
+    const sum = ZK_WORMHOLE_CHAINS[source].proofComplexity + ZK_WORMHOLE_CHAINS[dest].proofComplexity;
+    if (sum <= 3) return { label: "Low Complexity", color: "text-neon-green" };
+    if (sum <= 6) return { label: "Medium Complexity", color: "text-neon-orange" };
+    return { label: "High Complexity", color: "text-neon-magenta" };
+  };
+
+  const selectedWormhole = wormholes.find(w => w.id === selectedWormholeId);
+  const transferFeeBps = selectedWormhole ? ZK_WORMHOLE_CHAINS[selectedWormhole.sourceChain].transferFeeBps : 0;
+  const estimatedFee = amount ? (parseFloat(amount) * transferFeeBps / 10000).toFixed(4) : "0.0000";
+
+  return (
+    <div className="container mx-auto px-4 py-8 space-y-12 max-w-6xl">
+      {/* Header */}
+      <section className="text-center space-y-4">
+        <div className="flex items-center justify-center gap-3">
+          <Orbit className="w-10 h-10 text-neon-cyan animate-pulse" />
+          <h1 className="text-4xl md:text-5xl font-heading font-bold text-white tracking-tighter" data-testid="text-wormhole-title">
+            ZK-Wormhole Portal
+          </h1>
+        </div>
+        <p className="text-muted-foreground max-w-2xl mx-auto font-mono text-sm">
+          Secure per-user cross-chain tunnels leveraging zk-SNARK proofs for instant, trustless asset migration across 11 sovereign networks.
+        </p>
+      </section>
+
+      {/* Network Stats Bar */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {statsLoading ? (
+          Array(4).fill(0).map((_, i) => (
+            <div key={i} className="cosmic-card h-24 animate-pulse bg-white/5" />
+          ))
+        ) : (
+          <>
+            <div className="cosmic-card p-4 space-y-1" data-testid="stat-total-portals">
+              <p className="text-[10px] font-heading text-muted-foreground uppercase tracking-wider">Total Portals</p>
+              <p className="text-2xl font-mono text-white">{networkStats?.totalPortals || 0}</p>
+            </div>
+            <div className="cosmic-card p-4 space-y-1" data-testid="stat-volume">
+              <p className="text-[10px] font-heading text-muted-foreground uppercase tracking-wider">Volume Transferred</p>
+              <p className="text-2xl font-mono text-neon-cyan">{networkStats?.volumeTransferred || "0 SKYNT"}</p>
+            </div>
+            <div className="cosmic-card p-4 space-y-1" data-testid="stat-active-wormholes">
+              <p className="text-[10px] font-heading text-muted-foreground uppercase tracking-wider">Active Wormholes</p>
+              <p className="text-2xl font-mono text-neon-green">{networkStats?.activeWormholes || 0}</p>
+            </div>
+            <div className="cosmic-card p-4 space-y-1" data-testid="stat-proofs">
+              <p className="text-[10px] font-heading text-muted-foreground uppercase tracking-wider">Proofs Verified</p>
+              <p className="text-2xl font-mono text-neon-magenta">{networkStats?.proofsVerified || 0}</p>
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Open Wormhole Panel */}
+      <section className="cosmic-card cosmic-card-cyan p-6 md:p-8 space-y-8 relative overflow-hidden">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-heading font-bold text-white flex items-center gap-2">
+            <Zap className="w-5 h-5 text-neon-cyan" /> Open New Portal
+          </h2>
+          {sourceChain !== destChain && (
+            <Badge variant="outline" className={`font-mono ${getComplexityLabel(sourceChain, destChain).color}`}>
+              {getComplexityLabel(sourceChain, destChain).label}
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-4 relative">
+          <div className="w-full md:w-1/3 space-y-2">
+            <label className="text-xs font-heading text-muted-foreground uppercase px-1">Source Chain</label>
+            <div className="relative">
+              <select 
+                value={sourceChain} 
+                onChange={(e) => setSourceChain(e.target.value as ZkWormholeChainId)}
+                className="w-full bg-black/40 border border-white/10 rounded-sm p-3 font-heading text-sm appearance-none focus:outline-none focus:border-neon-cyan transition-colors"
+                data-testid="select-source-chain"
+              >
+                {Object.values(ZK_WORMHOLE_CHAINS).map(chain => (
+                  <option key={chain.id} value={chain.id}>{chain.name}</option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ZK_WORMHOLE_CHAINS[sourceChain].tunnelColor }} />
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              </div>
+            </div>
+          </div>
+
+          {/* Animated Wormhole Tunnel */}
+          <div className="flex-1 flex flex-col items-center justify-center py-4 relative min-h-[60px] w-full">
+            <div className="absolute w-full h-1 bg-white/5 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-transparent via-neon-cyan to-transparent animate-wormhole-flow w-1/2" />
+            </div>
+            <style>{`
+              @keyframes wormhole-flow {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(200%); }
+              }
+              .animate-wormhole-flow {
+                animation: wormhole-flow 2s infinite linear;
+              }
+            `}</style>
+            <div className="mt-4 flex flex-col items-center gap-1">
+              <div className="flex items-center gap-2">
+                <Shield className="w-3 h-3 text-neon-green" />
+                <span className="text-[10px] font-mono text-muted-foreground uppercase">zk-SNARK Secured</span>
+              </div>
+              <div className="text-[10px] font-mono text-neon-cyan opacity-50">
+                TRANS-SPACIAL LINK ACTIVE
+              </div>
+            </div>
+          </div>
+
+          <div className="w-full md:w-1/3 space-y-2">
+            <label className="text-xs font-heading text-muted-foreground uppercase px-1">Destination Chain</label>
+            <div className="relative">
+              <select 
+                value={destChain} 
+                onChange={(e) => setDestChain(e.target.value as ZkWormholeChainId)}
+                className="w-full bg-black/40 border border-white/10 rounded-sm p-3 font-heading text-sm appearance-none focus:outline-none focus:border-neon-cyan transition-colors"
+                data-testid="select-dest-chain"
+              >
+                {Object.values(ZK_WORMHOLE_CHAINS).map(chain => (
+                  <option key={chain.id} value={chain.id}>{chain.name}</option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ZK_WORMHOLE_CHAINS[destChain].tunnelColor }} />
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <Button 
+          data-testid="button-open-wormhole"
+          onClick={handleOpenWormhole}
+          disabled={openWormholeMutation.isPending || sourceChain === destChain}
+          className="w-full bg-neon-cyan/20 hover:bg-neon-cyan/30 text-neon-cyan border border-neon-cyan/40 font-heading tracking-widest h-12 relative group"
+        >
+          {openWormholeMutation.isPending ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <>
+              <Orbit className="w-4 h-4 mr-2 group-hover:rotate-180 transition-transform duration-500" />
+              OPEN WORMHOLE PORTAL
+            </>
+          )}
+        </Button>
+      </section>
+
+      {/* Active Wormholes Grid */}
+      <section className="space-y-6">
+        <h2 className="text-xl font-heading font-bold text-white flex items-center gap-2">
+          <Activity className="w-5 h-5 text-neon-green" /> Active User Wormholes
+        </h2>
+        
+        {statusLoading ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array(3).fill(0).map((_, i) => (
+              <div key={i} className="cosmic-card h-48 animate-pulse bg-white/5" />
+            ))}
+          </div>
+        ) : wormholes.length === 0 ? (
+          <div className="cosmic-card p-12 text-center space-y-4">
+            <Orbit className="w-12 h-12 text-muted-foreground/20 mx-auto" />
+            <p className="text-muted-foreground font-mono">No active wormholes detected. Open a portal to start bridging.</p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {wormholes.map(wh => (
+              <div key={wh.id} className="cosmic-card p-5 space-y-4 relative group hover-elevate" data-testid={`card-wormhole-${wh.id}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ZK_WORMHOLE_CHAINS[wh.sourceChain].tunnelColor }} />
+                    <span className="font-heading text-xs text-white">{ZK_WORMHOLE_CHAINS[wh.sourceChain].name}</span>
+                    <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ZK_WORMHOLE_CHAINS[wh.destChain].tunnelColor }} />
+                    <span className="font-heading text-xs text-white">{ZK_WORMHOLE_CHAINS[wh.destChain].name}</span>
+                  </div>
+                  <Badge className={`uppercase text-[9px] font-mono ${
+                    wh.status === 'open' ? 'bg-neon-green/10 text-neon-green border-neon-green/20' :
+                    wh.status === 'bridging' ? 'bg-neon-orange/10 text-neon-orange border-neon-orange/20' :
+                    wh.status === 'sealed' ? 'bg-neon-magenta/10 text-neon-magenta border-neon-magenta/20' :
+                    'bg-white/5 text-muted-foreground border-white/10'
+                  }`}>
+                    {wh.status}
+                  </Badge>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-[10px] font-mono">
+                    <span className="text-muted-foreground">CAPACITY</span>
+                    <span className="text-white">{wh.totalTransferred} / {wh.capacity} SKYNT</span>
+                  </div>
+                  <Progress value={(parseFloat(wh.totalTransferred) / wh.capacity) * 100} className="h-1 bg-white/5" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[9px] font-heading text-muted-foreground uppercase">Transfers</p>
+                    <p className="font-mono text-sm text-white">{wh.transferCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-heading text-muted-foreground uppercase">Φ Boost</p>
+                    <p className="font-mono text-sm text-neon-cyan">+{wh.phiBoost.toFixed(2)}x</p>
+                  </div>
+                </div>
+
+                <div className="pt-2 space-y-2 border-t border-white/5">
+                  <div className="flex justify-between items-center text-[9px] font-mono">
+                    <span className="text-muted-foreground">PORTAL ID</span>
+                    <span className="text-white opacity-60">{wh.id.slice(0, 8)}...</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[9px] font-mono">
+                    <span className="text-muted-foreground">ZK PROOF</span>
+                    <span className="text-neon-magenta opacity-60">{wh.zkProofHash.slice(0, 8)}...</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  {(wh.status === 'open' || wh.status === 'bridging') && (
+                    <Button 
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => closeWormholeMutation.mutate(wh.id)}
+                      disabled={closeWormholeMutation.isPending}
+                      className="w-full h-8 text-[10px] font-heading tracking-widest bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20"
+                      data-testid={`button-close-wormhole-${wh.id}`}
+                    >
+                      {closeWormholeMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "CLOSE PORTAL"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Transfer Panel */}
+      <section className="cosmic-card cosmic-card-magenta p-6 md:p-8 space-y-6">
+        <h2 className="text-xl font-heading font-bold text-white flex items-center gap-2">
+          <ArrowDownUp className="w-5 h-5 text-neon-magenta" /> Initiate Cross-Chain Transfer
+        </h2>
+
+        <div className="grid md:grid-cols-2 gap-8">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs font-heading text-muted-foreground uppercase px-1">Select Portal</label>
+              <div className="relative">
+                <select 
+                  value={selectedWormholeId} 
+                  onChange={(e) => setSelectedWormholeId(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-sm p-3 font-heading text-sm appearance-none focus:outline-none focus:border-neon-magenta transition-colors"
+                  data-testid="select-active-wormhole"
+                >
+                  <option value="">Select an active wormhole...</option>
+                  {wormholes.filter(w => w.status === 'open').map(wh => (
+                    <option key={wh.id} value={wh.id}>
+                      {ZK_WORMHOLE_CHAINS[wh.sourceChain].name} → {ZK_WORMHOLE_CHAINS[wh.destChain].name} ({wh.id.slice(0, 8)})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-heading text-muted-foreground uppercase px-1">Amount</label>
+                <input 
+                  type="number" 
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-black/40 border border-white/10 rounded-sm p-3 font-mono text-sm focus:outline-none focus:border-neon-magenta transition-colors"
+                  data-testid="input-transfer-amount"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-heading text-muted-foreground uppercase px-1">Token</label>
+                <div className="relative">
+                  <select 
+                    value={token} 
+                    onChange={(e) => setToken(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-sm p-3 font-heading text-sm appearance-none focus:outline-none focus:border-neon-magenta transition-colors"
+                    data-testid="select-token"
+                  >
+                    <option value="SKYNT">SKYNT</option>
+                    <option value="ETH">ETH</option>
+                    <option value="STX">STX</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-black/20 border border-white/5 rounded-sm space-y-2">
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-muted-foreground">Estimated Fee</span>
+                <span className="text-white">{estimatedFee} {token}</span>
+              </div>
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-muted-foreground">Trans-Spacial Latency</span>
+                <span className="text-neon-cyan">~2.4s (zk-Proof)</span>
+              </div>
+              <div className="flex justify-between text-xs font-mono border-t border-white/5 pt-2 mt-2">
+                <span className="text-muted-foreground">Total to Deduct</span>
+                <span className="text-neon-magenta font-bold">
+                  {amount ? (parseFloat(amount) + parseFloat(estimatedFee)).toFixed(4) : "0.0000"} {token}
+                </span>
+              </div>
+            </div>
+
+            <Button 
+              data-testid="button-initiate-transfer"
+              onClick={handleInitiateTransfer}
+              disabled={initiateTransferMutation.isPending || !selectedWormholeId || !amount}
+              className="w-full bg-neon-magenta/20 hover:bg-neon-magenta/30 text-neon-magenta border border-neon-magenta/40 font-heading tracking-widest h-12"
+            >
+              {initiateTransferMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "INITIATE TRANSFER"}
+            </Button>
+          </div>
+
+          <div className="flex flex-col justify-center space-y-6">
+            <h3 className="text-sm font-heading text-muted-foreground uppercase tracking-wider text-center">Proof Pipeline Status</h3>
+            
+            <div className="space-y-4">
+              {[
+                { label: "ZK Proof Generation", icon: Hash },
+                { label: "Guardian Verification", icon: Shield },
+                { label: "Bridge Execution", icon: ArrowDownUp },
+                { label: "Wormhole Completion", icon: CheckCircle }
+              ].map((step, idx) => {
+                const stepNum = idx + 1;
+                const isActive = transferStep === stepNum;
+                const isCompleted = transferStep > stepNum;
+                const isPending = transferStep > 0 && transferStep < stepNum;
+
+                return (
+                  <div key={idx} className="flex items-center gap-4">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border transition-colors ${
+                      isCompleted ? 'bg-neon-green/20 border-neon-green text-neon-green' :
+                      isActive ? 'bg-neon-magenta/20 border-neon-magenta text-neon-magenta animate-pulse' :
+                      'bg-white/5 border-white/10 text-muted-foreground opacity-40'
+                    }`}>
+                      {isCompleted ? <CheckCircle className="w-4 h-4" /> : <step.icon className="w-4 h-4" />}
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className={`text-xs font-heading ${isActive ? 'text-white' : 'text-muted-foreground'}`}>{step.label}</span>
+                        {isActive && <Loader2 className="w-3 h-3 animate-spin text-neon-magenta" />}
+                      </div>
+                      <Progress value={isCompleted ? 100 : isActive ? 50 : 0} className="h-1 bg-white/5" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {transferStep === 0 && !initiateTransferMutation.isPending && (
+              <div className="p-4 border border-dashed border-white/10 rounded-sm text-center">
+                <p className="text-[10px] font-mono text-muted-foreground/40 italic uppercase">Awaiting Transfer Initiation...</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Transfer History */}
+      <section className="space-y-6 pb-12">
+        <h2 className="text-xl font-heading font-bold text-white flex items-center gap-2">
+          <History className="w-5 h-5 text-neon-cyan" /> Portal History
+        </h2>
+
+        <div className="cosmic-card overflow-hidden">
+          {transfersLoading ? (
+            <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin text-neon-cyan mx-auto" /></div>
+          ) : transfers.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground font-mono">No transfers recorded in the protocol logs.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left font-mono text-xs">
+                <thead>
+                  <tr className="bg-white/5 text-muted-foreground uppercase text-[10px] font-heading">
+                    <th className="p-4">Route</th>
+                    <th className="p-4">Amount</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4">Proof Hash</th>
+                    <th className="p-4">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {transfers.map(tx => (
+                    <tr key={tx.id} className="hover:bg-white/5 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white">{ZK_WORMHOLE_CHAINS[tx.sourceChain].name}</span>
+                          <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-white">{ZK_WORMHOLE_CHAINS[tx.destChain].name}</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-neon-cyan">{tx.amount} {tx.token}</span>
+                      </td>
+                      <td className="p-4">
+                        <Badge className={`uppercase text-[9px] ${
+                          tx.status === 'completed' ? 'bg-neon-green/10 text-neon-green' :
+                          tx.status === 'verified' ? 'bg-neon-cyan/10 text-neon-cyan' :
+                          tx.status === 'pending' ? 'bg-neon-orange/10 text-neon-orange' :
+                          'bg-red-500/10 text-red-400'
+                        }`}>
+                          {tx.status}
+                        </Badge>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-muted-foreground opacity-60">{tx.proofHash.slice(0, 12)}...</span>
+                      </td>
+                      <td className="p-4 text-muted-foreground">
+                        {new Date(tx.createdAt).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}

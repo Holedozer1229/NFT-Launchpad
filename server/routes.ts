@@ -11,6 +11,9 @@ import { calculatePhi, getNetworkPerception, startEngine, isEngineRunning } from
 import { getResonanceStatus, getResonanceHistory } from "./resonance-drop";
 import { startMining, stopMining, getMiningStatus, getActiveMinerCount } from "./background-miner";
 import { startMergeMining, stopMergeMining, getMergeMiningStatus, getAllMergeMiningStats, getBtcGenesisBlock, getRecentBlocks, getStxLendingState, stakeStxLending } from "./merge-miner";
+import { openWormhole, closeWormhole, initiateTransfer, getWormholeStatus, getWormholeTransfers, getUserTransfers, getNetworkWormholeStats } from "./zk-wormhole";
+import { generateRarityCertificate, verifyRarityCertificate, getUserCertificates, downloadCertificate } from "./rarity-proof-engine";
+import { STARSHIP_FLIGHT_SHOWCASES } from "@shared/schema";
 import { MERGE_MINING_CHAINS, STX_LENDING_TIERS, type MergeMiningChainId, type StxLendingTierId } from "@shared/schema";
 import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
 
@@ -34,7 +37,7 @@ function eigenvaluesSymmetric4x4(matrix: number[][]): number[] {
   return [val, val, -val, -val];
 }
 
-import { getChainInfo, getBalance, getTransaction, getBlock, getRecentBlocks, mintNftOnSkynt, isChainValid } from "./skynt-blockchain";
+import { getChainInfo, getBalance, getTransaction, getBlock, getRecentBlocks as getSkyntRecentBlocks, mintNftOnSkynt, isChainValid } from "./skynt-blockchain";
 import { qgMiner } from "./qg-miner-v8";
 import { getLedgerState, getP2PPeers, getNetworkTopology, broadcastTransaction } from "./p2p-ledger";
 import { rosettaRouter } from "./rosetta/routes";
@@ -1795,7 +1798,7 @@ export async function registerRoutes(
   app.get("/api/skynt/blocks", (_req, res) => {
     try {
       const limit = parseInt((_req.query.limit as string) || "20");
-      res.json(getRecentBlocks(Math.min(limit, 50)));
+      res.json(getSkyntRecentBlocks(Math.min(limit, 50)));
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch blocks" });
     }
@@ -2185,6 +2188,134 @@ export async function registerRoutes(
       res.json(result);
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Failed to stake" });
+    }
+  });
+
+  app.post("/api/wormhole/open", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { sourceChain, destChain } = req.body;
+      if (!sourceChain || !destChain) {
+        return res.status(400).json({ message: "sourceChain and destChain required" });
+      }
+      const result = await openWormhole(req.user!.id, sourceChain, destChain);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to open wormhole" });
+    }
+  });
+
+  app.post("/api/wormhole/close", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { wormholeId } = req.body;
+      if (!wormholeId) return res.status(400).json({ message: "wormholeId required" });
+      const result = await closeWormhole(req.user!.id, wormholeId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to close wormhole" });
+    }
+  });
+
+  app.post("/api/wormhole/transfer", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { wormholeId, amount, token } = req.body;
+      if (!wormholeId || !amount) {
+        return res.status(400).json({ message: "wormholeId and amount required" });
+      }
+      const result = await initiateTransfer(req.user!.id, wormholeId, amount, token || "SKYNT");
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to initiate transfer" });
+    }
+  });
+
+  app.get("/api/wormhole/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const result = await getWormholeStatus(req.user!.id);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to get wormhole status" });
+    }
+  });
+
+  app.get("/api/wormhole/transfers/:wormholeId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const wormholeId = parseInt(req.params.wormholeId);
+      if (isNaN(wormholeId)) return res.status(400).json({ message: "Invalid wormhole ID" });
+      const transfers = await getWormholeTransfers(req.user!.id, wormholeId);
+      res.json(transfers);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to get transfers" });
+    }
+  });
+
+  app.get("/api/wormhole/all-transfers", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const transfers = await getUserTransfers(req.user!.id);
+      res.json(transfers);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to get transfers" });
+    }
+  });
+
+  app.get("/api/wormhole/network", async (_req, res) => {
+    try {
+      const stats = getNetworkWormholeStats();
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to get network stats" });
+    }
+  });
+
+  // Starship Flight NFT Showcase
+  app.get("/api/starship-nft-showcase", (_req, res) => {
+    res.json(STARSHIP_FLIGHT_SHOWCASES);
+  });
+
+  // Rarity Proof Engine
+  app.post("/api/rarity-proof/generate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { nftId } = req.body as { nftId: number };
+      if (!nftId) return res.status(400).json({ message: "nftId is required" });
+      const result = await generateRarityCertificate(nftId, (req.user as any).id);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to generate certificate" });
+    }
+  });
+
+  app.get("/api/rarity-proof/verify/:certificateId", async (req, res) => {
+    try {
+      const result = await verifyRarityCertificate(req.params.certificateId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Verification failed" });
+    }
+  });
+
+  app.get("/api/rarity-proof/certificates", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const certs = await getUserCertificates((req.user as any).id);
+      res.json(certs);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch certificates" });
+    }
+  });
+
+  app.get("/api/rarity-proof/download/:certificateId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const cert = await downloadCertificate(req.params.certificateId, (req.user as any).id);
+      res.json(cert);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to download certificate" });
     }
   });
 

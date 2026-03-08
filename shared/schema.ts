@@ -503,11 +503,117 @@ export const TREASURY_WALLET_ADDRESS = "0x7Fbe68677e63272ECB55355a6778fCee974d48
 export const ZK_BRIDGE_MINING_CHAINS = ["ethereum", "stacks", "dogecoin", "monero"] as const;
 export type ZkBridgeMiningChain = typeof ZK_BRIDGE_MINING_CHAINS[number];
 
+export const ZK_WORMHOLE_CHAINS = {
+  ethereum: { id: "ethereum", name: "Ethereum", tunnelColor: "#627EEA", wormholeCapacity: 100, transferFeeBps: 10, proofComplexity: 3 },
+  polygon: { id: "polygon", name: "Polygon PoS", tunnelColor: "#8247E5", wormholeCapacity: 200, transferFeeBps: 5, proofComplexity: 2 },
+  polygon_zkevm: { id: "polygon_zkevm", name: "Polygon zkEVM", tunnelColor: "#7B3FE4", wormholeCapacity: 250, transferFeeBps: 4, proofComplexity: 2 },
+  arbitrum: { id: "arbitrum", name: "Arbitrum", tunnelColor: "#28A0F0", wormholeCapacity: 200, transferFeeBps: 5, proofComplexity: 2 },
+  base: { id: "base", name: "Base", tunnelColor: "#0052FF", wormholeCapacity: 200, transferFeeBps: 5, proofComplexity: 2 },
+  zksync: { id: "zksync", name: "zkSync Era", tunnelColor: "#8C8DFC", wormholeCapacity: 250, transferFeeBps: 4, proofComplexity: 2 },
+  solana: { id: "solana", name: "Solana", tunnelColor: "#9945FF", wormholeCapacity: 300, transferFeeBps: 8, proofComplexity: 3 },
+  stacks: { id: "stacks", name: "Stacks", tunnelColor: "#FC6432", wormholeCapacity: 150, transferFeeBps: 8, proofComplexity: 3 },
+  skynt: { id: "skynt", name: "SphinxSkynet", tunnelColor: "#FFD700", wormholeCapacity: 500, transferFeeBps: 0, proofComplexity: 1 },
+  dogecoin: { id: "dogecoin", name: "Dogecoin", tunnelColor: "#C2A633", wormholeCapacity: 100, transferFeeBps: 12, proofComplexity: 4 },
+  monero: { id: "monero", name: "Monero", tunnelColor: "#FF6600", wormholeCapacity: 100, transferFeeBps: 15, proofComplexity: 5 },
+} as const;
+
+export type ZkWormholeChainId = keyof typeof ZK_WORMHOLE_CHAINS;
+
+export const STARSHIP_FLIGHT_SHOWCASES = [
+  {
+    flightId: "ift-1",
+    missionName: "Integrated Flight Test 1",
+    launchDate: "2023-04-20T13:33:00Z",
+    vehicleName: "Starship + Super Heavy (B7/S24)",
+    vehicleImage: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+    crew: { commander: "Cmdr. Sphinx-Alpha", pilot: "Lt. Orion Vex", missionSpecialist: "Dr. Nova Helix", flightEngineer: "Eng. Tau Meridian" },
+    objectives: ["Full stack ignition", "Max-Q passage", "Stage separation attempt"],
+    outcome: "partial" as const,
+    orbit: "Suborbital",
+    description: "First integrated flight test. Vehicle cleared the pad but experienced engine failures and was terminated by FTS at T+4:00."
+  },
+  {
+    flightId: "ift-2",
+    missionName: "Integrated Flight Test 2",
+    launchDate: "2023-11-18T13:03:00Z",
+    vehicleName: "Starship + Super Heavy (B9/S25)",
+    vehicleImage: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+    crew: { commander: "Cmdr. Sphinx-Alpha", pilot: "Lt. Kael Stardust", missionSpecialist: "Dr. Lyra Quantum", flightEngineer: "Eng. Tau Meridian" },
+    objectives: ["Hot-stage separation", "Booster boostback", "Ship orbital insertion"],
+    outcome: "partial" as const,
+    orbit: "Suborbital",
+    description: "First hot-stage separation achieved. Booster RUD after sep, Ship lost during coast."
+  },
+  {
+    flightId: "ift-3",
+    missionName: "Integrated Flight Test 3",
+    launchDate: "2024-03-14T13:25:00Z",
+    vehicleName: "Starship + Super Heavy (B10/S28)",
+    vehicleImage: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+    crew: { commander: "Cmdr. Sphinx-Beta", pilot: "Lt. Orion Vex", missionSpecialist: "Dr. Nova Helix", flightEngineer: "Eng. Zeta Flux" },
+    objectives: ["In-space engine relight", "Propellant transfer demo", "Controlled reentry"],
+    outcome: "partial" as const,
+    orbit: "Low Earth Orbit",
+    description: "Reached space, demonstrated propellant transfer and engine relight. Both vehicles lost during reentry."
+  },
+  {
+    flightId: "ift-4",
+    missionName: "Integrated Flight Test 4",
+    launchDate: "2024-06-06T12:50:00Z",
+    vehicleName: "Starship + Super Heavy (B11/S29)",
+    vehicleImage: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+    crew: { commander: "Cmdr. Sphinx-Beta", pilot: "Lt. Kael Stardust", missionSpecialist: "Dr. Lyra Quantum", flightEngineer: "Eng. Tau Meridian" },
+    objectives: ["Booster soft splashdown", "Ship controlled reentry", "Heat shield validation"],
+    outcome: "success" as const,
+    orbit: "Low Earth Orbit",
+    description: "All primary objectives achieved. Booster splashdown in Gulf of Mexico, Ship survived reentry and splashed in Indian Ocean."
+  },
+  {
+    flightId: "ift-5",
+    missionName: "Integrated Flight Test 5",
+    launchDate: "2024-10-13T12:25:00Z",
+    vehicleName: "Starship + Super Heavy (B12/S30)",
+    vehicleImage: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+    crew: { commander: "Cmdr. Sphinx-Gamma", pilot: "Lt. Orion Vex", missionSpecialist: "Dr. Nova Helix", flightEngineer: "Eng. Zeta Flux" },
+    objectives: ["Tower catch (Mechazilla)", "Booster return to launch site", "Ship Indian Ocean splashdown"],
+    outcome: "success" as const,
+    orbit: "Low Earth Orbit",
+    description: "Historic first booster catch by Mechazilla chopstick arms. Ship completed controlled splashdown in Indian Ocean."
+  },
+  {
+    flightId: "ift-6",
+    missionName: "Integrated Flight Test 6",
+    launchDate: "2025-01-16T22:37:00Z",
+    vehicleName: "Starship + Super Heavy (B13/S31)",
+    vehicleImage: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+    crew: { commander: "Cmdr. Sphinx-Gamma", pilot: "Lt. Kael Stardust", missionSpecialist: "Dr. Lyra Quantum", flightEngineer: "Eng. Tau Meridian" },
+    objectives: ["Second tower catch attempt", "Orbital insertion", "Payload deployment sim"],
+    outcome: "partial" as const,
+    orbit: "Low Earth Orbit",
+    description: "Booster catch aborted due to off-nominal conditions, diverted to Gulf splashdown. Ship reached orbit but lost during reentry."
+  },
+  {
+    flightId: "ift-7",
+    missionName: "Integrated Flight Test 7",
+    launchDate: "2025-04-13T00:00:00Z",
+    vehicleName: "Starship + Super Heavy (B14/S33)",
+    vehicleImage: "https://thespacedevs-prod.nyc3.digitaloceanspaces.com/media/images/starship2520_image_20230420095310.jpeg",
+    crew: { commander: "Cmdr. Sphinx-Delta", pilot: "Lt. Orion Vex", missionSpecialist: "Dr. Nova Helix", flightEngineer: "Eng. Zeta Flux" },
+    objectives: ["Next-gen heat shield", "Improved Raptor engines", "Payload deployment"],
+    outcome: "success" as const,
+    orbit: "Low Earth Orbit",
+    description: "Major upgrades validated. Next-gen heat shield tiles, improved Raptors, payload deployment simulation successful."
+  },
+] as const;
+
+export const RARITY_PROOF_FEE = 0.5;
+
 export const CONTRACT_DEFINITIONS = [
   { contractId: "SpaceFlightNFT", name: "SpaceFlightNFT", description: "Gas-optimized tiered NFT minting with royalties and OpenSea integration", gasRange: [160000, 240000] },
   { contractId: "SphinxBridge", name: "SphinxBridge", description: "Gas-optimized cross-chain bridge with 5-of-9 guardian multi-sig", gasRange: [180000, 280000] },
   { contractId: "SphinxYieldAggregator", name: "SphinxYieldAggregator", description: "Gas-optimized multi-chain yield aggregator with zk-proof verification", gasRange: [200000, 320000] },
   { contractId: "SkynetZkBridge", name: "SkynetZkBridge", description: "zkSync Era cross-chain bridge with zk-SNARK mint proof verification for ETH/STX/DOGE/XMR", gasRange: [100000, 180000] },
+  { contractId: "ZkWormhole", name: "ZkWormhole", description: "Per-user ZK-Wormhole cross-chain portal with zk-SNARK proof verification for 11-chain bridging including Polygon zkEVM", gasRange: [150000, 250000] },
 ] as const;
 
 export type ContractId = typeof CONTRACT_DEFINITIONS[number]["contractId"];
@@ -644,3 +750,60 @@ export const insertPowSubmissionSchema = createInsertSchema(powSubmissions).omit
 });
 export type PowSubmission = typeof powSubmissions.$inferSelect;
 export type InsertPowSubmission = z.infer<typeof insertPowSubmissionSchema>;
+
+export const zkWormholes = pgTable("zk_wormholes", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  wormholeId: text("wormhole_id").notNull().unique(),
+  status: text("status").notNull().default("dormant"),
+  sourceChain: text("source_chain").notNull(),
+  destChain: text("dest_chain").notNull(),
+  capacity: text("capacity").notNull().default("100"),
+  totalTransferred: text("total_transferred").notNull().default("0"),
+  transferCount: integer("transfer_count").notNull().default(0),
+  phiBoost: text("phi_boost").notNull().default("1.0"),
+  zkProofHash: text("zk_proof_hash"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertZkWormholeSchema = createInsertSchema(zkWormholes).omit({ id: true, createdAt: true });
+export type ZkWormhole = typeof zkWormholes.$inferSelect;
+export type InsertZkWormhole = z.infer<typeof insertZkWormholeSchema>;
+
+export const zkWormholeTransfers = pgTable("zk_wormhole_transfers", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  wormholeId: integer("wormhole_id").notNull().references(() => zkWormholes.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  sourceChain: text("source_chain").notNull(),
+  destChain: text("dest_chain").notNull(),
+  amount: text("amount").notNull(),
+  token: text("token").notNull().default("SKYNT"),
+  status: text("status").notNull().default("pending"),
+  zkProofHash: text("zk_proof_hash"),
+  guardianSigs: integer("guardian_sigs").notNull().default(0),
+  txHash: text("tx_hash"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertZkWormholeTransferSchema = createInsertSchema(zkWormholeTransfers).omit({ id: true, createdAt: true });
+export type ZkWormholeTransfer = typeof zkWormholeTransfers.$inferSelect;
+export type InsertZkWormholeTransfer = z.infer<typeof insertZkWormholeTransferSchema>;
+
+export const rarityCertificates = pgTable("rarity_certificates", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  nftId: integer("nft_id").notNull().references(() => nfts.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  certificateId: text("certificate_id").notNull().unique(),
+  rarityScore: integer("rarity_score").notNull(),
+  rarityPercentile: text("rarity_percentile").notNull(),
+  zkProofHash: text("zk_proof_hash").notNull(),
+  verificationKeyHash: text("verification_key_hash").notNull(),
+  phiBoost: text("phi_boost").notNull().default("1.0"),
+  fee: text("fee").notNull().default("0.5"),
+  status: text("status").notNull().default("valid"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertRarityCertificateSchema = createInsertSchema(rarityCertificates).omit({ id: true, createdAt: true });
+export type RarityCertificate = typeof rarityCertificates.$inferSelect;
+export type InsertRarityCertificate = z.infer<typeof insertRarityCertificateSchema>;
