@@ -10,7 +10,7 @@ import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception, startEngine, isEngineRunning } from "./iit-engine";
 import { getResonanceStatus, getResonanceHistory } from "./resonance-drop";
 import { startMining, stopMining, getMiningStatus, getActiveMinerCount, activatePremiumPass, getMiningLeaderboard } from "./background-miner";
-import { startMergeMining, stopMergeMining, getMergeMiningStatus, getAllMergeMiningStats, getBtcGenesisBlock, getRecentBlocks, getStxLendingState, stakeStxLending } from "./merge-miner";
+import { startMergeMining, stopMergeMining, getMergeMiningStatus, getMergeMiningStatusMap, getAllMergeMiningStats, getBtcGenesisBlock, getRecentBlocks, getStxLendingState, stakeStxLending } from "./merge-miner";
 import { openWormhole, closeWormhole, initiateTransfer, getWormholeStatus, getWormholeTransfers, getUserTransfers, getNetworkWormholeStats } from "./zk-wormhole";
 import { generateRarityCertificate, verifyRarityCertificate, getUserCertificates, downloadCertificate } from "./rarity-proof-engine";
 import { STARSHIP_FLIGHT_SHOWCASES } from "@shared/schema";
@@ -2218,7 +2218,7 @@ export async function registerRoutes(
   app.get("/api/merge-mine/status", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const stats = getMergeMiningStatus(req.user!.id);
+      const stats = getMergeMiningStatusMap(req.user!.id);
       res.json(stats);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch merge mining status" });

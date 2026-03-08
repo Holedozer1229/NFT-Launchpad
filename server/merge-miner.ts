@@ -206,6 +206,22 @@ export function getMergeMiningStatus(userId: number): MergeMiningStats[] {
   return Array.from(session.stats.values());
 }
 
+export function getMergeMiningStatusMap(userId: number): { mergeMining: Record<string, MergeMiningStats>; randomx: MergeMiningStats | null } {
+  const session = userSessions.get(userId);
+  const mergeMining: Record<string, MergeMiningStats> = {};
+  let randomx: MergeMiningStats | null = null;
+  if (session) {
+    for (const [chainId, stats] of session.stats) {
+      if (chainId === 'randomx' as any) {
+        randomx = stats;
+      } else {
+        mergeMining[chainId] = stats;
+      }
+    }
+  }
+  return { mergeMining, randomx };
+}
+
 export function getAllMergeMiningStats() {
   const allStats: Record<number, MergeMiningStats[]> = {};
   for (const [userId, session] of userSessions) {
