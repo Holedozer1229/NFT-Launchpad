@@ -92,7 +92,7 @@ export default function RarityProofEngine() {
         title: "Certificate Sealed",
         description: "ZK-proof rarity certificate generated successfully.",
       });
-      setViewCertificate(data);
+      setViewCertificate(data.certificate || data);
       setGenerationNftId(null);
       setGenerationStep(0);
     },
@@ -122,14 +122,14 @@ export default function RarityProofEngine() {
     });
   };
 
-  const handleDownload = async (certId: number) => {
+  const handleDownload = async (certificateId: string) => {
     try {
-      const res = await fetch(`/api/rarity-proof/download/${certId}`);
+      const res = await fetch(`/api/rarity-proof/download/${certificateId}`);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `certificate-${certId}.json`;
+      a.download = `certificate-${certificateId}.json`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -143,9 +143,9 @@ export default function RarityProofEngine() {
     }
   };
 
-  const handleVerify = async (certId: number) => {
+  const handleVerify = async (certificateId: string) => {
     try {
-      const res = await apiRequest("GET", `/api/rarity-proof/verify/${certId}`);
+      const res = await apiRequest("GET", `/api/rarity-proof/verify/${certificateId}`);
       const data = await res.json();
       if (data.valid) {
         toast({
@@ -384,7 +384,7 @@ export default function RarityProofEngine() {
                       VIEW FULL
                     </Button>
                     <Button
-                      onClick={() => handleDownload(cert.id)}
+                      onClick={() => handleDownload(cert.certificateId)}
                       variant="outline"
                       className="h-9 text-[10px] font-heading tracking-widest w-full border-neon-cyan/40 text-neon-cyan hover:bg-neon-cyan/10"
                     >
@@ -392,7 +392,7 @@ export default function RarityProofEngine() {
                       DOWNLOAD
                     </Button>
                     <Button
-                      onClick={() => handleVerify(cert.id)}
+                      onClick={() => handleVerify(cert.certificateId)}
                       variant="ghost"
                       className="h-9 text-[10px] font-heading tracking-widest w-full text-muted-foreground hover:text-neon-green"
                     >
@@ -625,7 +625,7 @@ export default function RarityProofEngine() {
                 </div>
                 <div className="flex gap-4">
                   <Button
-                    onClick={() => viewCertificate && handleDownload(viewCertificate.id)}
+                    onClick={() => viewCertificate && handleDownload(viewCertificate.certificateId)}
                     className="bg-white text-black hover:bg-white/90 font-heading text-[10px] tracking-widest h-10 px-8"
                   >
                     <Download className="w-4 h-4 mr-2" />

@@ -521,3 +521,115 @@
 .page-transition {
   animation: page-enter 0.3s ease-out;
 }
+
+.bg-theme-wormhole {
+  --theme-hue-1: 280;
+  --theme-hue-2: 185;
+  --theme-hue-3: 145;
+}
+
+.bg-theme-rarity-proof {
+  --theme-hue-1: 45;
+  --theme-hue-2: 185;
+  --theme-hue-3: 280;
+}
+
+.bg-theme-genesis-miner {
+  --theme-hue-1: 30;
+  --theme-hue-2: 145;
+  --theme-hue-3: 210;
+}
+
+.bg-theme-starship {
+  --theme-hue-1: 30;
+  --theme-hue-2: 0;
+  --theme-hue-3: 45;
+}
+
+.bg-theme-lab {
+  --theme-hue-1: 210;
+  --theme-hue-2: 280;
+  --theme-hue-3: 185;
+}
+
+@keyframes scanline-scroll {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 100%; }
+}
+
+.scanline-animated {
+  background: linear-gradient(to bottom, transparent 50%, rgba(0, 234, 255, 0.015) 50%);
+  background-size: 100% 4px;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  animation: scanline-scroll 8s linear infinite;
+}
+
+.cosmic-card-glow {
+  background: linear-gradient(135deg, hsl(var(--card) / 0.95), hsl(var(--card) / 0.7));
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border));
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.04), 0 4px 24px hsl(0 0% 0% / 0.3);
+}
+
+.cosmic-card-glow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.6), transparent);
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, hsl(var(--muted) / 0.3) 25%, hsl(var(--muted) / 0.5) 50%, hsl(var(--muted) / 0.3) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius);
+}
+
+.neon-glow-magenta {
+  text-shadow: 0 0 8px hsl(300 100% 60% / 0.6);
+}
+
+.neon-glow-gold {
+  text-shadow: 0 0 8px hsl(45 100% 50% / 0.6);
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .scanline, .scanline-animated {
+    display: none;
+  }
+
+  .dynamic-bg-nebula {
+    animation: none;
+    opacity: 0.1;
+  }
+}

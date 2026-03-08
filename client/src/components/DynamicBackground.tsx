@@ -14,6 +14,10 @@ const ROUTE_THEMES: Record<string, string> = {
   "/wallet": "bg-theme-wallet",
   "/starship": "bg-theme-starship",
   "/admin": "bg-theme-admin",
+  "/wormhole": "bg-theme-wormhole",
+  "/rarity-proof": "bg-theme-rarity-proof",
+  "/genesis-miner": "bg-theme-genesis-miner",
+  "/lab": "bg-theme-lab",
 };
 
 const ROUTE_COLORS: Record<string, [string, string, string]> = {
@@ -29,6 +33,10 @@ const ROUTE_COLORS: Record<string, [string, string, string]> = {
   "/wallet": ["hsl(185 100% 50%)", "hsl(45 100% 50%)", "hsl(145 100% 50%)"],
   "/starship": ["hsl(30 100% 55%)", "hsl(45 100% 50%)", "hsl(0 100% 60%)"],
   "/admin": ["hsl(0 100% 60%)", "hsl(30 100% 55%)", "hsl(210 100% 55%)"],
+  "/wormhole": ["hsl(280 100% 60%)", "hsl(185 100% 50%)", "hsl(145 100% 50%)"],
+  "/rarity-proof": ["hsl(45 100% 50%)", "hsl(185 100% 50%)", "hsl(280 100% 60%)"],
+  "/genesis-miner": ["hsl(30 100% 55%)", "hsl(145 100% 50%)", "hsl(210 100% 55%)"],
+  "/lab": ["hsl(210 100% 55%)", "hsl(280 100% 60%)", "hsl(185 100% 50%)"],
 };
 
 interface NebulaConfig {

@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import {
   Activity, Cpu, Box, DollarSign, Clock,
-  ChevronUp, ChevronDown, Loader2, Zap
+  ChevronUp, ChevronDown, Loader2, Zap, Brain, Pickaxe, Shield, TrendingUp
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { ResonanceDrop } from "@/components/ResonanceDrop";
@@ -118,6 +118,26 @@ export default function Dashboard() {
     refetchInterval: 15000,
   });
 
+  const { data: iitData } = useQuery<{ phi: number; level: string; networkNodes: number }>({
+    queryKey: ["/api/iit/status"],
+    refetchInterval: 30000,
+  });
+
+  const { data: treasuryData } = useQuery<{ totalFees: number; totalYieldGenerated: number; currentApr: number; strategies: any[] }>({
+    queryKey: ["/api/treasury/yield"],
+    refetchInterval: 60000,
+  });
+
+  const { data: miningNetwork } = useQuery<{ activeMiners: number }>({
+    queryKey: ["/api/mining/network"],
+    refetchInterval: 30000,
+  });
+
+  const { data: resonanceData } = useQuery<{ status: string; currentFrequency: number; phiValue: number }>({
+    queryKey: ["/api/resonance/status"],
+    refetchInterval: 15000,
+  });
+
   useEffect(() => {
     const interval = setInterval(() => setUptimeSeconds(prev => prev + 1), 1000);
     return () => clearInterval(interval);
@@ -202,6 +222,62 @@ export default function Dashboard() {
           icon={<Clock className="w-5 h-5 text-neon-magenta" />}
           accent="magenta"
         />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="skynt-protocol-stats">
+        <div className="cosmic-card-glow p-4" data-testid="stat-iit-phi">
+          <div className="flex items-center gap-2 mb-2">
+            <Brain className="w-4 h-4 text-neon-magenta" />
+            <span className="stat-label">IIT Φ Score</span>
+          </div>
+          <div className="font-heading font-bold text-xl text-neon-magenta">
+            {iitData?.phi?.toFixed(4) ?? "—"}
+          </div>
+          <div className="text-[10px] font-mono text-muted-foreground mt-1">
+            Level: <span className="text-neon-cyan">{iitData?.level ?? "—"}</span>
+          </div>
+        </div>
+
+        <div className="cosmic-card-glow p-4" data-testid="stat-treasury-yield">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="w-4 h-4 text-neon-green" />
+            <span className="stat-label">Treasury Yield</span>
+          </div>
+          <div className="font-heading font-bold text-xl text-neon-green">
+            {treasuryData?.totalYieldGenerated?.toFixed(2) ?? "0.00"} <span className="text-xs">SKYNT</span>
+          </div>
+          <div className="text-[10px] font-mono text-muted-foreground mt-1">
+            APR: <span className="text-neon-orange">{treasuryData?.currentApr?.toFixed(1) ?? "—"}%</span>
+          </div>
+        </div>
+
+        <div className="cosmic-card-glow p-4" data-testid="stat-mining-network">
+          <div className="flex items-center gap-2 mb-2">
+            <Pickaxe className="w-4 h-4 text-neon-orange" />
+            <span className="stat-label">Mining Network</span>
+          </div>
+          <div className="font-heading font-bold text-xl text-neon-orange">
+            {miningNetwork?.activeMiners ?? 0} <span className="text-xs">active</span>
+          </div>
+          <div className="text-[10px] font-mono text-muted-foreground mt-1">
+            Fees collected: <span className="text-neon-cyan">{treasuryData?.totalFees?.toFixed(2) ?? "0"} SKYNT</span>
+          </div>
+        </div>
+
+        <div className="cosmic-card-glow p-4" data-testid="stat-resonance">
+          <div className="flex items-center gap-2 mb-2">
+            <Shield className="w-4 h-4 text-neon-cyan" />
+            <span className="stat-label">Resonance</span>
+          </div>
+          <div className="font-heading font-bold text-xl text-neon-cyan">
+            {resonanceData?.currentFrequency?.toFixed(2) ?? "7.83"} <span className="text-xs">Hz</span>
+          </div>
+          <div className="text-[10px] font-mono text-muted-foreground mt-1">
+            Status: <span className={resonanceData?.status === "RESONANCE_ACTIVE" ? "text-neon-green" : "text-muted-foreground"}>
+              {resonanceData?.status?.replace(/_/g, " ") ?? "DORMANT"}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
