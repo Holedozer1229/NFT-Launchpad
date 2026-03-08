@@ -15,23 +15,48 @@ import { NotificationCenter } from "@/components/NotificationCenter";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-const navItems = [
-  { path: "/", label: "Mint NFT", icon: Sparkles, adminOnly: false },
-  { path: "/lab", label: "Public Lab", icon: FlaskConical, adminOnly: false },
-  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
-  { path: "/gallery", label: "Gallery", icon: Image, adminOnly: false },
-  { path: "/marketplace", label: "Marketplace", icon: Store, adminOnly: false },
-  { path: "/analytics", label: "Analytics", icon: BarChart3, adminOnly: false },
-  { path: "/bridge", label: "Bridge", icon: ArrowLeftRight, adminOnly: false },
-  { path: "/yield", label: "Yield", icon: TrendingUp, adminOnly: false },
-  { path: "/iit", label: "IIT Consciousness", icon: Brain, adminOnly: false },
-  { path: "/starship", label: "Starship", icon: Flame, adminOnly: false },
-  { path: "/serpent", label: "Omega Serpent", icon: Gamepad2, adminOnly: false },
-  { path: "/genesis-miner", label: "Genesis Miner", icon: Pickaxe, adminOnly: false },
-  { path: "/wormhole", label: "ZK Wormhole", icon: Orbit, adminOnly: false },
-  { path: "/rarity-proof", label: "Rarity Proof", icon: ShieldCheck, adminOnly: false },
-  { path: "/wallet", label: "Wallet", icon: WalletCards, adminOnly: false },
-  { path: "/admin", label: "Admin", icon: Shield, adminOnly: true },
+const navGroups = [
+  {
+    label: "CORE",
+    items: [
+      { path: "/", label: "Mint NFT", icon: Sparkles, adminOnly: false },
+      { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
+      { path: "/gallery", label: "Gallery", icon: Image, adminOnly: false },
+      { path: "/marketplace", label: "Marketplace", icon: Store, adminOnly: false },
+    ]
+  },
+  {
+    label: "EARN",
+    items: [
+      { path: "/genesis-miner", label: "Genesis Miner", icon: Pickaxe, adminOnly: false },
+      { path: "/yield", label: "Yield", icon: TrendingUp, adminOnly: false },
+      { path: "/serpent", label: "Omega Serpent", icon: Gamepad2, adminOnly: false },
+    ]
+  },
+  {
+    label: "NETWORK",
+    items: [
+      { path: "/bridge", label: "Bridge", icon: ArrowLeftRight, adminOnly: false },
+      { path: "/wormhole", label: "ZK Wormhole", icon: Orbit, adminOnly: false },
+      { path: "/iit", label: "IIT Consciousness", icon: Brain, adminOnly: false },
+    ]
+  },
+  {
+    label: "TOOLS",
+    items: [
+      { path: "/analytics", label: "Analytics", icon: BarChart3, adminOnly: false },
+      { path: "/rarity-proof", label: "Rarity Proof", icon: ShieldCheck, adminOnly: false },
+      { path: "/starship", label: "Starship", icon: Flame, adminOnly: false },
+      { path: "/lab", label: "Public Lab", icon: FlaskConical, adminOnly: false },
+    ]
+  },
+  {
+    label: "SYSTEM",
+    items: [
+      { path: "/wallet", label: "Wallet", icon: WalletCards, adminOnly: false },
+      { path: "/admin", label: "Admin", icon: Shield, adminOnly: true },
+    ]
+  },
 ];
 
 const starData = Array.from({ length: 80 }, (_, i) => ({
@@ -118,22 +143,41 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
           {!collapsed ? <NotificationCenter /> : <NotificationCenter collapsed />}
         </div>
 
-        <nav className="flex-1 py-4 space-y-1 overflow-y-auto" data-testid="sidebar-nav">
-          {navItems.filter((item) => !item.adminOnly || user?.isAdmin).map((item) => {
-            const isActive = location === item.path;
-            const Icon = item.icon;
+        <nav className="flex-1 py-4 space-y-4 overflow-y-auto scrollbar-none" data-testid="sidebar-nav">
+          {navGroups.map((group, groupIdx) => {
+            const visibleItems = group.items.filter((item) => !item.adminOnly || user?.isAdmin);
+            if (visibleItems.length === 0) return null;
+
             return (
-              <Link
-                key={item.path}
-                href={item.path}
-                data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
-                className={`sidebar-nav-item ${isActive ? "active" : ""} ${collapsed ? "justify-center px-2" : ""}`}
-                onClick={() => setMobileOpen(false)}
-                title={collapsed ? item.label : undefined}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
-              </Link>
+              <div key={group.label} className="space-y-1">
+                {!collapsed && (
+                  <div className="px-4 py-2">
+                    {groupIdx > 0 && <div className="h-px bg-[hsl(var(--sidebar-border))] mb-2 opacity-50" />}
+                    <h3 className="text-[9px] font-heading uppercase tracking-widest text-muted-foreground/40 font-bold">
+                      {group.label}
+                    </h3>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  {visibleItems.map((item) => {
+                    const isActive = location === item.path;
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.path}
+                        href={item.path}
+                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+                        className={`sidebar-nav-item ${isActive ? "active" : ""} ${collapsed ? "justify-center px-2" : ""}`}
+                        onClick={() => setMobileOpen(false)}
+                        title={collapsed ? item.label : undefined}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        {!collapsed && <span>{item.label}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </nav>
@@ -250,6 +294,8 @@ function PersistentMiner({ collapsed }: { collapsed: boolean }) {
     cyclesCompleted: number;
     uptimeSeconds: number;
     difficulty: number;
+    streak: number;
+    streakMultiplier: number;
   }>({
     queryKey: ["/api/mining/status"],
     refetchInterval: (query) => {
@@ -294,8 +340,11 @@ function PersistentMiner({ collapsed }: { collapsed: boolean }) {
   const pending = startMutation.isPending || stopMutation.isPending;
 
   const formatUptime = (s: number) => {
-    const h = Math.floor(s / 3600);
+    const days = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
     const m = Math.floor((s % 3600) / 60);
+    
+    if (days > 0) return `${days}d ${h}h`;
     if (h > 0) return `${h}h ${m}m`;
     return `${m}m`;
   };
@@ -307,14 +356,20 @@ function PersistentMiner({ collapsed }: { collapsed: boolean }) {
           data-testid={active ? "button-stop-mining-sidebar" : "button-start-mining-sidebar"}
           onClick={() => active ? stopMutation.mutate() : startMutation.mutate()}
           disabled={pending}
-          className={`w-full p-2 rounded border transition-all flex items-center justify-center ${
+          className={`w-full p-2 rounded border transition-all flex flex-col items-center justify-center gap-1 ${
             active
               ? "border-neon-green/40 bg-neon-green/10 text-neon-green"
               : "border-white/10 bg-white/5 text-muted-foreground hover:text-neon-green hover:border-neon-green/30"
           }`}
-          title={active ? `Mining: ${stats?.totalSkyntEarned?.toFixed(2)} SKYNT` : "Start Mining"}
+          title={active ? `Mining: ${stats?.totalSkyntEarned?.toFixed(2)} SKYNT | Streak: ${stats?.streak}` : "Start Mining"}
         >
           <Pickaxe className={`w-3.5 h-3.5 ${active ? "animate-pulse" : ""}`} />
+          {active && stats && stats.streak > 0 && (
+            <div className="flex items-center gap-0.5 text-[8px] font-bold">
+              <Flame className="w-2 h-2 fill-orange-500 text-orange-500" />
+              <span>{stats.streak}</span>
+            </div>
+          )}
         </button>
       </div>
     );
@@ -335,6 +390,12 @@ function PersistentMiner({ collapsed }: { collapsed: boolean }) {
           <span className={`text-[9px] font-mono px-1 rounded ${active ? "bg-neon-green/20 text-neon-green" : "text-muted-foreground"}`}>
             {active ? "ON" : "OFF"}
           </span>
+          {active && stats && stats.streak > 0 && (
+            <div className="flex items-center gap-0.5 text-[9px] text-orange-500 font-bold animate-pulse">
+              <Flame className="w-2.5 h-2.5 fill-current" />
+              <span>{stats.streakMultiplier.toFixed(1)}x</span>
+            </div>
+          )}
         </div>
         <ChevronUp className={`w-3 h-3 text-muted-foreground transition-transform ${expanded ? "" : "rotate-180"}`} />
       </button>
@@ -347,6 +408,12 @@ function PersistentMiner({ collapsed }: { collapsed: boolean }) {
                 <span className="text-muted-foreground flex items-center gap-1"><Hash className="w-2.5 h-2.5" /> Hash</span>
                 <span className="text-neon-cyan">{stats.hashRate} H/s</span>
               </div>
+              {stats.streak > 0 && (
+                <div className="flex justify-between text-[9px] font-mono">
+                  <span className="text-muted-foreground flex items-center gap-1"><Flame className="w-2.5 h-2.5 text-orange-500" /> Streak</span>
+                  <span className="text-orange-500 font-bold">{stats.streak} (x{stats.streakMultiplier.toFixed(2)})</span>
+                </div>
+              )}
               <div className="flex justify-between text-[9px] font-mono">
                 <span className="text-muted-foreground flex items-center gap-1"><Coins className="w-2.5 h-2.5" /> Earned</span>
                 <span className="text-neon-green">{stats.totalSkyntEarned.toFixed(4)} SKYNT</span>
@@ -382,8 +449,9 @@ function PersistentMiner({ collapsed }: { collapsed: boolean }) {
       )}
 
       {!expanded && active && stats && (
-        <div className="px-2.5 pb-2 text-[9px] font-mono text-neon-green truncate">
+        <div className="px-2.5 pb-2 text-[9px] font-mono text-neon-green truncate flex items-center gap-1">
           {stats.hashRate} H/s | {stats.totalSkyntEarned.toFixed(2)} SKYNT
+          {stats.streak > 0 && <span className="text-orange-500 ml-auto">🔥 {stats.streak}</span>}
         </div>
       )}
     </div>

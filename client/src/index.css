@@ -50,6 +50,39 @@
 
   --color-sidebar-bg: hsl(var(--sidebar-bg));
   --color-sidebar-border: hsl(var(--sidebar-border));
+  --animate-glitch: glitch 4s infinite linear alternate-reverse;
+  --animate-border-beam: border-beam 3s linear infinite;
+  --animate-achievement-unlock: achievement-unlock 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-streak-fire: streak-fire 2s ease-in-out infinite;
+
+  @keyframes glitch {
+    0% { clip-path: inset(80% 0 1% 0); transform: translate(-2px, -2px); }
+    10% { clip-path: inset(10% 0 58% 0); transform: translate(2px, 2px); }
+    20% { clip-path: inset(51% 0 15% 0); transform: translate(-2px, 2px); }
+    30% { clip-path: inset(23% 0 69% 0); transform: translate(2px, -2px); }
+    40% { clip-path: inset(76% 0 11% 0); transform: translate(-2px, -2px); }
+    50% { clip-path: inset(10% 0 85% 0); transform: translate(2px, 2px); }
+    60% { clip-path: inset(45% 0 35% 0); transform: translate(-2px, 2px); }
+    70% { clip-path: inset(29% 0 52% 0); transform: translate(2px, -2px); }
+    80% { clip-path: inset(62% 0 18% 0); transform: translate(-2px, -2px); }
+    90% { clip-path: inset(12% 0 77% 0); transform: translate(2px, 2px); }
+    100% { clip-path: inset(80% 0 1% 0); transform: translate(-2px, 2px); }
+  }
+
+  @keyframes border-beam {
+    100% { offset-distance: 100%; }
+  }
+
+  @keyframes achievement-unlock {
+    0% { transform: scale(0.9); filter: brightness(1); }
+    50% { transform: scale(1.1); filter: brightness(1.5); box-shadow: 0 0 30px hsl(45 100% 50% / 0.6); }
+    100% { transform: scale(1); filter: brightness(1); }
+  }
+
+  @keyframes streak-fire {
+    0%, 100% { filter: drop-shadow(0 0 5px hsl(30 100% 55% / 0.5)) brightness(1); }
+    50% { filter: drop-shadow(0 0 15px hsl(0 100% 60% / 0.8)) brightness(1.2); }
+  }
 }
 
 :root {
@@ -111,6 +144,10 @@
   --sidebar-border: 220 15% 88%;
 }
 
+html, body {
+  transition: background-color 0.5s ease, color 0.3s ease;
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -121,6 +158,73 @@
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading tracking-wider uppercase;
   }
+}
+
+.text-glitch {
+  position: relative;
+}
+
+.text-glitch::before,
+.text-glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--background);
+}
+
+.text-glitch::before {
+  left: 2px;
+  text-shadow: -2px 0 #ff00c1;
+  clip-path: inset(45% 0 0 0);
+  animation: glitch 4s infinite linear alternate-reverse;
+}
+
+.text-glitch::after {
+  left: -2px;
+  text-shadow: -2px 0 #00fff9;
+  clip-path: inset(0 0 45% 0);
+  animation: glitch 4s infinite linear alternate-reverse;
+}
+
+.border-beam {
+  position: relative;
+  border: 1px solid transparent;
+}
+
+.border-beam::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from 0deg, transparent, hsl(var(--primary)), transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: border-beam 3s linear infinite;
+}
+
+.cosmic-card-interactive {
+  @apply transition-all duration-300;
+}
+
+.cosmic-card-interactive:hover {
+  border-color: hsl(var(--primary) / 0.8);
+  background: radial-gradient(circle at top, hsl(var(--primary) / 0.1), transparent 70%),
+              linear-gradient(135deg, hsl(var(--card) / 0.95), hsl(var(--card) / 0.7));
+  box-shadow: 0 0 20px hsl(var(--primary) / 0.1);
+}
+
+.achievement-unlock-anim {
+  animation: achievement-unlock 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.streak-fire-anim {
+  animation: streak-fire 2s ease-in-out infinite;
 }
 
 .sidebar-nav-item {

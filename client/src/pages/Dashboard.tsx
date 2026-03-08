@@ -5,10 +5,13 @@ import {
 } from "recharts";
 import {
   Activity, Cpu, Box, DollarSign, Clock,
-  ChevronUp, ChevronDown, Loader2, Zap, Brain, Pickaxe, Shield, TrendingUp
+  ChevronUp, ChevronDown, Loader2, Zap, Brain, Pickaxe, Shield, TrendingUp, AlertCircle, RefreshCw
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { ResonanceDrop } from "@/components/ResonanceDrop";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface MempoolStats {
   mempoolSize: number;
@@ -60,18 +63,48 @@ interface StatCardProps {
   loading?: boolean;
 }
 
-function StatCard({ label, value, change, icon, accent, loading }: StatCardProps) {
+function StatCard({ label, value, change, icon, accent, loading, error, onRetry, index = 0 }: StatCardProps & { error?: boolean, onRetry?: () => void, index?: number }) {
   const positive = change >= 0;
+
+  if (error) {
+    return (
+      <div 
+        className={`cosmic-card cosmic-card-red p-5 page-enter`} 
+        style={{ animationDelay: `${index * 100}ms` }}
+        data-testid={`stat-card-error-${label.toLowerCase().replace(/\s/g, "-")}`}
+      >
+        <div className="flex flex-col items-center justify-center space-y-3 h-full min-h-[100px]">
+          <AlertCircle className="w-8 h-8 text-destructive animate-pulse" />
+          <span className="text-xs font-mono text-destructive tracking-wider uppercase">Failed to load {label}</span>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={onRetry}
+            className="h-7 text-[10px] hover:bg-destructive/10 text-destructive border border-destructive/20"
+          >
+            <RefreshCw className="w-3 h-3 mr-1" /> RETRY
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`cosmic-card cosmic-card-${accent} p-5`} data-testid={`stat-card-${label.toLowerCase().replace(/\s/g, "-")}`}>
+    <div 
+      className={`cosmic-card cosmic-card-${accent} p-5 page-enter`} 
+      style={{ animationDelay: `${index * 100}ms` }}
+      data-testid={`stat-card-${label.toLowerCase().replace(/\s/g, "-")}`}
+    >
       <div className="flex items-start justify-between">
-        <div className="space-y-1">
+        <div className="space-y-1 flex-1">
           <span className="stat-label">{label}</span>
           <div className="stat-value">
-            {loading ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : value}
+            {loading ? (
+              <Skeleton className="h-8 w-24 skeleton-shimmer bg-white/5" />
+            ) : value}
           </div>
         </div>
-        <div className={`p-2 rounded-sm bg-neon-${accent}/10`}>{icon}</div>
+        <div className={`p-2 rounded-sm bg-neon-${accent}/10 ml-2`}>{icon}</div>
       </div>
       <div className={`stat-change ${positive ? "positive" : "negative"} flex items-center gap-1 mt-2`}>
         {positive ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -84,22 +117,22 @@ function StatCard({ label, value, change, icon, accent, loading }: StatCardProps
 export default function Dashboard() {
   const [uptimeSeconds, setUptimeSeconds] = useState(() => Math.floor((Date.now() - new Date().setHours(0, 0, 0, 0)) / 1000));
 
-  const { data: mempoolStats, isLoading: statsLoading } = useQuery<MempoolStats>({
+  const { data: mempoolStats, isLoading: statsLoading, isError: statsError, refetch: refetchStats } = useQuery<MempoolStats>({
     queryKey: ["/api/mempool/stats"],
     refetchInterval: 30000,
   });
 
-  const { data: difficultyData, isLoading: diffLoading } = useQuery<DifficultyData>({
+  const { data: difficultyData, isLoading: diffLoading, isError: diffError, refetch: refetchDiff } = useQuery<DifficultyData>({
     queryKey: ["/api/mempool/difficulty"],
     refetchInterval: 60000,
   });
 
-  const { data: hashrateData, isLoading: hashrateLoading } = useQuery<HashrateData>({
+  const { data: hashrateData, isLoading: hashrateLoading, isError: hashrateError, refetch: refetchHashrate } = useQuery<HashrateData>({
     queryKey: ["/api/mempool/hashrate"],
     refetchInterval: 60000,
   });
 
-  const { data: recentBlocks } = useQuery<any[]>({
+  const { data: recentBlocks, isError: blocksError, refetch: refetchBlocks } = useQuery<any[]>({
     queryKey: ["/api/mempool/blocks"],
     refetchInterval: 30000,
   });
@@ -144,9 +177,16 @@ export default function Dashboard() {
   }, []);
 
   const formatUptime = useCallback(() => {
-    const h = Math.floor(uptimeSeconds / 3600);
+    const days = Math.floor(uptimeSeconds / 86400);
+    const h = Math.floor((uptimeSeconds % 86400) / 3600);
     const m = Math.floor((uptimeSeconds % 3600) / 60);
-    return `${h}h ${m.toString().padStart(2, "0")}m`;
+    
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (h > 0 || days > 0) parts.push(`${h}h`);
+    parts.push(`${m.toString().padStart(2, "0")}m`);
+    
+    return parts.join(" ");
   }, [uptimeSeconds]);
 
   const hashrateChartData = hashrateData?.hashrates?.slice(-24).map((h) => ({
@@ -198,6 +238,9 @@ export default function Dashboard() {
           icon={<Cpu className="w-5 h-5 text-neon-cyan" />}
           accent="cyan"
           loading={hashrateLoading}
+          error={hashrateError}
+          onRetry={() => refetchHashrate()}
+          index={0}
         />
         <StatCard
           label="Block Height"
@@ -206,14 +249,20 @@ export default function Dashboard() {
           icon={<Box className="w-5 h-5 text-neon-green" />}
           accent="green"
           loading={statsLoading}
+          error={statsError}
+          onRetry={() => refetchStats()}
+          index={1}
         />
         <StatCard
           label="Fastest Fee"
           value={mempoolStats ? `${mempoolStats.fees.fastest} sat/vB` : "—"}
-          change={mempoolStats ? ((mempoolStats.fees.fastest - mempoolStats.fees.hour) / mempoolStats.fees.hour * 100) : 0}
+          change={mempoolStats ? ((mempoolStats.fees.fastest - (mempoolStats.fees.hour || 1)) / (mempoolStats.fees.hour || 1) * 100) : 0}
           icon={<DollarSign className="w-5 h-5 text-neon-orange" />}
           accent="orange"
           loading={statsLoading}
+          error={statsError}
+          onRetry={() => refetchStats()}
+          index={2}
         />
         <StatCard
           label="Uptime"
@@ -221,11 +270,12 @@ export default function Dashboard() {
           change={0}
           icon={<Clock className="w-5 h-5 text-neon-magenta" />}
           accent="magenta"
+          index={3}
         />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="skynt-protocol-stats">
-        <div className="cosmic-card-glow p-4" data-testid="stat-iit-phi">
+        <div className="cosmic-card-glow p-4 page-enter" style={{ animationDelay: '400ms' }} data-testid="stat-iit-phi">
           <div className="flex items-center gap-2 mb-2">
             <Brain className="w-4 h-4 text-neon-magenta" />
             <span className="stat-label">IIT Φ Score</span>
@@ -238,33 +288,33 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="cosmic-card-glow p-4" data-testid="stat-treasury-yield">
+        <div className="cosmic-card-glow p-4 page-enter" style={{ animationDelay: '500ms' }} data-testid="stat-treasury-yield">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="w-4 h-4 text-neon-green" />
             <span className="stat-label">Treasury Yield</span>
           </div>
           <div className="font-heading font-bold text-xl text-neon-green">
-            {treasuryData?.totalYieldGenerated?.toFixed(2) ?? "0.00"} <span className="text-xs">SKYNT</span>
+            {(treasuryData?.totalYieldGenerated ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs">SKYNT</span>
           </div>
           <div className="text-[10px] font-mono text-muted-foreground mt-1">
             APR: <span className="text-neon-orange">{treasuryData?.currentApr?.toFixed(1) ?? "—"}%</span>
           </div>
         </div>
 
-        <div className="cosmic-card-glow p-4" data-testid="stat-mining-network">
+        <div className="cosmic-card-glow p-4 page-enter" style={{ animationDelay: '600ms' }} data-testid="stat-mining-network">
           <div className="flex items-center gap-2 mb-2">
             <Pickaxe className="w-4 h-4 text-neon-orange" />
             <span className="stat-label">Mining Network</span>
           </div>
           <div className="font-heading font-bold text-xl text-neon-orange">
-            {miningNetwork?.activeMiners ?? 0} <span className="text-xs">active</span>
+            {(miningNetwork?.activeMiners ?? 0).toLocaleString()} <span className="text-xs">active</span>
           </div>
           <div className="text-[10px] font-mono text-muted-foreground mt-1">
-            Fees collected: <span className="text-neon-cyan">{treasuryData?.totalFees?.toFixed(2) ?? "0"} SKYNT</span>
+            Fees collected: <span className="text-neon-cyan">{(treasuryData?.totalFees ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} SKYNT</span>
           </div>
         </div>
 
-        <div className="cosmic-card-glow p-4" data-testid="stat-resonance">
+        <div className="cosmic-card-glow p-4 page-enter" style={{ animationDelay: '700ms' }} data-testid="stat-resonance">
           <div className="flex items-center gap-2 mb-2">
             <Shield className="w-4 h-4 text-neon-cyan" />
             <span className="stat-label">Resonance</span>
@@ -282,11 +332,21 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ResonanceDrop />
-        <div className="cosmic-card cosmic-card-cyan p-5" data-testid="chart-hashrate">
+        <div className="cosmic-card cosmic-card-cyan p-5 page-enter" style={{ animationDelay: '800ms' }} data-testid="chart-hashrate">
           <h3 className="stat-label mb-4">Network Hashrate (EH/s) — Live from mempool.space</h3>
           <div className="h-[200px] sm:h-[250px]">
             {hashrateLoading ? (
-              <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-neon-cyan" /></div>
+              <div className="flex flex-col items-center justify-center h-full space-y-4">
+                <Skeleton className="h-full w-full skeleton-shimmer bg-white/5" />
+              </div>
+            ) : hashrateError ? (
+              <div className="flex flex-col items-center justify-center h-full space-y-3">
+                <AlertCircle className="w-8 h-8 text-destructive animate-pulse" />
+                <span className="text-xs font-mono text-destructive">FAILED TO LOAD HASHRATE DATA</span>
+                <Button variant="ghost" size="sm" onClick={() => refetchHashrate()} className="h-7 text-[10px] border border-destructive/20 text-destructive">
+                  RETRY
+                </Button>
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={hashrateChartData}>
@@ -311,11 +371,21 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="cosmic-card cosmic-card-green p-5" data-testid="chart-blocks">
+        <div className="cosmic-card cosmic-card-green p-5 page-enter" style={{ animationDelay: '900ms' }} data-testid="chart-blocks">
           <h3 className="stat-label mb-4">Recent Blocks — Transaction Count</h3>
           <div className="h-[200px] sm:h-[250px]">
-            {!recentBlocks ? (
-              <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-neon-green" /></div>
+            {!recentBlocks && !blocksError ? (
+              <div className="flex flex-col items-center justify-center h-full">
+                <Skeleton className="h-full w-full skeleton-shimmer bg-white/5" />
+              </div>
+            ) : blocksError ? (
+              <div className="flex flex-col items-center justify-center h-full space-y-3">
+                <AlertCircle className="w-8 h-8 text-destructive animate-pulse" />
+                <span className="text-xs font-mono text-destructive">FAILED TO LOAD BLOCK DATA</span>
+                <Button variant="ghost" size="sm" onClick={() => refetchBlocks()} className="h-7 text-[10px] border border-destructive/20 text-destructive">
+                  RETRY
+                </Button>
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={blocksChartData}>
@@ -335,67 +405,107 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="cosmic-card cosmic-card-orange p-5" data-testid="card-difficulty">
+        <div className="cosmic-card cosmic-card-orange p-5 page-enter" style={{ animationDelay: '1000ms' }} data-testid="card-difficulty">
           <h3 className="stat-label mb-4">Difficulty Adjustment Progress</h3>
-          <div className="flex items-center justify-center py-4">
-            <div className="relative w-32 h-32">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
-                <circle cx="60" cy="60" r="52" fill="none" stroke="hsl(210,20%,15%)" strokeWidth="8" />
-                <circle
-                  cx="60" cy="60" r="52" fill="none"
-                  stroke="hsl(30,100%,55%)"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={`${diffPercent * 3.27} 327`}
-                  style={{ filter: "drop-shadow(0 0 6px hsl(30,100%,55%,0.5))" }}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="font-heading font-bold text-lg text-neon-orange">{diffPercent.toFixed(1)}%</span>
-                <span className="text-[10px] text-muted-foreground font-mono">{remainingBlocks} blocks left</span>
+          {diffLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Skeleton className="w-32 h-32 rounded-full skeleton-shimmer bg-white/5" />
+            </div>
+          ) : diffError ? (
+             <div className="flex flex-col items-center justify-center py-8 space-y-3">
+                <AlertCircle className="w-8 h-8 text-destructive animate-pulse" />
+                <Button variant="ghost" size="sm" onClick={() => refetchDiff()} className="h-7 text-[10px] border border-destructive/20 text-destructive">
+                  RETRY
+                </Button>
               </div>
-            </div>
-          </div>
-          <div className="text-center text-[10px] font-mono text-muted-foreground mt-2">
-            Est. change: <span className={diffChange >= 0 ? "text-neon-green" : "text-red-400"}>{diffChange >= 0 ? "+" : ""}{diffChange.toFixed(2)}%</span>
-          </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-center py-4">
+                <div className="relative w-32 h-32">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="52" fill="none" stroke="hsl(210,20%,15%)" strokeWidth="8" />
+                    <circle
+                      cx="60" cy="60" r="52" fill="none"
+                      stroke="hsl(30,100%,55%)"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={`${diffPercent * 3.27} 327`}
+                      style={{ filter: "drop-shadow(0 0 6px hsl(30,100%,55%,0.5))" }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="font-heading font-bold text-lg text-neon-orange">{diffPercent.toFixed(1)}%</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">{remainingBlocks.toLocaleString()} blocks left</span>
+                  </div>
+                </div>
+              </div>
+              <div className="text-center text-[10px] font-mono text-muted-foreground mt-2">
+                Est. change: <span className={diffChange >= 0 ? "text-neon-green" : "text-red-400"}>{diffChange >= 0 ? "+" : ""}{diffChange.toFixed(2)}%</span>
+              </div>
+            </>
+          )}
         </div>
 
-        <div className="cosmic-card cosmic-card-magenta p-5" data-testid="card-retarget">
+        <div className="cosmic-card cosmic-card-magenta p-5 page-enter" style={{ animationDelay: '1100ms' }} data-testid="card-retarget">
           <h3 className="stat-label mb-4">Next Difficulty Retarget</h3>
-          <div className="flex items-center justify-center gap-3 py-4">
-            <div className="text-center">
-              <span className="font-heading font-bold text-2xl text-neon-magenta">{retargetDaysLeft}</span>
-              <span className="block text-[10px] text-muted-foreground font-mono">DAYS</span>
+          {diffLoading ? (
+            <div className="space-y-4 py-4">
+              <Skeleton className="h-10 w-full skeleton-shimmer bg-white/5" />
+              <Skeleton className="h-4 w-full skeleton-shimmer bg-white/5" />
             </div>
-            <span className="text-muted-foreground text-lg">:</span>
-            <div className="text-center">
-              <span className="font-heading font-bold text-2xl text-neon-magenta">{retargetHoursLeft}</span>
-              <span className="block text-[10px] text-muted-foreground font-mono">HRS</span>
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-1000"
-                style={{
-                  width: `${diffPercent}%`,
-                  background: "linear-gradient(90deg, hsl(300,100%,60%), hsl(280,100%,60%))",
-                  boxShadow: "0 0 10px hsl(300,100%,60%,0.5)",
-                }}
-              />
-            </div>
-            <div className="flex justify-between text-[10px] text-muted-foreground font-mono mt-1">
-              <span>Epoch Start</span>
-              <span>{diffPercent.toFixed(0)}%</span>
-            </div>
-          </div>
+          ) : diffError ? (
+             <div className="flex flex-col items-center justify-center py-8 space-y-3">
+                <AlertCircle className="w-8 h-8 text-destructive animate-pulse" />
+                <Button variant="ghost" size="sm" onClick={() => refetchDiff()} className="h-7 text-[10px] border border-destructive/20 text-destructive">
+                  RETRY
+                </Button>
+              </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-center gap-3 py-4">
+                <div className="text-center">
+                  <span className="font-heading font-bold text-2xl text-neon-magenta">{retargetDaysLeft}</span>
+                  <span className="block text-[10px] text-muted-foreground font-mono">DAYS</span>
+                </div>
+                <span className="text-muted-foreground text-lg">:</span>
+                <div className="text-center">
+                  <span className="font-heading font-bold text-2xl text-neon-magenta">{retargetHoursLeft}</span>
+                  <span className="block text-[10px] text-muted-foreground font-mono">HRS</span>
+                </div>
+              </div>
+              <div className="mt-2">
+                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-1000"
+                    style={{
+                      width: `${diffPercent}%`,
+                      background: "linear-gradient(90deg, hsl(300,100%,60%), hsl(280,100%,60%))",
+                      boxShadow: "0 0 10px hsl(300,100%,60%,0.5)",
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-muted-foreground font-mono mt-1">
+                  <span>Epoch Start</span>
+                  <span>{diffPercent.toFixed(0)}%</span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
-        <div className="cosmic-card cosmic-card-cyan p-5" data-testid="card-mempool">
+        <div className="cosmic-card cosmic-card-cyan p-5 page-enter" style={{ animationDelay: '1200ms' }} data-testid="card-mempool">
           <h3 className="stat-label mb-4">Mempool Status</h3>
           {statsLoading ? (
-            <div className="flex items-center justify-center h-32"><Loader2 className="w-6 h-6 animate-spin text-neon-cyan" /></div>
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-4 w-full skeleton-shimmer bg-white/5" />)}
+            </div>
+          ) : statsError ? (
+             <div className="flex flex-col items-center justify-center py-8 space-y-3">
+                <AlertCircle className="w-8 h-8 text-destructive animate-pulse" />
+                <Button variant="ghost" size="sm" onClick={() => refetchStats()} className="h-7 text-[10px] border border-destructive/20 text-destructive">
+                  RETRY
+                </Button>
+              </div>
           ) : (
             <div className="space-y-3">
               <div className="flex justify-between text-xs">

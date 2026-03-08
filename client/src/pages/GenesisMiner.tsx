@@ -21,13 +21,21 @@ import {
   Info,
   ArrowRight,
   Droplets,
-  ZapOff
+  ZapOff,
+  Flame,
+  Terminal,
+  Trophy,
+  Star,
+  CheckCircle2,
+  Lock,
+  Crown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableTableRow } from "@/components/ui/table";
 import { 
   MERGE_MINING_CHAINS, 
   RANDOMX_CONFIG, 
@@ -36,6 +44,7 @@ import {
   type StxLendingTierId
 } from "@shared/schema";
 import { OracleOverlay } from "@/components/OracleOverlay";
+import { type MiningStats, type MiningEvent, type MiningMilestone } from "../../../server/background-miner";
 
 // --- Types ---
 
@@ -164,6 +173,16 @@ export default function GenesisMiner() {
     refetchInterval: 5000,
   });
 
+  const { data: backgroundMiningStatus } = useQuery<MiningStats>({
+    queryKey: ["/api/mining/status"],
+    refetchInterval: (data) => (data?.isActive ? 5000 : 15000),
+  });
+
+  const { data: leaderboard } = useQuery<Array<{ username: string; blocks: number; earned: number; bestStreak: number }>>({
+    queryKey: ["/api/mining/leaderboard"],
+    refetchInterval: 30000,
+  });
+
   const { data: genesisInfo } = useQuery<GenesisBlock>({
     queryKey: ["/api/merge-mine/genesis"],
   });
@@ -213,6 +232,21 @@ export default function GenesisMiner() {
     },
   });
 
+  const activatePremium = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/mining/premium-pass");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ["/api/mining/status"] });
+        toast({ title: "Premium Activated", description: data.message });
+      } else {
+        toast({ title: "Activation Failed", description: data.message, variant: "destructive" });
+      }
+    },
+  });
+
   // --- Helpers ---
 
   const formatHashRate = (h: number) => {
@@ -227,7 +261,32 @@ export default function GenesisMiner() {
 
       {/* Hero Section */}
       <div className="relative overflow-hidden rounded-lg p-8 bg-black/40 border border-white/10">
-        <div className="absolute top-0 right-0 p-4">
+        <div className="absolute top-0 right-0 p-4 flex items-center gap-3">
+          {backgroundMiningStatus && (
+            <div className="flex items-center gap-2">
+              {backgroundMiningStatus.hasPremiumPass ? (
+                <div className="flex flex-col items-end">
+                  <Badge className="bg-gradient-to-r from-sphinx-gold to-orange-500 text-black border-none font-bold flex items-center gap-1 shadow-[0_0_10px_rgba(255,180,0,0.3)]">
+                    <Crown className="w-3 h-3" /> VIP PREMIUM
+                  </Badge>
+                  <span className="text-[9px] font-mono text-sphinx-gold mt-1">
+                    {Math.max(0, Math.ceil((backgroundMiningStatus.premiumPassExpiry - Date.now()) / 3600000))}h remaining
+                  </span>
+                </div>
+              ) : (
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-8 border-sphinx-gold/40 text-sphinx-gold hover:bg-sphinx-gold/10"
+                  onClick={() => activatePremium.mutate()}
+                  disabled={activatePremium.isPending}
+                  data-testid="button-activate-premium"
+                >
+                  ACTIVATE PREMIUM PASS — 5 SKYNT
+                </Button>
+              )}
+            </div>
+          )}
           <Badge variant="outline" className="border-neon-green text-neon-green animate-pulse" data-testid="status-mainnet">
             MAINNET ACTIVE
           </Badge>
@@ -245,6 +304,68 @@ export default function GenesisMiner() {
         </div>
         <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-sphinx-gold/10 blur-[100px] rounded-full pointer-events-none"></div>
       </div>
+
+      {/* Streak & Key Mining Stats */}
+      {backgroundMiningStatus && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className={`cosmic-card ${backgroundMiningStatus.streak > 0 ? 'border-orange-500/50 bg-orange-500/5' : ''}`}>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Flame className={`w-4 h-4 ${backgroundMiningStatus.streak > 0 ? 'text-orange-500 animate-pulse' : 'text-muted-foreground'}`} />
+                    <span className="text-[10px] font-heading uppercase text-muted-foreground">Current Streak</span>
+                  </div>
+                  <p className="text-2xl font-heading text-white" data-testid="text-mining-streak">
+                    {backgroundMiningStatus.streak}
+                  </p>
+                </div>
+                {backgroundMiningStatus.streakMultiplier > 1 && (
+                  <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">
+                    {backgroundMiningStatus.streakMultiplier}x Boost
+                  </Badge>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-black/40 border-white/10">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-1">
+                <Trophy className="w-4 h-4 text-sphinx-gold" />
+                <span className="text-[10px] font-heading uppercase text-muted-foreground">Best Streak</span>
+              </div>
+              <p className="text-2xl font-heading text-white" data-testid="text-best-streak">
+                {backgroundMiningStatus.bestStreak}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-black/40 border-white/10">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-1">
+                <Pickaxe className="w-4 h-4 text-neon-blue" />
+                <span className="text-[10px] font-heading uppercase text-muted-foreground">Lifetime Blocks</span>
+              </div>
+              <p className="text-2xl font-heading text-white" data-testid="text-lifetime-blocks">
+                {backgroundMiningStatus.lifetimeBlocksFound.toLocaleString()}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-black/40 border-white/10">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-1">
+                <Coins className="w-4 h-4 text-neon-green" />
+                <span className="text-[10px] font-heading uppercase text-muted-foreground">Lifetime Earned</span>
+              </div>
+              <p className="text-2xl font-heading text-white" data-testid="text-lifetime-earned">
+                {backgroundMiningStatus.lifetimeSkyntEarned.toFixed(2)} <span className="text-[10px] text-muted-foreground">SKYNT</span>
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Genesis Block & Stats Bar */}
       <div className="grid md:grid-cols-4 gap-4">
@@ -303,6 +424,100 @@ export default function GenesisMiner() {
         </div>
       </div>
 
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Milestone Achievements */}
+        <Card className="lg:col-span-2 bg-black/40 border-white/10">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xs font-heading uppercase tracking-widest flex items-center gap-2">
+                <Trophy className="w-3.5 h-3.5 text-sphinx-gold" />
+                Milestone Achievements
+              </CardTitle>
+              {backgroundMiningStatus && (
+                <div className="text-[10px] font-mono text-muted-foreground">
+                  {backgroundMiningStatus.milestones.filter(m => m.achieved).length} / {backgroundMiningStatus.milestones.length} UNLOCKED
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+              {backgroundMiningStatus?.milestones.map((milestone, idx) => (
+                <div 
+                  key={idx} 
+                  className={`flex-shrink-0 w-36 p-3 rounded-lg border transition-all duration-500 ${
+                    milestone.achieved 
+                      ? 'bg-sphinx-gold/10 border-sphinx-gold/30 shadow-[0_0_10px_rgba(255,200,0,0.1)]' 
+                      : 'bg-black/40 border-white/5 opacity-50'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className={`p-1.5 rounded bg-black/50 ${milestone.achieved ? 'text-sphinx-gold' : 'text-muted-foreground'}`}>
+                      {milestone.achieved ? <CheckCircle2 className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                    </div>
+                    <Badge variant="outline" className={`text-[8px] h-4 ${milestone.achieved ? 'border-sphinx-gold/30 text-sphinx-gold' : 'border-white/10'}`}>
+                      {milestone.reward} SKYNT
+                    </Badge>
+                  </div>
+                  <h4 className="text-[11px] font-heading text-white truncate mb-1">{milestone.title}</h4>
+                  <p className="text-[9px] text-muted-foreground line-clamp-2 leading-tight mb-2">
+                    {milestone.desc}
+                  </p>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[8px] font-mono">
+                      <span>PROGRESS</span>
+                      <span>{Math.min(100, Math.floor((backgroundMiningStatus.lifetimeBlocksFound / milestone.blocks) * 100))}%</span>
+                    </div>
+                    <Progress 
+                      value={Math.min(100, (backgroundMiningStatus.lifetimeBlocksFound / milestone.blocks) * 100)} 
+                      className={`h-0.5 ${milestone.achieved ? 'bg-sphinx-gold/20' : 'bg-white/5'}`}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Mining Event Log */}
+        <Card className="bg-black/40 border-white/10 flex flex-col h-[280px]">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-heading uppercase tracking-widest flex items-center gap-2">
+              <Terminal className="w-3.5 h-3.5 text-neon-cyan" />
+              Mining Activity Log
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-hidden p-0">
+            <div className="h-full overflow-y-auto font-mono text-[10px] p-4 space-y-1 scrollbar-hide">
+              {backgroundMiningStatus?.recentEvents.length === 0 && (
+                <p className="text-muted-foreground italic">Waiting for activity...</p>
+              )}
+              {backgroundMiningStatus?.recentEvents.map((event, idx) => {
+                const colors = {
+                  block_found: 'text-sphinx-gold',
+                  streak: 'text-orange-500',
+                  milestone: 'text-purple-400',
+                  difficulty_up: 'text-neon-cyan',
+                  premium: 'text-neon-green',
+                  fee: 'text-muted-foreground'
+                };
+                return (
+                  <div key={idx} className="flex gap-2 leading-relaxed border-b border-white/5 pb-1">
+                    <span className="text-muted-foreground/50 shrink-0">
+                      [{new Date(event.timestamp).toLocaleTimeString([], { hour12: false })}]
+                    </span>
+                    <span className={`${colors[event.type] || 'text-white'} font-bold shrink-0 uppercase`}>
+                      {event.type.replace('_', ' ')} —
+                    </span>
+                    <span className="text-white/90">{event.message}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-black/40 border border-white/10 w-full justify-start h-auto p-1 gap-1">
           <TabsTrigger value="mining" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center gap-2 py-2 px-4">
@@ -313,6 +528,9 @@ export default function GenesisMiner() {
           </TabsTrigger>
           <TabsTrigger value="lending" className="data-[state=active]:bg-neon-green/20 data-[state=active]:text-neon-green flex items-center gap-2 py-2 px-4">
             <Droplets className="w-4 h-4" /> STX Yield
+          </TabsTrigger>
+          <TabsTrigger value="leaderboard" className="data-[state=active]:bg-sphinx-gold/20 data-[state=active]:text-sphinx-gold flex items-center gap-2 py-2 px-4">
+            <Trophy className="w-4 h-4" /> Leaderboard
           </TabsTrigger>
         </TabsList>
 
@@ -597,6 +815,68 @@ export default function GenesisMiner() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Mining Leaderboard Panel */}
+        <TabsContent value="leaderboard" className="mt-6">
+          <Card className="bg-black/40 border-white/10 overflow-hidden">
+            <CardHeader className="border-b border-white/5 bg-white/5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl font-heading flex items-center gap-2">
+                    <Trophy className="text-sphinx-gold" />
+                    Global Mining Hall of Fame
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground font-mono mt-1">Real-time ranking of top earners in the SKYNT network.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="border-sphinx-gold/30 text-sphinx-gold">
+                    TOP 20 ACTIVE
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-white/5">
+                  <TableTableRow className="hover:bg-transparent border-white/10">
+                    <TableHead className="w-[80px] text-[10px] font-heading uppercase text-muted-foreground">Rank</TableHead>
+                    <TableHead className="text-[10px] font-heading uppercase text-muted-foreground">Miner</TableHead>
+                    <TableHead className="text-right text-[10px] font-heading uppercase text-muted-foreground">Blocks Found</TableHead>
+                    <TableHead className="text-right text-[10px] font-heading uppercase text-muted-foreground">Best Streak</TableHead>
+                    <TableHead className="text-right text-[10px] font-heading uppercase text-muted-foreground">Total Earned</TableHead>
+                  </TableTableRow>
+                </TableHeader>
+                <TableBody>
+                  {leaderboard?.length === 0 && (
+                    <TableTableRow>
+                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground font-mono">
+                        No mining data available yet. Start mining to join the board!
+                      </TableCell>
+                    </TableTableRow>
+                  )}
+                  {leaderboard?.map((entry, idx) => (
+                    <TableTableRow key={idx} className="border-white/5 hover:bg-white/5">
+                      <TableCell className="font-mono">
+                        {idx === 0 ? <Crown className="w-4 h-4 text-sphinx-gold" /> : 
+                         idx === 1 ? <Trophy className="w-4 h-4 text-slate-300" /> :
+                         idx === 2 ? <Trophy className="w-4 h-4 text-amber-600" /> : 
+                         `#${idx + 1}`}
+                      </TableCell>
+                      <TableCell className="font-heading text-white">{entry.username}</TableCell>
+                      <TableCell className="text-right font-mono">{entry.blocks.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-mono text-orange-500">
+                        {entry.bestStreak > 0 ? `🔥 ${entry.bestStreak}` : '0'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-bold text-neon-green">
+                        {entry.earned.toFixed(2)} SKYNT
+                      </TableCell>
+                    </TableTableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
