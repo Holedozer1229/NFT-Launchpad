@@ -120,9 +120,9 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
   - `POST /api/mining/stop` — stop mining session, returns final stats
   - `GET /api/mining/status` — current mining stats (hashRate, blocks, earned, phi boost, uptime)
   - `GET /api/mining/network` — active miner count (public)
-  - `client/src/components/BackgroundMiner.tsx` — mining UI with canvas visualization, hash rate, blocks found, SKYNT earned, Φ boost, difficulty, uptime
-  - Sidebar shows mining status badge (pickaxe icon + hash rate + earned) when mining is active
-  - Embedded in Mint NFT page and Dashboard
+  - `client/src/components/BackgroundMiner.tsx` — standalone mining UI with canvas visualization (available for embedding)
+  - `PersistentMiner` in SidebarLayout — always-visible sidebar miner panel with start/stop controls, stats (hash rate, earned, blocks, Φ boost, uptime), persists across all pages
+  - Mining runs server-side via `setInterval` — continues when switching pages, stops only on explicit stop or logout
 
 ## Performance Optimizations
 - **Lazy loading**: All 14+ page components use `React.lazy()` with `Suspense` for code-splitting (reduces initial bundle significantly)

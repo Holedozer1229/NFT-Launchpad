@@ -1,8 +1,10 @@
 import { ReactNode, useState } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { useActiveAccount, useActiveWallet, useDisconnect } from "thirdweb/react";
 import { ConnectButton } from "thirdweb/react";
 import { thirdwebClient } from "@/lib/thirdweb";
@@ -133,7 +135,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <MinerStatusBadge collapsed={collapsed} />
+        <PersistentMiner collapsed={collapsed} />
 
         <div className={`p-3 border-t border-[hsl(var(--sidebar-border))] ${collapsed ? "flex justify-center" : ""}`}>
           {isConnected ? (
@@ -231,24 +233,156 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
   );
 }
 
-function MinerStatusBadge({ collapsed }: { collapsed: boolean }) {
-  const { data } = useQuery<{ isActive: boolean; hashRate: number; totalSkyntEarned: number }>({
+function PersistentMiner({ collapsed }: { collapsed: boolean }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
+
+  const { data: stats } = useQuery<{
+    isActive: boolean;
+    hashRate: number;
+    totalSkyntEarned: number;
+    blocksFound: number;
+    currentPhiBoost: number;
+    cyclesCompleted: number;
+    uptimeSeconds: number;
+    difficulty: number;
+  }>({
     queryKey: ["/api/mining/status"],
-    refetchInterval: 10000,
+    refetchInterval: (query) => {
+      const d = query.state.data;
+      return d?.isActive ? 5000 : 30000;
+    },
   });
 
-  if (!data?.isActive) return null;
+  const startMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/mining/start");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/mining/status"] });
+      toast({ title: "Mining Started", description: "Background PoW mining is now active." });
+    },
+    onError: (err: Error) => {
+      const msg = err.message.replace(/^\d+:\s*/, "");
+      try {
+        const parsed = JSON.parse(msg);
+        toast({ title: "Cannot Start Mining", description: parsed.message, variant: "destructive" });
+      } catch {
+        toast({ title: "Cannot Start Mining", description: msg, variant: "destructive" });
+      }
+    },
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/mining/stop");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/mining/status"] });
+      const earned = data.stats?.totalSkyntEarned?.toFixed(4) || "0";
+      toast({ title: "Mining Stopped", description: `Earned: ${earned} SKYNT` });
+    },
+  });
+
+  const active = stats?.isActive || false;
+  const pending = startMutation.isPending || stopMutation.isPending;
+
+  const formatUptime = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
+  if (collapsed) {
+    return (
+      <div className="mx-1 mb-1" data-testid="sidebar-miner-panel">
+        <button
+          data-testid={active ? "button-stop-mining-sidebar" : "button-start-mining-sidebar"}
+          onClick={() => active ? stopMutation.mutate() : startMutation.mutate()}
+          disabled={pending}
+          className={`w-full p-2 rounded border transition-all flex items-center justify-center ${
+            active
+              ? "border-neon-green/40 bg-neon-green/10 text-neon-green"
+              : "border-white/10 bg-white/5 text-muted-foreground hover:text-neon-green hover:border-neon-green/30"
+          }`}
+          title={active ? `Mining: ${stats?.totalSkyntEarned?.toFixed(2)} SKYNT` : "Start Mining"}
+        >
+          <Pickaxe className={`w-3.5 h-3.5 ${active ? "animate-pulse" : ""}`} />
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className={`mx-2 mb-2 px-2 py-1.5 rounded border border-neon-green/30 bg-neon-green/5 ${collapsed ? "flex justify-center" : ""}`} data-testid="sidebar-miner-status">
-      <div className="flex items-center gap-1.5">
-        <Pickaxe className="w-3 h-3 text-neon-green animate-pulse shrink-0" />
-        {!collapsed && (
-          <div className="flex-1 min-w-0">
-            <div className="font-mono text-[9px] text-neon-green truncate">{data.hashRate} H/s | {data.totalSkyntEarned.toFixed(2)} SKYNT</div>
-          </div>
-        )}
-      </div>
+    <div className={`mx-2 mb-2 rounded border transition-all ${
+      active ? "border-neon-green/30 bg-neon-green/5" : "border-white/10 bg-white/5"
+    }`} data-testid="sidebar-miner-panel">
+      <button
+        className="w-full flex items-center justify-between px-2.5 py-2"
+        onClick={() => setExpanded(!expanded)}
+        data-testid="button-toggle-miner-details"
+      >
+        <div className="flex items-center gap-1.5">
+          <Pickaxe className={`w-3 h-3 shrink-0 ${active ? "text-neon-green animate-pulse" : "text-muted-foreground"}`} />
+          <span className="font-heading text-[10px] tracking-wider text-foreground">MINER</span>
+          <span className={`text-[9px] font-mono px-1 rounded ${active ? "bg-neon-green/20 text-neon-green" : "text-muted-foreground"}`}>
+            {active ? "ON" : "OFF"}
+          </span>
+        </div>
+        <ChevronUp className={`w-3 h-3 text-muted-foreground transition-transform ${expanded ? "" : "rotate-180"}`} />
+      </button>
+
+      {expanded && (
+        <div className="px-2.5 pb-2.5 space-y-2">
+          {active && stats && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-[9px] font-mono">
+                <span className="text-muted-foreground flex items-center gap-1"><Hash className="w-2.5 h-2.5" /> Hash</span>
+                <span className="text-neon-cyan">{stats.hashRate} H/s</span>
+              </div>
+              <div className="flex justify-between text-[9px] font-mono">
+                <span className="text-muted-foreground flex items-center gap-1"><Coins className="w-2.5 h-2.5" /> Earned</span>
+                <span className="text-neon-green">{stats.totalSkyntEarned.toFixed(4)} SKYNT</span>
+              </div>
+              <div className="flex justify-between text-[9px] font-mono">
+                <span className="text-muted-foreground">Blocks</span>
+                <span className="text-neon-orange">{stats.blocksFound}</span>
+              </div>
+              <div className="flex justify-between text-[9px] font-mono">
+                <span className="text-muted-foreground">Φ Boost</span>
+                <span className="text-amber-400">{stats.currentPhiBoost.toFixed(2)}x</span>
+              </div>
+              <div className="flex justify-between text-[9px] font-mono">
+                <span className="text-muted-foreground">Uptime</span>
+                <span className="text-foreground">{formatUptime(stats.uptimeSeconds)}</span>
+              </div>
+            </div>
+          )}
+
+          <button
+            data-testid={active ? "button-stop-mining-sidebar" : "button-start-mining-sidebar"}
+            onClick={() => active ? stopMutation.mutate() : startMutation.mutate()}
+            disabled={pending}
+            className={`w-full py-1.5 rounded text-[10px] font-heading tracking-wider flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 ${
+              active
+                ? "bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25"
+                : "bg-neon-green/15 border border-neon-green/30 text-neon-green hover:bg-neon-green/25"
+            }`}
+          >
+            {active ? <><PowerOff className="w-3 h-3" /> STOP</> : <><Power className="w-3 h-3" /> START</>}
+          </button>
+        </div>
+      )}
+
+      {!expanded && active && stats && (
+        <div className="px-2.5 pb-2 text-[9px] font-mono text-neon-green truncate">
+          {stats.hashRate} H/s | {stats.totalSkyntEarned.toFixed(2)} SKYNT
+        </div>
+      )}
     </div>
   );
 }

@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { ResonanceDrop } from "@/components/ResonanceDrop";
-import { BackgroundMiner } from "@/components/BackgroundMiner";
 
 interface MempoolStats {
   mempoolSize: number;
@@ -203,10 +202,6 @@ export default function Dashboard() {
           icon={<Clock className="w-5 h-5 text-neon-magenta" />}
           accent="magenta"
         />
-      </div>
-
-      <div className="mb-6">
-        <BackgroundMiner />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

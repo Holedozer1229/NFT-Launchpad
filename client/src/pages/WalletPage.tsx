@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, ExternalLink, Coins, Clock, Shield, ChevronDown, Fingerprint, AlertTriangle, Smartphone, Lock } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveAccount, useActiveWallet, useConnect, ConnectButton } from "thirdweb/react";
 import { createWallet, inAppWallet } from "thirdweb/wallets";
@@ -41,20 +43,18 @@ const TOKEN_OPTIONS = [
 export default function WalletPage() {
   const { user } = useAuth();
   const { data: prices } = usePrices();
-  
+  const queryClient = useQueryClient();
+
   const externalAccount = useActiveAccount();
   const externalWallet = useActiveWallet();
   const { connect: twConnect, isConnecting: isExternalConnecting } = useConnect();
-  
+
   const externalWalletConnected = !!externalAccount;
   const externalAddress = externalAccount?.address ?? null;
   const externalProvider = externalWallet ? (externalWallet.id === "app.phantom" ? "phantom" : "metamask") : null;
 
   const mobile = isMobileDevice();
-  const [wallets, setWallets] = useState<SphinxWallet[]>([]);
-  const [activeWallet, setActiveWallet] = useState<SphinxWallet | null>(null);
-  const [transactions, setTransactions] = useState<WalletTx[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [activeWalletId, setActiveWalletId] = useState<number | null>(null);
   const [tab, setTab] = useState<"overview" | "send" | "receive">("overview");
   const [sendTo, setSendTo] = useState("");
   const [sendAmount, setSendAmount] = useState("");
@@ -63,9 +63,50 @@ export default function WalletPage() {
   const [sendSuccess, setSendSuccess] = useState(false);
   const [sendError, setSendError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [addressError, setAddressError] = useState("");
   const [amountError, setAmountError] = useState("");
+
+  const { data: wallets = [], isLoading: loading } = useQuery<SphinxWallet[]>({
+    queryKey: ["/api/wallet/list"],
+    refetchInterval: 10000,
+    staleTime: 5000,
+  });
+
+  const activeWallet = wallets.find(w => w.id === activeWalletId) || wallets[0] || null;
+
+  useEffect(() => {
+    if (wallets.length > 0 && !activeWalletId) {
+      setActiveWalletId(wallets[0].id);
+    }
+  }, [wallets, activeWalletId]);
+
+  const { data: transactions = [] } = useQuery<WalletTx[]>({
+    queryKey: ["/api/wallet", activeWallet?.id, "transactions"],
+    enabled: !!activeWallet,
+    refetchInterval: 15000,
+    staleTime: 5000,
+    queryFn: async () => {
+      if (!activeWallet) return [];
+      const res = await fetch(`/api/wallet/${activeWallet.id}/transactions`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch transactions");
+      return res.json();
+    },
+  });
+
+  useEffect(() => {
+    if (wallets.length === 0 && !loading) {
+      fetch("/api/wallet/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: "Main Wallet" }),
+      }).then(res => {
+        if (res.ok) {
+          queryClient.invalidateQueries({ queryKey: ["/api/wallet/list"] });
+        }
+      }).catch(() => {});
+    }
+  }, [wallets.length, loading, queryClient]);
 
   const validateAddress = (value: string) => {
     if (!value) { setAddressError(""); return; }
@@ -79,91 +120,27 @@ export default function WalletPage() {
     const num = parseFloat(value);
     if (isNaN(num) || num <= 0) { setAmountError("Enter a valid positive amount"); return; }
     if (activeWallet) {
-      const balanceField = sendToken === "STX" ? "balanceStx" : sendToken === "ETH" ? "balanceEth" : "balanceSkynt";
-      const balance = parseFloat(activeWallet[balanceField as keyof SphinxWallet] as string);
-      if (num > balance) { setAmountError(`Insufficient ${sendToken} balance`); return; }
+      const bal = getBalance(activeWallet, sendToken);
+      if (num > bal) { setAmountError(`Insufficient ${sendToken} balance`); return; }
     }
     setAmountError("");
   };
 
-  const fetchWallets = async () => {
-    try {
-      const res = await fetch("/api/wallet/list", { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        
-        if (data.length === 0) {
-          // Auto-create fallback if no wallets found
-          const createRes = await fetch("/api/wallet/create", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ name: "Main Wallet" }),
-          });
-          if (createRes.ok) {
-            const newWallet = await createRes.json();
-            setWallets([newWallet]);
-            setActiveWallet(newWallet);
-            fetchTransactions(newWallet.id);
-          }
-        } else {
-          setWallets(data);
-          if (!activeWallet) {
-            setActiveWallet(data[0]);
-            fetchTransactions(data[0].id);
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch wallets", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTransactions = async (walletId: number) => {
-    try {
-      const res = await fetch(`/api/wallet/${walletId}/transactions`, { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch transactions", err);
-    }
-  };
-
-  useEffect(() => {
-    fetchWallets();
-  }, []);
-
   const handleSelectWallet = (w: SphinxWallet) => {
-    setActiveWallet(w);
-    fetchTransactions(w.id);
+    setActiveWalletId(w.id);
     setTab("overview");
   };
 
-  const handleCreateWallet = async () => {
-    setCreating(true);
-    try {
-      const res = await fetch("/api/wallet/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ name: `Wallet ${wallets.length + 1}` }),
-      });
-      if (res.ok) {
-        const newWallet = await res.json();
-        setWallets((prev) => [...prev, newWallet]);
-        setActiveWallet(newWallet);
-        setTransactions([]);
-      }
-    } catch (err) {
-      console.error("Failed to create wallet", err);
-    } finally {
-      setCreating(false);
-    }
-  };
+  const createWalletMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/wallet/create", { name: `Wallet ${wallets.length + 1}` });
+      return res.json();
+    },
+    onSuccess: (newWallet: SphinxWallet) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/wallet/list"] });
+      setActiveWalletId(newWallet.id);
+    },
+  });
 
   const handleSend = async () => {
     if (!activeWallet || !sendTo || !sendAmount || parseFloat(sendAmount) <= 0) return;
@@ -182,8 +159,8 @@ export default function WalletPage() {
         setSendSuccess(true);
         setSendTo("");
         setSendAmount("");
-        fetchWallets();
-        fetchTransactions(activeWallet.id);
+        queryClient.invalidateQueries({ queryKey: ["/api/wallet/list"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/wallet", activeWallet.id, "transactions"] });
         setTimeout(() => setSendSuccess(false), 4000);
       } else {
         setSendError(data.message || "Transaction failed");
@@ -232,11 +209,11 @@ export default function WalletPage() {
         </div>
         <button
           data-testid="button-create-wallet"
-          onClick={handleCreateWallet}
-          disabled={creating}
+          onClick={() => createWalletMutation.mutate()}
+          disabled={createWalletMutation.isPending}
           className="connect-wallet-btn px-4 py-2 rounded-sm font-heading text-xs tracking-wider flex items-center gap-2"
         >
-          <Plus className="w-3.5 h-3.5" /> {creating ? "Creating..." : "New Wallet"}
+          <Plus className="w-3.5 h-3.5" /> {createWalletMutation.isPending ? "Creating..." : "New Wallet"}
         </button>
       </div>
 
@@ -322,7 +299,7 @@ export default function WalletPage() {
                   <div key={t.symbol} className="text-center p-3 bg-black/30 border border-border/30 rounded-sm" data-testid={`balance-${t.symbol}`}>
                     <span className="text-lg">{t.icon}</span>
                     <p className={`font-heading text-sm mt-1 text-neon-${t.color}`}>
-                      {bal.toLocaleString()}
+                      {bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       {prices && (
                         <span className="text-[9px] text-muted-foreground ml-1">
                           (${(bal * prices[t.symbol as keyof typeof prices].usd).toFixed(2)})
@@ -398,9 +375,9 @@ export default function WalletPage() {
                           {tx.type === "send" ? <Send className="w-3.5 h-3.5" /> : <ArrowDownLeft className="w-3.5 h-3.5" />}
                         </div>
                         <div>
-                          <p className="font-heading text-xs uppercase">{tx.type === "send" ? "Sent" : "Received"} {tx.token}</p>
+                          <p className="font-heading text-xs uppercase">{tx.type === "send" ? "Sent" : tx.type === "reward" ? "Mining Reward" : "Received"} {tx.token}</p>
                           <p className="font-mono text-[10px] text-muted-foreground truncate max-w-[180px]">
-                            {tx.type === "send" ? `To: ${tx.toAddress?.slice(0, 10)}...` : `From: ${tx.fromAddress?.slice(0, 10)}...`}
+                            {tx.type === "send" ? `To: ${tx.toAddress?.slice(0, 10)}...` : tx.type === "reward" ? "Background Mining" : `From: ${tx.fromAddress?.slice(0, 10)}...`}
                           </p>
                         </div>
                       </div>
@@ -564,7 +541,7 @@ export default function WalletPage() {
                   <div className="w-full h-full bg-black/90 rounded flex items-center justify-center">
                     <div className="grid grid-cols-5 gap-0.5">
                       {Array.from({ length: 25 }).map((_, i) => (
-                        <div key={i} className={`w-4 h-4 ${Math.random() > 0.4 ? "bg-white" : "bg-transparent"}`} />
+                        <div key={i} className={`w-4 h-4 ${[0,1,3,4,5,7,9,10,12,14,15,17,19,20,21,23,24].includes(i) ? "bg-white" : "bg-transparent"}`} />
                       ))}
                     </div>
                   </div>
@@ -610,7 +587,7 @@ export default function WalletPage() {
           <p className="text-xs text-muted-foreground/60">Create your first SKYNT wallet to start managing tokens.</p>
           <button
             data-testid="button-create-first-wallet"
-            onClick={handleCreateWallet}
+            onClick={() => createWalletMutation.mutate()}
             className="connect-wallet-btn px-6 py-2.5 rounded-sm font-heading text-sm tracking-wider mx-auto"
           >
             Create Wallet
