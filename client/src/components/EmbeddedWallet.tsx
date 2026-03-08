@@ -3,11 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Wallet, ShieldCheck, CheckCircle2, AlertCircle, RefreshCw, Link2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useDisconnect } from "wagmi";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 
 function ConnectionPulse({ color }: { color: number[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -68,12 +66,10 @@ export function EmbeddedWallet() {
   const { address, isConnected, connector } = useAccount();
   const { disconnect } = useDisconnect();
   const [showConnectAnim, setShowConnectAnim] = useState(false);
-  const [isLinking, setIsLinking] = useState(false);
   const prevConnected = useRef(false);
-  const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, walletLinked, linkWallet } = useAuth();
+  const [isLinking, setIsLinking] = useState(false);
 
-  const walletLinked = !!(user?.walletAddress && address && user.walletAddress.toLowerCase() === address.toLowerCase());
   const userHasWallet = !!user?.walletAddress;
 
   useEffect(() => {
@@ -85,31 +81,11 @@ export function EmbeddedWallet() {
     prevConnected.current = isConnected;
   }, [isConnected]);
 
-  useEffect(() => {
-    if (isConnected && address && user && !walletLinked && !isLinking) {
-      linkWallet(address);
-    }
-  }, [isConnected, address, user, walletLinked]);
-
-  const linkWallet = async (addr: string) => {
+  const handleManualLink = async () => {
+    if (!address || isLinking) return;
     setIsLinking(true);
     try {
-      const res = await apiRequest("POST", "/api/auth/link-wallet", { address: addr });
-      const data = await res.json();
-      queryClient.setQueryData(["/api/user"], data);
-      toast({
-        title: "IDENTITY_LINKED",
-        description: `Wallet ${addr.slice(0, 6)}...${addr.slice(-4)} linked to your account.`,
-      });
-    } catch (err: any) {
-      const msg = err?.message || "Failed to link wallet";
-      if (!msg.includes("already linked")) {
-        toast({
-          title: "Link Failed",
-          description: msg,
-          variant: "destructive",
-        });
-      }
+      await linkWallet(address);
     } finally {
       setIsLinking(false);
     }
@@ -210,7 +186,7 @@ export function EmbeddedWallet() {
             </div>
             <Button
               data-testid="button-link-wallet"
-              onClick={() => address && linkWallet(address)}
+              onClick={handleManualLink}
               className="w-full bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 font-heading"
             >
               LINK WALLET TO ACCOUNT

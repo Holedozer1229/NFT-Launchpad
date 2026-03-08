@@ -1,12 +1,15 @@
-import { createContext, ReactNode, useContext } from "react";
+import { createContext, ReactNode, useContext, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
+import { useAccount } from "wagmi";
 
 type User = {
   id: number;
   username: string;
   isAdmin: boolean;
+  walletAddress?: string | null;
+  authProvider?: string | null;
 };
 
 type AuthContextType = {
@@ -14,14 +17,18 @@ type AuthContextType = {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   loginWithWallet: (address: string, signature: string, nonce: string) => Promise<void>;
+  linkWallet: (address: string) => Promise<void>;
   register: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  walletLinked: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
+  const { address, isConnected } = useAccount();
+  const linkingRef = useRef(false);
 
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/api/user"],
@@ -34,6 +41,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     staleTime: Infinity,
     retry: false,
   });
+
+  const walletLinked = !!(
+    user?.walletAddress &&
+    address &&
+    user.walletAddress.toLowerCase() === address.toLowerCase()
+  );
 
   const loginMutation = useMutation({
     mutationFn: async ({ username, password }: { username: string; password: string }) => {
@@ -60,6 +73,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const linkWalletMutation = useMutation({
+    mutationFn: async ({ address: addr }: { address: string }) => {
+      const res = await apiRequest("POST", "/api/auth/link-wallet", { address: addr });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["/api/user"], data);
+    },
+  });
+
   const registerMutation = useMutation({
     mutationFn: async ({ username, password }: { username: string; password: string }) => {
       const res = await apiRequest("POST", "/api/register", { username, password });
@@ -81,17 +104,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const doLinkWallet = useCallback(async (addr: string) => {
+    if (linkingRef.current) return;
+    linkingRef.current = true;
+    try {
+      await linkWalletMutation.mutateAsync({ address: addr });
+    } finally {
+      linkingRef.current = false;
+    }
+  }, [linkWalletMutation]);
+
+  useEffect(() => {
+    if (isConnected && address && user && !walletLinked && !linkingRef.current) {
+      doLinkWallet(address);
+    }
+  }, [isConnected, address, user?.id, walletLinked]);
+
   return (
     <AuthContext.Provider
       value={{
         user: user ?? null,
         isLoading,
+        walletLinked,
         login: async (username, password) => {
           await loginMutation.mutateAsync({ username, password });
         },
         loginWithWallet: async (address, signature, nonce) => {
           await loginWithWalletMutation.mutateAsync({ address, signature, nonce });
         },
+        linkWallet: doLinkWallet,
         register: async (username, password) => {
           await registerMutation.mutateAsync({ username, password });
         },
