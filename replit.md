@@ -39,9 +39,21 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Updated Sphinx Oracle with Omniscient Sphinx persona (network consciousness, IIT formulas, prophecy/vision/wisdom response structure)
 - Integrated OpenSea API (Seaport v1.6 protocol) for NFT marketplace listings — auto-lists minted NFTs on OpenSea
 - Added OpenSea fields to NFTs (openseaUrl, openseaStatus, openseaListingId)
-- Gallery shows OpenSea links, "List on OpenSea" button for unlisted NFTs
-- MintCard mint flow includes OpenSea listing steps, shows "View on OpenSea" link after minting
+- **Push to OpenSea** — prominent OpenSea listing panel in Gallery with bulk listing support
+  - Gallery: "Push to OpenSea" banner at top showing listable/listed counts, select all, batch push button
+  - Gallery cards: always-visible "Push to OpenSea" button on eligible NFTs (OpenSea-supported chains: Ethereum, Polygon, Arbitrum, Base)
+  - MintCard: enhanced post-mint "LISTED ON OPENSEA — VIEW LISTING" button with glow effect
+  - Marketplace: "Push" button on listings without OpenSea URL, "OpenSea" link on listed items
+  - Bulk listing API: `POST /api/opensea/bulk-list` — batch up to 20 NFTs per request
 - Server-side OpenSea service (server/opensea.ts) handles REST API calls to OpenSea v2 endpoints
+- **Mining Gameplay Enhancements** (background-miner.ts):
+  - Streak/combo system: consecutive blocks increase multiplier (3x=1.1x, 5x=1.25x, 10x=1.5x, 25x=2x, 50x=2.5x, 100x=3x)
+  - Milestone achievements: 8 tiers (First Strike → Genesis Titan) with SKYNT rewards (0.5 → 100 SKYNT)
+  - Real-time mining event log (block found, streak, milestone, premium, difficulty updates)
+  - Premium Mining Pass: 5 SKYNT/24h — 1.5x reward boost, 50% fee discount
+  - Mining leaderboard: top 20 miners by earnings
+  - Lifetime stats tracking (blocks, earnings, best streak across sessions)
+  - API routes: `POST /api/mining/premium-pass`, `GET /api/mining/leaderboard`
 - Added contract deployment system: auto-deploys SpaceFlightNFT, SphinxBridge, SphinxYieldAggregator when wallet created
 - Gamified QuantumMiner into Omega Serpent arcade miner: 3 autonomous snakes (ETH/SOL/STX) on canvas grid, qutrit state tracking, berry phase/ergotropy accumulation, treasure collection, per-chain milestones, cross-chain super milestones, GHZ quantum proof hash
 - Added playable Omega Serpent Arena page (/serpent): player-controlled snake (WASD/arrows), 3 AI opponents, 3-lives system, SKYNT play-to-earn rewards (score×0.1), leaderboard, claim-to-wallet flow, server-side score validation with caps

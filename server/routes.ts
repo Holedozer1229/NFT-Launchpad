@@ -9,7 +9,7 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception, startEngine, isEngineRunning } from "./iit-engine";
 import { getResonanceStatus, getResonanceHistory } from "./resonance-drop";
-import { startMining, stopMining, getMiningStatus, getActiveMinerCount } from "./background-miner";
+import { startMining, stopMining, getMiningStatus, getActiveMinerCount, activatePremiumPass, getMiningLeaderboard } from "./background-miner";
 import { startMergeMining, stopMergeMining, getMergeMiningStatus, getAllMergeMiningStats, getBtcGenesisBlock, getRecentBlocks, getStxLendingState, stakeStxLending } from "./merge-miner";
 import { openWormhole, closeWormhole, initiateTransfer, getWormholeStatus, getWormholeTransfers, getUserTransfers, getNetworkWormholeStats } from "./zk-wormhole";
 import { generateRarityCertificate, verifyRarityCertificate, getUserCertificates, downloadCertificate } from "./rarity-proof-engine";
@@ -985,6 +985,56 @@ export async function registerRoutes(
   app.get("/api/opensea/status", async (_req, res) => {
     const hasKey = !!process.env.OPENSEA_API_KEY;
     res.json({ configured: hasKey, marketplace: "OpenSea", protocol: "Seaport v1.6" });
+  });
+
+  app.post("/api/opensea/bulk-list", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { nftIds } = req.body;
+      if (!Array.isArray(nftIds) || nftIds.length === 0) {
+        return res.status(400).json({ message: "Provide an array of NFT IDs" });
+      }
+
+      const results: Array<{ nftId: number; success: boolean; openseaUrl: string | null; error: string | null }> = [];
+
+      for (const nftId of nftIds.slice(0, 20)) {
+        const nft = await storage.getNft(nftId);
+        if (!nft) {
+          results.push({ nftId, success: false, openseaUrl: null, error: "NFT not found" });
+          continue;
+        }
+        if (nft.openseaUrl || nft.status === "listed") {
+          results.push({ nftId, success: true, openseaUrl: nft.openseaUrl, error: null });
+          continue;
+        }
+
+        const chainId = (nft.chain || "ethereum") as ChainId;
+        const chainData = SUPPORTED_CHAINS[chainId];
+        const contractAddr = chainData?.contractAddress || "0x0000000000000000000000000000000000000000";
+        const tokenIdClean = nft.tokenId.replace(/\.\.\./g, "").replace("0x", "");
+
+        const result = await listNftOnOpenSea({
+          chain: chainId,
+          contractAddress: contractAddr,
+          tokenId: tokenIdClean,
+          price: nft.price,
+          sellerAddress: nft.owner,
+          title: nft.title,
+        });
+
+        const status = result.success ? "listed" : "failed";
+        await storage.updateNftOpenSea(nft.id, result.openseaUrl, status, result.listingId);
+        if (result.success) {
+          await storage.updateNftStatus(nft.id, "listed");
+        }
+
+        results.push({ nftId, success: result.success, openseaUrl: result.openseaUrl, error: result.error });
+      }
+
+      res.json({ results, total: results.length, listed: results.filter(r => r.success).length });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to bulk list on OpenSea" });
+    }
   });
 
   // ========== BRIDGE ROUTES ==========
@@ -2094,6 +2144,25 @@ export async function registerRoutes(
       res.json({ activeMiners: getActiveMinerCount() });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch network status" });
+    }
+  });
+
+  app.post("/api/mining/premium-pass", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const result = await activatePremiumPass(req.user!.id);
+      if (!result.success) return res.status(400).json({ message: result.message });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to activate premium pass" });
+    }
+  });
+
+  app.get("/api/mining/leaderboard", (_req, res) => {
+    try {
+      res.json(getMiningLeaderboard());
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch leaderboard" });
     }
   });
 

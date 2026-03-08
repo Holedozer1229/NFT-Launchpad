@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2, Search } from "lucide-react";
+import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2, Search, Upload, CheckCircle2, AlertCircle, ArrowRight } from "lucide-react";
 import { SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import NFTPreview3D from "@/components/NFTPreview3D";
@@ -41,6 +41,8 @@ const statusColors: Record<string, string> = {
   listed: "bg-neon-orange/10 text-neon-orange border-neon-orange/30",
 };
 
+const OPENSEA_SUPPORTED = new Set(["ethereum", "polygon", "arbitrum", "base"]);
+
 type FilterRarity = "All" | Rarity;
 type FilterStatus = "all" | "minted" | "staked" | "listed";
 type FilterChain = "all" | ChainId;
@@ -61,6 +63,7 @@ export default function Gallery() {
   const [currentPage, setCurrentPage] = useState(1);
   const [listingNftId, setListingNftId] = useState<number | null>(null);
   const [previewNft, setPreviewNft] = useState<NFTItem | null>(null);
+  const [selectedForBulk, setSelectedForBulk] = useState<Set<number>>(new Set());
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -82,11 +85,35 @@ export default function Gallery() {
     }
   };
 
+  const bulkListMutation = useMutation({
+    mutationFn: async (nftIds: number[]) => {
+      const res = await apiRequest("POST", "/api/opensea/bulk-list", { nftIds });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
+      setSelectedForBulk(new Set());
+      toast({
+        title: "BULK LISTING COMPLETE",
+        description: `${data.listed}/${data.total} NFTs pushed to OpenSea`,
+      });
+    },
+    onError: () => {
+      toast({ title: "BULK LISTING FAILED", description: "Could not complete bulk listing.", variant: "destructive" });
+    },
+  });
+
   const { data: nfts = [], isLoading } = useQuery<NFTItem[]>({
     queryKey: ["/api/nfts"],
   });
 
   const ITEMS_PER_PAGE = 12;
+
+  const listableNfts = nfts.filter(
+    (nft) => nft.status === "minted" && !nft.openseaUrl && OPENSEA_SUPPORTED.has(nft.chain)
+  );
+
+  const listedNfts = nfts.filter((nft) => nft.openseaUrl || nft.status === "listed");
 
   const filtered = nfts.filter((nft) => {
     if (filterRarity !== "All" && nft.rarity !== filterRarity) return false;
@@ -106,6 +133,23 @@ export default function Gallery() {
 
   const chainIds = Object.keys(SUPPORTED_CHAINS) as ChainId[];
 
+  const toggleBulkSelect = (nftId: number) => {
+    setSelectedForBulk((prev) => {
+      const next = new Set(prev);
+      if (next.has(nftId)) next.delete(nftId);
+      else next.add(nftId);
+      return next;
+    });
+  };
+
+  const selectAllListable = () => {
+    if (selectedForBulk.size === listableNfts.length) {
+      setSelectedForBulk(new Set());
+    } else {
+      setSelectedForBulk(new Set(listableNfts.map((n) => n.id)));
+    }
+  };
+
   return (
     <div className="space-y-8" data-testid="gallery-page">
       <div>
@@ -116,6 +160,104 @@ export default function Gallery() {
           Browse your minted artifacts across all chains
         </p>
       </div>
+
+      {(listableNfts.length > 0 || listedNfts.length > 0) && (
+        <div className="rounded-sm border border-[#2081E2]/30 bg-gradient-to-r from-[#2081E2]/5 via-[#2081E2]/10 to-[#2081E2]/5 p-5" data-testid="opensea-push-panel">
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
+            <div className="flex items-center gap-3 flex-1">
+              <div className="w-12 h-12 rounded-sm bg-[#2081E2]/20 border border-[#2081E2]/30 flex items-center justify-center shrink-0">
+                <ShoppingBag className="w-6 h-6 text-[#2081E2]" />
+              </div>
+              <div>
+                <h2 className="font-heading text-sm font-bold text-[#2081E2] uppercase tracking-wider">
+                  Push to OpenSea Marketplace
+                </h2>
+                <p className="text-xs font-mono text-muted-foreground mt-0.5">
+                  Seaport v1.6 Protocol  |  {listableNfts.length} ready to list  |  {listedNfts.length} already listed
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {listableNfts.length > 0 && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={selectAllListable}
+                    className="text-[10px] font-heading uppercase tracking-wider border-[#2081E2]/30 text-[#2081E2] hover:bg-[#2081E2]/10"
+                    data-testid="button-select-all-opensea"
+                  >
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    {selectedForBulk.size === listableNfts.length ? "Deselect All" : `Select All (${listableNfts.length})`}
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    onClick={() => bulkListMutation.mutate(Array.from(selectedForBulk))}
+                    disabled={selectedForBulk.size === 0 || bulkListMutation.isPending}
+                    className="text-[10px] font-heading uppercase tracking-wider bg-[#2081E2] hover:bg-[#2081E2]/80 text-white"
+                    data-testid="button-bulk-list-opensea"
+                  >
+                    {bulkListMutation.isPending ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Upload className="w-3 h-3 mr-1" />
+                    )}
+                    {bulkListMutation.isPending
+                      ? "Pushing..."
+                      : `Push ${selectedForBulk.size} to OpenSea`}
+                  </Button>
+                </>
+              )}
+
+              {listableNfts.length === 0 && listedNfts.length > 0 && (
+                <div className="flex items-center gap-2 text-xs font-mono text-[#2081E2]">
+                  <CheckCircle2 className="w-4 h-4" />
+                  All eligible NFTs are listed
+                </div>
+              )}
+            </div>
+          </div>
+
+          {listableNfts.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {listableNfts.slice(0, 8).map((nft) => {
+                const isSelected = selectedForBulk.has(nft.id);
+                const rConf = rarityConfig[nft.rarity] || rarityConfig.Common;
+                return (
+                  <button
+                    key={nft.id}
+                    onClick={() => toggleBulkSelect(nft.id)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-sm border transition-all text-left ${
+                      isSelected
+                        ? "border-[#2081E2]/60 bg-[#2081E2]/15"
+                        : "border-white/[0.06] bg-white/[0.02] hover:border-[#2081E2]/30"
+                    }`}
+                    data-testid={`button-select-nft-${nft.id}`}
+                  >
+                    <img
+                      src={nft.image}
+                      alt={nft.title}
+                      className="w-8 h-8 rounded-sm object-cover"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-heading text-foreground truncate max-w-[120px]">{nft.title}</div>
+                      <div className={`text-[9px] font-mono ${rConf.color.split(" ")[0]}`}>{nft.rarity} | {nft.price}</div>
+                    </div>
+                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#2081E2] shrink-0" />}
+                  </button>
+                );
+              })}
+              {listableNfts.length > 8 && (
+                <div className="flex items-center px-3 text-[10px] font-mono text-muted-foreground">
+                  +{listableNfts.length - 8} more
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2" data-testid="chain-distribution">
         {chainIds.map((cid) => {
@@ -213,6 +355,7 @@ export default function Gallery() {
             const rConf = rarityConfig[nft.rarity] || rarityConfig.Common;
             const chainData = SUPPORTED_CHAINS[nft.chain as ChainId];
             const explorerUrl = getExplorerUrl(nft.chain, nft.tokenId);
+            const canListOnOpenSea = nft.status === "minted" && !nft.openseaUrl && OPENSEA_SUPPORTED.has(nft.chain);
             return (
               <div
                 key={nft.id}
@@ -259,30 +402,6 @@ export default function Gallery() {
                   </div>
 
                   <div className="absolute bottom-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    {nft.openseaUrl && (
-                      <a
-                        href={nft.openseaUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-7 px-2.5 rounded-sm text-[10px] font-heading flex items-center gap-1 bg-[#2081E2]/20 border border-[#2081E2]/40 text-[#2081E2] hover:bg-[#2081E2]/30 transition-colors backdrop-blur-md"
-                        data-testid={`link-opensea-${nft.id}`}
-                      >
-                        <ShoppingBag className="w-3 h-3" />
-                        OpenSea
-                      </a>
-                    )}
-                    {!nft.openseaUrl && nft.status === "minted" && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleListOnOpenSea(nft.id); }}
-                        disabled={listingNftId === nft.id}
-                        className="h-7 px-2.5 rounded-sm text-[10px] font-heading flex items-center gap-1 bg-[#2081E2]/10 border border-[#2081E2]/30 text-[#2081E2] hover:bg-[#2081E2]/20 transition-colors backdrop-blur-md disabled:opacity-50"
-                        data-testid={`button-list-opensea-${nft.id}`}
-                      >
-                        <ShoppingBag className="w-3 h-3" />
-                        {listingNftId === nft.id ? "Listing..." : "List"}
-                      </button>
-                    )}
                     {explorerUrl && (
                       <a
                         href={explorerUrl}
@@ -312,19 +431,39 @@ export default function Gallery() {
                     <span className="text-primary font-bold" data-testid={`text-nft-price-${nft.id}`}>{nft.price}</span>
                   </div>
 
-                  {nft.openseaUrl && (
+                  {nft.openseaUrl ? (
                     <a
                       href={nft.openseaUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-[10px] font-mono text-[#2081E2] hover:text-[#2081E2]/80 transition-colors"
-                      data-testid={`link-opensea-bottom-${nft.id}`}
+                      className="flex items-center justify-center gap-2 w-full py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider bg-[#2081E2]/15 border border-[#2081E2]/30 text-[#2081E2] hover:bg-[#2081E2]/25 transition-colors"
+                      data-testid={`link-opensea-${nft.id}`}
                     >
-                      <ShoppingBag className="w-3 h-3" />
-                      <span>View on OpenSea</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      View on OpenSea
+                      <ExternalLink className="w-3 h-3" />
                     </a>
-                  )}
+                  ) : canListOnOpenSea ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleListOnOpenSea(nft.id); }}
+                      disabled={listingNftId === nft.id}
+                      className="flex items-center justify-center gap-2 w-full py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider bg-[#2081E2]/10 border border-[#2081E2]/40 text-[#2081E2] hover:bg-[#2081E2]/20 transition-all hover:border-[#2081E2]/60 disabled:opacity-50"
+                      data-testid={`button-list-opensea-${nft.id}`}
+                    >
+                      {listingNftId === nft.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="w-3.5 h-3.5" />
+                      )}
+                      {listingNftId === nft.id ? "Pushing to OpenSea..." : "Push to OpenSea"}
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  ) : !OPENSEA_SUPPORTED.has(nft.chain) ? (
+                    <div className="flex items-center justify-center gap-1.5 w-full py-2 rounded-sm text-[10px] font-mono text-muted-foreground/50 border border-white/[0.04]">
+                      <AlertCircle className="w-3 h-3" />
+                      Chain not supported on OpenSea
+                    </div>
+                  ) : null}
 
                   <div className="flex justify-between items-center text-[10px] font-mono text-muted-foreground/60 pt-2 border-t border-border/50">
                     <span>{nft.mintDate}</span>

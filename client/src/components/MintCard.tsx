@@ -361,11 +361,11 @@ export function MintCard({ mission }: MintCardProps) {
                     target="_blank"
                     rel="noopener noreferrer"
                     data-testid="link-opensea"
-                    className="flex items-center justify-center gap-2 w-full py-3 rounded-md border border-[#2081E2]/50 bg-[#2081E2]/10 text-[#2081E2] hover:bg-[#2081E2]/20 transition-all font-heading text-sm tracking-wider"
+                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-md border-2 border-[#2081E2]/60 bg-gradient-to-r from-[#2081E2]/15 via-[#2081E2]/20 to-[#2081E2]/15 text-[#2081E2] hover:bg-[#2081E2]/30 hover:border-[#2081E2]/80 transition-all font-heading text-sm tracking-wider shadow-[0_0_15px_rgba(32,129,226,0.15)] hover:shadow-[0_0_25px_rgba(32,129,226,0.3)]"
                   >
                     <ShoppingBag className="w-4 h-4" />
-                    VIEW ON OPENSEA
-                    <ExternalLink className="w-3 h-3" />
+                    LISTED ON OPENSEA — VIEW LISTING
+                    <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 )}
 

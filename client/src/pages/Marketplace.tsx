@@ -178,7 +178,7 @@ export default function Marketplace() {
             NFT MARKETPLACE
           </h1>
           <p className="font-mono text-xs text-muted-foreground mt-1">
-            MULTI-CHAIN // BUY & SELL // SEAPORT PROTOCOL
+            MULTI-CHAIN // BUY & SELL // SEAPORT PROTOCOL // PUSH TO OPENSEA
           </p>
         </div>
         <div className="flex gap-2">
@@ -440,12 +440,23 @@ export default function Marketplace() {
                           BUY NOW
                         </Button>
                       )}
-                      {listing.openseaUrl && (
+                      {listing.openseaUrl ? (
                         <a href={listing.openseaUrl} target="_blank" rel="noopener noreferrer">
-                          <Button size="sm" variant="outline" className="text-[10px] h-8 border-white/10">
-                            <ExternalLink className="w-3 h-3" />
+                          <Button size="sm" variant="outline" className="text-[10px] h-8 border-[#2081E2]/40 text-[#2081E2] hover:bg-[#2081E2]/10" data-testid={`link-opensea-listing-${listing.id}`}>
+                            <ShoppingCart className="w-3 h-3 mr-0.5" />
+                            OpenSea
                           </Button>
                         </a>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-[10px] h-8 border-[#2081E2]/30 text-[#2081E2]/70 hover:bg-[#2081E2]/10 hover:text-[#2081E2] hover:border-[#2081E2]/50"
+                          data-testid={`button-push-opensea-listing-${listing.id}`}
+                        >
+                          <ExternalLink className="w-3 h-3 mr-0.5" />
+                          Push
+                        </Button>
                       )}
                     </div>
                   )}
