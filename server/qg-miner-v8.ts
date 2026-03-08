@@ -73,9 +73,9 @@ function meetsDifficulty(hashHex: string, difficulty: number): boolean {
 
 function computeQGScore(eigenvalues: number[], densityMatrix: number[][]): number {
   if (eigenvalues.length < 2) return 0;
-  const sorted = [...eigenvalues].sort((a, b) => b - a);
-  const spectralGap = sorted[0] - sorted[sorted.length - 1];
+  const sorted = eigenvalues;
   const n = eigenvalues.length;
+  const spectralGap = sorted[0] - sorted[n - 1];
   let curvature = 0;
   for (let i = 0; i < n - 1; i++) {
     curvature += Math.abs(sorted[i] - sorted[i + 1]) * (1 - sorted[i + 1]);
@@ -108,47 +108,48 @@ function computeHoloScore(densityMatrix: number[][]): number {
   }
   if (trace === 0) return 0;
   const coherence = offDiagSum / (dim * (dim - 1));
-  const entanglement = Math.min(1, coherence * dim * 0.5);
-  return entanglement;
+  return Math.min(1, coherence * dim * 0.5);
 }
+
+const FANO_LINES = [
+  [0, 1, 3], [1, 2, 4], [2, 3, 5], [3, 4, 6],
+  [4, 5, 0], [5, 6, 1], [6, 0, 2],
+];
 
 function computeFanoScore(eigenvalues: number[]): number {
   const n = eigenvalues.length;
   if (n === 0) return 0;
   const sectors = 7;
-  const sectorSums = new Array(sectors).fill(0);
-  const sectorCounts = new Array(sectors).fill(0);
+  const sectorSums = new Float64Array(sectors);
   for (let i = 0; i < n; i++) {
-    const sector = i % sectors;
-    sectorSums[sector] += eigenvalues[i];
-    sectorCounts[sector]++;
+    sectorSums[i % sectors] += eigenvalues[i];
   }
   const mean = eigenvalues.reduce((a, b) => a + b, 0) / n;
   let alignment = 0;
-  const fanoLines = [
-    [0, 1, 3], [1, 2, 4], [2, 3, 5], [3, 4, 6],
-    [4, 5, 0], [5, 6, 1], [6, 0, 2],
-  ];
-  for (const line of fanoLines) {
+  for (let li = 0; li < FANO_LINES.length; li++) {
+    const line = FANO_LINES[li];
     let lineProduct = 1;
-    for (const idx of line) {
-      if (idx < sectorSums.length) {
-        lineProduct *= (sectorSums[idx] || mean);
-      }
+    for (let idx = 0; idx < line.length; idx++) {
+      lineProduct *= (sectorSums[line[idx]] || mean);
     }
     alignment += Math.min(1, lineProduct * 10);
   }
-  return Math.min(1, alignment / fanoLines.length);
+  return Math.min(1, alignment / FANO_LINES.length);
 }
 
 function computePhiStructure(data: string, config: MinerConfig): PhiStructureV8 {
   const phi = calculatePhi(data);
+  return buildStructureFromPhi(phi, config);
+}
+
+function buildStructureFromPhi(phi: PhiMetrics, config: MinerConfig): PhiStructureV8 {
   const qgScore = computeQGScore(phi.eigenvalues, phi.densityMatrix);
   const holoScore = computeHoloScore(phi.densityMatrix);
   const fanoScore = computeFanoScore(phi.eigenvalues);
   const phiTau = phi.phi;
-  const gwtS = phi.entropy / Math.log2(phi.densityMatrix.length);
-  const icpAvg = phi.eigenvalues.reduce((s, v) => s + v * Math.log2(v > 1e-15 ? 1/v : 1), 0) / phi.eigenvalues.length;
+  const dimLog = Math.log2(phi.densityMatrix.length);
+  const gwtS = dimLog > 0 ? phi.entropy / dimLog : 0;
+  const icpAvg = phi.eigenvalues.reduce((s, v) => s + v * Math.log2(v > 1e-15 ? 1 / v : 1), 0) / phi.eigenvalues.length;
   const nablaScore = Math.min(1, Math.abs(phi.eigenvalues[0] - phi.eigenvalues[phi.eigenvalues.length - 1]) * 2);
   const phiTotal =
     config.alpha * phiTau +
@@ -182,8 +183,9 @@ function validateConsciousnessConsensus(
   nNetworkNodes: number,
   config: MinerConfig
 ): boolean {
-  const threshold = Math.log2(Math.max(1, nNetworkNodes)) + config.delta * fanoScore + config.zeta * qgScore;
-  const normalizedThreshold = threshold / (Math.log2(Math.max(1, nNetworkNodes)) + 1);
+  const logN = Math.log2(Math.max(1, nNetworkNodes));
+  const threshold = logN + config.delta * fanoScore + config.zeta * qgScore;
+  const normalizedThreshold = threshold / (logN + 1);
   return phiTotal > normalizedThreshold * 0.3;
 }
 
@@ -191,30 +193,38 @@ function phiToLegacyScore(phiTotal: number): number {
   return Math.min(1000, Math.max(200, 200 + phiTotal * 800));
 }
 
+interface BlockValidation {
+  valid: boolean;
+  structure: PhiStructureV8;
+  gateFailed: string;
+  hashHex: string;
+}
+
 function isValidBlock(
   data: string,
   difficulty: number,
   nNetworkNodes: number,
   config: MinerConfig
-): { valid: boolean; structure: PhiStructureV8; gateFailed: string } {
+): BlockValidation {
   const hashHex = computeSpectralHash(data);
   if (!meetsDifficulty(hashHex, difficulty)) {
     return {
       valid: false,
-      structure: computePhiStructure(data, config),
+      structure: null as unknown as PhiStructureV8,
       gateFailed: "difficulty",
+      hashHex,
     };
   }
   const structure = computePhiStructure(data, config);
   if (!validateConsciousnessConsensus(
     structure.phiTotal, structure.fanoScore, structure.qgScore, nNetworkNodes, config
   )) {
-    return { valid: false, structure, gateFailed: "consciousness" };
+    return { valid: false, structure, gateFailed: "consciousness", hashHex };
   }
   if (structure.qgScore < config.qgThreshold) {
-    return { valid: false, structure, gateFailed: "qg_curvature" };
+    return { valid: false, structure, gateFailed: "qg_curvature", hashHex };
   }
-  return { valid: true, structure, gateFailed: "" };
+  return { valid: true, structure, gateFailed: "", hashHex };
 }
 
 function mine(
@@ -228,9 +238,8 @@ function mine(
 
   for (let nonce = 0; nonce < maxAttempts; nonce++) {
     const data = `${blockData}${nonce}`;
-    const { valid, structure } = isValidBlock(data, difficulty, nNetworkNodes, config);
+    const { valid, structure, hashHex } = isValidBlock(data, difficulty, nNetworkNodes, config);
     if (valid) {
-      const hashHex = computeSpectralHash(data);
       return {
         nonce,
         blockHash: hashHex,
@@ -279,7 +288,7 @@ function mineWithStats(
   for (let nonce = 0; nonce < maxAttempts; nonce++) {
     stats.totalAttempts++;
     const data = `${blockData}${nonce}`;
-    const { valid, structure, gateFailed } = isValidBlock(data, difficulty, nNetworkNodes, config);
+    const { valid, structure, gateFailed, hashHex } = isValidBlock(data, difficulty, nNetworkNodes, config);
 
     if (gateFailed === "difficulty") { stats.difficultyRejected++; continue; }
     if (gateFailed === "consciousness") { stats.consciousnessRejected++; continue; }
@@ -287,7 +296,6 @@ function mineWithStats(
 
     if (valid) {
       stats.accepted = 1;
-      const hashHex = computeSpectralHash(data);
       return {
         result: {
           nonce,
@@ -347,7 +355,8 @@ class QuantumGravityMinerV8 {
   }
 
   isValidBlock(data: string, difficulty: number, nNetworkNodes?: number) {
-    return isValidBlock(data, difficulty, nNetworkNodes ?? 1, this.config);
+    const result = isValidBlock(data, difficulty, nNetworkNodes ?? 1, this.config);
+    return { valid: result.valid, structure: result.structure, gateFailed: result.gateFailed };
   }
 
   mine(blockData: string, difficulty: number, opts?: { nNetworkNodes?: number; maxAttempts?: number }): MineResultV8 {

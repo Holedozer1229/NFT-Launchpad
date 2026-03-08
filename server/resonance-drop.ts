@@ -5,7 +5,7 @@ interface ResonanceState {
   phi: number;
   isResonanceActive: boolean;
   status: "DORMANT" | "CHARGING" | "RESONANCE_ACTIVE";
-  nextWindowCountdown: number; // seconds
+  nextWindowCountdown: number;
   lastEventTimestamp: number;
 }
 
@@ -17,10 +17,11 @@ interface ResonanceHistory {
 }
 
 let resonanceHistory: ResonanceHistory[] = [];
+let cachedState: ResonanceState | null = null;
+let cachedStateWindow = -1;
 
 export function getSchumannFrequency(): number {
   const now = Date.now();
-  // Base 7.83Hz with some simulated fluctuations
   const base = 7.83;
   const fluctuation = Math.sin(now / 10000) * 0.5 + Math.sin(now / 1000) * 0.1;
   return parseFloat((base + fluctuation).toFixed(2));
@@ -28,13 +29,19 @@ export function getSchumannFrequency(): number {
 
 export function getResonanceStatus(): ResonanceState {
   const now = Date.now();
+  const currentWindow = Math.floor(now / 30000);
+
+  if (cachedState && cachedStateWindow === currentWindow) {
+    cachedState.nextWindowCountdown = 30 - (Math.floor(now / 1000) % 30);
+    cachedState.schumannFrequency = getSchumannFrequency();
+    return cachedState;
+  }
+
   const schumann = getSchumannFrequency();
   
-  // Use IIT engine to get current network Phi
-  // We'll use a consistent seed for the "network" based on 30s intervals
-  const networkSeed = `network-resonance-${Math.floor(now / 30000)}`;
+  const networkSeed = `network-resonance-${currentWindow}`;
   const phiMetrics = calculatePhi(networkSeed);
-  const phi = phiMetrics.phi * 2; // Scale for demo purposes to reach 1.618
+  const phi = phiMetrics.phi * 2;
 
   const phiThreshold = 1.618;
   const isResonanceActive = phi > phiThreshold;
@@ -46,7 +53,6 @@ export function getResonanceStatus(): ResonanceState {
     status = "CHARGING";
   }
 
-  // Next window prediction (mock logic)
   const nextWindowCountdown = 30 - (Math.floor(now / 1000) % 30);
 
   const state: ResonanceState = {
@@ -58,10 +64,9 @@ export function getResonanceStatus(): ResonanceState {
     lastEventTimestamp: resonanceHistory[0]?.timestamp || 0,
   };
 
-  // Record history if active and not already recorded for this window
   if (isResonanceActive) {
     const lastHistory = resonanceHistory[0];
-    const windowStart = Math.floor(now / 30000) * 30000;
+    const windowStart = currentWindow * 30000;
     if (!lastHistory || lastHistory.timestamp < windowStart) {
       resonanceHistory.unshift({
         timestamp: now,
@@ -73,6 +78,8 @@ export function getResonanceStatus(): ResonanceState {
     }
   }
 
+  cachedState = state;
+  cachedStateWindow = currentWindow;
   return state;
 }
 

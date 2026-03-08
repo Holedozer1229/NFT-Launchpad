@@ -88,14 +88,10 @@ function getLifetimeStats(userId: number) {
 }
 
 function getStreakMultiplier(streak: number): number {
-  let mult = 1.0;
   for (let i = STREAK_THRESHOLDS.length - 1; i >= 0; i--) {
-    if (streak >= STREAK_THRESHOLDS[i]) {
-      mult = STREAK_MULTIPLIERS[i];
-      break;
-    }
+    if (streak >= STREAK_THRESHOLDS[i]) return STREAK_MULTIPLIERS[i];
   }
-  return mult;
+  return 1.0;
 }
 
 function createEmptyStats(): MiningStats {
@@ -144,7 +140,7 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
     stats.premiumPassExpiry = session.premiumPassExpiry;
 
     const fee = isPremium ? MINING_FEE_PER_CYCLE * PREMIUM_FEE_DISCOUNT : MINING_FEE_PER_CYCLE;
-    const currentBalance = parseFloat(wallet.balanceSkynt);
+    let currentBalance = parseFloat(wallet.balanceSkynt);
     if (currentBalance < fee) {
       stopMining(userId);
       return;
@@ -170,11 +166,13 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
     stats.hashRate = Math.round(simulatedNonces / (MINE_INTERVAL_MS / 1000));
     stats.cyclesCompleted++;
 
-    const phiResult = calculatePhi(`mine-${userId}-${Date.now()}`);
+    const phiResult = calculatePhi(`mine-${userId}-${Math.floor(Date.now() / 15000)}`);
     stats.currentPhiBoost = Math.min(2.0, Math.exp(phiResult.phi));
 
-    await storage.updateWalletBalance(walletId, "SKYNT", (currentBalance - fee).toString());
+    currentBalance -= fee;
     recordMintFee(fee, "background-mine", "SKYNT", `mine-fee-${Date.now()}-${userId}`);
+
+    let totalMilestoneReward = 0;
 
     if (blockFound) {
       stats.blocksFound++;
@@ -225,43 +223,37 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
             reward: milestone.reward,
           });
 
-          const mWallet = await storage.getWallet(walletId);
-          if (mWallet) {
-            const mBalance = parseFloat(mWallet.balanceSkynt) + milestone.reward;
-            await storage.updateWalletBalance(walletId, "SKYNT", mBalance.toString());
-            stats.totalSkyntEarned += milestone.reward;
-            lt.earned += milestone.reward;
+          totalMilestoneReward += milestone.reward;
+          stats.totalSkyntEarned += milestone.reward;
+          lt.earned += milestone.reward;
 
-            await storage.createTransaction({
-              walletId,
-              type: "milestone_reward",
-              token: "SKYNT",
-              amount: milestone.reward.toString(),
-              fromAddress: "SKYNT-TREASURY-MILESTONES",
-              toAddress: mWallet.address,
-              status: "confirmed",
-            });
+          await storage.createTransaction({
+            walletId,
+            type: "milestone_reward",
+            token: "SKYNT",
+            amount: milestone.reward.toString(),
+            fromAddress: "SKYNT-TREASURY-MILESTONES",
+            toAddress: wallet.address,
+            status: "confirmed",
+          });
 
-            recordMintFee(milestone.reward * 0.1, "milestone-tax", "SKYNT", `milestone-${milestone.blocks}-${userId}`);
-          }
+          recordMintFee(milestone.reward * 0.1, "milestone-tax", "SKYNT", `milestone-${milestone.blocks}-${userId}`);
         }
       }
 
-      const updatedWallet = await storage.getWallet(walletId);
-      if (updatedWallet) {
-        const newBalance = parseFloat(updatedWallet.balanceSkynt) + reward;
-        await storage.updateWalletBalance(walletId, "SKYNT", newBalance.toString());
+      currentBalance += reward + totalMilestoneReward;
 
-        await storage.createTransaction({
-          walletId,
-          type: "reward",
-          token: "SKYNT",
-          amount: reward.toString(),
-          fromAddress: "0x0000000000000000000000000000000000000000",
-          toAddress: updatedWallet.address,
-          status: "confirmed",
-        });
-      }
+      await storage.updateWalletBalance(walletId, "SKYNT", currentBalance.toString());
+
+      await storage.createTransaction({
+        walletId,
+        type: "reward",
+        token: "SKYNT",
+        amount: reward.toString(),
+        fromAddress: "0x0000000000000000000000000000000000000000",
+        toAddress: wallet.address,
+        status: "confirmed",
+      });
 
       const oldDifficulty = stats.difficulty;
       stats.difficulty = 1.0 + (stats.blocksFound * 0.02) + (stats.streak * 0.005);
@@ -276,6 +268,8 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
       stats.streak = 0;
       stats.streakMultiplier = 1.0;
       stats.difficulty = 1.0 + (stats.blocksFound * 0.02);
+
+      await storage.updateWalletBalance(walletId, "SKYNT", currentBalance.toString());
     }
 
     stats.uptimeSeconds = Math.floor((Date.now() - stats.sessionStartedAt) / 1000);

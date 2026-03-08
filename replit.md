@@ -165,6 +165,17 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - **API log truncation**: Server response logs capped at 200 chars to prevent memory bloat
 - **StarField memoization**: Star positions computed once at module level instead of every render
 - **Query staleness**: 5-minute staleTime with window-focus refetch and 1 retry (was Infinity/no retry)
+- **IIT Φ LRU cache**: `calculatePhi` results memoized in 256-entry LRU cache — deterministic SHA3→RNG pipeline returns cached result for repeated seeds (eliminates redundant matrix algebra across mining, treasury, resonance, and engine ticks)
+- **Adjacency matrix cache**: `generateAdjacencyMatrix` cached in 64-entry LRU — same seed/nodeCount returns cached matrix
+- **QG Miner gate ordering**: Difficulty gate checked before Φ structure computation — rejected nonces skip expensive eigenvalue/density-matrix work entirely
+- **QG Miner hash dedup**: `isValidBlock` returns computed spectral hash — `mine()`/`mineWithStats()` no longer double-hash accepted blocks
+- **Float64Array internals**: Density matrix Gram product and Jacobi eigenvalue solver use `Float64Array` for typed-array performance
+- **Background miner DB consolidation**: Single `getWallet` read per mining cycle, balance tracked in-memory, single `updateWalletBalance` write at end (was up to 3 reads per cycle)
+- **Background miner Φ cache alignment**: Phi seed uses 15s window floor (`Math.floor(Date.now()/15000)`) so identical seeds hit LRU cache across rapid cycles
+- **Merge miner dedup**: Removed redundant standalone `calculatePhi` call in AuxPoW cycles — `qgMiner.mine()` already computes Φ internally
+- **Resonance status caching**: `getResonanceStatus()` cached per 30s window — rapid polling returns cached state with updated countdown
+- **Fetch timeout**: Block height fetch from mempool.space has 5s AbortController timeout to prevent hanging ticks
+- **Frontend memoization**: `EigenvalueSpectrum`, `PhiTimeline`, `AdjacencyHeatmap`, `DensityMatrixView` wrapped in `React.memo` with `useMemo` data transforms — eliminates re-computation on parent re-renders
 
 ## Project Architecture
 - **Frontend**: React + Vite + TypeScript, wouter for routing, recharts for charts, lazy-loaded pages

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, memo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Brain, Activity, Zap, Eye, RefreshCw, Network, TrendingUp, Calculator, Radio } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -41,6 +41,10 @@ const LEVEL_ICONS: Record<string, string> = {
   UNCONSCIOUS: "⚫",
 };
 
+const CHART_GRID_STROKE = "hsl(220 20% 15%)";
+const CHART_TICK_STYLE = { fill: "#888", fontSize: 10, fontFamily: "monospace" };
+const TOOLTIP_STYLE = { background: "hsl(220 30% 8%)", borderRadius: 4, fontSize: 11, fontFamily: "monospace" };
+
 function PhiGauge({ phi, level }: { phi: number; level: string }) {
   const percentage = phi * 100;
   const circumference = 2 * Math.PI * 80;
@@ -74,21 +78,21 @@ function PhiGauge({ phi, level }: { phi: number; level: string }) {
   );
 }
 
-function EigenvalueSpectrum({ eigenvalues }: { eigenvalues: number[] }) {
-  const data = eigenvalues.map((val, i) => ({
-    name: `λ${i + 1}`,
-    value: parseFloat(val.toFixed(4)),
-  }));
+const EigenvalueSpectrum = memo(function EigenvalueSpectrum({ eigenvalues }: { eigenvalues: number[] }) {
+  const data = useMemo(() =>
+    eigenvalues.map((val, i) => ({ name: `λ${i + 1}`, value: parseFloat(val.toFixed(4)) })),
+    [eigenvalues]
+  );
 
   return (
     <div data-testid="eigenvalue-chart">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 20% 15%)" />
-          <XAxis dataKey="name" tick={{ fill: "#888", fontSize: 10, fontFamily: "monospace" }} />
-          <YAxis tick={{ fill: "#888", fontSize: 10, fontFamily: "monospace" }} />
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+          <XAxis dataKey="name" tick={CHART_TICK_STYLE} />
+          <YAxis tick={CHART_TICK_STYLE} />
           <Tooltip
-            contentStyle={{ background: "hsl(220 30% 8%)", border: "1px solid hsl(185 100% 50% / 0.3)", borderRadius: 4, fontSize: 11, fontFamily: "monospace" }}
+            contentStyle={{ ...TOOLTIP_STYLE, border: "1px solid hsl(185 100% 50% / 0.3)" }}
             labelStyle={{ color: "hsl(185 100% 50%)" }}
           />
           <Bar dataKey="value" fill="hsl(185 100% 50%)" opacity={0.8} radius={[2, 2, 0, 0]} />
@@ -96,13 +100,13 @@ function EigenvalueSpectrum({ eigenvalues }: { eigenvalues: number[] }) {
       </ResponsiveContainer>
     </div>
   );
-}
+});
 
-function PhiTimeline({ history }: { history: { timestamp: number; phi: number }[] }) {
-  const data = history.map((h, i) => ({
-    time: i,
-    phi: parseFloat(h.phi.toFixed(3)),
-  }));
+const PhiTimeline = memo(function PhiTimeline({ history }: { history: { timestamp: number; phi: number }[] }) {
+  const data = useMemo(() =>
+    history.map((h, i) => ({ time: i, phi: parseFloat(h.phi.toFixed(3)) })),
+    [history]
+  );
 
   return (
     <div data-testid="phi-timeline">
@@ -114,85 +118,93 @@ function PhiTimeline({ history }: { history: { timestamp: number; phi: number }[
               <stop offset="95%" stopColor="hsl(280 100% 60%)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 20% 15%)" />
-          <XAxis dataKey="time" tick={{ fill: "#888", fontSize: 10, fontFamily: "monospace" }} />
-          <YAxis domain={[0, 1]} tick={{ fill: "#888", fontSize: 10, fontFamily: "monospace" }} />
-          <Tooltip
-            contentStyle={{ background: "hsl(220 30% 8%)", border: "1px solid hsl(280 100% 60% / 0.3)", borderRadius: 4, fontSize: 11, fontFamily: "monospace" }}
-          />
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+          <XAxis dataKey="time" tick={CHART_TICK_STYLE} />
+          <YAxis domain={[0, 1]} tick={CHART_TICK_STYLE} />
+          <Tooltip contentStyle={{ ...TOOLTIP_STYLE, border: "1px solid hsl(280 100% 60% / 0.3)" }} />
           <Area type="monotone" dataKey="phi" stroke="hsl(280 100% 60%)" fill="url(#phiGradient)" strokeWidth={2} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
   );
-}
+});
 
-function AdjacencyHeatmap({ matrix }: { matrix: number[][] }) {
+const AdjacencyHeatmap = memo(function AdjacencyHeatmap({ matrix }: { matrix: number[][] }) {
   const size = matrix.length;
   const cellSize = Math.min(36, 280 / size);
+
+  const cells = useMemo(() =>
+    matrix.flatMap((row, i) =>
+      row.map((val, j) => (
+        <div
+          key={`${i}-${j}`}
+          className="flex items-center justify-center font-mono"
+          style={{
+            width: cellSize,
+            height: cellSize,
+            fontSize: cellSize < 28 ? 7 : 9,
+            background: i === j
+              ? "hsl(220 20% 8%)"
+              : `hsl(185 100% 50% / ${val * 0.7})`,
+            color: val > 0.4 ? "white" : "hsl(220 20% 40%)",
+            borderRadius: 2,
+          }}
+        >
+          {val.toFixed(1)}
+        </div>
+      ))
+    ),
+    [matrix, cellSize]
+  );
 
   return (
     <div className="flex justify-center" data-testid="adjacency-heatmap">
       <div className="inline-grid gap-px" style={{ gridTemplateColumns: `repeat(${size}, ${cellSize}px)` }}>
-        {matrix.flatMap((row, i) =>
-          row.map((val, j) => (
-            <div
-              key={`${i}-${j}`}
-              className="flex items-center justify-center font-mono"
-              style={{
-                width: cellSize,
-                height: cellSize,
-                fontSize: cellSize < 28 ? 7 : 9,
-                background: i === j
-                  ? "hsl(220 20% 8%)"
-                  : `hsl(185 100% 50% / ${val * 0.7})`,
-                color: val > 0.4 ? "white" : "hsl(220 20% 40%)",
-                borderRadius: 2,
-              }}
-            >
-              {val.toFixed(1)}
-            </div>
-          ))
-        )}
+        {cells}
       </div>
     </div>
   );
-}
+});
 
-function DensityMatrixView({ matrix }: { matrix: number[][] }) {
+const DensityMatrixView = memo(function DensityMatrixView({ matrix }: { matrix: number[][] }) {
   const size = matrix.length;
   const cellSize = Math.min(32, 260 / size);
+
+  const cells = useMemo(() =>
+    matrix.flatMap((row, i) =>
+      row.map((val, j) => {
+        const absVal = Math.abs(val);
+        return (
+          <div
+            key={`${i}-${j}`}
+            className="flex items-center justify-center font-mono"
+            style={{
+              width: cellSize,
+              height: cellSize,
+              fontSize: 7,
+              background: val > 0
+                ? `hsl(280 100% 60% / ${absVal * 4})`
+                : `hsl(185 100% 50% / ${absVal * 4})`,
+              color: absVal > 0.1 ? "white" : "hsl(220 20% 35%)",
+              borderRadius: 1,
+            }}
+          >
+            {val.toFixed(2)}
+          </div>
+        );
+      })
+    ),
+    [matrix, cellSize]
+  );
 
   return (
     <div className="flex justify-center overflow-x-auto" data-testid="density-matrix">
       <div className="inline-grid gap-px" style={{ gridTemplateColumns: `repeat(${size}, ${cellSize}px)` }}>
-        {matrix.flatMap((row, i) =>
-          row.map((val, j) => {
-            const absVal = Math.abs(val);
-            return (
-              <div
-                key={`${i}-${j}`}
-                className="flex items-center justify-center font-mono"
-                style={{
-                  width: cellSize,
-                  height: cellSize,
-                  fontSize: 7,
-                  background: val > 0
-                    ? `hsl(280 100% 60% / ${absVal * 4})`
-                    : `hsl(185 100% 50% / ${absVal * 4})`,
-                  color: absVal > 0.1 ? "white" : "hsl(220 20% 35%)",
-                  borderRadius: 1,
-                }}
-              >
-                {val.toFixed(2)}
-              </div>
-            );
-          })
-        )}
+        {cells}
       </div>
     </div>
   );
-}
+});
 
 export default function IITConsciousness() {
   const [computeInput, setComputeInput] = useState("");
@@ -228,7 +240,7 @@ export default function IITConsciousness() {
     }
   }, [network?.currentPhi?.timestamp]);
 
-  const handleCompute = async () => {
+  const handleCompute = useCallback(async () => {
     if (!computeInput.trim()) return;
     setComputing(true);
     try {
@@ -240,7 +252,7 @@ export default function IITConsciousness() {
     } finally {
       setComputing(false);
     }
-  };
+  }, [computeInput]);
 
   const phi = network?.currentPhi;
 
