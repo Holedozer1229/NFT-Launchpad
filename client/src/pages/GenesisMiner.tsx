@@ -35,7 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableTableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   MERGE_MINING_CHAINS, 
   RANDOMX_CONFIG, 
@@ -839,24 +839,24 @@ export default function GenesisMiner() {
             <CardContent className="p-0">
               <Table>
                 <TableHeader className="bg-white/5">
-                  <TableTableRow className="hover:bg-transparent border-white/10">
+                  <TableRow className="hover:bg-transparent border-white/10">
                     <TableHead className="w-[80px] text-[10px] font-heading uppercase text-muted-foreground">Rank</TableHead>
                     <TableHead className="text-[10px] font-heading uppercase text-muted-foreground">Miner</TableHead>
                     <TableHead className="text-right text-[10px] font-heading uppercase text-muted-foreground">Blocks Found</TableHead>
                     <TableHead className="text-right text-[10px] font-heading uppercase text-muted-foreground">Best Streak</TableHead>
                     <TableHead className="text-right text-[10px] font-heading uppercase text-muted-foreground">Total Earned</TableHead>
-                  </TableTableRow>
+                  </TableRow>
                 </TableHeader>
                 <TableBody>
                   {leaderboard?.length === 0 && (
-                    <TableTableRow>
+                    <TableRow>
                       <TableCell colSpan={5} className="text-center py-10 text-muted-foreground font-mono">
                         No mining data available yet. Start mining to join the board!
                       </TableCell>
-                    </TableTableRow>
+                    </TableRow>
                   )}
                   {leaderboard?.map((entry, idx) => (
-                    <TableTableRow key={idx} className="border-white/5 hover:bg-white/5">
+                    <TableRow key={idx} className="border-white/5 hover:bg-white/5">
                       <TableCell className="font-mono">
                         {idx === 0 ? <Crown className="w-4 h-4 text-sphinx-gold" /> : 
                          idx === 1 ? <Trophy className="w-4 h-4 text-slate-300" /> :
@@ -871,7 +871,7 @@ export default function GenesisMiner() {
                       <TableCell className="text-right font-mono font-bold text-neon-green">
                         {entry.earned.toFixed(2)} SKYNT
                       </TableCell>
-                    </TableTableRow>
+                    </TableRow>
                   ))}
                 </TableBody>
               </Table>
