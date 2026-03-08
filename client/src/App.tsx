@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
@@ -31,48 +31,6 @@ const ZkWormhole = lazy(() => import("@/pages/ZkWormhole"));
 const RarityProofEngine = lazy(() => import("@/pages/RarityProofEngine"));
 const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
 import { QuantumMiner } from "@/components/QuantumMiner";
-
-function BridgeGate() {
-  const { data: nfts, isLoading } = useQuery<any[]>({ queryKey: ["/api/nfts"] });
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  const mintedCount = nfts?.length ?? 0;
-  if (mintedCount < 10) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh] p-4">
-        <div className="max-w-md w-full border border-red-500/20 bg-red-500/5 backdrop-blur-sm rounded-lg p-8 text-center space-y-6">
-          <div className="mx-auto w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
-            <ShieldAlert className="w-6 h-6 text-red-500" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold font-heading text-foreground">Bridge Locked</h2>
-            <p className="text-muted-foreground mt-2 text-sm">
-              Mint at least 10 NFTs to unlock the SphinxBridge.
-            </p>
-          </div>
-          <div className="bg-black/40 rounded-lg p-4 border border-white/5">
-            <p className="text-xs font-mono uppercase tracking-widest text-primary mb-2">Progress</p>
-            <p className="text-2xl font-heading font-bold text-foreground">{mintedCount} / 10 NFTs</p>
-          </div>
-          <a href="/">
-            <button className="w-full mt-2 py-2.5 rounded-sm font-heading text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-colors" data-testid="button-mint-to-unlock">
-              Mint NFTs to Unlock
-            </button>
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  return <Bridge />;
-}
 
 function AdminGuard() {
   const { user } = useAuth();
@@ -138,9 +96,7 @@ function AppRouter() {
             <Route path="/gallery" component={Gallery} />
             <Route path="/marketplace" component={Marketplace} />
             <Route path="/analytics" component={Analytics} />
-            <Route path="/bridge">
-              <BridgeGate />
-            </Route>
+            <Route path="/bridge" component={Bridge} />
             <Route path="/yield" component={YieldGenerator} />
             <Route path="/iit" component={IITConsciousness} />
             <Route path="/serpent" component={OmegaSerpent} />

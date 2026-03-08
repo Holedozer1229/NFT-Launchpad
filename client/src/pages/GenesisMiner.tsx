@@ -538,7 +538,7 @@ export default function GenesisMiner() {
         <TabsContent value="mining" className="mt-6">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {Object.entries(MERGE_MINING_CHAINS).map(([id, chain]) => {
-              const stats = miningStatus?.mergeMining[id];
+              const stats = miningStatus?.mergeMining?.[id];
               const active = stats?.isActive;
               
               return (
