@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
@@ -10,7 +10,6 @@ import SidebarLayout from "@/components/SidebarLayout";
 import AuthPage from "@/pages/AuthPage";
 import PageTransition from "@/components/PageTransition";
 import OfflineBanner from "@/components/OfflineBanner";
-import { AccessGate } from "@/components/AccessGate";
 import { Loader2, ShieldAlert } from "lucide-react";
 
 const MintNFT = lazy(() => import("@/pages/MintNFT"));
@@ -32,6 +31,48 @@ const ZkWormhole = lazy(() => import("@/pages/ZkWormhole"));
 const RarityProofEngine = lazy(() => import("@/pages/RarityProofEngine"));
 const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
 import { QuantumMiner } from "@/components/QuantumMiner";
+
+function BridgeGate() {
+  const { data: nfts, isLoading } = useQuery<any[]>({ queryKey: ["/api/nfts"] });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  const mintedCount = nfts?.length ?? 0;
+  if (mintedCount < 10) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] p-4">
+        <div className="max-w-md w-full border border-red-500/20 bg-red-500/5 backdrop-blur-sm rounded-lg p-8 text-center space-y-6">
+          <div className="mx-auto w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
+            <ShieldAlert className="w-6 h-6 text-red-500" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold font-heading text-foreground">Bridge Locked</h2>
+            <p className="text-muted-foreground mt-2 text-sm">
+              Mint at least 10 NFTs to unlock the SphinxBridge.
+            </p>
+          </div>
+          <div className="bg-black/40 rounded-lg p-4 border border-white/5">
+            <p className="text-xs font-mono uppercase tracking-widest text-primary mb-2">Progress</p>
+            <p className="text-2xl font-heading font-bold text-foreground">{mintedCount} / 10 NFTs</p>
+          </div>
+          <a href="/">
+            <button className="w-full mt-2 py-2.5 rounded-sm font-heading text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-colors" data-testid="button-mint-to-unlock">
+              Mint NFTs to Unlock
+            </button>
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  return <Bridge />;
+}
 
 function AdminGuard() {
   const { user } = useAuth();
@@ -92,67 +133,21 @@ function AppRouter() {
         <Suspense fallback={<PageLoader />}>
           <Switch>
             <Route path="/" component={MintNFT} />
-            <Route path="/dashboard">
-              <AccessGate requiredTier={1}>
-                <Dashboard />
-              </AccessGate>
-            </Route>
+            <Route path="/dashboard" component={Dashboard} />
             <Route path="/lab" component={PublicLab} />
-            <Route path="/gallery">
-              <AccessGate requiredTier={1}>
-                <Gallery />
-              </AccessGate>
-            </Route>
-            <Route path="/marketplace">
-              <AccessGate requiredTier={2}>
-                <Marketplace />
-              </AccessGate>
-            </Route>
-            <Route path="/analytics">
-              <AccessGate requiredTier={1}>
-                <Analytics />
-              </AccessGate>
-            </Route>
+            <Route path="/gallery" component={Gallery} />
+            <Route path="/marketplace" component={Marketplace} />
+            <Route path="/analytics" component={Analytics} />
             <Route path="/bridge">
-              <AccessGate requiredTier={2}>
-                <Bridge />
-              </AccessGate>
+              <BridgeGate />
             </Route>
-            <Route path="/yield">
-              <AccessGate requiredTier={3}>
-                <YieldGenerator />
-              </AccessGate>
-            </Route>
-            <Route path="/iit">
-              <AccessGate requiredTier={3}>
-                <IITConsciousness />
-              </AccessGate>
-            </Route>
-            <Route path="/serpent">
-              <AccessGate requiredTier={2}>
-                <OmegaSerpent />
-              </AccessGate>
-            </Route>
-            <Route path="/starship">
-              <AccessGate requiredTier={4}>
-                <StarshipLaunches />
-              </AccessGate>
-            </Route>
-            <Route path="/genesis-miner">
-              <AccessGate requiredTier={2}>
-                <GenesisMiner />
-              </AccessGate>
-            </Route>
-            <Route path="/wormhole">
-              <AccessGate requiredTier={3}>
-                <ZkWormhole />
-              </AccessGate>
-            </Route>
-            <Route path="/rarity-proof">
-              <AccessGate requiredTier={2}>
-                <RarityProofEngine />
-              </AccessGate>
-            </Route>
+            <Route path="/yield" component={YieldGenerator} />
+            <Route path="/iit" component={IITConsciousness} />
+            <Route path="/serpent" component={OmegaSerpent} />
+            <Route path="/starship" component={StarshipLaunches} />
+            <Route path="/genesis-miner" component={GenesisMiner} />
+            <Route path="/wormhole" component={ZkWormhole} />
+            <Route path="/rarity-proof" component={RarityProofEngine} />
             <Route path="/wallet" component={WalletPage} />
             <Route path="/admin" component={AdminGuard} />
             <Route component={NotFound} />
