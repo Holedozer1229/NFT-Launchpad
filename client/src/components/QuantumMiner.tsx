@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -66,7 +67,7 @@ function spawnTreasure(snakes: OmegaSnake[]): Treasure {
   return { x, y, chain: CHAINS[Math.floor(Math.random() * 3)], value: Math.floor(Math.random() * 3) + 1 };
 }
 
-export function QuantumMiner() {
+export function QuantumMiner({ minimized = false }: { minimized?: boolean }) {
   const [isActive, setIsActive] = useState(false);
   const [snakes, setSnakes] = useState<OmegaSnake[]>(() => [
     createSnake("ETH", 2),
@@ -265,7 +266,46 @@ export function QuantumMiner() {
     setIsActive(!isActive);
   };
 
-  return (
+  const [slotEl, setSlotEl] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    if (minimized) {
+      setSlotEl(null);
+      return;
+    }
+    const find = () => {
+      const el = document.getElementById("quantum-miner-slot");
+      if (el) { setSlotEl(el); return true; }
+      return false;
+    };
+    if (find()) return;
+    const timer = setInterval(() => { if (find()) clearInterval(timer); }, 100);
+    return () => clearInterval(timer);
+  }, [minimized]);
+
+  if (minimized) {
+    if (!isActive) return null;
+    return (
+      <div
+        className="fixed bottom-4 right-4 z-40 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/80 border border-primary/30 backdrop-blur-xl cursor-pointer hover:border-primary/60 transition-all shadow-lg shadow-primary/10"
+        data-testid="serpent-miner-floating"
+        onClick={handleToggle}
+        title="Omega Serpent mining in progress - click to stop"
+      >
+        <canvas ref={canvasRef} className="rounded" style={{ imageRendering: "pixelated", width: 80, height: 40 }} />
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-1.5">
+            <Zap className="w-3 h-3 text-neon-green animate-pulse" />
+            <span className="font-heading text-[10px] tracking-widest text-neon-green">HUNTING</span>
+          </div>
+          <span className="font-mono text-[9px] text-muted-foreground">
+            E:{totalErgotropy.toFixed(0)} | SM:{superMilestones}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  const fullCard = (
     <Card className="sphinx-card bg-black/60 border-primary/20 backdrop-blur-xl relative overflow-hidden group" data-testid="omega-serpent-miner">
       <CardHeader className="border-b border-primary/10 bg-primary/5 pb-3">
         <div className="flex justify-between items-center">
@@ -373,4 +413,10 @@ export function QuantumMiner() {
       </CardContent>
     </Card>
   );
+
+  if (slotEl) {
+    return createPortal(fullCard, slotEl);
+  }
+
+  return fullCard;
 }

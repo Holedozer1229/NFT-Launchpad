@@ -31,6 +31,7 @@ const GenesisMiner = lazy(() => import("@/pages/GenesisMiner"));
 const ZkWormhole = lazy(() => import("@/pages/ZkWormhole"));
 const RarityProofEngine = lazy(() => import("@/pages/RarityProofEngine"));
 const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
+import { QuantumMiner } from "@/components/QuantumMiner";
 
 function AdminGuard() {
   const { user } = useAuth();
@@ -161,6 +162,7 @@ function AppRouter() {
       <Suspense fallback={null}>
         <SphinxOracle />
       </Suspense>
+      <QuantumMiner minimized={location !== "/"} />
     </SidebarLayout>
   );
 }

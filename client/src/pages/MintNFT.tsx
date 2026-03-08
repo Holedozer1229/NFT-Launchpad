@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Launch } from "@shared/schema";
 import { useState, useEffect } from "react";
 import { EmbeddedWallet } from "@/components/EmbeddedWallet";
-import { QuantumMiner } from "@/components/QuantumMiner";
 import { MintCard } from "@/components/MintCard";
 import { LaunchSelector } from "@/components/LaunchSelector";
 import { OracleOverlay } from "@/components/OracleOverlay";
@@ -73,9 +72,7 @@ export default function MintNFT() {
 
             <EmbeddedWallet />
 
-            <div className="pt-4 space-y-4">
-              <QuantumMiner />
-            </div>
+            <div id="quantum-miner-slot" className="pt-4" />
           </div>
 
           <div className="relative flex justify-center lg:justify-end">
