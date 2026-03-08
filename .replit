@@ -30,7 +30,7 @@ PORT = "5000"
 
 [deployment]
 deploymentTarget = "vm"
-build = ["bash", "-c", "rm -rf node_modules package-lock.json && npm install --force && npm run build"]
+build = ["bash", "-c", "npm ci --legacy-peer-deps && npm run build"]
 run = ["npm", "run", "start"]
 publicDir = "dist/public"
 
