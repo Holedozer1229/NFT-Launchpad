@@ -64,3 +64,4 @@ expertMode = true
 [userenv]
 
 [userenv.shared]
+VITE_ALCHEMY_API_KEY = "_qXOvwl51IXRGb5Oe-PvV"
