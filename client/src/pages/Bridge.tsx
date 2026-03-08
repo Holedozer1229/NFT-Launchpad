@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle, Loader2, Smartphone, DollarSign, Pickaxe, Activity, Hash, Share2, Server, Globe, Cpu } from "lucide-react";
-import { useActiveAccount, useConnect } from "thirdweb/react";
-import { createWallet } from "thirdweb/wallets";
-import { thirdwebClient } from "@/lib/thirdweb";
+import { useAccount, useConnect } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
@@ -73,10 +72,8 @@ export default function Bridge() {
   const [showDestDropdown, setShowDestDropdown] = useState(false);
   const [bridgeSuccess, setBridgeSuccess] = useState(false);
   const [amountError, setAmountError] = useState("");
-  const account = useActiveAccount();
-  const { connect: twConnect, isConnecting } = useConnect();
-  const isConnected = !!account;
-  const address = account?.address ?? null;
+  const { address, isConnected } = useAccount();
+  const { connectors, connect: wagmiConnect, isPending: isConnecting } = useConnect();
   const queryClient = useQueryClient();
   const { data: prices } = usePrices();
 
@@ -195,11 +192,8 @@ export default function Bridge() {
               data-testid="button-bridge-connect-metamask"
               onClick={() => {
                 if (isMobileDevice()) { openWalletApp("metamask"); return; }
-                twConnect(async () => {
-                  const w = createWallet("io.metamask");
-                  await w.connect({ client: thirdwebClient });
-                  return w;
-                });
+                const metaMask = connectors.find(c => c.name.toLowerCase().includes("metamask"));
+                if (metaMask) wagmiConnect({ connector: metaMask });
               }}
               disabled={isConnecting}
               className="px-5 py-2.5 rounded-sm font-heading text-xs tracking-wider flex items-center gap-2 border border-[#E2761B]/40 bg-[#E2761B]/10 text-[#E2761B] hover:bg-[#E2761B]/20 transition-colors"
@@ -210,11 +204,8 @@ export default function Bridge() {
               data-testid="button-bridge-connect-phantom"
               onClick={() => {
                 if (isMobileDevice()) { openWalletApp("phantom"); return; }
-                twConnect(async () => {
-                  const w = createWallet("app.phantom");
-                  await w.connect({ client: thirdwebClient });
-                  return w;
-                });
+                const phantom = connectors.find(c => c.name.toLowerCase().includes("phantom"));
+                if (phantom) wagmiConnect({ connector: phantom });
               }}
               disabled={isConnecting}
               className="px-5 py-2.5 rounded-sm font-heading text-xs tracking-wider flex items-center gap-2 border border-[#AB9FF2]/40 bg-[#AB9FF2]/10 text-[#AB9FF2] hover:bg-[#AB9FF2]/20 transition-colors"

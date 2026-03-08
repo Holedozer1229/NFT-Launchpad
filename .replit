@@ -64,4 +64,3 @@ expertMode = true
 [userenv]
 
 [userenv.shared]
-VITE_THIRDWEB_CLIENT_ID = "6c8bea1524043cd0996da1d58762c707"

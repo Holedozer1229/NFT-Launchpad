@@ -5,11 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { useActiveAccount, useActiveWallet, useDisconnect } from "thirdweb/react";
-import { ConnectButton } from "thirdweb/react";
-import { thirdwebClient } from "@/lib/thirdweb";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-import { ethereum, polygon, base } from "thirdweb/chains";
+import { useAccount, useDisconnect } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import DynamicBackground from "@/components/DynamicBackground";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -95,11 +92,8 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const account = useActiveAccount();
-  const activeWallet = useActiveWallet();
+  const { address, isConnected, connector } = useAccount();
   const { disconnect: twDisconnect } = useDisconnect();
-  const isConnected = !!account;
-  const address = account?.address ?? null;
   const { user, logout } = useAuth();
 
   return (
@@ -189,7 +183,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
             <div className={`${collapsed ? "" : "px-1"}`}>
               <div className="flex items-center gap-2">
                 <span className="shrink-0 relative">
-                  {activeWallet?.id === "app.phantom" ? "👻" : "🦊"}
+                  {connector?.name?.toLowerCase().includes("phantom") ? "👻" : "🦊"}
                   <span className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-neon-green border border-black" />
                 </span>
                 {!collapsed && (
@@ -199,7 +193,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
                 )}
                 <button
                   data-testid="button-disconnect-wallet"
-                  onClick={() => activeWallet && twDisconnect(activeWallet)}
+                  onClick={() => twDisconnect()}
                   className="text-muted-foreground hover:text-red-400 transition-colors shrink-0"
                   title="Disconnect Wallet"
                 >
@@ -210,29 +204,10 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
           ) : (
             <div className={`space-y-1.5 ${collapsed ? "[&_button]:!p-2 [&_button]:!min-w-0" : ""}`} data-testid="sidebar-connect-wallet">
               <ConnectButton
-                client={thirdwebClient}
-                wallets={[
-                  createWallet("io.metamask"),
-                  createWallet("app.phantom"),
-                  createWallet("com.coinbase.wallet"),
-                  inAppWallet(),
-                ]}
-                chains={[ethereum, polygon, base]}
-                theme="dark"
-                connectButton={{
-                  label: collapsed ? "🔗" : "Connect Wallet",
-                  style: {
-                    width: "100%",
-                    fontSize: "12px",
-                    fontFamily: "monospace",
-                    padding: collapsed ? "8px" : "10px 16px",
-                  },
-                }}
-                connectModal={{
-                  title: "SKYNT Protocol",
-                  titleIcon: "",
-                  size: "compact",
-                }}
+                showBalance={false}
+                chainStatus="icon"
+                accountStatus={collapsed ? "avatar" : "address"}
+                label={collapsed ? "🔗" : "Connect Wallet"}
               />
             </div>
           )}

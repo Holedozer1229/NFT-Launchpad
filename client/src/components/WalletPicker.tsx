@@ -1,17 +1,6 @@
 import { useWalletStore } from "@/lib/mock-web3";
-import { ConnectButton } from "thirdweb/react";
-import { thirdwebClient } from "@/lib/thirdweb";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-import { ethereum, polygon, base } from "thirdweb/chains";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { X } from "lucide-react";
-
-const wallets = [
-  createWallet("io.metamask"),
-  createWallet("app.phantom"),
-  createWallet("com.coinbase.wallet"),
-  createWallet("me.rainbow"),
-  inAppWallet(),
-];
 
 export function WalletPicker() {
   const { showPicker, setShowPicker, clearError } = useWalletStore();
@@ -33,17 +22,10 @@ export function WalletPicker() {
           </button>
         </div>
 
-        <div data-testid="thirdweb-connect-picker" className="[&_button]:w-full">
+        <div data-testid="rainbowkit-connect-picker" className="[&_button]:w-full">
           <ConnectButton
-            client={thirdwebClient}
-            wallets={wallets}
-            chains={[ethereum, polygon, base]}
-            theme="dark"
-            connectModal={{
-              title: "SKYNT Protocol",
-              titleIcon: "",
-              size: "compact",
-            }}
+            showBalance={false}
+            chainStatus="icon"
           />
         </div>
 

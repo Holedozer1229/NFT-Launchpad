@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, ACCESS_TIERS, type ChainId, type RarityTier } from "@shared/schema";
 import { randomBytes, createHash } from "crypto";
-import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./thirdweb-engine";
+import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./alchemy-engine";
 import { recordMintFee, getTreasuryYieldState, startTreasuryYieldEngine } from "./treasury-yield";
 import { z } from "zod";
 import OpenAI from "openai";

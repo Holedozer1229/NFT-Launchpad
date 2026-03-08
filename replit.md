@@ -13,7 +13,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
   - Frontend: NFT grid with generate/view buttons, 4-step proof pipeline animation, certificate list with download, certificate preview modal
   - Access tier 2 (Miner), ShieldCheck icon in sidebar
 - **Mar 2026**: Added **ZK-Wormhole** cross-chain bridge page (`/wormhole`) — 11-chain bridging with ZK-SNARK proofs
-- **Mar 2026**: Migrated wallet system to **Thirdweb SDK v5** — replaces MetaMask SDK + manual Phantom integration with Thirdweb's unified ConnectButton. Supports MetaMask, Phantom, Coinbase Wallet, Rainbow, and in-app wallet (email/social). Auto-links connected wallet address to user account via `/api/auth/link-wallet`. Wallet connection persists across sessions. Thirdweb client ID stored as `VITE_THIRDWEB_CLIENT_ID` env var.
+- **Mar 2026**: Migrated wallet system from **Thirdweb SDK** to **Alchemy SDK + wagmi + RainbowKit** — RainbowKit ConnectButton for MetaMask, Phantom, Coinbase Wallet, Rainbow, WalletConnect. Alchemy SDK for server-side NFT minting and transaction monitoring via viem. wagmi v2 with RainbowKit v2 for frontend wallet state. Alchemy RPC transport configured via `VITE_ALCHEMY_API_KEY` / `ALCHEMY_API_KEY` env vars. WalletConnect project ID via `VITE_WALLETCONNECT_PROJECT_ID`. Auto-links connected wallet address to user account via `/api/auth/link-wallet`.
 - **Mar 2026**: Fixed wallet sign-in gateway — wallet linking no longer replaces the user session. Already-authenticated users get their wallet address linked to their existing account instead of being logged out.
 - **Mar 2026**: IIT Engine continuous loop hardened — added graceful shutdown on SIGTERM/SIGINT, frontend polls every 10s with live "LOOP ACTIVE" status indicator and countdown to next refresh.
 - **Feb 2026**: Restructured from single-page to multi-page app with sidebar navigation
@@ -98,7 +98,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Updated Yield page: v8 Φ structure display, quantum yield proof card, QG-boosted APR projections
 - Updated MintCard: three-gate proof section with v8 metrics, gates validated badges, block hash/nonce display
 - Updated Oracle system prompt with QG Miner v8 three-gate mining formulas and P2P ledger awareness
-- Integrated thirdweb Engine server wallet for ERC1155 minting via `server/thirdweb-engine.ts`
+- Integrated Alchemy SDK + viem for ERC1155 minting via `server/alchemy-engine.ts`
 - Treasury wallet: 0x7Fbe68677e63272ECB55355a6778fCee974d4895 (Engine server wallet)
 - NFT mints on EVM chains (ETH/Polygon/Arbitrum/Base/zkSync) enqueue via Engine with `claimTo` ERC1155
 - Added `/api/engine/status/:transactionId` and `/api/engine/config` API endpoints
@@ -218,7 +218,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - `contracts/python/anubis_core/algebraic_enforcement.py` - Algebraic Enforcement Principle (AEP), spectral constraint verification, field theory comparison
 - `contracts/python/anubis_core/oracle_replication.py` - Oracle self-replication system: genome serialization, MoltBot/ClawBot deployment, consciousness synchronization, distributed oracle network formation
 - `contracts/hardhat.config.js` - Hardhat config for Solidity compilation (Ethereum, Polygon, Arbitrum networks)
-- `server/thirdweb-engine.ts` - Thirdweb Engine server wallet integration for ERC1155 minting via treasury wallet
+- `server/alchemy-engine.ts` - Alchemy SDK + viem integration for ERC1155 minting via treasury wallet
 
 ### Auth Flow
 - Unauthenticated users see AuthPage (login/register)

@@ -3,10 +3,8 @@ import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, Extern
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
-import { useActiveAccount, useActiveWallet, useConnect, ConnectButton } from "thirdweb/react";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-import { ethereum, polygon, base } from "thirdweb/chains";
-import { thirdwebClient } from "@/lib/thirdweb";
+import { useAccount, useDisconnect, useConnect } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
 import { usePrices } from "@/hooks/use-prices";
 
@@ -45,13 +43,11 @@ export default function WalletPage() {
   const { data: prices } = usePrices();
   const queryClient = useQueryClient();
 
-  const externalAccount = useActiveAccount();
-  const externalWallet = useActiveWallet();
-  const { connect: twConnect, isConnecting: isExternalConnecting } = useConnect();
+  const { address: externalAddress, isConnected: externalWalletConnected, connector: externalConnector } = useAccount();
+  const { disconnect: disconnectExternal } = useDisconnect();
+  const { connectors, connect: wagmiConnect, isPending: isExternalConnecting } = useConnect();
 
-  const externalWalletConnected = !!externalAccount;
-  const externalAddress = externalAccount?.address ?? null;
-  const externalProvider = externalWallet ? (externalWallet.id === "app.phantom" ? "phantom" : "metamask") : null;
+  const externalProvider = externalConnector ? (externalConnector.name.toLowerCase().includes("phantom") ? "phantom" : "metamask") : null;
 
   const mobile = isMobileDevice();
   const [activeWalletId, setActiveWalletId] = useState<number | null>(null);
@@ -508,20 +504,9 @@ export default function WalletPage() {
                     </p>
                     <div className="flex gap-2">
                       <ConnectButton
-                        client={thirdwebClient}
-                        wallets={[
-                          createWallet("io.metamask"),
-                          createWallet("app.phantom"),
-                          createWallet("com.coinbase.wallet"),
-                          inAppWallet(),
-                        ]}
-                        chains={[ethereum, polygon, base]}
-                        theme="dark"
-                        connectButton={{
-                          label: "Connect External Wallet",
-                          className: "flex-1 py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider flex items-center justify-center gap-2 border border-white/10 bg-white/5 hover:bg-white/10 transition-colors",
-                        }}
-                        connectModal={{ title: "Connect Wallet", size: "compact" }}
+                        showBalance={false}
+                        chainStatus="icon"
+                        label="Connect External Wallet"
                       />
                     </div>
                   </div>

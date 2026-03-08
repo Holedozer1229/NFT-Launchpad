@@ -5,19 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Wallet, ShieldCheck, CheckCircle2, AlertCircle, RefreshCw, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { ConnectButton, useActiveAccount, useActiveWallet, useDisconnect } from "thirdweb/react";
-import { thirdwebClient } from "@/lib/thirdweb";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-import { ethereum, polygon, base } from "thirdweb/chains";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount, useDisconnect } from "wagmi";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-
-const wallets = [
-  createWallet("io.metamask"),
-  createWallet("app.phantom"),
-  createWallet("com.coinbase.wallet"),
-  createWallet("me.rainbow"),
-  inAppWallet(),
-];
 
 function ConnectionPulse({ color }: { color: number[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -75,17 +65,13 @@ function ConnectionPulse({ color }: { color: number[] }) {
 }
 
 export function EmbeddedWallet() {
-  const account = useActiveAccount();
-  const wallet = useActiveWallet();
+  const { address, isConnected, connector } = useAccount();
   const { disconnect } = useDisconnect();
   const [showConnectAnim, setShowConnectAnim] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
   const prevConnected = useRef(false);
   const { toast } = useToast();
   const { user } = useAuth();
-
-  const isConnected = !!account;
-  const address = account?.address ?? null;
 
   const walletLinked = !!(user?.walletAddress && address && user.walletAddress.toLowerCase() === address.toLowerCase());
   const userHasWallet = !!user?.walletAddress;
@@ -146,17 +132,10 @@ export function EmbeddedWallet() {
               <span>Linked: {user!.walletAddress!.slice(0, 6)}...{user!.walletAddress!.slice(-4)}</span>
             </div>
           )}
-          <div data-testid="thirdweb-connect-gateway" className="flex justify-center [&_button]:w-full [&_button]:font-heading [&_button]:font-bold [&_button]:py-6">
+          <div data-testid="rainbowkit-connect-gateway" className="flex justify-center [&_button]:w-full [&_button]:font-heading [&_button]:font-bold [&_button]:py-6">
             <ConnectButton
-              client={thirdwebClient}
-              wallets={wallets}
-              chains={[ethereum, polygon, base]}
-              theme="dark"
-              connectModal={{
-                title: "SKYNT Protocol",
-                titleIcon: "",
-                size: "compact",
-              }}
+              showBalance={false}
+              chainStatus="icon"
             />
           </div>
         </CardContent>
@@ -165,6 +144,8 @@ export function EmbeddedWallet() {
   }
 
   const glowColor = [34, 197, 94];
+  const connectorName = connector?.name?.toLowerCase() || "";
+  const walletIcon = connectorName.includes("phantom") ? "👻" : "🦊";
 
   return (
     <Card
@@ -206,7 +187,7 @@ export function EmbeddedWallet() {
           <div className="flex justify-between text-[10px] font-mono text-primary/60">
             <span className="flex items-center gap-1.5">
               <span className={showConnectAnim ? "animate-bounce" : ""}>
-                {wallet?.id === "app.phantom" ? "👻" : "🦊"}
+                {walletIcon}
               </span>
               PUBLIC_ADDRESS
             </span>
@@ -246,7 +227,7 @@ export function EmbeddedWallet() {
 
         <Button
           variant="ghost"
-          onClick={() => wallet && disconnect(wallet)}
+          onClick={() => disconnect()}
           className="w-full text-xs font-mono text-destructive hover:text-destructive/80 hover:bg-destructive/10"
         >
           DISCONNECT_TERMINAL

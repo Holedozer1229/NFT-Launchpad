@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
 import { TrendingUp, Lock, Unlock, Wallet, Coins, Percent, Clock, Zap, Shield, Gift, ArrowRight, Activity, CheckCircle, Fingerprint, Gauge, Loader2 } from "lucide-react";
 import MoltbotPortal from "@/components/MoltbotPortal";
-import { useActiveAccount, ConnectButton } from "thirdweb/react";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-import { ethereum, polygon, base } from "thirdweb/chains";
-import { thirdwebClient } from "@/lib/thirdweb";
+import { useAccount } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useQuery } from "@tanstack/react-query";
 import { Progress } from "@/components/ui/progress";
 
@@ -58,9 +56,7 @@ function calculateTreasuryRate(phi: number): number {
 }
 
 export default function YieldGenerator() {
-  const account = useActiveAccount();
-  const isConnected = !!account;
-  const address = account?.address ?? null;
+  const { address, isConnected } = useAccount();
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
   const [stakeAmount, setStakeAmount] = useState("");
   const [staking, setStaking] = useState(false);
@@ -145,20 +141,9 @@ export default function YieldGenerator() {
           <p className="text-xs text-muted-foreground">Link your wallet to stake SKYNT and generate yield via the SphinxYieldAggregator.</p>
           <div className="flex justify-center" data-testid="container-yield-connect">
             <ConnectButton
-              client={thirdwebClient}
-              wallets={[
-                createWallet("io.metamask"),
-                createWallet("app.phantom"),
-                createWallet("com.coinbase.wallet"),
-                inAppWallet()
-              ]}
-              chains={[ethereum, polygon, base]}
-              theme="dark"
-              connectButton={{
-                label: "Connect Wallet to Start",
-                style: { fontFamily: "monospace", fontSize: "12px" }
-              }}
-              connectModal={{ title: "SKYNT Protocol", size: "compact" }}
+              showBalance={false}
+              chainStatus="icon"
+              label="Connect Wallet to Start"
             />
           </div>
         </div>
