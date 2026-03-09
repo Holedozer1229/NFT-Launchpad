@@ -1,19 +1,21 @@
-import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import { createConfig, http } from "wagmi";
 import { mainnet, polygon, base } from "wagmi/chains";
-import { http } from "wagmi";
+import { metaMask, injected, coinbaseWallet } from "@wagmi/connectors";
 
 const alchemyApiKey = import.meta.env.VITE_ALCHEMY_API_KEY || "";
 
-if (!alchemyApiKey) {
-  console.warn("[Wagmi] Missing VITE_ALCHEMY_API_KEY — using public RPC");
-}
-
-const walletConnectProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "e77cdade22e0a0f3a8aa18cf4d6a71d9";
-
-export const wagmiConfig = getDefaultConfig({
-  appName: "SKYNT Protocol",
-  projectId: walletConnectProjectId,
+export const wagmiConfig = createConfig({
   chains: [mainnet, polygon, base],
+  connectors: [
+    metaMask({
+      dappMetadata: {
+        name: "SKYNT Protocol",
+        url: window.location.origin,
+      },
+    }),
+    coinbaseWallet({ appName: "SKYNT Protocol" }),
+    injected(),
+  ],
   transports: alchemyApiKey
     ? {
         [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${alchemyApiKey}`),
@@ -25,5 +27,4 @@ export const wagmiConfig = getDefaultConfig({
         [polygon.id]: http(),
         [base.id]: http(),
       },
-  ssr: false,
 });

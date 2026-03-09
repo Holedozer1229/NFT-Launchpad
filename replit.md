@@ -1,9 +1,19 @@
 # SKYNT Protocol — RocketBabesNFT Launchpad
 
 ## Overview
-Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via RainbowKit + wagmi.
+Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via MetaMask SDK + Alchemy SDK + wagmi (no RainbowKit).
 
 ## Recent Changes
+- **Mar 2026**: **MetaMask SDK + Alchemy SDK Wallet Integration (RainbowKit Removed)**
+  - Removed `@rainbow-me/rainbowkit` entirely — no more WalletConnect relay errors, no invalid project ID issues
+  - Wallet connection now uses `@metamask/sdk` via wagmi's `metaMask()` connector directly
+  - Also supports `coinbaseWallet()` and `injected()` connectors for Phantom, Rabby, etc.
+  - Custom `ConnectWalletButton` component (`client/src/components/ConnectWalletButton.tsx`) replaces RainbowKit's `ConnectButton`
+  - Supports compact mode (sidebar), full mode (pages), connected state with dropdown (copy address, Etherscan link, disconnect)
+  - `client/src/lib/wagmi.ts` — clean wagmi `createConfig` with MetaMask SDK dappMetadata, Alchemy RPC transports
+  - `client/src/main.tsx` — `WagmiProvider` + `QueryClientProvider` only (no `RainbowKitProvider`)
+  - All wagmi hooks (`useAccount`, `useDisconnect`, `useConnect`, `useSignMessage`) still work unchanged
+  - Updated: `SidebarLayout.tsx`, `EmbeddedWallet.tsx`, `WalletConnect.tsx`, `WalletPicker.tsx`, `MintCard.tsx`, `WalletPage.tsx`, `YieldGenerator.tsx`, `Bridge.tsx`
 - **Mar 2026**: **Alchemy SDK Signer Integration & Mobile Modal Fix**
   - `server/alchemy-signer.ts` — AlchemySigner class using Alchemy SDK's ethersproject stack for signature verification
   - Replaced viem's `verifyMessage`/`recoverMessageAddress` in `server/auth.ts` with Alchemy SDK-powered `AlchemySigner.verifySignature()`

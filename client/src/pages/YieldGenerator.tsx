@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { TrendingUp, Lock, Unlock, Wallet, Coins, Percent, Clock, Zap, Shield, Gift, ArrowRight, Activity, CheckCircle, Fingerprint, Gauge, Loader2 } from "lucide-react";
 import MoltbotPortal from "@/components/MoltbotPortal";
 import { useAccount } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { useQuery } from "@tanstack/react-query";
 import { Progress } from "@/components/ui/progress";
 
@@ -140,9 +140,7 @@ export default function YieldGenerator() {
           <p className="text-sm font-heading">Connect Wallet to Start Earning</p>
           <p className="text-xs text-muted-foreground">Link your wallet to stake SKYNT and generate yield via the SphinxYieldAggregator.</p>
           <div className="flex justify-center" data-testid="container-yield-connect">
-            <ConnectButton
-              showBalance={false}
-              chainStatus="icon"
+            <ConnectWalletButton
               label="Connect Wallet to Start"
             />
           </div>
