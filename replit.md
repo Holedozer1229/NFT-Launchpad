@@ -232,6 +232,26 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Neon colors: `text-neon-cyan`, `text-neon-green`, `text-neon-orange`, `text-neon-magenta`
 - Glow effects: `neon-glow-cyan`, `neon-glow-green`, etc.
 
+### Serverless P2P Network
+- `server/p2p-network.ts` — Full serverless P2P network for SKYNT Genesis BTC hard fork
+  - 6 seed nodes (Alpha-Centauri through Betelgeuse-Hub) bootstrapped on start
+  - Node registration with auto-generated public keys, capabilities, heartbeat tracking
+  - Chain download: full blockchain snapshot export (blocks, merkle roots, Φ proofs, signatures)
+  - Block sync: batched block delivery to registered nodes (max 50 per request)
+  - Block announcements: propagation tracking across network
+  - Block validation: three-gate QG miner consensus verification
+  - Network topology: edge-weighted graph of peer connections
+  - 30s heartbeat tick for node status updates and seed node simulation
+- `client/src/pages/P2PNetwork.tsx` — P2P Network management page (`/p2p-network`)
+  - Network stats dashboard (nodes, hash rate, Φ score, chain validity)
+  - Chain download with JSON export
+  - Node registration form (name, address, region)
+  - Node sync to download full chain data
+  - Seed nodes and registered nodes panels with expandable details
+  - Block announcement feed
+  - Globe icon in sidebar under NETWORK section
+- API routes: `GET /api/network/stats`, `GET /api/network/nodes`, `GET /api/network/nodes/seeds`, `GET /api/network/node/:nodeId`, `POST /api/network/node/register`, `DELETE /api/network/node/:nodeId`, `POST /api/network/node/:nodeId/heartbeat`, `GET /api/network/chain/download`, `POST /api/network/chain/sync`, `POST /api/network/block/announce`, `POST /api/network/block/validate`, `GET /api/network/announcements`, `GET /api/network/topology`
+
 ### Live Chain RPC System
 - `server/live-chain.ts` — Multi-chain live RPC via Alchemy SDK + viem
   - Supports: Ethereum, Polygon, Base, zkSync Era mainnet
