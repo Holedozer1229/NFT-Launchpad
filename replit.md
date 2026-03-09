@@ -4,6 +4,12 @@
 Multi-page NFT minting protocol application combining SphinxOS Oracle Minter with Cosmos Launchpad design. Features sidebar navigation, cosmic theme with neon accents, and user authentication.
 
 ## Recent Changes
+- **Mar 2026**: Added **JWT Authentication** — dual auth system (sessions + JWT) with admin user seeding
+  - Login/register/wallet-auth return `token` + `refreshToken` alongside user data
+  - JWT middleware checks `Authorization: Bearer <token>`, falls back to session auth
+  - `POST /api/auth/token/refresh`, `GET /api/auth/token/verify` endpoints
+  - Frontend stores tokens in localStorage (`skynt_jwt`, `skynt_refresh`)
+  - Admin user `BigDickRick11316969` auto-seeded on startup with Fibonacci password
 - **Mar 2026**: Added **Treasury Vault** page (`/treasury`) — admin-only in-app treasury wallet with MetaMask SDK
   - MetaMask SDK (`@metamask/sdk`) installed for treasury wallet connection
   - Admin-only routes: `GET /api/treasury/wallet`, `POST /api/treasury/wallet/set-key`, `GET /api/treasury/wallet/status`, `GET /api/treasury/wallet/transactions`
@@ -226,7 +232,7 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - `client/src/components/LaunchCountdown.tsx` - Live space launch countdown (Launch Library 2 API)
 - `client/src/hooks/use-auth.tsx` - Auth context with login/register/logout
 - `client/src/pages/` - MintNFT (home), Dashboard, Gallery, Analytics, Bridge, Admin, AuthPage, WalletPage, RarityProofEngine, ZkWormhole, GenesisMiner, OmegaSerpent, StarshipLaunches
-- `server/auth.ts` - Passport.js setup with session store
+- `server/auth.ts` - Dual auth: Passport.js sessions + JWT (jsonwebtoken) with Bearer token support, admin user seeding
 - `server/routes.ts` - API routes including /api/space-launches proxy and /api/oracle/chat
 - `server/storage.ts` - Database storage interface (users, launches, miners)
 - `server/iit-engine.ts` - IIT Quantum Consciousness Engine (Φ calculator, density matrix, eigenvalues, network perception) — runs continuously every 30s via `startEngine()`, auto-started on server boot

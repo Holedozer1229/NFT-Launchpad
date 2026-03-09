@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useContext, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, setJwtTokens, clearJwtTokens } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { useAccount } from "wagmi";
 
@@ -54,7 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(["/api/user"], data);
+      if (data.token && data.refreshToken) {
+        setJwtTokens(data.token, data.refreshToken);
+      }
+      const { token: _t, refreshToken: _rt, ...userData } = data;
+      queryClient.setQueryData(["/api/user"], userData);
       setLocation("/");
     },
   });
@@ -65,8 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return res.json();
     },
     onSuccess: (data) => {
+      if (data.token && data.refreshToken) {
+        setJwtTokens(data.token, data.refreshToken);
+      }
       const wasLoggedIn = !!user;
-      queryClient.setQueryData(["/api/user"], data);
+      const { token: _t, refreshToken: _rt, ...userData } = data;
+      queryClient.setQueryData(["/api/user"], userData);
       if (!wasLoggedIn) {
         setLocation("/");
       }
@@ -89,7 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(["/api/user"], data);
+      if (data.token && data.refreshToken) {
+        setJwtTokens(data.token, data.refreshToken);
+      }
+      const { token: _t, refreshToken: _rt, ...userData } = data;
+      queryClient.setQueryData(["/api/user"], userData);
       setLocation("/");
     },
   });
@@ -99,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await apiRequest("POST", "/api/logout");
     },
     onSuccess: () => {
+      clearJwtTokens();
       queryClient.setQueryData(["/api/user"], null);
       setLocation("/auth");
     },

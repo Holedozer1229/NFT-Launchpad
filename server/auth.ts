@@ -428,7 +428,9 @@ export function setupAuth(app: Express) {
 
         const updatedUser = await storage.getUser(req.user.id);
         const { password: _, ...safeUser } = updatedUser!;
-        return res.json(safeUser);
+        const token = generateToken(updatedUser!);
+        const refreshToken = generateRefreshToken(updatedUser!);
+        return res.json({ ...safeUser, token, refreshToken });
       }
 
       let user = await storage.getUserByWalletAddress(address);
@@ -451,7 +453,9 @@ export function setupAuth(app: Express) {
       req.login(user, (err) => {
         if (err) return next(err);
         const { password: _, ...safeUser } = user!;
-        res.json(safeUser);
+        const token = generateToken(user!);
+        const refreshToken = generateRefreshToken(user!);
+        res.json({ ...safeUser, token, refreshToken });
       });
     } catch (error) {
       next(error);
