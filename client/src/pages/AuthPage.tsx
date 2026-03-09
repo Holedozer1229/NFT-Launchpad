@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Gem, Loader2, Eye, Shield, Wallet } from "lucide-react";
+import { SiGoogle, SiApple } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import bgCosmic from "@/assets/bg-cosmic.png";
+import HCaptcha from "@hcaptcha/react-hcaptcha";
 
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
 
@@ -17,8 +20,22 @@ export default function AuthPage() {
   const [isWalletConnecting, setIsWalletConnecting] = useState(false);
   const [usernameError, setUsernameError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<HCaptcha>(null);
   const { login, register, loginWithWallet } = useAuth();
   const { toast } = useToast();
+
+  const { data: captchaConfig } = useQuery<{ enabled: boolean; siteKey: string }>({
+    queryKey: ["/api/auth/captcha-config"],
+    staleTime: Infinity,
+  });
+
+  const { data: providers } = useQuery<{ google: boolean; apple: boolean; wallet: boolean; local: boolean }>({
+    queryKey: ["/api/auth/providers"],
+    staleTime: Infinity,
+  });
+
+  const captchaEnabled = captchaConfig?.enabled && captchaConfig?.siteKey;
 
   const validateUsername = (value: string) => {
     if (!value) { setUsernameError(""); return; }
@@ -78,12 +95,21 @@ export default function AuthPage() {
     e.preventDefault();
     if (!username || !password) return;
 
+    if (captchaEnabled && !captchaToken) {
+      toast({
+        title: "CAPTCHA Required",
+        description: "Please complete the CAPTCHA verification",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       if (isLogin) {
-        await login(username, password);
+        await login(username, password, captchaToken || undefined);
       } else {
-        await register(username, password);
+        await register(username, password, captchaToken || undefined);
       }
     } catch (error: any) {
       const msg = error?.message || "Something went wrong";
@@ -92,10 +118,36 @@ export default function AuthPage() {
         description: msg.includes(":") ? msg.split(":").slice(1).join(":").trim() : msg,
         variant: "destructive",
       });
+      captchaRef.current?.resetCaptcha();
+      setCaptchaToken(null);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleGoogleLogin = () => {
+    window.location.href = "/api/auth/google";
+  };
+
+  const handleAppleLogin = async () => {
+    try {
+      toast({
+        title: "Apple Sign In",
+        description: "Apple Sign In requires Apple Developer credentials to be configured",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Apple Sign In Failed",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    }
+  };
+
+  useEffect(() => {
+    captchaRef.current?.resetCaptcha();
+    setCaptchaToken(null);
+  }, [isLogin]);
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -145,7 +197,49 @@ export default function AuthPage() {
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-5">
+            {(providers?.google || providers?.apple) && (
+              <>
+                <div className="flex gap-3">
+                  {providers?.google && (
+                    <Button
+                      data-testid="button-google-login"
+                      type="button"
+                      variant="outline"
+                      disabled={isSubmitting || isWalletConnecting}
+                      onClick={handleGoogleLogin}
+                      className="flex-1 border-white/15 bg-white/5 hover:bg-white/10 text-foreground font-heading font-bold tracking-wider uppercase py-5"
+                    >
+                      <SiGoogle className="w-4 h-4 mr-2" />
+                      Google
+                    </Button>
+                  )}
+                  {providers?.apple && (
+                    <Button
+                      data-testid="button-apple-login"
+                      type="button"
+                      variant="outline"
+                      disabled={isSubmitting || isWalletConnecting}
+                      onClick={handleAppleLogin}
+                      className="flex-1 border-white/15 bg-white/5 hover:bg-white/10 text-foreground font-heading font-bold tracking-wider uppercase py-5"
+                    >
+                      <SiApple className="w-4 h-4 mr-2" />
+                      Apple
+                    </Button>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border/50" />
+                  </div>
+                  <div className="relative flex justify-center text-[10px] uppercase tracking-tighter">
+                    <span className="bg-card px-2 text-muted-foreground font-mono">Or continue with</span>
+                  </div>
+                </div>
+              </>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-[10px] font-heading font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
@@ -181,10 +275,23 @@ export default function AuthPage() {
                 )}
               </div>
 
+              {captchaEnabled && (
+                <div className="flex justify-center" data-testid="captcha-container">
+                  <HCaptcha
+                    ref={captchaRef}
+                    sitekey={captchaConfig.siteKey}
+                    theme="dark"
+                    onVerify={(token) => setCaptchaToken(token)}
+                    onExpire={() => setCaptchaToken(null)}
+                    onError={() => setCaptchaToken(null)}
+                  />
+                </div>
+              )}
+
               <Button
                 data-testid="button-submit"
                 type="submit"
-                disabled={isSubmitting || isWalletConnecting || !username || !password || !!usernameError || !!passwordError}
+                disabled={isSubmitting || isWalletConnecting || !username || !password || !!usernameError || !!passwordError || (captchaEnabled && !captchaToken)}
                 className="w-full font-heading font-bold tracking-wider uppercase py-6 connect-wallet-btn"
               >
                 {isSubmitting ? (

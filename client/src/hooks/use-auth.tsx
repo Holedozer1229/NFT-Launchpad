@@ -16,11 +16,11 @@ type User = {
 type AuthContextType = {
   user: User | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, captchaToken?: string) => Promise<void>;
   loginWithWallet: (address: string, signature: string, nonce: string) => Promise<void>;
   linkWallet: (address: string) => Promise<void>;
   resetLinkState: () => void;
-  register: (username: string, password: string) => Promise<void>;
+  register: (username: string, password: string, captchaToken?: string) => Promise<void>;
   logout: () => Promise<void>;
   walletLinked: boolean;
 };
@@ -61,8 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const loginMutation = useMutation({
-    mutationFn: async ({ username, password }: { username: string; password: string }) => {
-      const res = await apiRequest("POST", "/api/login", { username, password });
+    mutationFn: async ({ username, password, captchaToken }: { username: string; password: string; captchaToken?: string }) => {
+      const res = await apiRequest("POST", "/api/login", { username, password, captchaToken });
       return res.json();
     },
     onSuccess: (data) => {
@@ -94,8 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async ({ username, password }: { username: string; password: string }) => {
-      const res = await apiRequest("POST", "/api/register", { username, password });
+    mutationFn: async ({ username, password, captchaToken }: { username: string; password: string; captchaToken?: string }) => {
+      const res = await apiRequest("POST", "/api/register", { username, password, captchaToken });
       return res.json();
     },
     onSuccess: (data) => {
@@ -218,16 +218,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: user ?? null,
         isLoading,
         walletLinked,
-        login: async (username, password) => {
-          await loginMutation.mutateAsync({ username, password });
+        login: async (username, password, captchaToken?) => {
+          await loginMutation.mutateAsync({ username, password, captchaToken });
         },
         loginWithWallet: async (address, signature, nonce) => {
           await loginWithWalletMutation.mutateAsync({ address, signature, nonce });
         },
         linkWallet: doLinkWallet,
         resetLinkState,
-        register: async (username, password) => {
-          await registerMutation.mutateAsync({ username, password });
+        register: async (username, password, captchaToken?) => {
+          await registerMutation.mutateAsync({ username, password, captchaToken });
         },
         logout: async () => {
           await logoutMutation.mutateAsync();

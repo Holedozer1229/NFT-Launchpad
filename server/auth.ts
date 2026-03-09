@@ -14,6 +14,24 @@ import { rateLimit } from "./routes";
 import { verifyMessage } from "viem";
 import jwt from "jsonwebtoken";
 
+const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET_KEY || "";
+const HCAPTCHA_VERIFY_URL = "https://api.hcaptcha.com/siteverify";
+
+async function verifyCaptcha(token: string): Promise<boolean> {
+  if (!HCAPTCHA_SECRET) return true;
+  try {
+    const res = await fetch(HCAPTCHA_VERIFY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `response=${encodeURIComponent(token)}&secret=${encodeURIComponent(HCAPTCHA_SECRET)}`,
+    });
+    const data = await res.json() as { success: boolean };
+    return data.success;
+  } catch {
+    return false;
+  }
+}
+
 const scryptAsync = promisify(scrypt);
 
 async function hashPassword(password: string): Promise<string> {
@@ -101,9 +119,14 @@ async function seedAdminUser(): Promise<void> {
 
   const existing = await storage.getUserByUsername(adminUsername);
   if (existing) {
-    if (!existing.isAdmin) {
-      await db.update(users).set({ isAdmin: true }).where(eq(users.id, existing.id));
-      console.log(`[Auth] Promoted existing user "${adminUsername}" to admin`);
+    const hashedPassword = await hashPassword(adminPassword);
+    const updates: Record<string, any> = {};
+    if (!existing.isAdmin) updates.isAdmin = true;
+    const passwordChanged = !(await comparePasswords(adminPassword, existing.password));
+    if (passwordChanged) updates.password = hashedPassword;
+    if (Object.keys(updates).length > 0) {
+      await db.update(users).set(updates).where(eq(users.id, existing.id));
+      console.log(`[Auth] Updated admin user "${adminUsername}" (${Object.keys(updates).join(", ")})`);
     } else {
       console.log(`[Auth] Admin user "${adminUsername}" already exists`);
     }
@@ -274,11 +297,28 @@ export function setupAuth(app: Express) {
     }
   });
 
+  app.get("/api/auth/captcha-config", (_req, res) => {
+    res.json({
+      enabled: !!process.env.HCAPTCHA_SITE_KEY,
+      siteKey: process.env.HCAPTCHA_SITE_KEY || "",
+    });
+  });
+
   app.post("/api/register", rateLimit(60000, 5), async (req, res, next) => {
     try {
-      const { username, password } = req.body;
+      const { username, password, captchaToken } = req.body;
       if (!username || !password) {
         return res.status(400).json({ message: "Username and password are required" });
+      }
+
+      if (HCAPTCHA_SECRET) {
+        if (!captchaToken) {
+          return res.status(400).json({ message: "Please complete the CAPTCHA" });
+        }
+        const valid = await verifyCaptcha(captchaToken);
+        if (!valid) {
+          return res.status(400).json({ message: "CAPTCHA verification failed" });
+        }
       }
 
       const existingUser = await storage.getUserByUsername(username);
@@ -306,7 +346,18 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", rateLimit(60000, 10), (req, res, next) => {
+  app.post("/api/login", rateLimit(60000, 10), async (req, res, next) => {
+    if (HCAPTCHA_SECRET) {
+      const { captchaToken } = req.body;
+      if (!captchaToken) {
+        return res.status(400).json({ message: "Please complete the CAPTCHA" });
+      }
+      const valid = await verifyCaptcha(captchaToken);
+      if (!valid) {
+        return res.status(400).json({ message: "CAPTCHA verification failed" });
+      }
+    }
+
     passport.authenticate("local", (err: any, user: User | false, info: any) => {
       if (err) return next(err);
       if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
