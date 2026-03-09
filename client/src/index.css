@@ -761,6 +761,10 @@ html, body {
     line-height: 2rem !important;
   }
 
+  h2 {
+    font-size: 1.15rem !important;
+  }
+
   [role="dialog"] {
     max-width: 95vw !important;
     max-height: 85vh !important;
@@ -771,7 +775,7 @@ html, body {
     font-size: 0.7rem;
   }
 
-  canvas {
+  canvas.miner-canvas {
     max-height: 80px !important;
   }
 
@@ -800,7 +804,6 @@ html, body {
     gap: 1rem;
   }
 
-  /* Reduce heavy animations on mobile */
   .text-glitch::before,
   .text-glitch::after,
   .border-beam::before,
@@ -813,11 +816,14 @@ html, body {
     animation: none !important;
   }
 
-  /* Touch targets */
   button, 
   [role="button"],
   .sidebar-nav-item,
   .connect-wallet-btn {
     min-height: 44px;
+  }
+
+  .recharts-wrapper {
+    font-size: 10px;
   }
 }

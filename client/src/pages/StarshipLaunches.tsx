@@ -341,21 +341,21 @@ function NftPackCard({ pack, linkedMission }: { pack: NftPack; linkedMission?: S
 
 function StatsBar({ stats }: { stats: StarshipData["stats"] }) {
   return (
-    <div className="grid grid-cols-3 gap-4" data-testid="starship-stats">
-      <div className="cosmic-card cosmic-card-orange p-4 text-center">
-        <Rocket className="w-5 h-5 text-neon-orange mx-auto mb-2" />
-        <span className="font-heading text-2xl font-black text-white block" data-testid="stat-total-flights">{stats.totalFlights}</span>
-        <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Test Flights</span>
+    <div className="grid grid-cols-3 gap-2 sm:gap-4" data-testid="starship-stats">
+      <div className="cosmic-card cosmic-card-orange p-2 sm:p-4 text-center">
+        <Rocket className="w-4 h-4 sm:w-5 sm:h-5 text-neon-orange mx-auto mb-1 sm:mb-2" />
+        <span className="font-heading text-lg sm:text-2xl font-black text-white block" data-testid="stat-total-flights">{stats.totalFlights}</span>
+        <span className="text-[8px] sm:text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Flights</span>
       </div>
-      <div className="cosmic-card cosmic-card-green p-4 text-center">
-        <Trophy className="w-5 h-5 text-neon-green mx-auto mb-2" />
-        <span className="font-heading text-2xl font-black text-white block" data-testid="stat-catches">{stats.successfulCatches}</span>
-        <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Tower Catches</span>
+      <div className="cosmic-card cosmic-card-green p-2 sm:p-4 text-center">
+        <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-neon-green mx-auto mb-1 sm:mb-2" />
+        <span className="font-heading text-lg sm:text-2xl font-black text-white block" data-testid="stat-catches">{stats.successfulCatches}</span>
+        <span className="text-[8px] sm:text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Catches</span>
       </div>
-      <div className="cosmic-card cosmic-card-cyan p-4 text-center">
-        <Target className="w-5 h-5 text-neon-cyan mx-auto mb-2" />
-        <span className="font-heading text-2xl font-black text-white block" data-testid="stat-upcoming">{stats.upcomingCount}</span>
-        <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Upcoming</span>
+      <div className="cosmic-card cosmic-card-cyan p-2 sm:p-4 text-center">
+        <Target className="w-4 h-4 sm:w-5 sm:h-5 text-neon-cyan mx-auto mb-1 sm:mb-2" />
+        <span className="font-heading text-lg sm:text-2xl font-black text-white block" data-testid="stat-upcoming">{stats.upcomingCount}</span>
+        <span className="text-[8px] sm:text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Upcoming</span>
       </div>
     </div>
   );

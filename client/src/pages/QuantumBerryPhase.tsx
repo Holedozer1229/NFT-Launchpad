@@ -109,11 +109,12 @@ function BerryPhaseGauge({ phase, phasePi, amplitude, holonomy }: {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const w = canvas.width = 280;
-    const h = canvas.height = 280;
+    const containerWidth = Math.min(280, canvas.parentElement?.clientWidth || 280);
+    const w = canvas.width = containerWidth;
+    const h = canvas.height = containerWidth;
     const cx = w / 2;
     const cy = h / 2;
-    const r = 110;
+    const r = Math.min(110, containerWidth * 0.39);
     let lastFrame = 0;
 
     const draw = (ts: number) => {
@@ -188,7 +189,7 @@ function BerryPhaseGauge({ phase, phasePi, amplitude, holonomy }: {
     return () => cancelAnimationFrame(animRef.current);
   }, [phase, phasePi, amplitude, holonomy]);
 
-  return <canvas ref={canvasRef} className="mx-auto" style={{ maxWidth: 280, maxHeight: 280 }} data-testid="berry-phase-gauge" />;
+  return <canvas ref={canvasRef} className="mx-auto w-full" style={{ maxWidth: 280, maxHeight: 280 }} data-testid="berry-phase-gauge" />;
 }
 
 function TunnelVisualization({ tunnels }: { tunnels: TunnelState[] }) {

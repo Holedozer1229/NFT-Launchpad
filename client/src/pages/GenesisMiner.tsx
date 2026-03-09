@@ -528,7 +528,7 @@ export default function GenesisMiner() {
           </Badge>
         </div>
         <div className="relative z-10 space-y-4">
-          <h1 className="text-2xl md:text-6xl font-heading font-black tracking-tighter text-white" data-testid="text-hero-title">
+          <h1 className="text-2xl sm:text-4xl md:text-6xl font-heading font-black tracking-tighter text-white" data-testid="text-hero-title">
             BTC HARD FORK <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-400 to-cyan-400">
               GENESIS MINER
@@ -674,18 +674,18 @@ export default function GenesisMiner() {
                     {genesisInfo.hash}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-4 pt-2">
+                <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-2">
                   <div>
                     <p className="text-[9px] font-mono text-muted-foreground uppercase">Supply</p>
-                    <p className="text-sm font-heading text-white">{genesisInfo.supply / 1000000}M</p>
+                    <p className="text-xs sm:text-sm font-heading text-white">{genesisInfo.supply / 1000000}M</p>
                   </div>
                   <div>
                     <p className="text-[9px] font-mono text-muted-foreground uppercase">Reward</p>
-                    <p className="text-sm font-heading text-white">{genesisInfo.reward} BTC</p>
+                    <p className="text-xs sm:text-sm font-heading text-white">{genesisInfo.reward} BTC</p>
                   </div>
                   <div>
                     <p className="text-[9px] font-mono text-muted-foreground uppercase">Halving</p>
-                    <p className="text-sm font-heading text-white">{genesisInfo.halving / 1000}K</p>
+                    <p className="text-xs sm:text-sm font-heading text-white">{genesisInfo.halving / 1000}K</p>
                   </div>
                 </div>
               </div>
@@ -1200,15 +1200,15 @@ export default function GenesisMiner() {
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent" style={{ borderColor: `${NEON_COLORS.gold}10` }}>
-                    <TableHead className="w-[80px] text-[10px] font-heading uppercase text-muted-foreground">Rank</TableHead>
+                    <TableHead className="w-[60px] sm:w-[80px] text-[10px] font-heading uppercase text-muted-foreground">Rank</TableHead>
                     <TableHead className="text-[10px] font-heading uppercase text-muted-foreground">Miner</TableHead>
-                    <TableHead className="text-right text-[10px] font-heading uppercase text-muted-foreground">Blocks Found</TableHead>
-                    <TableHead className="text-right text-[10px] font-heading uppercase text-muted-foreground">Best Streak</TableHead>
-                    <TableHead className="text-right text-[10px] font-heading uppercase text-muted-foreground">Total Earned</TableHead>
+                    <TableHead className="text-right text-[10px] font-heading uppercase text-muted-foreground whitespace-nowrap">Blocks</TableHead>
+                    <TableHead className="text-right text-[10px] font-heading uppercase text-muted-foreground hidden sm:table-cell">Best Streak</TableHead>
+                    <TableHead className="text-right text-[10px] font-heading uppercase text-muted-foreground whitespace-nowrap">Earned</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1231,7 +1231,7 @@ export default function GenesisMiner() {
                         </TableCell>
                         <TableCell className="font-heading text-white">{entry.username}</TableCell>
                         <TableCell className="text-right font-mono" style={{ color: NEON_COLORS.cyan }}>{entry.blocks.toLocaleString()}</TableCell>
-                        <TableCell className="text-right font-mono" style={{ color: NEON_COLORS.orange }}>
+                        <TableCell className="text-right font-mono hidden sm:table-cell" style={{ color: NEON_COLORS.orange }}>
                           {entry.bestStreak > 0 ? `${entry.bestStreak}` : '0'}
                         </TableCell>
                         <TableCell className="text-right font-mono font-bold" style={{ color: NEON_COLORS.green }}>
@@ -1259,15 +1259,15 @@ export default function GenesisMiner() {
         </div>
 
         <div className="rounded-lg border overflow-x-auto" style={{ borderColor: `${NEON_COLORS.gold}10`, backgroundColor: `${NEON_COLORS.gold}03` }}>
-          <table className="data-table">
+          <table className="data-table min-w-[500px]">
             <thead>
               <tr>
                 <th>Height</th>
                 <th>Hash</th>
                 <th>Miner</th>
                 <th>Reward</th>
-                <th>Algorithm</th>
-                <th>Timestamp</th>
+                <th className="hidden sm:table-cell">Algorithm</th>
+                <th>Time</th>
               </tr>
             </thead>
             <tbody>
@@ -1277,7 +1277,7 @@ export default function GenesisMiner() {
                   <td className="font-mono">{block.hash.slice(0, 16)}...</td>
                   <td className="text-muted-foreground">{block.miner.slice(0, 10)}...</td>
                   <td style={{ color: NEON_COLORS.green }}>{block.reward} BTC</td>
-                  <td>
+                  <td className="hidden sm:table-cell">
                     <Badge variant="outline" className="text-[9px] h-4 uppercase" style={{ borderColor: `${NEON_COLORS.purple}30`, color: NEON_COLORS.purple }}>
                       {block.algorithm}
                     </Badge>
