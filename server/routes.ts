@@ -12,6 +12,7 @@ import { getResonanceStatus, getResonanceHistory } from "./resonance-drop";
 import { startMining, stopMining, getMiningStatus, getActiveMinerCount, activatePremiumPass, getMiningLeaderboard, getMinedBlocks } from "./background-miner";
 import { startMergeMining, stopMergeMining, getMergeMiningStatus, getMergeMiningStatusMap, getAllMergeMiningStats, getBtcGenesisBlock, getRecentBlocks, getStxLendingState, stakeStxLending } from "./merge-miner";
 import { openWormhole, closeWormhole, initiateTransfer, getWormholeStatus, getWormholeTransfers, getUserTransfers, getNetworkWormholeStats } from "./zk-wormhole";
+import { computeQuantumBerryPhaseSnapshot, getPageCurveHistory, getActiveTunnels } from "./berry-phase-engine";
 import { generateRarityCertificate, verifyRarityCertificate, getUserCertificates, downloadCertificate } from "./rarity-proof-engine";
 import { STARSHIP_FLIGHT_SHOWCASES } from "@shared/schema";
 import { MERGE_MINING_CHAINS, STX_LENDING_TIERS, type MergeMiningChainId, type StxLendingTierId } from "@shared/schema";
@@ -3109,6 +3110,23 @@ export async function registerRoutes(
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to mint RocketBabe NFT" });
     }
+  });
+
+  app.get("/api/berry-phase/snapshot", (_req, res) => {
+    try {
+      const snapshot = computeQuantumBerryPhaseSnapshot();
+      res.json(snapshot);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to compute berry phase snapshot" });
+    }
+  });
+
+  app.get("/api/berry-phase/page-curve", (_req, res) => {
+    res.json(getPageCurveHistory());
+  });
+
+  app.get("/api/berry-phase/tunnels", (_req, res) => {
+    res.json(getActiveTunnels());
   });
 
   app.use((err: any, _req: any, res: any, _next: any) => {
