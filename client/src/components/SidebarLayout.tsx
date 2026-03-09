@@ -38,6 +38,7 @@ const navGroups = [
       { path: "/wormhole", label: "ZK Wormhole", icon: Orbit, adminOnly: false },
       { path: "/p2p-network", label: "P2P Network", icon: Globe, adminOnly: false },
       { path: "/iit", label: "IIT Consciousness", icon: Brain, adminOnly: false },
+      { path: "/berry-phase", label: "Berry Phase", icon: Orbit, adminOnly: false },
     ]
   },
   {

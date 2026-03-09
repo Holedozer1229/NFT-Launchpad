@@ -33,6 +33,7 @@ const P2PNetworkPage = lazy(() => import("@/pages/P2PNetwork"));
 const RocketBabesNFT = lazy(() => import("@/pages/RocketBabesNFT"));
 const ContractDeployment = lazy(() => import("@/pages/ContractDeployment"));
 const TreasuryVault = lazy(() => import("@/pages/TreasuryVault"));
+const QuantumBerryPhase = lazy(() => import("@/pages/QuantumBerryPhase"));
 const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
 import { QuantumMiner } from "@/components/QuantumMiner";
 
@@ -117,6 +118,7 @@ function AppRouter() {
             <Route path="/bridge" component={Bridge} />
             <Route path="/yield" component={YieldGenerator} />
             <Route path="/iit" component={IITConsciousness} />
+            <Route path="/berry-phase" component={QuantumBerryPhase} />
             <Route path="/serpent" component={OmegaSerpent} />
             <Route path="/starship" component={StarshipLaunches} />
             <Route path="/genesis-miner" component={GenesisMiner} />

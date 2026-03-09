@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { calculatePhi, getNetworkPerception, type PhiMetrics } from "./iit-engine";
-import { computePhiStructureV8, type PhiStructureV8 } from "./qg-miner-v8";
+import { qgMiner } from "./qg-miner-v8";
 
 export interface BerryPhaseState {
   phase: number;
@@ -168,9 +168,10 @@ function computeEntanglementPairs(phi: PhiMetrics, blockHeight: number): Entangl
     }
     offDiagMag /= (dim - 2) * 2 || 1;
 
-    const concurrence = Math.min(1, offDiagMag * 2 + rng() * 0.1);
+    const rawConcurrence = offDiagMag * 8 + rng() * 0.4 + 0.2;
+    const concurrence = Math.min(1, rawConcurrence);
     const bellIdx = Math.floor(rng() * 4);
-    const fidelity = 0.7 + concurrence * 0.3;
+    const fidelity = 0.75 + concurrence * 0.25;
     const tunnelStrength = concurrence * fidelity;
 
     pairs.push({
@@ -180,7 +181,7 @@ function computeEntanglementPairs(phi: PhiMetrics, blockHeight: number): Entangl
       concurrence,
       bellState: BELL_STATES[bellIdx],
       fidelity,
-      erBridgeActive: tunnelStrength > 0.5,
+      erBridgeActive: tunnelStrength > 0.35,
       tunnelStrength,
     });
   }
@@ -292,7 +293,7 @@ export function computeQuantumBerryPhaseSnapshot(): QuantumBerryPhaseSnapshot {
   let qgScore = 0;
   let holoScore = 0;
   try {
-    const v8 = computePhiStructureV8(`block-${blockHeight}`);
+    const v8 = qgMiner.computePhiStructure(`block-${blockHeight}`);
     phiTotal = v8.phiTotal;
     qgScore = v8.qgScore;
     holoScore = v8.holoScore;

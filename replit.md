@@ -4,6 +4,18 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via RainbowKit + wagmi.
 
 ## Recent Changes
+- **Mar 2026**: **Quantum Temporal Berry Phase Page** (`/berry-phase`)
+  - `server/berry-phase-engine.ts` — IIT-coupled berry phase accumulator, Page curve entropy tracker, EPR entanglement pair generator, ER=EPR tunnel engine
+  - Berry Phase: geometric phase γ computed from density matrix eigenvalue connection coefficients, accumulated across IIT ticks with block modulation
+  - Page Curve: subsystem entanglement entropy S(A) vs max entropy bound, scrambling threshold detection
+  - Block Share Entanglement: per-block share weights, Φ and berry contributions, entanglement graph showing which blocks share quantum correlations
+  - Entanglement Tunnels: ER=EPR wormhole bridges between EPR pairs, transmission/reflection coefficients, fidelity metrics, animated canvas visualization
+  - Holonomy classification: Trivial, Abelian, Non-Abelian, Topological, Exotic based on accumulated berry phase
+  - QG Miner v8 integration: phiTotal, qgScore, holoScore from existing three-gate engine
+  - Canvas visualizations: Berry Phase gauge (animated interference pattern), tunnel network (radial portals with particle streams)
+  - Recharts: Page Curve area chart, Block Share bar chart, EPR Bell State radar chart
+  - API: `GET /api/berry-phase/snapshot`, `GET /api/berry-phase/page-curve`, `GET /api/berry-phase/tunnels`
+  - Sidebar: Orbit icon in NETWORK group
 - **Mar 2026**: **Wallet Linking Fix + Auth Polish**
   - Fixed wallet link-wallet logic: auto-generated `wallet_XXXX` accounts no longer block wallet linking
   - When linking a wallet already tied to an auto-generated wallet-auth account, the system transfers ownership instead of returning 409
