@@ -45,6 +45,7 @@ interface MiningSession {
   intervalHandle: ReturnType<typeof setInterval>;
   stats: MiningStats;
   premiumPassExpiry: number;
+  cycleRunning: boolean;
 }
 
 export interface MiningStats {
@@ -154,9 +155,13 @@ function addEvent(stats: MiningStats, event: MiningEvent) {
 async function runMiningCycle(session: MiningSession): Promise<void> {
   const { userId, walletId, stats } = session;
 
+  if (session.cycleRunning) return;
+  session.cycleRunning = true;
+
   try {
     const wallet = await storage.getWallet(walletId);
     if (!wallet) {
+      console.warn(`[Background Miner] Wallet ${walletId} not found for user ${userId}, stopping`);
       stopMining(userId);
       return;
     }
@@ -168,6 +173,11 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
     const fee = isPremium ? MINING_FEE_PER_CYCLE * PREMIUM_FEE_DISCOUNT : MINING_FEE_PER_CYCLE;
     let currentBalance = parseFloat(wallet.balanceSkynt);
     if (currentBalance < fee) {
+      addEvent(stats, {
+        type: "fee",
+        message: `Insufficient balance (${currentBalance.toFixed(4)} SKYNT). Mining paused.`,
+        timestamp: Date.now(),
+      });
       stopMining(userId);
       return;
     }
@@ -206,7 +216,7 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
     stats.cyclesCompleted++;
 
     const phiResult = calculatePhi(`mine-${userId}-${Math.floor(Date.now() / 15000)}`);
-    stats.currentPhiBoost = Math.min(2.0, Math.exp(phiResult.phi));
+    stats.currentPhiBoost = Math.max(1.0, Math.min(2.0, Math.exp(phiResult.phi)));
 
     currentBalance -= fee;
     recordMintFee(fee, "background-mine", "SKYNT", `mine-fee-${Date.now()}-${userId}`);
@@ -315,7 +325,9 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
       });
 
       const oldDifficulty = stats.difficulty;
-      stats.difficulty = 1.0 + (stats.blocksFound * 0.02) + (stats.streak * 0.005);
+      const logBlocks = Math.log2(Math.max(1, stats.blocksFound));
+      stats.difficulty = 1.0 + (logBlocks * 0.15) + (Math.min(stats.streak, 50) * 0.003);
+      stats.difficulty = Math.min(stats.difficulty, 5.0);
       if (stats.difficulty > oldDifficulty + 0.01) {
         addEvent(stats, {
           type: "difficulty_up",
@@ -324,9 +336,13 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
         });
       }
     } else {
-      stats.streak = 0;
-      stats.streakMultiplier = 1.0;
-      stats.difficulty = 1.0 + (stats.blocksFound * 0.02);
+      if (stats.streak > 0) {
+        stats.streak = Math.max(0, stats.streak - 1);
+      }
+      stats.streakMultiplier = getStreakMultiplier(stats.streak);
+      const logBlocks = Math.log2(Math.max(1, stats.blocksFound));
+      stats.difficulty = 1.0 + (logBlocks * 0.15);
+      stats.difficulty = Math.min(stats.difficulty, 5.0);
 
       await storage.updateWalletBalance(walletId, "SKYNT", currentBalance.toString());
     }
@@ -334,6 +350,8 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
     stats.uptimeSeconds = Math.floor((Date.now() - stats.sessionStartedAt) / 1000);
   } catch (error) {
     console.error(`[Background Miner] Error in cycle for user ${userId}:`, error);
+  } finally {
+    session.cycleRunning = false;
   }
 }
 
@@ -382,6 +400,7 @@ export async function startMining(userId: number, username: string): Promise<{ s
     intervalHandle: null as any,
     stats,
     premiumPassExpiry: 0,
+    cycleRunning: false,
   };
 
   session.intervalHandle = setInterval(() => runMiningCycle(session), MINE_INTERVAL_MS);

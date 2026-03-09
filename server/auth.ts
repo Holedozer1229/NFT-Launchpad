@@ -39,11 +39,10 @@ function getJwtSecret(): string {
 }
 
 function generateToken(user: User): string {
-  const { password: _, ...payload } = user;
   return jwt.sign(
     { sub: user.id, username: user.username, isAdmin: user.isAdmin },
     getJwtSecret(),
-    { expiresIn: "7d", issuer: "skynt-protocol" }
+    { expiresIn: "1h", issuer: "skynt-protocol" }
   );
 }
 
@@ -86,7 +85,10 @@ export function jwtAuthMiddleware(req: Request, res: Response, next: NextFunctio
       (req as any).jwtAuth = true;
     }
     next();
-  }).catch(() => next());
+  }).catch((err) => {
+    console.error("[Auth] JWT middleware DB lookup failed:", err);
+    next();
+  });
 }
 
 async function seedAdminUser(): Promise<void> {
@@ -193,8 +195,8 @@ export function setupAuth(app: Express) {
     cookie: {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production" || !!process.env.REPLIT_DEPLOYMENT_URL,
+      sameSite: process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT_URL ? "strict" : "lax",
       path: "/",
     },
   };

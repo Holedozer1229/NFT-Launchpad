@@ -4,6 +4,20 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via RainbowKit + wagmi.
 
 ## Recent Changes
+- **Mar 2026**: **JWT Security Hardening & Mining Cycle Polish**
+  - Moved `JWT_SECRET` and `VITE_ALCHEMY_API_KEY` from hardcoded `.replit` to Replit Secrets
+  - Shortened JWT access token expiry from 7d to 1h (refresh token stays 30d)
+  - Added automatic token refresh on 401: client intercepts expired tokens, calls `/api/auth/token/refresh`, retries original request seamlessly
+  - Token refresh deduplication: concurrent 401s share single refresh call (prevents race conditions)
+  - Added error logging in JWT middleware for DB lookup failures
+  - Session cookie: `secure` and `sameSite` auto-detect production via `REPLIT_DEPLOYMENT_URL`
+  - Mining cycle: added concurrent cycle guard (`cycleRunning` flag prevents overlapping async cycles)
+  - Mining cycle: logarithmic difficulty curve replaces linear (caps at 5.0, smoother progression)
+  - Mining cycle: streak decay on miss (gradual -1 instead of instant reset to 0)
+  - Mining cycle: Phi boost floor clamped to 1.0 minimum
+  - Mining cycle: insufficient-balance event logged before auto-stop
+  - Mining cycle: wallet-deleted warning logged before auto-stop
+  - Configured autoscale deployment with `npm run build` / `npm run start`
 - **Mar 2026**: **RocketBabesNFT Rebrand** — renamed RocketGirls to RocketBabes across all routes, components, metadata, contracts, and documentation. Updated SEO meta tags (title, OG, Twitter) to feature RocketBabesNFT. Added keywords meta tag.
 - **Mar 2026**: **Enhanced Mobile Responsiveness** — comprehensive mobile optimization across all pages
   - Global CSS: reduced card padding, stat value font sizes, scrollable tabs, capped h1 headings, full-width dialogs, smaller monospace text, canvas height limits, safe area insets for notched phones

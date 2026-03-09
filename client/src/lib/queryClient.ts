@@ -30,6 +30,47 @@ export function getJwtToken(): string | null {
   return localStorage.getItem("skynt_jwt");
 }
 
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  if (isRefreshing && refreshPromise) return refreshPromise;
+
+  const refreshToken = localStorage.getItem("skynt_refresh");
+  if (!refreshToken) return false;
+
+  isRefreshing = true;
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch("/api/auth/token/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!res.ok) {
+        clearJwtTokens();
+        return false;
+      }
+
+      const data = await res.json();
+      if (data.token && data.refreshToken) {
+        setJwtTokens(data.token, data.refreshToken);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -43,6 +84,21 @@ export async function apiRequest(
     credentials: "include",
   });
 
+  if (res.status === 401 && url !== "/api/auth/token/refresh") {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      const retryHeaders = getAuthHeaders(data ? { "Content-Type": "application/json" } : {});
+      const retryRes = await fetch(url, {
+        method,
+        headers: retryHeaders,
+        body: data ? JSON.stringify(data) : undefined,
+        credentials: "include",
+      });
+      await throwIfResNotOk(retryRes);
+      return retryRes;
+    }
+  }
+
   await throwIfResNotOk(res);
   return res;
 }
@@ -54,10 +110,21 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const headers = getAuthHeaders();
-    const res = await fetch(queryKey.join("/") as string, {
+    const url = queryKey.join("/") as string;
+    let res = await fetch(url, {
       credentials: "include",
       headers,
     });
+
+    if (res.status === 401 && url !== "/api/user") {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) {
+        res = await fetch(url, {
+          credentials: "include",
+          headers: getAuthHeaders(),
+        });
+      }
+    }
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;
