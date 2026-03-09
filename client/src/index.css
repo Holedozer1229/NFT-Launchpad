@@ -739,6 +739,46 @@ html, body {
 }
 
 @media (max-width: 767px) {
+  .cosmic-card,
+  .cosmic-card-glow {
+    @apply p-3;
+  }
+
+  .stat-value {
+    @apply text-lg;
+  }
+
+  .tabs-list,
+  [role="tablist"] {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    justify-content: flex-start;
+  }
+
+  h1 {
+    font-size: 1.5rem !important;
+    line-height: 2rem !important;
+  }
+
+  [role="dialog"] {
+    max-width: 95vw !important;
+    max-height: 85vh !important;
+    width: 95vw !important;
+  }
+
+  .font-mono {
+    font-size: 0.7rem;
+  }
+
+  canvas {
+    max-height: 80px !important;
+  }
+
+  body {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+
   .data-table {
     display: block;
     width: 100%;

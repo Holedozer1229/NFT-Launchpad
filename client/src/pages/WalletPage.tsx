@@ -250,19 +250,19 @@ export default function WalletPage() {
 
   return (
     <div className="space-y-6" data-testid="wallet-page">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-heading neon-glow-cyan flex items-center gap-2" data-testid="text-wallet-title">
+          <h1 className="text-xl sm:text-2xl font-heading neon-glow-cyan flex items-center gap-2" data-testid="text-wallet-title">
             <Wallet className="w-6 h-6" /> SKYNT Wallet
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Your in-app crypto wallet — manage SKYNT, STX, and ETH</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Your in-app crypto wallet — manage SKYNT, STX, and ETH</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <a
             data-testid="button-download-wallet-json"
             href="/api/mining/wallet.json"
             download
-            className="connect-wallet-btn px-4 py-2 rounded-sm font-heading text-xs tracking-wider flex items-center gap-2"
+            className="connect-wallet-btn px-4 py-2 rounded-sm font-heading text-[10px] sm:text-xs tracking-wider flex items-center justify-center sm:justify-start gap-2 w-full sm:w-auto"
             style={{ background: "rgba(57,255,20,0.1)", borderColor: "rgba(57,255,20,0.3)", color: "#39ff14" }}
           >
             <Download className="w-3.5 h-3.5" /> wallet.json
@@ -271,7 +271,7 @@ export default function WalletPage() {
             data-testid="button-create-wallet"
             onClick={() => createWalletMutation.mutate()}
             disabled={createWalletMutation.isPending}
-            className="connect-wallet-btn px-4 py-2 rounded-sm font-heading text-xs tracking-wider flex items-center gap-2"
+            className="connect-wallet-btn px-4 py-2 rounded-sm font-heading text-[10px] sm:text-xs tracking-wider flex items-center justify-center sm:justify-start gap-2 w-full sm:w-auto"
           >
             <Plus className="w-3.5 h-3.5" /> {createWalletMutation.isPending ? "Creating..." : "New Wallet"}
           </button>
@@ -353,21 +353,21 @@ export default function WalletPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 mt-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-4">
               {TOKEN_OPTIONS.map((t) => {
                 const bal = getBalance(activeWallet, t.symbol);
                 return (
-                  <div key={t.symbol} className="text-center p-3 bg-black/30 border border-border/30 rounded-sm" data-testid={`balance-${t.symbol}`}>
-                    <span className="text-lg">{t.icon}</span>
-                    <p className={`font-heading text-sm mt-1 text-neon-${t.color}`}>
-                      {bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                  <div key={t.symbol} className="text-center p-2 sm:p-3 bg-black/30 border border-border/30 rounded-sm" data-testid={`balance-${t.symbol}`}>
+                    <span className="text-base sm:text-lg">{t.icon}</span>
+                    <p className={`font-heading text-[10px] sm:text-sm mt-1 text-neon-${t.color} flex flex-col sm:block`}>
+                      <span>{bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       {prices && (
-                        <span className="text-[9px] text-muted-foreground ml-1">
+                        <span className="text-[8px] sm:text-[9px] text-muted-foreground sm:ml-1">
                           (${(bal * prices[t.symbol as keyof typeof prices].usd).toFixed(2)})
                         </span>
                       )}
                     </p>
-                    <p className="text-[10px] text-muted-foreground font-mono">{t.symbol}</p>
+                    <p className="text-[8px] sm:text-[10px] text-muted-foreground font-mono">{t.symbol}</p>
                   </div>
                 );
               })}
@@ -500,7 +500,7 @@ export default function WalletPage() {
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             {(["overview", "send", "receive"] as const).map((t) => (
               <button
                 key={t}
@@ -540,7 +540,7 @@ export default function WalletPage() {
                         </div>
                         <div>
                           <p className="font-heading text-xs uppercase">{tx.type === "send" ? "Sent" : tx.type === "reward" ? "Mining Reward" : "Received"} {tx.token}</p>
-                          <p className="font-mono text-[10px] text-muted-foreground truncate max-w-[180px]">
+                          <p className="font-mono text-[10px] text-muted-foreground truncate max-w-[100px] sm:max-w-[180px]">
                             {tx.type === "send" ? `To: ${tx.toAddress?.slice(0, 10)}...` : tx.type === "reward" ? "Background Mining" : `From: ${tx.fromAddress?.slice(0, 10)}...`}
                           </p>
                         </div>

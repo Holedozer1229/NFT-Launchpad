@@ -219,12 +219,12 @@ export default function Dashboard() {
     : 0;
 
   return (
-    <div className="space-y-6 p-6" data-testid="dashboard-page">
+    <div className="space-y-6 p-2 sm:p-6" data-testid="dashboard-page">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading tracking-widest neon-glow-cyan" data-testid="text-dashboard-title">
+        <h1 className="text-xl sm:text-2xl font-heading tracking-widest neon-glow-cyan" data-testid="text-dashboard-title">
           Dashboard
         </h1>
-        <span className="text-xs font-mono text-muted-foreground" data-testid="text-live-indicator">
+        <span className="text-[10px] sm:text-xs font-mono text-muted-foreground" data-testid="text-live-indicator">
           <Activity className="w-3 h-3 inline mr-1 text-neon-green animate-pulse" />
           LIVE — mempool.space
         </span>
@@ -404,7 +404,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <div className="cosmic-card cosmic-card-orange p-5 page-enter" style={{ animationDelay: '1000ms' }} data-testid="card-difficulty">
           <h3 className="stat-label mb-4">Difficulty Adjustment Progress</h3>
           {diffLoading ? (

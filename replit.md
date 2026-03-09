@@ -4,6 +4,14 @@
 Multi-page NFT minting protocol application combining SphinxOS Oracle Minter with Cosmos Launchpad design. Features sidebar navigation, cosmic theme with neon accents, and user authentication.
 
 ## Recent Changes
+- **Mar 2026**: **Enhanced Mobile Responsiveness** — comprehensive mobile optimization across all pages
+  - Global CSS: reduced card padding, stat value font sizes, scrollable tabs, capped h1 headings, full-width dialogs, smaller monospace text, canvas height limits, safe area insets for notched phones
+  - WalletPage: stacked header/buttons on mobile, responsive balance grid, full-width tabs, truncated transaction addresses
+  - GenesisMiner: responsive hero padding, natural badge flow on mobile, scrollable mining tabs, responsive stat cards and hash truncation
+  - Dashboard: reduced padding, responsive 1/2/3-column difficulty grid
+  - Bridge: wrapping status badges, responsive guardian grid (3→5→9 cols)
+  - AuthPage: reduced star count from 40→15 on mobile for performance
+  - IITConsciousness: responsive stats grid, verified scrollable visualizations
 - **Mar 2026**: **Security Hardening & API Error Handling** — comprehensive audit and fixes across all routes
   - Added auth checks to: `/api/p2p/broadcast`, `/api/network/node/:nodeId` DELETE (admin-only), `/api/network/chain/sync`, `/api/network/block/announce`, `/api/network/block/validate`, `/api/pow/submissions/:challengeId`
   - Upgraded `/api/pow/submissions/:id/confirm` to admin-only

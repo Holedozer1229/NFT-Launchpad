@@ -7,6 +7,8 @@ import { Gem, Loader2, Eye, Shield, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import bgCosmic from "@/assets/bg-cosmic.png";
 
+import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
+
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState("");
@@ -103,7 +105,7 @@ export default function AuthPage() {
       </div>
 
       <div className="absolute inset-0 z-[1]">
-        {[...Array(40)].map((_, i) => (
+        {[...Array(isMobileDevice() ? 15 : 40)].map((_, i) => (
           <div
             key={i}
             className="absolute rounded-full bg-white"

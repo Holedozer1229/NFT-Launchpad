@@ -166,7 +166,7 @@ export default function Bridge() {
         <p className="text-sm text-muted-foreground mt-1">Cross-chain bridge with 5-of-9 guardian multi-sig validation</p>
       </div>
 
-      <div className="flex items-center justify-center gap-4 text-[10px] font-mono">
+      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-[10px] font-mono">
         <span className="flex items-center gap-1.5 px-2.5 py-1 bg-neon-green/10 text-neon-green rounded-full">
           <Users className="w-3 h-3" /> {onlineGuardians}/9 Guardians Online
         </span>
@@ -377,7 +377,7 @@ export default function Bridge() {
         {guardiansLoading ? (
           <div className="flex items-center justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
             {guardiansList.map((g) => (
               <div key={g.guardianIndex} className="text-center" data-testid={`guardian-${g.guardianIndex}`}>
                 <div className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center mx-auto text-[10px] font-heading ${

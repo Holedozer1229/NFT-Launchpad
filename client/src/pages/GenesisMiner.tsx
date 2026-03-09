@@ -225,7 +225,7 @@ function RandomXVisualization({ isActive }: { isActive: boolean }) {
       ref={canvasRef}
       width={400}
       height={100}
-      className="w-full h-24 rounded border border-cyan-500/30"
+      className="w-full h-20 sm:h-24 rounded border border-cyan-500/30"
       style={{ imageRendering: "pixelated" }}
       data-testid="randomx-visualization"
     />
@@ -278,7 +278,7 @@ function NeonStatCard({ icon: Icon, label, value, color, glow, pulse }: {
           <Icon className={`w-4 h-4 ${pulse ? 'animate-pulse' : ''}`} style={{ color }} />
           <span className="text-[10px] font-heading uppercase text-muted-foreground tracking-wider">{label}</span>
         </div>
-        <p className="text-xl font-heading font-bold" style={{ color }}>
+        <p className="text-lg sm:text-xl font-heading font-bold" style={{ color }}>
           {value}
         </p>
       </CardContent>
@@ -471,13 +471,13 @@ export default function GenesisMiner() {
     <div className="space-y-6 pb-20" data-testid="genesis-miner-page">
       <OracleOverlay />
 
-      <div className="relative overflow-hidden rounded-lg p-8 border"
+      <div className="relative overflow-hidden rounded-lg p-4 md:p-8 border"
         style={{ 
           borderColor: `${NEON_COLORS.gold}25`,
           background: `linear-gradient(135deg, rgba(255,215,0,0.03) 0%, rgba(0,0,0,0.6) 50%, rgba(0,240,255,0.03) 100%)`,
         }}
       >
-        <div className="absolute top-0 right-0 p-4 flex items-center gap-3 flex-wrap justify-end">
+        <div className="flex flex-col sm:flex-row sm:absolute sm:top-0 sm:right-0 p-4 items-center gap-3 flex-wrap justify-end">
           {backgroundMiningStatus && (
             <div className="flex items-center gap-2">
               {backgroundMiningStatus.hasPremiumPass ? (
@@ -511,7 +511,7 @@ export default function GenesisMiner() {
           </Badge>
         </div>
         <div className="relative z-10 space-y-4">
-          <h1 className="text-4xl md:text-6xl font-heading font-black tracking-tighter text-white" data-testid="text-hero-title">
+          <h1 className="text-2xl md:text-6xl font-heading font-black tracking-tighter text-white" data-testid="text-hero-title">
             BTC HARD FORK <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-400 to-cyan-400">
               GENESIS MINER
@@ -653,7 +653,7 @@ export default function GenesisMiner() {
               <div className="space-y-3">
                 <div className="flex justify-between items-center py-1 border-b border-white/5">
                   <span className="text-[10px] font-mono text-muted-foreground">HASH</span>
-                  <span className="text-[10px] font-mono truncate max-w-[200px]" style={{ color: NEON_COLORS.cyan }} data-testid="text-genesis-hash">
+                  <span className="text-[10px] font-mono truncate max-w-[150px] sm:max-w-[200px]" style={{ color: NEON_COLORS.cyan }} data-testid="text-genesis-hash">
                     {genesisInfo.hash}
                   </span>
                 </div>
@@ -853,17 +853,17 @@ export default function GenesisMiner() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="border w-full justify-start h-auto p-1 gap-1" style={{ borderColor: "rgba(255,255,255,0.1)", backgroundColor: "rgba(0,0,0,0.3)" }}>
-          <TabsTrigger value="mining" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:shadow-[0_0_10px_rgba(0,240,255,0.1)] flex items-center gap-2 py-2 px-4">
+        <TabsList className="border w-full justify-start h-auto p-1 gap-1 overflow-x-auto flex-nowrap scrollbar-hide" style={{ borderColor: "rgba(255,255,255,0.1)", backgroundColor: "rgba(0,0,0,0.3)" }}>
+          <TabsTrigger value="mining" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:shadow-[0_0_10px_rgba(0,240,255,0.1)] flex items-center gap-2 py-2 px-4 whitespace-nowrap">
             <Cpu className="w-4 h-4" /> Merge Mining
           </TabsTrigger>
-          <TabsTrigger value="randomx" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400 data-[state=active]:shadow-[0_0_10px_rgba(77,124,255,0.1)] flex items-center gap-2 py-2 px-4">
+          <TabsTrigger value="randomx" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400 data-[state=active]:shadow-[0_0_10px_rgba(77,124,255,0.1)] flex items-center gap-2 py-2 px-4 whitespace-nowrap">
             <Zap className="w-4 h-4" /> RandomX Solo
           </TabsTrigger>
-          <TabsTrigger value="lending" className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-400 data-[state=active]:shadow-[0_0_10px_rgba(57,255,20,0.1)] flex items-center gap-2 py-2 px-4">
+          <TabsTrigger value="lending" className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-400 data-[state=active]:shadow-[0_0_10px_rgba(57,255,20,0.1)] flex items-center gap-2 py-2 px-4 whitespace-nowrap">
             <Droplets className="w-4 h-4" /> STX Yield
           </TabsTrigger>
-          <TabsTrigger value="leaderboard" className="data-[state=active]:bg-yellow-500/20 data-[state=active]:text-yellow-400 data-[state=active]:shadow-[0_0_10px_rgba(255,215,0,0.1)] flex items-center gap-2 py-2 px-4">
+          <TabsTrigger value="leaderboard" className="data-[state=active]:bg-yellow-500/20 data-[state=active]:text-yellow-400 data-[state=active]:shadow-[0_0_10px_rgba(255,215,0,0.1)] flex items-center gap-2 py-2 px-4 whitespace-nowrap">
             <Trophy className="w-4 h-4" /> Leaderboard
           </TabsTrigger>
         </TabsList>
