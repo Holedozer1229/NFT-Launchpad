@@ -8,6 +8,20 @@ import App from "./App";
 import "./index.css";
 import "@rainbow-me/rainbowkit/styles.css";
 
+const wcErrorPatterns = ["Unauthorized: invalid key", "Connection interrupted", "core/relayer", "Fatal socket error"];
+window.addEventListener("unhandledrejection", (e) => {
+  const msg = e.reason?.message || String(e.reason || "");
+  if (wcErrorPatterns.some((p) => msg.includes(p))) {
+    e.preventDefault();
+  }
+});
+window.addEventListener("error", (e) => {
+  const msg = e.message || "";
+  if (wcErrorPatterns.some((p) => msg.includes(p))) {
+    e.preventDefault();
+  }
+});
+
 createRoot(document.getElementById("root")!).render(
   <WagmiProvider config={wagmiConfig}>
     <QueryClientProvider client={queryClient}>
