@@ -474,14 +474,18 @@ export function setupAuth(app: Express) {
       if (req.isAuthenticated() && req.user) {
         const existingOwner = await storage.getUserByWalletAddress(address);
         if (existingOwner && existingOwner.id !== req.user.id) {
-          return res.status(409).json({ message: "This wallet is already linked to another account" });
+          const isAutoWalletAccount = existingOwner.username.startsWith("wallet_") && existingOwner.authProvider === "wallet";
+          if (!isAutoWalletAccount) {
+            return res.status(409).json({ message: "This wallet is already linked to another account" });
+          }
+          await db.update(users)
+            .set({ walletAddress: null })
+            .where(eq(users.id, existingOwner.id));
         }
 
-        if (!existingOwner || existingOwner.id === req.user.id) {
-          await db.update(users)
-            .set({ walletAddress: address, authNonce: null })
-            .where(eq(users.id, req.user.id));
-        }
+        await db.update(users)
+          .set({ walletAddress: address, authNonce: null })
+          .where(eq(users.id, req.user.id));
 
         const updatedUser = await storage.getUser(req.user.id);
         const { password: _, ...safeUser } = updatedUser!;
@@ -537,7 +541,14 @@ export function setupAuth(app: Express) {
 
       const existingOwner = await storage.getUserByWalletAddress(normalized);
       if (existingOwner && existingOwner.id !== req.user.id) {
-        return res.status(409).json({ message: "This wallet is already linked to another account" });
+        const isAutoWalletAccount = existingOwner.username.startsWith("wallet_") && existingOwner.authProvider === "wallet";
+        if (!isAutoWalletAccount) {
+          return res.status(409).json({ message: "This wallet is already linked to another account" });
+        }
+        await db.update(users)
+          .set({ walletAddress: null })
+          .where(eq(users.id, existingOwner.id));
+        console.log(`[Auth] Transferred wallet ${normalized.slice(0, 10)}... from auto-account "${existingOwner.username}" (ID: ${existingOwner.id}) to user "${req.user.username}" (ID: ${req.user.id})`);
       }
 
       await db.update(users)
