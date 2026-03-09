@@ -4,6 +4,16 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via RainbowKit + wagmi.
 
 ## Recent Changes
+- **Mar 2026**: **Auto-Payout Mining Rewards**
+  - Mining rewards automatically sent to connected external wallet when threshold is reached
+  - Configurable threshold (min 0.1 SKYNT, default 1.0 SKYNT), toggle on/off via switch
+  - 0.5% network fee per payout, batched for efficiency
+  - Auto-payout config persisted per user across mining sessions
+  - API: `GET/POST /api/mining/auto-payout` — get/set config (enabled, threshold, externalWallet)
+  - BackgroundMiner component updated with collapsible AUTO-PAYOUT panel showing: toggle, threshold, total paid, payout count, recent payout history
+  - Auto-detects linked wallet from user profile; requires wallet to be linked before enabling
+  - Payout transactions recorded as `auto_payout` type in wallet_transactions with full history
+  - Mining events feed shows auto-payout events when triggered
 - **Mar 2026**: **Secure Wallet Gateway — Signature-Verified Linking**
   - Wallet linking now requires cryptographic signature verification (identity proof before linking)
   - New flow: `POST /api/auth/link-wallet/nonce` → user signs message in MetaMask → `POST /api/auth/link-wallet` with address + signature + nonce

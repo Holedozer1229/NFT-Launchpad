@@ -28,6 +28,30 @@ const PREMIUM_PASS_DURATION_MS = 24 * 60 * 60 * 1000;
 const PREMIUM_REWARD_BOOST = 1.5;
 const PREMIUM_FEE_DISCOUNT = 0.5;
 
+const AUTO_PAYOUT_MIN_THRESHOLD = 0.1;
+const AUTO_PAYOUT_DEFAULT_THRESHOLD = 1.0;
+const AUTO_PAYOUT_FEE_PERCENT = 0.5;
+
+export interface AutoPayoutConfig {
+  enabled: boolean;
+  externalWallet: string;
+  threshold: number;
+  pendingAmount: number;
+  totalPaidOut: number;
+  lastPayoutTime: number;
+  payoutCount: number;
+  payoutHistory: PayoutRecord[];
+}
+
+export interface PayoutRecord {
+  amount: number;
+  fee: number;
+  netAmount: number;
+  toAddress: string;
+  txHash: string;
+  timestamp: number;
+}
+
 export interface MiningMilestone {
   blocks: number;
   reward: number;
@@ -46,6 +70,7 @@ interface MiningSession {
   stats: MiningStats;
   premiumPassExpiry: number;
   cycleRunning: boolean;
+  autoPayout: AutoPayoutConfig;
 }
 
 export interface MiningStats {
@@ -72,10 +97,11 @@ export interface MiningStats {
   recentEvents: MiningEvent[];
   anchoredBlock: number;
   anchoredHash: string;
+  autoPayout: AutoPayoutConfig;
 }
 
 export interface MiningEvent {
-  type: "block_found" | "streak" | "milestone" | "premium" | "fee" | "difficulty_up";
+  type: "block_found" | "streak" | "milestone" | "premium" | "fee" | "difficulty_up" | "auto_payout";
   message: string;
   timestamp: number;
   reward?: number;
@@ -100,6 +126,27 @@ export interface MinedBlock {
 const sessions = new Map<number, MiningSession>();
 const lifetimeStats = new Map<number, { blocks: number; earned: number; bestStreak: number; achievements: Set<number> }>();
 const userMinedBlocks = new Map<number, MinedBlock[]>();
+const autoPayoutConfigs = new Map<number, AutoPayoutConfig>();
+
+function createDefaultAutoPayoutConfig(): AutoPayoutConfig {
+  return {
+    enabled: false,
+    externalWallet: "",
+    threshold: AUTO_PAYOUT_DEFAULT_THRESHOLD,
+    pendingAmount: 0,
+    totalPaidOut: 0,
+    lastPayoutTime: 0,
+    payoutCount: 0,
+    payoutHistory: [],
+  };
+}
+
+function getAutoPayoutConfig(userId: number): AutoPayoutConfig {
+  if (!autoPayoutConfigs.has(userId)) {
+    autoPayoutConfigs.set(userId, createDefaultAutoPayoutConfig());
+  }
+  return autoPayoutConfigs.get(userId)!;
+}
 
 export function getMinedBlocks(userId: number): MinedBlock[] {
   return userMinedBlocks.get(userId) || [];
@@ -144,6 +191,7 @@ function createEmptyStats(): MiningStats {
     recentEvents: [],
     anchoredBlock: 0,
     anchoredHash: "",
+    autoPayout: createDefaultAutoPayoutConfig(),
   };
 }
 
@@ -325,6 +373,63 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
         status: "confirmed",
       });
 
+      const ap = session.autoPayout;
+      if (ap.enabled && ap.externalWallet) {
+        ap.pendingAmount += reward + totalMilestoneReward;
+        stats.autoPayout = { ...ap };
+
+        if (ap.pendingAmount >= ap.threshold) {
+          const payoutAmount = ap.pendingAmount;
+          const fee = payoutAmount * (AUTO_PAYOUT_FEE_PERCENT / 100);
+          const netAmount = payoutAmount - fee;
+
+          if (currentBalance >= payoutAmount) {
+            currentBalance -= payoutAmount;
+            await storage.updateWalletBalance(walletId, "SKYNT", currentBalance.toString());
+
+            const txHash = "0x" + randomBytes(32).toString("hex");
+
+            await storage.createTransaction({
+              walletId,
+              type: "auto_payout",
+              token: "SKYNT",
+              amount: netAmount.toString(),
+              fromAddress: wallet.address,
+              toAddress: ap.externalWallet,
+              status: "confirmed",
+            });
+
+            if (fee > 0) {
+              recordMintFee(fee, "auto-payout-fee", "SKYNT", `payout-fee-${Date.now()}-${userId}`);
+            }
+
+            const record: PayoutRecord = {
+              amount: payoutAmount,
+              fee,
+              netAmount,
+              toAddress: ap.externalWallet,
+              txHash,
+              timestamp: Date.now(),
+            };
+
+            ap.payoutHistory.unshift(record);
+            if (ap.payoutHistory.length > 20) ap.payoutHistory.pop();
+            ap.totalPaidOut += netAmount;
+            ap.lastPayoutTime = Date.now();
+            ap.payoutCount++;
+            ap.pendingAmount = 0;
+            stats.autoPayout = { ...ap };
+
+            addEvent(stats, {
+              type: "auto_payout",
+              message: `Auto-payout: ${netAmount.toFixed(4)} SKYNT → ${ap.externalWallet.slice(0, 6)}...${ap.externalWallet.slice(-4)}`,
+              timestamp: Date.now(),
+              reward: netAmount,
+            });
+          }
+        }
+      }
+
       const oldDifficulty = stats.difficulty;
       const logBlocks = Math.log2(Math.max(1, stats.blocksFound));
       stats.difficulty = 1.0 + (logBlocks * 0.15) + (Math.min(stats.streak, 50) * 0.003);
@@ -393,6 +498,13 @@ export async function startMining(userId: number, username: string): Promise<{ s
     }
   }
 
+  const apConfig = getAutoPayoutConfig(userId);
+  const user = await storage.getUser(userId);
+  if (user?.walletAddress && apConfig.externalWallet === "") {
+    apConfig.externalWallet = user.walletAddress;
+  }
+  stats.autoPayout = { ...apConfig };
+
   const session: MiningSession = {
     userId,
     username,
@@ -402,6 +514,7 @@ export async function startMining(userId: number, username: string): Promise<{ s
     stats,
     premiumPassExpiry: 0,
     cycleRunning: false,
+    autoPayout: apConfig,
   };
 
   session.intervalHandle = setInterval(() => runMiningCycle(session), MINE_INTERVAL_MS);
@@ -442,10 +555,63 @@ export function getMiningStatus(userId: number): MiningStats {
     stats.lifetimeBlocksFound = lt.blocks;
     stats.lifetimeSkyntEarned = lt.earned;
     stats.bestStreak = lt.bestStreak;
+    stats.autoPayout = { ...getAutoPayoutConfig(userId) };
     return stats;
   }
   session.stats.uptimeSeconds = Math.floor((Date.now() - session.stats.sessionStartedAt) / 1000);
+  session.stats.autoPayout = { ...session.autoPayout };
   return { ...session.stats };
+}
+
+export async function configureAutoPayout(
+  userId: number,
+  opts: { enabled?: boolean; threshold?: number; externalWallet?: string }
+): Promise<{ success: boolean; message: string; config: AutoPayoutConfig }> {
+  const config = getAutoPayoutConfig(userId);
+
+  if (opts.externalWallet !== undefined) {
+    if (opts.externalWallet && !/^0x[a-fA-F0-9]{40}$/.test(opts.externalWallet)) {
+      return { success: false, message: "Invalid Ethereum address format", config };
+    }
+    config.externalWallet = opts.externalWallet;
+  }
+
+  if (opts.threshold !== undefined) {
+    if (opts.threshold < AUTO_PAYOUT_MIN_THRESHOLD) {
+      return { success: false, message: `Minimum payout threshold is ${AUTO_PAYOUT_MIN_THRESHOLD} SKYNT`, config };
+    }
+    config.threshold = opts.threshold;
+  }
+
+  if (opts.enabled !== undefined) {
+    if (opts.enabled && !config.externalWallet) {
+      const user = await storage.getUser(userId);
+      if (user?.walletAddress) {
+        config.externalWallet = user.walletAddress;
+      } else {
+        return { success: false, message: "Connect and link an external wallet first to enable auto-payout", config };
+      }
+    }
+    config.enabled = opts.enabled;
+  }
+
+  autoPayoutConfigs.set(userId, config);
+
+  const session = sessions.get(userId);
+  if (session) {
+    session.autoPayout = config;
+    session.stats.autoPayout = { ...config };
+
+    if (config.enabled) {
+      addEvent(session.stats, {
+        type: "auto_payout",
+        message: `Auto-payout ${config.enabled ? "enabled" : "disabled"} — threshold: ${config.threshold} SKYNT → ${config.externalWallet.slice(0, 6)}...${config.externalWallet.slice(-4)}`,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  return { success: true, message: config.enabled ? "Auto-payout enabled" : "Auto-payout updated", config };
 }
 
 export async function activatePremiumPass(userId: number): Promise<{ success: boolean; message: string }> {

@@ -2,10 +2,36 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Pickaxe, Power, PowerOff, Cpu, Zap, TrendingUp, Coins, Activity, Hash, Clock, Users } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import {
+  Pickaxe, Power, PowerOff, Cpu, Zap, TrendingUp, Coins, Activity,
+  Hash, Clock, Users, Send, Wallet, ChevronDown, ChevronUp, CheckCircle2, AlertCircle,
+} from "lucide-react";
+
+interface AutoPayoutConfig {
+  enabled: boolean;
+  externalWallet: string;
+  threshold: number;
+  pendingAmount: number;
+  totalPaidOut: number;
+  lastPayoutTime: number;
+  payoutCount: number;
+  payoutHistory: PayoutRecord[];
+}
+
+interface PayoutRecord {
+  amount: number;
+  fee: number;
+  netAmount: number;
+  toAddress: string;
+  txHash: string;
+  timestamp: number;
+}
 
 interface MiningStats {
   isActive: boolean;
@@ -20,6 +46,7 @@ interface MiningStats {
   uptimeSeconds: number;
   difficulty: number;
   noncesChecked: number;
+  autoPayout: AutoPayoutConfig;
 }
 
 function formatUptime(seconds: number): string {
@@ -29,6 +56,11 @@ function formatUptime(seconds: number): string {
   if (h > 0) return `${h}h ${m}m ${s}s`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
+}
+
+function shortAddr(addr: string): string {
+  if (!addr || addr.length < 10) return addr || "—";
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
 function MinerVisualization({ stats }: { stats: MiningStats }) {
@@ -112,6 +144,193 @@ function MinerVisualization({ stats }: { stats: MiningStats }) {
       style={{ imageRendering: "pixelated" }}
       data-testid="miner-visualization"
     />
+  );
+}
+
+function AutoPayoutPanel({ stats }: { stats: MiningStats }) {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
+  const [threshold, setThreshold] = useState("");
+  const ap = stats.autoPayout;
+
+  const toggleMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const res = await apiRequest("POST", "/api/mining/auto-payout", { enabled });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/mining/status"] });
+      toast({
+        title: data.config?.enabled ? "Auto-Payout Enabled" : "Auto-Payout Disabled",
+        description: data.config?.enabled
+          ? `Rewards above ${data.config.threshold} SKYNT will be sent to your connected wallet.`
+          : "Mining rewards will stay in your internal wallet.",
+      });
+    },
+    onError: (err: Error) => {
+      const msg = err.message.replace(/^\d+:\s*/, "");
+      try {
+        const parsed = JSON.parse(msg);
+        toast({ title: "Auto-Payout Error", description: parsed.message, variant: "destructive" });
+      } catch {
+        toast({ title: "Auto-Payout Error", description: msg, variant: "destructive" });
+      }
+    },
+  });
+
+  const thresholdMutation = useMutation({
+    mutationFn: async (newThreshold: number) => {
+      const res = await apiRequest("POST", "/api/mining/auto-payout", { threshold: newThreshold });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/mining/status"] });
+      toast({ title: "Threshold Updated", description: `Auto-payout threshold set to ${data.config?.threshold} SKYNT` });
+      setThreshold("");
+    },
+    onError: (err: Error) => {
+      const msg = err.message.replace(/^\d+:\s*/, "");
+      try {
+        const parsed = JSON.parse(msg);
+        toast({ title: "Error", description: parsed.message, variant: "destructive" });
+      } catch {
+        toast({ title: "Error", description: msg, variant: "destructive" });
+      }
+    },
+  });
+
+  const hasLinkedWallet = !!user?.walletAddress;
+
+  return (
+    <div className="border-t border-white/10">
+      <button
+        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-white/5 transition-colors"
+        onClick={() => setExpanded(!expanded)}
+        data-testid="button-toggle-autopayout-panel"
+      >
+        <div className="flex items-center gap-2">
+          <Send className={`w-3.5 h-3.5 ${ap.enabled ? "text-neon-green" : "text-muted-foreground"}`} />
+          <span className="font-heading text-[11px] tracking-widest text-foreground">AUTO-PAYOUT</span>
+          {ap.enabled && (
+            <Badge variant="outline" className="text-[8px] border-neon-green/40 text-neon-green px-1.5 py-0">
+              ON
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {ap.pendingAmount > 0 && (
+            <span className="text-[9px] font-mono text-amber-400" data-testid="text-pending-payout">
+              {ap.pendingAmount.toFixed(4)} pending
+            </span>
+          )}
+          {expanded ? <ChevronUp className="w-3 h-3 text-muted-foreground" /> : <ChevronDown className="w-3 h-3 text-muted-foreground" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+          {!hasLinkedWallet ? (
+            <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded text-amber-400 text-[10px] font-mono">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>Link an external wallet first to enable auto-payout. Go to the Wallet page.</span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <div className="text-[10px] font-mono text-muted-foreground">Send rewards to connected wallet</div>
+                  <div className="flex items-center gap-1 text-[9px] font-mono text-primary/70">
+                    <Wallet className="w-3 h-3" />
+                    <span data-testid="text-payout-wallet">{shortAddr(ap.externalWallet || user?.walletAddress || "")}</span>
+                  </div>
+                </div>
+                <Switch
+                  data-testid="switch-autopayout"
+                  checked={ap.enabled}
+                  onCheckedChange={(checked) => toggleMutation.mutate(checked)}
+                  disabled={toggleMutation.isPending}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-black/30 rounded p-2 border border-white/5">
+                  <div className="text-[8px] font-mono text-muted-foreground mb-0.5">THRESHOLD</div>
+                  <div className="font-mono text-[11px] text-foreground" data-testid="text-payout-threshold">{ap.threshold} SKYNT</div>
+                </div>
+                <div className="bg-black/30 rounded p-2 border border-white/5">
+                  <div className="text-[8px] font-mono text-muted-foreground mb-0.5">TOTAL SENT</div>
+                  <div className="font-mono text-[11px] text-neon-green" data-testid="text-total-paid">{ap.totalPaidOut.toFixed(4)}</div>
+                </div>
+                <div className="bg-black/30 rounded p-2 border border-white/5">
+                  <div className="text-[8px] font-mono text-muted-foreground mb-0.5">PAYOUTS</div>
+                  <div className="font-mono text-[11px] text-foreground" data-testid="text-payout-count">{ap.payoutCount}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Input
+                  data-testid="input-payout-threshold"
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  placeholder={`${ap.threshold}`}
+                  value={threshold}
+                  onChange={(e) => setThreshold(e.target.value)}
+                  className="h-7 text-[10px] font-mono bg-black/30 border-white/10 flex-1"
+                />
+                <Button
+                  data-testid="button-set-threshold"
+                  size="sm"
+                  className="h-7 px-3 text-[9px] font-heading bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30"
+                  disabled={!threshold || thresholdMutation.isPending}
+                  onClick={() => {
+                    const val = parseFloat(threshold);
+                    if (val >= 0.1) thresholdMutation.mutate(val);
+                  }}
+                >
+                  SET
+                </Button>
+              </div>
+
+              {ap.payoutHistory.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[9px] font-mono text-muted-foreground">RECENT PAYOUTS</div>
+                  {ap.payoutHistory.slice(0, 3).map((p, i) => (
+                    <div key={i} className="flex items-center justify-between bg-black/20 rounded px-2 py-1.5 border border-white/5">
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3 h-3 text-neon-green" />
+                        <span className="text-[9px] font-mono text-neon-green" data-testid={`text-payout-amount-${i}`}>
+                          {p.netAmount.toFixed(4)} SKYNT
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[8px] font-mono text-muted-foreground">
+                        <span>→ {shortAddr(p.toAddress)}</span>
+                        <span>{new Date(p.timestamp).toLocaleTimeString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {ap.enabled && ap.pendingAmount > 0 && (
+                <div className="flex items-center gap-2 text-[9px] font-mono text-amber-400/80">
+                  <Activity className="w-3 h-3 animate-pulse" />
+                  <span data-testid="text-pending-info">
+                    Accumulating: {ap.pendingAmount.toFixed(4)} / {ap.threshold} SKYNT until next payout
+                  </span>
+                </div>
+              )}
+
+              <div className="text-[8px] font-mono text-muted-foreground/50">
+                0.5% network fee per payout · Min threshold: 0.1 SKYNT
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -269,6 +488,8 @@ export function BackgroundMiner() {
           <p className="font-mono text-[10px] text-muted-foreground/30">Start mining to earn SKYNT automatically (0.01 SKYNT/cycle fee)</p>
         </div>
       )}
+
+      {displayStats && <AutoPayoutPanel stats={displayStats} />}
     </div>
   );
 }

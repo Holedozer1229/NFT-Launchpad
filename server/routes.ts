@@ -9,7 +9,7 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception, startEngine, isEngineRunning } from "./iit-engine";
 import { getResonanceStatus, getResonanceHistory } from "./resonance-drop";
-import { startMining, stopMining, getMiningStatus, getActiveMinerCount, activatePremiumPass, getMiningLeaderboard, getMinedBlocks } from "./background-miner";
+import { startMining, stopMining, getMiningStatus, getActiveMinerCount, activatePremiumPass, getMiningLeaderboard, getMinedBlocks, configureAutoPayout } from "./background-miner";
 import { startMergeMining, stopMergeMining, getMergeMiningStatus, getMergeMiningStatusMap, getAllMergeMiningStats, getBtcGenesisBlock, getRecentBlocks, getStxLendingState, stakeStxLending } from "./merge-miner";
 import { openWormhole, closeWormhole, initiateTransfer, getWormholeStatus, getWormholeTransfers, getUserTransfers, getNetworkWormholeStats } from "./zk-wormhole";
 import { computeQuantumBerryPhaseSnapshot, getPageCurveHistory, getActiveTunnels } from "./berry-phase-engine";
@@ -2511,6 +2511,35 @@ export async function registerRoutes(
       res.json(blocks);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch mined blocks" });
+    }
+  });
+
+  app.get("/api/mining/auto-payout", (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const stats = getMiningStatus(req.user!.id);
+      res.json(stats.autoPayout);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch auto-payout config" });
+    }
+  });
+
+  app.post("/api/mining/auto-payout", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const schema = z.object({
+        enabled: z.boolean().optional(),
+        threshold: z.number().min(0.1).optional(),
+        externalWallet: z.string().optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid configuration", errors: parsed.error.errors });
+
+      const result = await configureAutoPayout(req.user!.id, parsed.data);
+      if (!result.success) return res.status(400).json({ message: result.message, config: result.config });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to configure auto-payout" });
     }
   });
 
