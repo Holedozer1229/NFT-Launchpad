@@ -888,6 +888,27 @@ html, body {
   }
 }
 
+[data-rk] {
+  z-index: 999999 !important;
+  position: relative;
+}
+
+[data-rk] [role="dialog"][aria-modal="true"],
+[data-rk] > div[style*="position: fixed"] {
+  z-index: 2147483647 !important;
+}
+
+[data-rk] button {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+[data-rk] [data-testid="rk-connect-button"] {
+  font-family: var(--font-heading), sans-serif !important;
+  letter-spacing: 0.05em !important;
+}
+
 @media screen and (max-width: 767px) {
   [data-rk] [role="dialog"][aria-modal="true"] {
     position: fixed !important;
@@ -955,5 +976,11 @@ html, body {
 
   [data-rk] [role="dialog"] [role="document"] > div > div > div {
     max-height: 80dvh !important;
+  }
+}
+
+@media screen and (min-width: 768px) {
+  [data-rk] [role="dialog"][aria-modal="true"] {
+    z-index: 2147483647 !important;
   }
 }

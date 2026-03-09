@@ -1,5 +1,5 @@
 import { useWalletStore } from "@/lib/mock-web3";
-import { ConnectWalletButton } from "@/components/ConnectWalletButton";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { X } from "lucide-react";
 
 export function WalletPicker() {
@@ -22,8 +22,11 @@ export function WalletPicker() {
           </button>
         </div>
 
-        <div data-testid="wallet-connect-picker">
-          <ConnectWalletButton label="Connect Wallet" />
+        <div data-testid="wallet-connect-picker" className="[&_button]:w-full">
+          <ConnectButton
+            showBalance={false}
+            chainStatus="icon"
+          />
         </div>
 
         <div className="text-center text-[9px] text-muted-foreground/50 font-mono pt-2">
