@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest, setJwtTokens, clearJwtTokens, getJwtToken } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { useAccount } from "wagmi";
+import { useToast } from "@/hooks/use-toast";
 
 type User = {
   id: number;
@@ -26,11 +27,17 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const MAX_AUTO_LINK_RETRIES = 3;
+const RETRY_DELAYS = [500, 2000, 5000];
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
   const { address, isConnected } = useAccount();
+  const { toast } = useToast();
   const linkingRef = useRef(false);
-  const linkFailedRef = useRef(false);
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastLinkedAddressRef = useRef<string | null>(null);
 
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/api/user"],
@@ -86,19 +93,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const linkWalletMutation = useMutation({
-    mutationFn: async ({ address: addr }: { address: string }) => {
-      const res = await apiRequest("POST", "/api/auth/link-wallet", { address: addr });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(["/api/user"], data);
-    },
-    onError: () => {
-      linkFailedRef.current = true;
-    },
-  });
-
   const registerMutation = useMutation({
     mutationFn: async ({ username, password }: { username: string; password: string }) => {
       const res = await apiRequest("POST", "/api/register", { username, password });
@@ -126,45 +120,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const resetLinkState = useCallback(() => {
-    linkFailedRef.current = false;
+    retryCountRef.current = 0;
     linkingRef.current = false;
+    lastLinkedAddressRef.current = null;
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
   }, []);
 
   const doLinkWallet = useCallback(async (addr: string) => {
     if (linkingRef.current) return;
-    linkFailedRef.current = false;
     linkingRef.current = true;
     try {
-      await linkWalletMutation.mutateAsync({ address: addr });
-      linkFailedRef.current = false;
-    } catch {
-      linkFailedRef.current = true;
-      throw new Error("Link failed");
+      const res = await apiRequest("POST", "/api/auth/link-wallet", { address: addr });
+      const data = await res.json();
+      if (data.token && data.refreshToken) {
+        setJwtTokens(data.token, data.refreshToken);
+      }
+      const { token: _t, refreshToken: _rt, ...userData } = data;
+      queryClient.setQueryData(["/api/user"], userData);
+      lastLinkedAddressRef.current = addr.toLowerCase();
+      retryCountRef.current = 0;
+    } catch (err: any) {
+      const msg = err?.message || "Failed to link wallet";
+      const is409 = msg.includes("409") || msg.includes("already linked");
+      if (is409) {
+        retryCountRef.current = MAX_AUTO_LINK_RETRIES;
+      }
+      throw err;
     } finally {
       linkingRef.current = false;
     }
-  }, [linkWalletMutation]);
+  }, []);
 
   useEffect(() => {
     if (
-      isConnected &&
-      address &&
-      user &&
-      !walletLinked &&
-      !linkingRef.current &&
-      !linkFailedRef.current
-    ) {
-      const timer = setTimeout(() => {
-        if (!linkingRef.current && !linkFailedRef.current) {
-          doLinkWallet(address).catch(() => {});
+      !isConnected ||
+      !address ||
+      !user ||
+      walletLinked ||
+      linkingRef.current
+    ) return;
+
+    if (lastLinkedAddressRef.current === address.toLowerCase()) return;
+
+    if (retryCountRef.current >= MAX_AUTO_LINK_RETRIES) return;
+
+    const delay = RETRY_DELAYS[retryCountRef.current] || 500;
+
+    retryTimerRef.current = setTimeout(() => {
+      if (linkingRef.current || walletLinked) return;
+
+      doLinkWallet(address).catch((err) => {
+        retryCountRef.current++;
+        if (retryCountRef.current >= MAX_AUTO_LINK_RETRIES) {
+          const msg = err?.message || "";
+          const is409 = msg.includes("409") || msg.includes("already linked");
+          if (is409) {
+            toast({
+              title: "Wallet Conflict",
+              description: "This wallet is already linked to another account.",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Wallet Link Failed",
+              description: "Could not auto-link wallet. Try manually from the Wallet page.",
+              variant: "destructive",
+            });
+          }
         }
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [isConnected, address, user?.id, walletLinked, doLinkWallet]);
+      });
+    }, delay);
+
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+  }, [isConnected, address, user?.id, user?.walletAddress, walletLinked, doLinkWallet, toast]);
 
   useEffect(() => {
-    linkFailedRef.current = false;
+    retryCountRef.current = 0;
+    lastLinkedAddressRef.current = null;
+    linkingRef.current = false;
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
   }, [address]);
 
   return (

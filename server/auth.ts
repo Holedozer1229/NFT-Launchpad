@@ -496,7 +496,9 @@ export function setupAuth(app: Express) {
 
       const updatedUser = await storage.getUser(req.user.id);
       const { password: _, ...safeUser } = updatedUser!;
-      res.json(safeUser);
+      const token = generateToken(updatedUser!);
+      const refreshToken = generateRefreshToken(updatedUser!);
+      res.json({ ...safeUser, token, refreshToken });
     } catch (error) {
       next(error);
     }
