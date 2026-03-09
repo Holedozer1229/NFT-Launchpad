@@ -4,6 +4,16 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via RainbowKit + wagmi.
 
 ## Recent Changes
+- **Mar 2026**: **Secure Wallet Gateway — Signature-Verified Linking**
+  - Wallet linking now requires cryptographic signature verification (identity proof before linking)
+  - New flow: `POST /api/auth/link-wallet/nonce` → user signs message in MetaMask → `POST /api/auth/link-wallet` with address + signature + nonce
+  - Sign message format: `SKYNT Protocol — Link Wallet\nAccount: {username}\nWallet: {address}\nNonce: {nonce}`
+  - Backend verifies signature via viem `verifyMessage` before allowing wallet link
+  - Removed auto-link on wagmi connect — wallet linking is now user-initiated via "VERIFY & LINK WALLET" button
+  - Frontend uses wagmi `useSignMessage` hook for MetaMask/wallet signature prompts
+  - EmbeddedWallet UI updated: shows signature verification flow, proper error messages for rejected/denied signatures
+  - All wallet link endpoints secured with JWT auth headers
+  - Prevents wrong-wallet linking: only the wallet that signs the message can be linked
 - **Mar 2026**: **Quantum Temporal Berry Phase Page** (`/berry-phase`)
   - `server/berry-phase-engine.ts` — IIT-coupled berry phase accumulator, Page curve entropy tracker, EPR entanglement pair generator, ER=EPR tunnel engine
   - Berry Phase: geometric phase γ computed from density matrix eigenvalue connection coefficients, accumulated across IIT ticks with block modulation

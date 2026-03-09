@@ -93,11 +93,13 @@ export function EmbeddedWallet() {
     setLinkError(null);
     resetLinkState();
     try {
-      await linkWallet(address);
+      await linkWallet();
     } catch (err: any) {
       const msg = err?.message || "Failed to link wallet";
       if (msg.includes("409")) {
         setLinkError("This wallet is already linked to another account.");
+      } else if (msg.includes("rejected") || msg.includes("denied")) {
+        setLinkError("Signature rejected. You must sign to verify ownership.");
       } else if (msg.includes("400")) {
         setLinkError("Invalid wallet address format.");
       } else {
@@ -205,7 +207,7 @@ export function EmbeddedWallet() {
             ) : (
               <div className="flex items-center gap-2 text-xs font-mono text-yellow-500/80">
                 <AlertCircle className="w-3 h-3" />
-                <span>Wallet detected but not linked to your account yet.</span>
+                <span>Sign to verify ownership and link this wallet.</span>
               </div>
             )}
             <Button
@@ -213,7 +215,7 @@ export function EmbeddedWallet() {
               onClick={handleManualLink}
               className="w-full bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 font-heading"
             >
-              {linkError ? "RETRY LINK" : "LINK WALLET TO ACCOUNT"}
+              {linkError ? "RETRY VERIFICATION" : "VERIFY & LINK WALLET"}
             </Button>
           </div>
         )}
@@ -221,7 +223,7 @@ export function EmbeddedWallet() {
         {isLinking && (
           <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-sm text-primary font-mono text-xs">
             <RefreshCw className="w-3 h-3 animate-spin" />
-            <span>LINKING_IDENTITY...</span>
+            <span>VERIFYING_SIGNATURE...</span>
           </div>
         )}
 

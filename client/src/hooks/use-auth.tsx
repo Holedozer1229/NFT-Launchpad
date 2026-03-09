@@ -1,8 +1,8 @@
-import { createContext, ReactNode, useContext, useRef, useEffect, useCallback } from "react";
+import { createContext, ReactNode, useContext, useRef, useEffect, useCallback, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest, setJwtTokens, clearJwtTokens, getJwtToken } from "@/lib/queryClient";
 import { useLocation } from "wouter";
-import { useAccount } from "wagmi";
+import { useAccount, useSignMessage } from "wagmi";
 import { useToast } from "@/hooks/use-toast";
 
 type User = {
@@ -18,26 +18,23 @@ type AuthContextType = {
   isLoading: boolean;
   login: (username: string, password: string, captchaToken?: string) => Promise<void>;
   loginWithWallet: (address: string, signature: string, nonce: string) => Promise<void>;
-  linkWallet: (address: string) => Promise<void>;
+  linkWallet: () => Promise<void>;
   resetLinkState: () => void;
   register: (username: string, password: string, captchaToken?: string) => Promise<void>;
   logout: () => Promise<void>;
   walletLinked: boolean;
+  isLinkingWallet: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const MAX_AUTO_LINK_RETRIES = 3;
-const RETRY_DELAYS = [500, 2000, 5000];
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
   const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const { toast } = useToast();
+  const [isLinkingWallet, setIsLinkingWallet] = useState(false);
   const linkingRef = useRef(false);
-  const retryCountRef = useRef(0);
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastLinkedAddressRef = useRef<string | null>(null);
 
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/api/user"],
@@ -120,97 +117,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const resetLinkState = useCallback(() => {
-    retryCountRef.current = 0;
     linkingRef.current = false;
-    lastLinkedAddressRef.current = null;
-    if (retryTimerRef.current) {
-      clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
-    }
+    setIsLinkingWallet(false);
   }, []);
 
-  const doLinkWallet = useCallback(async (addr: string) => {
-    if (linkingRef.current) return;
+  const doLinkWallet = useCallback(async () => {
+    if (linkingRef.current || !address || !isConnected || !user) return;
+    if (walletLinked) return;
+
     linkingRef.current = true;
+    setIsLinkingWallet(true);
     try {
-      const res = await apiRequest("POST", "/api/auth/link-wallet", { address: addr });
+      const nonceRes = await apiRequest("POST", "/api/auth/link-wallet/nonce", { address });
+      const { nonce } = await nonceRes.json();
+
+      const message = `SKYNT Protocol — Link Wallet\nAccount: ${user.username}\nWallet: ${address}\nNonce: ${nonce}`;
+
+      const signature = await signMessageAsync({ message });
+
+      const res = await apiRequest("POST", "/api/auth/link-wallet", {
+        address,
+        signature,
+        nonce,
+      });
       const data = await res.json();
+
       if (data.token && data.refreshToken) {
         setJwtTokens(data.token, data.refreshToken);
       }
       const { token: _t, refreshToken: _rt, ...userData } = data;
       queryClient.setQueryData(["/api/user"], userData);
-      lastLinkedAddressRef.current = addr.toLowerCase();
-      retryCountRef.current = 0;
+
+      toast({
+        title: "Wallet Linked",
+        description: `${address.slice(0, 6)}...${address.slice(-4)} verified and linked to your account.`,
+      });
     } catch (err: any) {
       const msg = err?.message || "Failed to link wallet";
-      const is409 = msg.includes("409") || msg.includes("already linked");
-      if (is409) {
-        retryCountRef.current = MAX_AUTO_LINK_RETRIES;
+      if (msg.includes("rejected") || msg.includes("denied") || msg.includes("User rejected")) {
+        toast({
+          title: "Signature Rejected",
+          description: "You must sign the verification message to link your wallet.",
+          variant: "destructive",
+        });
+      } else if (msg.includes("409") || msg.includes("already linked")) {
+        toast({
+          title: "Wallet Conflict",
+          description: "This wallet is already linked to another account.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Wallet Link Failed",
+          description: msg,
+          variant: "destructive",
+        });
       }
-      throw err;
     } finally {
       linkingRef.current = false;
+      setIsLinkingWallet(false);
     }
-  }, []);
-
-  useEffect(() => {
-    if (
-      !isConnected ||
-      !address ||
-      !user ||
-      walletLinked ||
-      linkingRef.current
-    ) return;
-
-    if (lastLinkedAddressRef.current === address.toLowerCase()) return;
-
-    if (retryCountRef.current >= MAX_AUTO_LINK_RETRIES) return;
-
-    const delay = RETRY_DELAYS[retryCountRef.current] || 500;
-
-    retryTimerRef.current = setTimeout(() => {
-      if (linkingRef.current || walletLinked) return;
-
-      doLinkWallet(address).catch((err) => {
-        retryCountRef.current++;
-        if (retryCountRef.current >= MAX_AUTO_LINK_RETRIES) {
-          const msg = err?.message || "";
-          const is409 = msg.includes("409") || msg.includes("already linked");
-          if (is409) {
-            toast({
-              title: "Wallet Conflict",
-              description: "This wallet is already linked to another account.",
-              variant: "destructive",
-            });
-          } else {
-            toast({
-              title: "Wallet Link Failed",
-              description: "Could not auto-link wallet. Try manually from the Wallet page.",
-              variant: "destructive",
-            });
-          }
-        }
-      });
-    }, delay);
-
-    return () => {
-      if (retryTimerRef.current) {
-        clearTimeout(retryTimerRef.current);
-        retryTimerRef.current = null;
-      }
-    };
-  }, [isConnected, address, user?.id, user?.walletAddress, walletLinked, doLinkWallet, toast]);
-
-  useEffect(() => {
-    retryCountRef.current = 0;
-    lastLinkedAddressRef.current = null;
-    linkingRef.current = false;
-    if (retryTimerRef.current) {
-      clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
-    }
-  }, [address]);
+  }, [address, isConnected, user, walletLinked, signMessageAsync, toast]);
 
   return (
     <AuthContext.Provider
@@ -218,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: user ?? null,
         isLoading,
         walletLinked,
+        isLinkingWallet,
         login: async (username, password, captchaToken?) => {
           await loginMutation.mutateAsync({ username, password, captchaToken });
         },

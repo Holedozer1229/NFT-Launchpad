@@ -523,21 +523,60 @@ export function setupAuth(app: Express) {
     }
   });
 
+  app.post("/api/auth/link-wallet/nonce", rateLimit(60000, 20), async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Must be logged in" });
+      }
+      const { address } = req.body;
+      if (!address || typeof address !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+        return res.status(400).json({ message: "Valid EVM wallet address required" });
+      }
+      const nonce = randomBytes(16).toString("hex");
+      await storage.updateUserNonce(req.user.id, nonce);
+      res.json({ nonce });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to generate link nonce" });
+    }
+  });
+
   app.post("/api/auth/link-wallet", async (req, res, next) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: "Must be logged in to link a wallet" });
       }
 
-      const { address } = req.body;
+      const { address, signature, nonce } = req.body;
       if (!address || typeof address !== "string") {
         return res.status(400).json({ message: "Wallet address is required" });
       }
 
       const normalized = address.trim();
-      if (!/^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/.test(normalized)) {
+      if (!/^0x[a-fA-F0-9]{40}$/.test(normalized)) {
         return res.status(400).json({ message: "Invalid wallet address format" });
       }
+
+      if (!signature || !nonce) {
+        return res.status(400).json({ message: "Signature verification required to link wallet" });
+      }
+
+      const currentUser = await storage.getUser(req.user.id);
+      if (!currentUser || currentUser.authNonce !== nonce) {
+        return res.status(401).json({ message: "Invalid or expired nonce. Request a new one." });
+      }
+
+      const message = `SKYNT Protocol — Link Wallet\nAccount: ${req.user.username}\nWallet: ${normalized}\nNonce: ${nonce}`;
+      const isValid = await verifyMessage({
+        address: normalized as `0x${string}`,
+        message,
+        signature: signature as `0x${string}`,
+      });
+
+      if (!isValid) {
+        return res.status(401).json({ message: "Signature verification failed. You must sign with the wallet you are linking." });
+      }
+
+      await storage.updateUserNonce(req.user.id, null);
 
       const existingOwner = await storage.getUserByWalletAddress(normalized);
       if (existingOwner && existingOwner.id !== req.user.id) {
@@ -559,6 +598,7 @@ export function setupAuth(app: Express) {
       const { password: _, ...safeUser } = updatedUser!;
       const token = generateToken(updatedUser!);
       const refreshToken = generateRefreshToken(updatedUser!);
+      console.log(`[Auth] Wallet ${normalized.slice(0, 10)}... securely linked to "${req.user.username}" (ID: ${req.user.id}) via signature verification`);
       res.json({ ...safeUser, token, refreshToken });
     } catch (error) {
       next(error);
