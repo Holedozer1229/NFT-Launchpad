@@ -80,8 +80,29 @@ export interface MiningEvent {
   reward?: number;
 }
 
+export interface MinedBlock {
+  height: number;
+  hash: string;
+  previousHash: string;
+  timestamp: number;
+  miner: string;
+  reward: number;
+  phiBoost: number;
+  streakMultiplier: number;
+  difficulty: number;
+  nonce: number;
+  anchoredEthBlock: number;
+  anchoredEthHash: string;
+  algorithm: string;
+}
+
 const sessions = new Map<number, MiningSession>();
 const lifetimeStats = new Map<number, { blocks: number; earned: number; bestStreak: number; achievements: Set<number> }>();
+const userMinedBlocks = new Map<number, MinedBlock[]>();
+
+export function getMinedBlocks(userId: number): MinedBlock[] {
+  return userMinedBlocks.get(userId) || [];
+}
 
 function getLifetimeStats(userId: number) {
   if (!lifetimeStats.has(userId)) {
@@ -212,6 +233,26 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
 
       stats.lastBlockHash = blockHash.slice(0, 16);
       stats.lastBlockTime = Date.now();
+
+      if (!userMinedBlocks.has(userId)) userMinedBlocks.set(userId, []);
+      const blocks = userMinedBlocks.get(userId)!;
+      const prevHash = blocks.length > 0 ? blocks[blocks.length - 1].hash : "0000000000000000000000000000000000000000000000000000000000000000";
+      blocks.push({
+        height: lt.blocks,
+        hash: blockHash,
+        previousHash: prevHash,
+        timestamp: Date.now(),
+        miner: session.username,
+        reward,
+        phiBoost: stats.currentPhiBoost,
+        streakMultiplier: stats.streakMultiplier,
+        difficulty: stats.difficulty,
+        nonce,
+        anchoredEthBlock: liveBlockNumber,
+        anchoredEthHash: liveBlockSeed.slice(0, 16),
+        algorithm: "qg-v8-three-gate",
+      });
+      if (blocks.length > 500) blocks.shift();
 
       addEvent(stats, {
         type: "block_found",

@@ -232,6 +232,14 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Neon colors: `text-neon-cyan`, `text-neon-green`, `text-neon-orange`, `text-neon-magenta`
 - Glow effects: `neon-glow-cyan`, `neon-glow-green`, etc.
 
+### Downloadable wallet.json
+- `GET /api/mining/wallet.json` — Authenticated endpoint that generates and downloads a full wallet.json file
+  - Contains: wallet address/balances, mining stats (lifetime blocks, earnings, best streak), chain state (height, difficulty, supply, halving epoch), all mined blocks (hash, previousHash, reward, phiBoost, streakMultiplier, difficulty, nonce, anchoredEthBlock/Hash), merge-mined blocks per chain, cryptographic export signature
+  - `MinedBlock` interface in `server/background-miner.ts` tracks per-block: height, hash, previousHash, timestamp, miner, reward, phiBoost, streakMultiplier, difficulty, nonce, anchoredEthBlock, anchoredEthHash, algorithm
+  - `getMinedBlocks(userId)` export — returns all blocks mined by user (up to 500, FIFO)
+  - Download buttons on WalletPage (header) and GenesisMiner (hero section)
+  - `GET /api/mining/blocks` — returns raw mined blocks array for a user
+
 ### Serverless P2P Network
 - `server/p2p-network.ts` — Full serverless P2P network for SKYNT Genesis BTC hard fork
   - 6 seed nodes (Alpha-Centauri through Betelgeuse-Hub) bootstrapped on start

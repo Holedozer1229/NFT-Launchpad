@@ -9,7 +9,7 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception, startEngine, isEngineRunning } from "./iit-engine";
 import { getResonanceStatus, getResonanceHistory } from "./resonance-drop";
-import { startMining, stopMining, getMiningStatus, getActiveMinerCount, activatePremiumPass, getMiningLeaderboard } from "./background-miner";
+import { startMining, stopMining, getMiningStatus, getActiveMinerCount, activatePremiumPass, getMiningLeaderboard, getMinedBlocks } from "./background-miner";
 import { startMergeMining, stopMergeMining, getMergeMiningStatus, getMergeMiningStatusMap, getAllMergeMiningStats, getBtcGenesisBlock, getRecentBlocks, getStxLendingState, stakeStxLending } from "./merge-miner";
 import { openWormhole, closeWormhole, initiateTransfer, getWormholeStatus, getWormholeTransfers, getUserTransfers, getNetworkWormholeStats } from "./zk-wormhole";
 import { generateRarityCertificate, verifyRarityCertificate, getUserCertificates, downloadCertificate } from "./rarity-proof-engine";
@@ -2392,6 +2392,88 @@ export async function registerRoutes(
       res.json(getMiningLeaderboard());
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch leaderboard" });
+    }
+  });
+
+  app.get("/api/mining/blocks", (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const blocks = getMinedBlocks(req.user!.id);
+      res.json(blocks);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch mined blocks" });
+    }
+  });
+
+  app.get("/api/mining/wallet.json", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user!;
+      const minedBlocks = getMinedBlocks(user.id);
+      const miningStats = getMiningStatus(user.id);
+      const userWallets = await storage.getWalletsByUser(user.id);
+      const wallet = userWallets.length > 0 ? userWallets[0] : null;
+
+      const mergeStatusMap = getMergeMiningStatusMap(user.id);
+      const mergeBlocks: Record<string, any[]> = {};
+      for (const chainId of Object.keys(mergeStatusMap.mergeMining)) {
+        const blocks = getRecentBlocks(chainId, 50);
+        if (blocks.length > 0) mergeBlocks[chainId] = blocks;
+      }
+      if (mergeStatusMap.randomx) {
+        const rxBlocks = getRecentBlocks("randomx", 50);
+        if (rxBlocks.length > 0) mergeBlocks["randomx"] = rxBlocks;
+      }
+
+      const chainInfo = getChainInfo();
+      const totalBlocks = minedBlocks.length + Object.values(mergeBlocks).reduce((s, b) => s + b.length, 0);
+      const totalRewards = minedBlocks.reduce((s, b) => s + b.reward, 0);
+
+      const walletJson = {
+        version: "1.0.0",
+        protocol: "SKYNT Genesis BTC Hard Fork",
+        network: "skynt-genesis-mainnet",
+        exportedAt: new Date().toISOString(),
+        exportedBy: user.username,
+        wallet: wallet ? {
+          address: `skynt:${createHash("sha256").update(`${user.id}-${user.username}`).digest("hex").slice(0, 40)}`,
+          balanceSkynt: wallet.balanceSkynt,
+          balanceStx: wallet.balanceStx,
+          balanceEth: wallet.balanceEth,
+          createdAt: wallet.createdAt,
+          externalWallet: (user as any).walletAddress || null,
+        } : null,
+        mining: {
+          totalBlocksMined: totalBlocks,
+          totalRewards: parseFloat(totalRewards.toFixed(8)),
+          lifetimeBlocks: miningStats.lifetimeBlocksFound,
+          lifetimeEarned: parseFloat(miningStats.lifetimeSkyntEarned.toFixed(8)),
+          bestStreak: miningStats.bestStreak,
+          algorithm: "qg-v8-three-gate",
+          powAlgorithm: chainInfo.powAlgorithm,
+        },
+        chain: {
+          networkHeight: chainInfo.latestBlockHeight,
+          networkHash: chainInfo.latestBlockHash,
+          difficulty: chainInfo.difficulty,
+          totalSupply: chainInfo.totalSupply,
+          maxSupply: chainInfo.maxSupply,
+          halvingEpoch: chainInfo.halvingEpoch,
+          currentReward: chainInfo.currentReward,
+          chainValid: chainInfo.isValid,
+        },
+        blocks: minedBlocks,
+        mergeMinedBlocks: mergeBlocks,
+        signature: createHash("sha256")
+          .update(`${user.id}-${user.username}-${totalBlocks}-${totalRewards}-${Date.now()}`)
+          .digest("hex"),
+      };
+
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename="skynt-wallet-${user.username}-${Date.now()}.json"`);
+      res.json(walletJson);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to export wallet" });
     }
   });
 

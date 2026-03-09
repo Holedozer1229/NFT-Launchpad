@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, ExternalLink, Coins, Clock, Shield, ChevronDown, Fingerprint, AlertTriangle, Smartphone, Lock, Globe, Zap } from "lucide-react";
+import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, ExternalLink, Coins, Clock, Shield, ChevronDown, Fingerprint, AlertTriangle, Smartphone, Lock, Globe, Zap, Download } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -257,14 +257,25 @@ export default function WalletPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Your in-app crypto wallet — manage SKYNT, STX, and ETH</p>
         </div>
-        <button
-          data-testid="button-create-wallet"
-          onClick={() => createWalletMutation.mutate()}
-          disabled={createWalletMutation.isPending}
-          className="connect-wallet-btn px-4 py-2 rounded-sm font-heading text-xs tracking-wider flex items-center gap-2"
-        >
-          <Plus className="w-3.5 h-3.5" /> {createWalletMutation.isPending ? "Creating..." : "New Wallet"}
-        </button>
+        <div className="flex gap-2">
+          <a
+            data-testid="button-download-wallet-json"
+            href="/api/mining/wallet.json"
+            download
+            className="connect-wallet-btn px-4 py-2 rounded-sm font-heading text-xs tracking-wider flex items-center gap-2"
+            style={{ background: "rgba(57,255,20,0.1)", borderColor: "rgba(57,255,20,0.3)", color: "#39ff14" }}
+          >
+            <Download className="w-3.5 h-3.5" /> wallet.json
+          </a>
+          <button
+            data-testid="button-create-wallet"
+            onClick={() => createWalletMutation.mutate()}
+            disabled={createWalletMutation.isPending}
+            className="connect-wallet-btn px-4 py-2 rounded-sm font-heading text-xs tracking-wider flex items-center gap-2"
+          >
+            <Plus className="w-3.5 h-3.5" /> {createWalletMutation.isPending ? "Creating..." : "New Wallet"}
+          </button>
+        </div>
       </div>
 
       {wallets.length > 1 && (

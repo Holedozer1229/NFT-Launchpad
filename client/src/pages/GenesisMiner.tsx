@@ -32,7 +32,8 @@ import {
   Radio,
   Wifi,
   AlertTriangle,
-  Bell
+  Bell,
+  Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -519,6 +520,20 @@ export default function GenesisMiner() {
           <p className="text-muted-foreground font-mono max-w-2xl text-sm">
             Satoshi's original vision, reborn through the SphinxSkynet. Mine the hard fork from block 0 using cross-chain AuxPoW and solo RandomX.
           </p>
+          <a
+            data-testid="button-download-wallet-json"
+            href="/api/mining/wallet.json"
+            download
+            className="inline-flex items-center gap-2 mt-2 px-5 py-2.5 rounded-lg font-heading text-xs tracking-wider transition-all"
+            style={{
+              background: "linear-gradient(135deg, rgba(57,255,20,0.15), rgba(0,240,255,0.1))",
+              border: "1px solid rgba(57,255,20,0.35)",
+              color: "#39ff14",
+              boxShadow: "0 0 12px rgba(57,255,20,0.15)",
+            }}
+          >
+            <Download className="w-4 h-4" /> DOWNLOAD WALLET.JSON
+          </a>
         </div>
         <div className="absolute -bottom-20 -right-20 w-80 h-80 blur-[100px] rounded-full pointer-events-none"
           style={{ background: `radial-gradient(circle, ${NEON_COLORS.gold}15, ${NEON_COLORS.cyan}10, transparent)` }} />
