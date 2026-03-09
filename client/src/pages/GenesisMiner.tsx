@@ -354,6 +354,18 @@ export default function GenesisMiner() {
     refetchInterval: 15000,
   });
 
+  const { data: liveChainStatus } = useQuery<{ configured: boolean; chains: Record<string, any> }>({
+    queryKey: ["/api/chain/status"],
+    refetchInterval: 30000,
+    staleTime: 15000,
+  });
+
+  const { data: ethLatestBlock } = useQuery<{ number: number; hash: string; timestamp: number; transactionCount: number; baseFeePerGas: string | null }>({
+    queryKey: ["/api/chain/ethereum/block/latest"],
+    refetchInterval: 12000,
+    staleTime: 10000,
+  });
+
   useEffect(() => {
     if (mempoolStats?.blockHeight && prevBlockHeightRef.current !== null && mempoolStats.blockHeight !== prevBlockHeightRef.current) {
       addNotification("block", `New BTC block #${mempoolStats.blockHeight} confirmed on mainnet`, NEON_COLORS.cyan);
@@ -547,6 +559,39 @@ export default function GenesisMiner() {
           glow
         />
       </div>
+
+      {ethLatestBlock && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <NeonStatCard
+            icon={Layers}
+            label="ETH Block"
+            value={`#${ethLatestBlock.number.toLocaleString()}`}
+            color={NEON_COLORS.blue}
+            glow
+            pulse
+          />
+          <NeonStatCard
+            icon={Activity}
+            label="ETH Txns"
+            value={ethLatestBlock.transactionCount.toLocaleString()}
+            color={NEON_COLORS.magenta}
+            glow
+          />
+          <NeonStatCard
+            icon={Zap}
+            label="ETH Base Fee"
+            value={ethLatestBlock.baseFeePerGas ? `${parseFloat(ethLatestBlock.baseFeePerGas).toFixed(1)} gwei` : "—"}
+            color={NEON_COLORS.gold}
+            glow
+          />
+          <NeonStatCard
+            icon={TrendingUp}
+            label="Anchor Hash"
+            value={backgroundMiningStatus?.anchoredHash ? `${backgroundMiningStatus.anchoredHash.slice(0, 10)}...` : ethLatestBlock.hash.slice(0, 12) + "..."}
+            color={NEON_COLORS.cyan}
+          />
+        </div>
+      )}
 
       {backgroundMiningStatus && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

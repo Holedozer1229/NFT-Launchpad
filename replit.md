@@ -232,7 +232,19 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - Neon colors: `text-neon-cyan`, `text-neon-green`, `text-neon-orange`, `text-neon-magenta`
 - Glow effects: `neon-glow-cyan`, `neon-glow-green`, etc.
 
+### Live Chain RPC System
+- `server/live-chain.ts` — Multi-chain live RPC via Alchemy SDK + viem
+  - Supports: Ethereum, Polygon, Base, zkSync Era mainnet
+  - Cached responses with configurable TTL (10-20s depending on data type)
+  - Functions: `getLatestBlock`, `getRecentBlocks`, `getGasData`, `getWalletBalance`, `getWalletTransactions`, `getTransactionReceipt`, `getNetworkStats`, `subscribeNewBlocks`, `sendRawTransaction`
+- API routes: `GET /api/chain/status`, `GET /api/chain/:chain/block/latest`, `GET /api/chain/:chain/blocks`, `GET /api/chain/:chain/gas`, `GET /api/chain/:chain/balance/:address`, `GET /api/chain/:chain/transactions/:address`, `GET /api/chain/:chain/tx/:hash`, `GET /api/chain/:chain/network`
+- Background miner anchors PoW hashes to live ETH mainnet block hashes (anchoredBlock, anchoredHash fields in MiningStats)
+- Merge miner seeds include live ETH block hash for mainnet-anchored randomness
+- WalletPage shows live on-chain ETH balance, ERC-20 tokens, NFTs, and transaction history via Alchemy when external wallet is connected
+- GenesisMiner displays live ETH block number, transaction count, base fee, and anchor hash alongside BTC mempool data
+- Wallet linking centralized in `use-auth.tsx` AuthProvider — auto-links wallet to account on connect, exposes `walletLinked` state and `linkWallet` function
+
 ## User Preferences
 - Cosmic/space-themed UI with neon accents
 - SphinxOS and aerospace branding throughout
-- Mock data for demonstration purposes
+- Live mainnet RPC calls via Alchemy for transactions, blocks, balances

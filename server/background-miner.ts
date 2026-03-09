@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "crypto";
 import { calculatePhi } from "./iit-engine";
 import { recordMintFee } from "./treasury-yield";
 import { storage } from "./storage";
+import * as liveChain from "./live-chain";
 
 const MINE_INTERVAL_MS = 15_000;
 const MINING_FEE_PER_CYCLE = 0.01;
@@ -68,6 +69,8 @@ export interface MiningStats {
   hasPremiumPass: boolean;
   premiumPassExpiry: number;
   recentEvents: MiningEvent[];
+  anchoredBlock: number;
+  anchoredHash: string;
 }
 
 export interface MiningEvent {
@@ -117,6 +120,8 @@ function createEmptyStats(): MiningStats {
     hasPremiumPass: false,
     premiumPassExpiry: 0,
     recentEvents: [],
+    anchoredBlock: 0,
+    anchoredHash: "",
   };
 }
 
@@ -146,6 +151,16 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
       return;
     }
 
+    let liveBlockSeed = "";
+    let liveBlockNumber = 0;
+    try {
+      if (liveChain.isConfigured()) {
+        const liveBlock = await liveChain.getLatestBlock("ethereum");
+        liveBlockSeed = liveBlock.hash;
+        liveBlockNumber = liveBlock.number;
+      }
+    } catch {}
+
     const seed = randomBytes(16).toString("hex");
     const nonce = Math.floor(Math.random() * 0xffffffff);
     const nonceBuf = Buffer.alloc(4);
@@ -155,6 +170,7 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
       .update(Buffer.from(seed, "hex"))
       .update(nonceBuf)
       .update(Buffer.from(String(userId), "utf8"))
+      .update(Buffer.from(liveBlockSeed, "utf8"))
       .digest("hex");
 
     const hashPrefix = BigInt("0x" + blockHash.slice(0, 16));
@@ -164,6 +180,8 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
     const simulatedNonces = 500 + Math.floor(Math.random() * 1500);
     stats.noncesChecked += simulatedNonces;
     stats.hashRate = Math.round(simulatedNonces / (MINE_INTERVAL_MS / 1000));
+    stats.anchoredBlock = liveBlockNumber;
+    stats.anchoredHash = liveBlockSeed.slice(0, 16);
     stats.cyclesCompleted++;
 
     const phiResult = calculatePhi(`mine-${userId}-${Math.floor(Date.now() / 15000)}`);

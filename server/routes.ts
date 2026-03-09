@@ -16,6 +16,7 @@ import { generateRarityCertificate, verifyRarityCertificate, getUserCertificates
 import { STARSHIP_FLIGHT_SHOWCASES } from "@shared/schema";
 import { MERGE_MINING_CHAINS, STX_LENDING_TIERS, type MergeMiningChainId, type StxLendingTierId } from "@shared/schema";
 import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
+import * as liveChain from "./live-chain";
 
 // Toy Hamiltonian constant
 const DEFAULT_COUPLING = 1.0;
@@ -1279,6 +1280,93 @@ export async function registerRoutes(
       res.json({ message: "Contracts deployed successfully", deployments });
     } catch (error) {
       res.status(500).json({ message: "Failed to deploy contracts" });
+    }
+  });
+
+  // ========== LIVE CHAIN RPC ROUTES ==========
+
+  app.get("/api/chain/status", async (_req, res) => {
+    try {
+      if (!liveChain.isConfigured()) {
+        return res.status(503).json({ message: "RPC not configured", configured: false });
+      }
+      const chains = liveChain.getSupportedChains();
+      const stats = await Promise.allSettled(
+        chains.map(c => liveChain.getNetworkStats(c).then(s => ({ ...s, live: true })))
+      );
+      const result: Record<string, any> = {};
+      chains.forEach((chain, i) => {
+        result[chain] = stats[i].status === "fulfilled" ? stats[i].value : { live: false, error: "unavailable" };
+      });
+      res.json({ configured: true, chains: result });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch chain status" });
+    }
+  });
+
+  app.get("/api/chain/:chain/block/latest", async (req, res) => {
+    try {
+      const block = await liveChain.getLatestBlock(req.params.chain);
+      res.json(block);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch block" });
+    }
+  });
+
+  app.get("/api/chain/:chain/blocks", async (req, res) => {
+    try {
+      const count = Math.min(parseInt(req.query.count as string) || 5, 10);
+      const blocks = await liveChain.getRecentBlocks(req.params.chain, count);
+      res.json(blocks);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch blocks" });
+    }
+  });
+
+  app.get("/api/chain/:chain/gas", async (req, res) => {
+    try {
+      const gas = await liveChain.getGasData(req.params.chain);
+      res.json(gas);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch gas data" });
+    }
+  });
+
+  app.get("/api/chain/:chain/balance/:address", async (req, res) => {
+    try {
+      const balance = await liveChain.getWalletBalance(req.params.address, req.params.chain);
+      res.json(balance);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch balance" });
+    }
+  });
+
+  app.get("/api/chain/:chain/transactions/:address", async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
+      const txs = await liveChain.getWalletTransactions(req.params.address, req.params.chain, limit);
+      res.json(txs);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch transactions" });
+    }
+  });
+
+  app.get("/api/chain/:chain/tx/:hash", async (req, res) => {
+    try {
+      const receipt = await liveChain.getTransactionReceipt(req.params.hash, req.params.chain);
+      if (!receipt) return res.status(404).json({ message: "Transaction not found" });
+      res.json(receipt);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch transaction" });
+    }
+  });
+
+  app.get("/api/chain/:chain/network", async (req, res) => {
+    try {
+      const stats = await liveChain.getNetworkStats(req.params.chain);
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch network stats" });
     }
   });
 

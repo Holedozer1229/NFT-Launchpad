@@ -9,6 +9,7 @@ import {
 import { qgMiner } from "./qg-miner-v8";
 import { storage } from "./storage";
 import { recordMintFee } from "./treasury-yield";
+import * as liveChain from "./live-chain";
 
 export interface MergeMiningStats {
   chainId: MergeMiningChainId;
@@ -104,10 +105,18 @@ async function runMergeMiningCycle(userId: number, chainId: MergeMiningChainId) 
   const config = MERGE_MINING_CHAINS[chainId];
 
   try {
+    let liveAnchorHash = "";
+    try {
+      if (liveChain.isConfigured()) {
+        const liveBlock = await liveChain.getLatestBlock("ethereum");
+        liveAnchorHash = liveBlock.hash;
+      }
+    } catch {}
+
     const simulatedHashes = 1000 + Math.floor(Math.random() * 5000);
     stats.hashRate = Math.round(simulatedHashes / (MINE_INTERVAL_MS / 1000));
 
-    const seed = randomBytes(32).toString("hex");
+    const seed = randomBytes(32).toString("hex") + liveAnchorHash;
     const nonce = Math.floor(Math.random() * 0xffffffff);
     
     let blockFound = false;

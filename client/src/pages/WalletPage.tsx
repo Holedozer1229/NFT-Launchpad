@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, ExternalLink, Coins, Clock, Shield, ChevronDown, Fingerprint, AlertTriangle, Smartphone, Lock } from "lucide-react";
+import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, ExternalLink, Coins, Clock, Shield, ChevronDown, Fingerprint, AlertTriangle, Smartphone, Lock, Globe, Zap } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -7,6 +7,25 @@ import { useAccount, useDisconnect, useConnect } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
 import { usePrices } from "@/hooks/use-prices";
+
+interface LiveChainBalance {
+  eth: string;
+  tokens: Array<{ symbol: string; balance: string; contractAddress: string; decimals: number }>;
+  nfts: Array<{ title: string; tokenId: string; contractAddress: string; imageUrl: string | null }>;
+}
+
+interface LiveChainTx {
+  hash: string;
+  from: string;
+  to: string | null;
+  value: string;
+  blockNumber: number | null;
+  status: string;
+  timestamp: number;
+  chain: string;
+  asset: string;
+  category: string;
+}
 
 interface SphinxWallet {
   id: number;
@@ -103,6 +122,41 @@ export default function WalletPage() {
       }).catch(() => {});
     }
   }, [wallets.length, loading, queryClient]);
+
+  const { data: liveBalance, isLoading: liveBalanceLoading } = useQuery<LiveChainBalance>({
+    queryKey: ["/api/chain/ethereum/balance", externalAddress],
+    enabled: !!externalAddress && externalWalletConnected,
+    refetchInterval: 30000,
+    staleTime: 15000,
+    queryFn: async () => {
+      const res = await fetch(`/api/chain/ethereum/balance/${externalAddress}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch live balance");
+      return res.json();
+    },
+  });
+
+  const { data: liveTxs = [] } = useQuery<LiveChainTx[]>({
+    queryKey: ["/api/chain/ethereum/transactions", externalAddress],
+    enabled: !!externalAddress && externalWalletConnected,
+    refetchInterval: 30000,
+    staleTime: 20000,
+    queryFn: async () => {
+      const res = await fetch(`/api/chain/ethereum/transactions/${externalAddress}?limit=15`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch live transactions");
+      return res.json();
+    },
+  });
+
+  const { data: liveGas } = useQuery<{ baseFee: string; gasPrice: string; lastBlock: number }>({
+    queryKey: ["/api/chain/ethereum/gas"],
+    refetchInterval: 12000,
+    staleTime: 10000,
+    queryFn: async () => {
+      const res = await fetch("/api/chain/ethereum/gas", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch gas");
+      return res.json();
+    },
+  });
 
   const validateAddress = (value: string) => {
     if (!value) { setAddressError(""); return; }
@@ -329,6 +383,109 @@ export default function WalletPage() {
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {externalWalletConnected && externalAddress && (
+            <div className="cosmic-card p-4 mt-3 border border-cyan-500/20" data-testid="card-live-chain">
+              <div className="flex items-center gap-2 mb-3">
+                <Globe className="w-4 h-4 text-cyan-400" />
+                <h3 className="font-heading text-sm uppercase tracking-wider text-cyan-400">Live Mainnet Data</h3>
+                <span className="ml-auto flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                  <span className="text-[9px] font-mono text-green-400">LIVE RPC</span>
+                </span>
+              </div>
+
+              {liveGas && (
+                <div className="flex gap-3 mb-3 text-[10px] font-mono">
+                  <span className="text-muted-foreground">Block <span className="text-cyan-400">#{liveGas.lastBlock.toLocaleString()}</span></span>
+                  <span className="text-muted-foreground">Gas <span className="text-yellow-400">{parseFloat(liveGas.baseFee).toFixed(1)} gwei</span></span>
+                </div>
+              )}
+
+              {liveBalanceLoading ? (
+                <div className="flex items-center gap-2 py-3">
+                  <RefreshCw className="w-3 h-3 animate-spin text-cyan-400" />
+                  <span className="text-xs text-muted-foreground">Fetching on-chain balances...</span>
+                </div>
+              ) : liveBalance ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-2 bg-black/30 border border-white/5 rounded-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">⟠</span>
+                      <span className="text-xs font-heading text-white">ETH Balance</span>
+                    </div>
+                    <span className="font-mono text-xs text-cyan-400" data-testid="text-live-eth-balance">
+                      {parseFloat(liveBalance.eth).toFixed(6)} ETH
+                    </span>
+                  </div>
+
+                  {liveBalance.tokens.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-heading uppercase text-muted-foreground tracking-wider">ERC-20 Tokens</p>
+                      {liveBalance.tokens.slice(0, 8).map((t, i) => (
+                        <div key={i} className="flex items-center justify-between px-2 py-1.5 bg-black/20 border border-white/5 rounded-sm">
+                          <span className="text-[10px] font-mono text-white">{t.symbol}</span>
+                          <span className="text-[10px] font-mono text-cyan-400">{t.balance}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {liveBalance.nfts.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-heading uppercase text-muted-foreground tracking-wider">NFTs ({liveBalance.nfts.length})</p>
+                      <div className="grid grid-cols-3 gap-1">
+                        {liveBalance.nfts.slice(0, 6).map((nft, i) => (
+                          <div key={i} className="p-1.5 bg-black/20 border border-white/5 rounded-sm text-center">
+                            {nft.imageUrl && <img src={nft.imageUrl} alt={nft.title} className="w-full h-12 object-cover rounded-sm mb-1" />}
+                            <p className="text-[8px] font-mono text-muted-foreground truncate">{nft.title}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {liveTxs.length > 0 && (
+                <div className="mt-3 space-y-1">
+                  <p className="text-[10px] font-heading uppercase text-muted-foreground tracking-wider flex items-center gap-1">
+                    <Zap className="w-3 h-3" /> Recent On-Chain Transactions
+                  </p>
+                  {liveTxs.slice(0, 5).map((tx, i) => {
+                    const isSent = tx.from.toLowerCase() === externalAddress.toLowerCase();
+                    return (
+                      <div key={i} className="flex items-center justify-between px-2 py-1.5 bg-black/20 border border-white/5 rounded-sm" data-testid={`live-tx-${i}`}>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${isSent ? "bg-red-500/10 text-red-400" : "bg-green-500/10 text-green-400"}`}>
+                            {isSent ? "↑" : "↓"}
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-mono text-white truncate max-w-[120px]">
+                              {isSent ? `To: ${tx.to?.slice(0, 8)}...` : `From: ${tx.from.slice(0, 8)}...`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-[10px] font-mono ${isSent ? "text-red-400" : "text-green-400"}`}>
+                            {isSent ? "-" : "+"}{parseFloat(tx.value).toFixed(4)} {tx.asset}
+                          </p>
+                          <a
+                            href={`https://etherscan.io/tx/${tx.hash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[8px] text-cyan-400/60 hover:text-cyan-400 flex items-center gap-0.5 justify-end"
+                          >
+                            <ExternalLink className="w-2 h-2" /> Etherscan
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
