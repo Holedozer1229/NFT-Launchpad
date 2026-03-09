@@ -634,7 +634,8 @@ export default function OmegaSerpent() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
+    const isMobileGame = window.innerWidth < 768;
+    const dpr = isMobileGame ? 1 : (window.devicePixelRatio || 1);
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
@@ -642,19 +643,22 @@ export default function OmegaSerpent() {
     const cellW = rect.width / GRID_W;
     const cellH = rect.height / GRID_H;
 
-    // Apply screen shake
     ctx.save();
     ctx.translate(shakeOffset.x, shakeOffset.y);
 
-    // Background with subtle gradient
-    const bgGrad = ctx.createRadialGradient(rect.width / 2, rect.height / 2, 0, rect.width / 2, rect.height / 2, rect.width * 0.7);
-    bgGrad.addColorStop(0, "rgba(5,5,20,0.97)");
-    bgGrad.addColorStop(1, "rgba(0,0,0,0.99)");
-    ctx.fillStyle = bgGrad;
+    if (!isMobileGame) {
+      const bgGrad = ctx.createRadialGradient(rect.width / 2, rect.height / 2, 0, rect.width / 2, rect.height / 2, rect.width * 0.7);
+      bgGrad.addColorStop(0, "rgba(5,5,20,0.97)");
+      bgGrad.addColorStop(1, "rgba(0,0,0,0.99)");
+      ctx.fillStyle = bgGrad;
+    } else {
+      ctx.fillStyle = "rgba(2,2,12,0.98)";
+    }
     ctx.fillRect(-20, -20, rect.width + 40, rect.height + 40);
 
-    // Starfield background
-    for (const star of starsRef.current) {
+    const starLimit = isMobileGame ? Math.min(starsRef.current.length, 20) : starsRef.current.length;
+    for (let si = 0; si < starLimit; si++) {
+      const star = starsRef.current[si];
       const twinkle = Math.sin(tick * star.twinkleSpeed + star.twinkleOffset) * 0.5 + 0.5;
       const alpha = star.brightness * (0.3 + twinkle * 0.7);
       ctx.globalAlpha = alpha;
@@ -683,8 +687,7 @@ export default function OmegaSerpent() {
       const pulse = Math.sin(tick * 0.15) * 0.3 + 0.7;
       const floatY = Math.sin(tick * 0.1 + t.x) * 1.5;
       if (t.type === "skull") {
-        ctx.shadowColor = "hsl(0,100%,50%)";
-        ctx.shadowBlur = 8 * pulse;
+        if (!isMobileGame) { ctx.shadowColor = "hsl(0,100%,50%)"; ctx.shadowBlur = 8 * pulse; }
         ctx.fillStyle = "hsl(0,100%,50%)";
         ctx.font = `${Math.min(cellW, cellH) * 0.65}px monospace`;
         ctx.textAlign = "center";
@@ -692,9 +695,11 @@ export default function OmegaSerpent() {
         ctx.fillText("💀", tx, ty + floatY);
       } else {
         const color = t.rarity ? RARITY_COLORS[t.rarity] : (t.type === "golden" ? "#FFD700" : CHAIN_COLORS[t.chain]);
-        const glowIntensity = t.rarity === "LEGENDARY" ? 15 : t.rarity === "EPIC" ? 10 : t.rarity === "RARE" ? 6 : 4;
-        ctx.shadowColor = color;
-        ctx.shadowBlur = glowIntensity * pulse;
+        if (!isMobileGame) {
+          const glowIntensity = t.rarity === "LEGENDARY" ? 15 : t.rarity === "EPIC" ? 10 : t.rarity === "RARE" ? 6 : 4;
+          ctx.shadowColor = color;
+          ctx.shadowBlur = glowIntensity * pulse;
+        }
         ctx.fillStyle = color;
 
         // Draw rarity-based shape
@@ -735,43 +740,47 @@ export default function OmegaSerpent() {
 
     // Enhanced snake rendering with glow trail and eyes
     const drawSnake = (snake: Snake, color: string) => {
-      // Glow trail behind snake
-      for (let i = snake.segments.length - 1; i >= 1; i--) {
-        const seg = snake.segments[i];
-        const trailAlpha = 0.08 * (1 - i / snake.segments.length);
-        ctx.globalAlpha = trailAlpha;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(seg.x * cellW + cellW / 2, seg.y * cellH + cellH / 2, cellW * 0.6, 0, Math.PI * 2);
-        ctx.fill();
+      if (!isMobileGame) {
+        for (let i = snake.segments.length - 1; i >= 1; i--) {
+          const seg = snake.segments[i];
+          const trailAlpha = 0.08 * (1 - i / snake.segments.length);
+          ctx.globalAlpha = trailAlpha;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(seg.x * cellW + cellW / 2, seg.y * cellH + cellH / 2, cellW * 0.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
       }
-      ctx.globalAlpha = 1;
 
-      // Body segments with rounded corners
       for (let i = snake.segments.length - 1; i >= 0; i--) {
         const seg = snake.segments[i];
         const alpha = 0.4 + 0.6 * (1 - i / snake.segments.length);
         ctx.fillStyle = color;
         ctx.globalAlpha = alpha;
         const pad = i === 0 ? 0.5 : 1.5;
-        const rr = Math.min(cellW, cellH) * 0.2;
-        const sx = seg.x * cellW + pad;
-        const sy = seg.y * cellH + pad;
-        const sw = cellW - pad * 2;
-        const sh = cellH - pad * 2;
-        ctx.beginPath();
-        ctx.moveTo(sx + rr, sy);
-        ctx.lineTo(sx + sw - rr, sy);
-        ctx.quadraticCurveTo(sx + sw, sy, sx + sw, sy + rr);
-        ctx.lineTo(sx + sw, sy + sh - rr);
-        ctx.quadraticCurveTo(sx + sw, sy + sh, sx + sw - rr, sy + sh);
-        ctx.lineTo(sx + rr, sy + sh);
-        ctx.quadraticCurveTo(sx, sy + sh, sx, sy + sh - rr);
-        ctx.lineTo(sx, sy + rr);
-        ctx.quadraticCurveTo(sx, sy, sx + rr, sy);
-        ctx.closePath();
-        ctx.fill();
-        if (i === 0) {
+        if (isMobileGame) {
+          ctx.fillRect(seg.x * cellW + pad, seg.y * cellH + pad, cellW - pad * 2, cellH - pad * 2);
+        } else {
+          const rr = Math.min(cellW, cellH) * 0.2;
+          const sx = seg.x * cellW + pad;
+          const sy = seg.y * cellH + pad;
+          const sw = cellW - pad * 2;
+          const sh = cellH - pad * 2;
+          ctx.beginPath();
+          ctx.moveTo(sx + rr, sy);
+          ctx.lineTo(sx + sw - rr, sy);
+          ctx.quadraticCurveTo(sx + sw, sy, sx + sw, sy + rr);
+          ctx.lineTo(sx + sw, sy + sh - rr);
+          ctx.quadraticCurveTo(sx + sw, sy + sh, sx + sw - rr, sy + sh);
+          ctx.lineTo(sx + rr, sy + sh);
+          ctx.quadraticCurveTo(sx, sy + sh, sx, sy + sh - rr);
+          ctx.lineTo(sx, sy + rr);
+          ctx.quadraticCurveTo(sx, sy, sx + rr, sy);
+          ctx.closePath();
+          ctx.fill();
+        }
+        if (i === 0 && !isMobileGame) {
           ctx.shadowColor = color;
           ctx.shadowBlur = 16;
           ctx.fill();
@@ -812,12 +821,10 @@ export default function OmegaSerpent() {
     }
     if (player.alive) drawSnake(player, PLAYER_COLOR);
 
-    // Draw particles
     for (const p of particles) {
       ctx.globalAlpha = p.life;
       ctx.fillStyle = p.color;
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 4;
+      if (!isMobileGame) { ctx.shadowColor = p.color; ctx.shadowBlur = 4; }
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
       ctx.fill();

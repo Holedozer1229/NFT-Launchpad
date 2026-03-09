@@ -35,7 +35,7 @@ const ContractDeployment = lazy(() => import("@/pages/ContractDeployment"));
 const TreasuryVault = lazy(() => import("@/pages/TreasuryVault"));
 const QuantumBerryPhase = lazy(() => import("@/pages/QuantumBerryPhase"));
 const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
-import { QuantumMiner } from "@/components/QuantumMiner";
+const QuantumMiner = lazy(() => import("@/components/QuantumMiner").then(m => ({ default: m.QuantumMiner })));
 
 function AdminGuard() {
   const { user } = useAuth();
@@ -137,7 +137,9 @@ function AppRouter() {
       <Suspense fallback={null}>
         <SphinxOracle />
       </Suspense>
-      <QuantumMiner minimized={location !== "/"} />
+      <Suspense fallback={null}>
+        <QuantumMiner minimized={location !== "/"} />
+      </Suspense>
     </SidebarLayout>
   );
 }

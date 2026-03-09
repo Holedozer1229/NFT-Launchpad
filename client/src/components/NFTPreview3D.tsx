@@ -77,12 +77,19 @@ export default function NFTPreview3D({ nft, onClose }: NFTPreviewProps) {
 
   useEffect(() => {
     if (!isAutoRotating) return;
+    const isMobile = window.innerWidth < 768;
 
-    const animate = () => {
-      angleRef.current += 0.3;
-      const x = Math.sin(angleRef.current * 0.02) * 8;
-      const y = Math.cos(angleRef.current * 0.015) * 12;
-      setRotation({ x, y });
+    let lastTime = 0;
+    const interval = isMobile ? 1000 / 20 : 1000 / 60;
+
+    const animate = (now: number) => {
+      if (now - lastTime >= interval) {
+        lastTime = now;
+        angleRef.current += 0.3;
+        const x = Math.sin(angleRef.current * 0.02) * 8;
+        const y = Math.cos(angleRef.current * 0.015) * 12;
+        setRotation({ x, y });
+      }
       animFrameRef.current = requestAnimationFrame(animate);
     };
     animFrameRef.current = requestAnimationFrame(animate);

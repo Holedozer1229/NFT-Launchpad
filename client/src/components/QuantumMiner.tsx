@@ -174,7 +174,8 @@ export function QuantumMiner({ minimized = false }: { minimized?: boolean }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    const isMobile = window.innerWidth < 768;
+    const dpr = isMobile ? 1 : (window.devicePixelRatio || 1);
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
@@ -205,8 +206,10 @@ export function QuantumMiner({ minimized = false }: { minimized?: boolean }) {
       const tx = t.x * cellW + cellW / 2;
       const ty = t.y * cellH + cellH / 2;
       const pulse = Math.sin(tick * 0.15) * 0.3 + 0.7;
-      ctx.shadowColor = CHAIN_COLORS[t.chain];
-      ctx.shadowBlur = 8 * pulse;
+      if (!isMobile) {
+        ctx.shadowColor = CHAIN_COLORS[t.chain];
+        ctx.shadowBlur = 8 * pulse;
+      }
       ctx.fillStyle = CHAIN_COLORS[t.chain];
       ctx.beginPath();
       const r = Math.min(cellW, cellH) * 0.3;
@@ -231,7 +234,7 @@ export function QuantumMiner({ minimized = false }: { minimized?: boolean }) {
         const pad = i === 0 ? 1 : 2;
         ctx.fillRect(seg.x * cellW + pad, seg.y * cellH + pad, cellW - pad * 2, cellH - pad * 2);
 
-        if (i === 0) {
+        if (i === 0 && !isMobile) {
           ctx.shadowColor = color;
           ctx.shadowBlur = 12;
           ctx.fillRect(seg.x * cellW + pad, seg.y * cellH + pad, cellW - pad * 2, cellH - pad * 2);

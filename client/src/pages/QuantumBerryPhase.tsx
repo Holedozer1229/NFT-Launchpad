@@ -116,6 +116,7 @@ function BerryPhaseGauge({ phase, phasePi, amplitude, holonomy }: {
     const cy = h / 2;
     const r = Math.min(110, containerWidth * 0.39);
     let lastFrame = 0;
+    const isMobile = window.innerWidth < 768;
 
     const draw = (ts: number) => {
       if (ts - lastFrame < 33) { animRef.current = requestAnimationFrame(draw); return; }
@@ -141,8 +142,7 @@ function BerryPhaseGauge({ phase, phasePi, amplitude, holonomy }: {
       ctx.arc(cx, cy, r, -Math.PI / 2, endAngle);
       ctx.strokeStyle = NEON.cyan;
       ctx.lineWidth = 5;
-      ctx.shadowColor = NEON.cyan;
-      ctx.shadowBlur = 15;
+      if (!isMobile) { ctx.shadowColor = NEON.cyan; ctx.shadowBlur = 15; }
       ctx.stroke();
       ctx.shadowBlur = 0;
 
@@ -151,8 +151,7 @@ function BerryPhaseGauge({ phase, phasePi, amplitude, holonomy }: {
       ctx.beginPath();
       ctx.arc(dotX, dotY, 6, 0, Math.PI * 2);
       ctx.fillStyle = NEON.cyan;
-      ctx.shadowColor = NEON.cyan;
-      ctx.shadowBlur = 20;
+      if (!isMobile) { ctx.shadowColor = NEON.cyan; ctx.shadowBlur = 20; }
       ctx.fill();
       ctx.shadowBlur = 0;
 
@@ -203,7 +202,8 @@ function TunnelVisualization({ tunnels }: { tunnels: TunnelState[] }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const w = canvas.width = canvas.offsetWidth * (window.devicePixelRatio > 1 ? 2 : 1);
+    const isMobileTunnel = window.innerWidth < 768;
+    const w = canvas.width = canvas.offsetWidth * (isMobileTunnel ? 1 : (window.devicePixelRatio > 1 ? 2 : 1));
     const h = canvas.height = 220;
     const scale = w / (canvas.offsetWidth || w);
     let lastFrame = 0;
@@ -263,8 +263,7 @@ function TunnelVisualization({ tunnels }: { tunnels: TunnelState[] }) {
           ctx.beginPath();
           ctx.arc(px, py, 2, 0, Math.PI * 2);
           ctx.fillStyle = NEON.cyan;
-          ctx.shadowColor = NEON.cyan;
-          ctx.shadowBlur = 8;
+          if (!isMobileTunnel) { ctx.shadowColor = NEON.cyan; ctx.shadowBlur = 8; }
           ctx.fill();
           ctx.shadowBlur = 0;
         }

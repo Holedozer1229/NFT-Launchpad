@@ -814,6 +814,62 @@ html, body {
 
   .dynamic-bg-nebula {
     animation: none !important;
+    filter: blur(40px) !important;
+    opacity: 0.08 !important;
+  }
+
+  .cosmic-card,
+  .sphinx-card,
+  .cosmic-card-glow {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .oracle-border {
+    box-shadow: 0 0 8px hsl(var(--primary) / 0.1) !important;
+  }
+
+  .cosmic-card-glow {
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.04), 0 2px 8px hsl(0 0% 0% / 0.2) !important;
+  }
+
+  .connect-wallet-btn {
+    box-shadow: 0 0 10px hsl(185 100% 50% / 0.2) !important;
+  }
+  .connect-wallet-btn:hover {
+    box-shadow: 0 0 15px hsl(185 100% 50% / 0.3) !important;
+  }
+
+  .rarity-glow-Common,
+  .rarity-glow-Uncommon,
+  .rarity-glow-Rare,
+  .rarity-glow-Epic,
+  .rarity-glow-Legendary,
+  .rarity-glow-Mythic {
+    animation: none !important;
+    box-shadow: 0 0 12px hsl(var(--primary) / 0.2) !important;
+  }
+
+  .nft-card-3d {
+    transform: none !important;
+    perspective: none !important;
+  }
+  .nft-card-3d .nft-shine {
+    display: none !important;
+  }
+
+  .pulse-ring {
+    animation: none !important;
+  }
+
+  .cosmic-card::before,
+  .sphinx-card::before,
+  .cosmic-card-glow::before {
+    display: none !important;
+  }
+
+  canvas {
+    image-rendering: pixelated;
   }
 
   button, 
@@ -825,6 +881,10 @@ html, body {
 
   .recharts-wrapper {
     font-size: 10px;
+  }
+
+  .recharts-wrapper svg {
+    shape-rendering: optimizeSpeed;
   }
 }
 

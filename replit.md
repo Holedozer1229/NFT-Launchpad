@@ -68,6 +68,17 @@ Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection
   - Mining cycle: wallet-deleted warning logged before auto-stop
   - Configured autoscale deployment with `npm run build` / `npm run start`
 - **Mar 2026**: **RocketBabesNFT Rebrand** — renamed RocketGirls to RocketBabes across all routes, components, metadata, contracts, and documentation. Updated SEO meta tags (title, OG, Twitter) to feature RocketBabesNFT. Added keywords meta tag.
+- **Mar 2026**: **Mobile Performance Polish** — major GPU/CPU optimizations for mobile devices
+  - CSS: Disabled `backdrop-filter: blur()` on all cards (cosmic-card, sphinx-card, cosmic-card-glow) on mobile — major GPU saver
+  - CSS: Reduced nebula background blur from 80px→40px, lowered opacity, killed animation on mobile
+  - CSS: Disabled all rarity glow animations (box-shadow pulses up to 80px) on mobile — replaced with static subtle glow
+  - CSS: Disabled 3D NFT card transforms, shine overlays, pulse-ring animations, and card gradient pseudo-elements on mobile
+  - CSS: Added `shape-rendering: optimizeSpeed` for Recharts SVGs, `image-rendering: pixelated` for canvas on mobile
+  - Canvas: QuantumMiner — DPR capped at 1x, shadowBlur disabled on mobile
+  - Canvas: OmegaSerpent — DPR capped at 1x, starfield limited to 20 stars, radial gradient bg replaced with flat fill, glow trails skipped, rounded-corner segments simplified to fillRect, all shadowBlur disabled, particle glow disabled
+  - Canvas: QuantumBerryPhase gauge — shadowBlur disabled on mobile, tunnel canvas DPR capped at 1x
+  - Canvas: NFTPreview3D — auto-rotate throttled to 20fps (from 60fps) on mobile
+  - React: QuantumMiner component lazy-loaded (was eagerly imported on every page)
 - **Mar 2026**: **Enhanced Mobile Responsiveness** — comprehensive mobile optimization across all pages
   - Global CSS: reduced card padding, stat value font sizes, scrollable tabs, capped h1 headings, full-width dialogs, smaller monospace text, canvas height limits, safe area insets for notched phones
   - WalletPage: stacked header/buttons on mobile, responsive balance grid, full-width tabs, truncated transaction addresses
