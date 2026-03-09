@@ -64,5 +64,3 @@ expertMode = true
 [userenv]
 
 [userenv.shared]
-VITE_ALCHEMY_API_KEY = "_qXOvwl51IXRGb5Oe-PvV"
-JWT_SECRET = "a3e2e878512015c628d434fa22ed12dacd300f09f0e3877eac7cf809e4a9cf4cd14f272cba8bbbd4d5e46ddec9816d7e5081600e56e71c68cfafcc83b4895983"
