@@ -459,20 +459,35 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Missing required fields" });
       }
 
+      const addrStr = String(address).trim();
+      const sigStr = String(signature).trim();
+      if (!/^0x[a-fA-F0-9]{40}$/.test(addrStr)) {
+        return res.status(400).json({ message: "Invalid wallet address format" });
+      }
+      if (!/^0x[a-fA-F0-9]{128,130}$/.test(sigStr)) {
+        return res.status(400).json({ message: "Invalid signature format" });
+      }
+
       const message = `Sign this message to authenticate with SKYNT Protocol (Contract: 0x22d3f06afB69e5FCFAa98C20009510dD11aF2517)\nNonce: ${nonce}`;
       
-      const isValid = await verifyMessage({
-        address: address as `0x${string}`,
-        message,
-        signature: signature as `0x${string}`,
-      });
+      let isValid = false;
+      try {
+        isValid = await verifyMessage({
+          address: addrStr as `0x${string}`,
+          message,
+          signature: sigStr as `0x${string}`,
+        });
+      } catch (sigError: any) {
+        console.error("[Auth] Wallet auth signature error:", sigError.message);
+        return res.status(400).json({ message: "Signature verification failed. Please try again." });
+      }
 
       if (!isValid) {
         return res.status(401).json({ message: "Invalid signature" });
       }
 
       if (req.isAuthenticated() && req.user) {
-        const existingOwner = await storage.getUserByWalletAddress(address);
+        const existingOwner = await storage.getUserByWalletAddress(addrStr);
         if (existingOwner && existingOwner.id !== req.user.id) {
           const isAutoWalletAccount = existingOwner.username.startsWith("wallet_") && existingOwner.authProvider === "wallet";
           if (!isAutoWalletAccount) {
@@ -484,7 +499,7 @@ export function setupAuth(app: Express) {
         }
 
         await db.update(users)
-          .set({ walletAddress: address, authNonce: null })
+          .set({ walletAddress: addrStr, authNonce: null })
           .where(eq(users.id, req.user.id));
 
         const updatedUser = await storage.getUser(req.user.id);
@@ -494,12 +509,12 @@ export function setupAuth(app: Express) {
         return res.json({ ...safeUser, token, refreshToken });
       }
 
-      let user = await storage.getUserByWalletAddress(address);
+      let user = await storage.getUserByWalletAddress(addrStr);
       if (!user) {
         user = await storage.createUser({
-          username: `wallet_${address.slice(2, 8)}`,
+          username: `wallet_${addrStr.slice(2, 8)}`,
           password: await hashPassword(randomBytes(32).toString("hex")),
-          walletAddress: address,
+          walletAddress: addrStr,
           authNonce: null,
           authProvider: "wallet",
         });
@@ -560,17 +575,28 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Signature verification required to link wallet" });
       }
 
+      const sigStr = String(signature).trim();
+      if (!/^0x[a-fA-F0-9]{128,130}$/.test(sigStr)) {
+        return res.status(400).json({ message: "Invalid signature format" });
+      }
+
       const currentUser = await storage.getUser(req.user.id);
       if (!currentUser || currentUser.authNonce !== nonce) {
         return res.status(401).json({ message: "Invalid or expired nonce. Request a new one." });
       }
 
       const message = `SKYNT Protocol — Link Wallet\nAccount: ${req.user.username}\nWallet: ${normalized}\nNonce: ${nonce}`;
-      const isValid = await verifyMessage({
-        address: normalized as `0x${string}`,
-        message,
-        signature: signature as `0x${string}`,
-      });
+      let isValid = false;
+      try {
+        isValid = await verifyMessage({
+          address: normalized as `0x${string}`,
+          message,
+          signature: sigStr as `0x${string}`,
+        });
+      } catch (sigError: any) {
+        console.error("[Auth] Signature verification error:", sigError.message);
+        return res.status(400).json({ message: "Signature verification failed. Please try again." });
+      }
 
       if (!isValid) {
         return res.status(401).json({ message: "Signature verification failed. You must sign with the wallet you are linking." });
