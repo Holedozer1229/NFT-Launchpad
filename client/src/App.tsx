@@ -32,6 +32,7 @@ const RarityProofEngine = lazy(() => import("@/pages/RarityProofEngine"));
 const P2PNetworkPage = lazy(() => import("@/pages/P2PNetwork"));
 const RocketGirlsNFT = lazy(() => import("@/pages/RocketGirlsNFT"));
 const ContractDeployment = lazy(() => import("@/pages/ContractDeployment"));
+const TreasuryVault = lazy(() => import("@/pages/TreasuryVault"));
 const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
 import { QuantumMiner } from "@/components/QuantumMiner";
 
@@ -47,6 +48,20 @@ function AdminGuard() {
     );
   }
   return <Admin />;
+}
+
+function TreasuryVaultGuard() {
+  const { user } = useAuth();
+  if (!user?.isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4" data-testid="treasury-denied">
+        <ShieldAlert className="w-12 h-12 text-red-400" />
+        <h2 className="font-heading text-xl font-bold text-foreground">Treasury Access Restricted</h2>
+        <p className="font-mono text-xs text-muted-foreground">Admin clearance required to access Treasury Vault.</p>
+      </div>
+    );
+  }
+  return <TreasuryVault />;
 }
 
 function PageLoader() {
@@ -110,6 +125,7 @@ function AppRouter() {
             <Route path="/p2p-network" component={P2PNetworkPage} />
             <Route path="/rocket-girls" component={RocketGirlsNFT} />
             <Route path="/contracts" component={ContractDeployment} />
+            <Route path="/treasury" component={TreasuryVaultGuard} />
             <Route path="/wallet" component={WalletPage} />
             <Route path="/admin" component={AdminGuard} />
             <Route component={NotFound} />

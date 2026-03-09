@@ -4,6 +4,13 @@
 Multi-page NFT minting protocol application combining SphinxOS Oracle Minter with Cosmos Launchpad design. Features sidebar navigation, cosmic theme with neon accents, and user authentication.
 
 ## Recent Changes
+- **Mar 2026**: Added **Treasury Vault** page (`/treasury`) — admin-only in-app treasury wallet with MetaMask SDK
+  - MetaMask SDK (`@metamask/sdk`) installed for treasury wallet connection
+  - Admin-only routes: `GET /api/treasury/wallet`, `POST /api/treasury/wallet/set-key`, `GET /api/treasury/wallet/status`, `GET /api/treasury/wallet/transactions`
+  - Treasury key save form (sets `TREASURY_PRIVATE_KEY` for current session)
+  - Real balance fetch via Alchemy SDK, transaction history from on-chain data
+  - Contract deployment (`POST /api/deployments/deploy`, `/deploy-all`) restricted to admin only
+  - Vault icon in SYSTEM sidebar group, TreasuryVaultGuard in App.tsx
 - **Mar 2026**: **Mobile-responsive interface** — comprehensive mobile optimization across all pages
   - Global mobile CSS: touch-friendly 44px minimum tap targets, reduced animations for performance, scrollable tables
   - Sidebar: tighter mobile padding (p-4), safe top padding (pt-14) for hamburger menu clearance, larger touch menu button

@@ -1274,6 +1274,7 @@ export async function registerRoutes(
 
   app.post("/api/deployments/deploy", rateLimit(60000, 3), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user!.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const { walletAddress, chain } = req.body;
       if (!walletAddress) return res.status(400).json({ message: "Wallet address required" });
@@ -1312,6 +1313,7 @@ export async function registerRoutes(
 
   app.post("/api/deployments/deploy-all", rateLimit(120000, 2), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user!.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const { walletAddress } = req.body;
       if (!walletAddress) return res.status(400).json({ message: "Wallet address required" });
@@ -2640,6 +2642,107 @@ export async function registerRoutes(
       res.json(walletJson);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to export wallet" });
+    }
+  });
+
+  // ========== TREASURY WALLET ROUTES (ADMIN-ONLY) ==========
+
+  app.get("/api/treasury/wallet", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const isConfigured = !!process.env.TREASURY_PRIVATE_KEY;
+      const alchemyApiKey = process.env.ALCHEMY_API_KEY;
+      let balance = "0";
+      
+      if (alchemyApiKey) {
+        try {
+          const { Alchemy, Network } = await import("alchemy-sdk");
+          const alchemy = new Alchemy({
+            apiKey: alchemyApiKey,
+            network: Network.ETH_MAINNET,
+          });
+          const bal = await alchemy.core.getBalance(TREASURY_WALLET);
+          balance = bal.toString();
+        } catch (e) {
+          console.error("Failed to fetch real treasury balance:", e);
+        }
+      }
+
+      res.json({
+        address: TREASURY_WALLET,
+        balance,
+        isConfigured,
+        skyntAddress: ENGINE_CONTRACT,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch treasury wallet info" });
+    }
+  });
+
+  app.post("/api/treasury/wallet/set-key", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const { privateKey } = req.body;
+      if (!privateKey || typeof privateKey !== "string") {
+        return res.status(400).json({ message: "Private key is required" });
+      }
+      
+      // In a real app, we'd use a secret management service.
+      // For this environment, we'll simulate setting it if it's not already in process.env
+      // Note: process.env modifications at runtime don't persist across restarts usually,
+      // but the task asks for a POST to set it.
+      process.env.TREASURY_PRIVATE_KEY = privateKey;
+      
+      res.json({ message: "Treasury key configured for current session" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to set treasury key" });
+    }
+  });
+
+  app.get("/api/treasury/wallet/status", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      res.json({
+        isConfigured: !!process.env.TREASURY_PRIVATE_KEY,
+        address: TREASURY_WALLET,
+        engineStatus: isEngineConfigured() ? "active" : "simulated",
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch treasury status" });
+    }
+  });
+
+  app.get("/api/treasury/wallet/transactions", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const alchemyApiKey = process.env.ALCHEMY_API_KEY;
+      if (!alchemyApiKey) {
+        return res.json([]);
+      }
+      
+      const { Alchemy, Network } = await import("alchemy-sdk");
+      const alchemy = new Alchemy({
+        apiKey: alchemyApiKey,
+        network: Network.ETH_MAINNET,
+      });
+      
+      const txs = await alchemy.core.getAssetTransfers({
+        fromAddress: TREASURY_WALLET,
+        category: ["external", "erc20", "erc721", "erc1155"] as any,
+        maxCount: 10,
+      });
+      
+      res.json(txs.transfers);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch treasury transactions" });
     }
   });
 
