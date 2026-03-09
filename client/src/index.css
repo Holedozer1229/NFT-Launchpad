@@ -737,3 +737,47 @@ html, body {
     opacity: 0.1;
   }
 }
+
+@media (max-width: 767px) {
+  .data-table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-card-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* Reduce heavy animations on mobile */
+  .text-glitch::before,
+  .text-glitch::after,
+  .border-beam::before,
+  .scanline-animated {
+    animation-duration: 0s !important;
+    display: none !important;
+  }
+
+  .dynamic-bg-nebula {
+    animation: none !important;
+  }
+
+  /* Touch targets */
+  button, 
+  [role="button"],
+  .sidebar-nav-item,
+  .connect-wallet-btn {
+    min-height: 44px;
+  }
+}

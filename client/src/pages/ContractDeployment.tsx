@@ -176,13 +176,13 @@ export default function ContractDeployment() {
               {totalExisting} / {totalPossible} contracts deployed ({deployProgress.toFixed(0)}%)
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-1 gap-3">
             {address ? (
               <button
                 data-testid="button-deploy-all"
                 onClick={() => deployAllMutation.mutate()}
                 disabled={deployAllMutation.isPending}
-                className="px-6 py-3 rounded-lg font-heading text-sm tracking-wider flex items-center gap-2 transition-all disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-3 rounded-lg font-heading text-sm tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                 style={{
                   background: `linear-gradient(135deg, ${NEON.cyan}22, ${NEON.purple}22)`,
                   border: `1px solid ${NEON.cyan}66`,
@@ -252,7 +252,7 @@ export default function ContractDeployment() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-testid="contract-list">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="contract-list">
         {(contractsInfo?.contracts || []).map((contract) => {
           const Icon = CONTRACT_ICONS[contract.id] || FileCode2;
           const deployedChains = Object.keys(existingByChain).filter(chain =>
@@ -379,7 +379,7 @@ export default function ContractDeployment() {
                   {chainDeployments.map((dep: any) => {
                     const Icon = CONTRACT_ICONS[dep.contractId] || FileCode2;
                     return (
-                      <div key={dep.id} className="px-4 py-3 flex items-center justify-between" data-testid={`deployment-row-${dep.id}`}>
+              <div key={dep.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2" data-testid={`deployment-row-${dep.id}`}>
                         <div className="flex items-center gap-3 min-w-0">
                           <Icon className="w-4 h-4 shrink-0" style={{ color: config.color }} />
                           <div className="min-w-0">
@@ -427,7 +427,7 @@ export default function ContractDeployment() {
         data-testid="deploy-info"
       >
         <div className="font-heading text-xs tracking-wider text-muted-foreground mb-2">DEPLOYMENT INFO</div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-[10px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 font-mono text-[10px]">
           <div>
             <span className="text-muted-foreground">Compiler: </span>
             <span className="text-foreground">Solidity 0.8.20</span>

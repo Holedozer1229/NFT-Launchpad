@@ -282,7 +282,7 @@ export default function RocketGirlsNFT() {
               </h2>
               <span className="text-[9px] font-mono text-white/30">{COSMIC_TEMPLATES.length} AVAILABLE</span>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
               {COSMIC_TEMPLATES.map(t => (
                 <TemplatePreview
                   key={t.id}
@@ -293,7 +293,7 @@ export default function RocketGirlsNFT() {
                 />
               ))}
             </div>
-            <p className="text-[9px] font-mono text-white/25 mt-2 text-center">{activeTemplate.desc}</p>
+            <p className="text-[10px] sm:text-[9px] font-mono text-white/25 mt-2 text-center">{activeTemplate.desc}</p>
           </div>
 
           <div className="rounded-lg p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>

@@ -543,7 +543,7 @@ export default function Dashboard() {
           {minersLoading ? (
             <div className="flex items-center justify-center h-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : miners && miners.length > 0 ? (
-            <table className="data-table min-w-[600px]">
+            <table className="data-table min-w-[480px]">
               <thead>
                 <tr>
                   <th>Miner ID</th>
@@ -556,7 +556,10 @@ export default function Dashboard() {
               <tbody>
                 {miners.map((m) => (
                   <tr key={m.walletAddress} data-testid={`row-miner-${m.walletAddress}`}>
-                    <td className="text-neon-cyan font-semibold">{m.walletAddress}</td>
+                    <td className="text-neon-cyan font-semibold">
+                      <span className="hidden sm:inline">{m.walletAddress}</span>
+                      <span className="inline sm:hidden">{m.walletAddress.slice(0, 6)}...{m.walletAddress.slice(-4)}</span>
+                    </td>
                     <td>
                       <span className={`inline-flex items-center gap-1 ${m.hashRate > 0 ? "text-neon-green" : "text-muted-foreground"}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${m.hashRate > 0 ? "bg-neon-green animate-pulse" : "bg-muted-foreground"}`} />

@@ -4,6 +4,16 @@
 Multi-page NFT minting protocol application combining SphinxOS Oracle Minter with Cosmos Launchpad design. Features sidebar navigation, cosmic theme with neon accents, and user authentication.
 
 ## Recent Changes
+- **Mar 2026**: **Mobile-responsive interface** — comprehensive mobile optimization across all pages
+  - Global mobile CSS: touch-friendly 44px minimum tap targets, reduced animations for performance, scrollable tables
+  - Sidebar: tighter mobile padding (p-4), safe top padding (pt-14) for hamburger menu clearance, larger touch menu button
+  - Bridge: Guardian grid wraps on mobile (3→5→9 cols), scrollable transaction table
+  - MintNFT: Smaller showcase cards on mobile (260px), snap scroll, larger text for readability
+  - Dashboard: Narrower table min-width (480px), truncated wallet addresses on mobile
+  - Gallery: Wider chain grid on tablets, larger NFT title truncation on mobile
+  - RocketGirls: Template grid 2→3→6 cols for larger touch targets
+  - ContractDeployment: Full-width deploy button on mobile, stacked deployment rows, responsive grids
+  - IIT Consciousness: Stats stack vertically on mobile, scrollable matrix visualizations
 - **Mar 2026**: Added **Contract Deployment** page (`/contracts`) — deploy all 9 smart contracts across 5 chains
   - Contracts: SpaceFlightNFT, SphinxBridge, SphinxYieldAggregator, SkynetZkBridge, ZkWormhole, RocketGirlsNFT, ECDSAVerifier, SpectralEntropyVerifier, SkynetBridge
   - Chains: Ethereum, zkSync Era, Polygon, Arbitrum, Stacks

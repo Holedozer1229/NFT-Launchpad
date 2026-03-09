@@ -377,15 +377,15 @@ export default function Bridge() {
         {guardiansLoading ? (
           <div className="flex items-center justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : (
-          <div className="grid grid-cols-9 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2">
             {guardiansList.map((g) => (
               <div key={g.guardianIndex} className="text-center" data-testid={`guardian-${g.guardianIndex}`}>
-                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center mx-auto text-[10px] font-heading ${
+                <div className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center mx-auto text-[10px] font-heading ${
                   g.status === "online" ? "border-neon-green bg-neon-green/10 text-neon-green" : "border-red-400/40 bg-red-400/5 text-red-400/60"
                 }`}>
                   {g.guardianIndex}
                 </div>
-                <p className={`text-[8px] mt-1 ${g.status === "online" ? "text-neon-green" : "text-red-400/60"}`}>{timeAgo(g.lastSignature)}</p>
+                <p className={`text-[10px] sm:text-[8px] mt-1 ${g.status === "online" ? "text-neon-green" : "text-red-400/60"}`}>{timeAgo(g.lastSignature)}</p>
               </div>
             ))}
           </div>
@@ -401,44 +401,46 @@ export default function Bridge() {
         ) : bridgeTransactions.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">No bridge transactions yet</p>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Route</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Sigs</th>
-                <th>Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bridgeTransactions.map((bridge) => (
-                <tr key={bridge.id} data-testid={`row-bridge-${bridge.id}`}>
-                  <td>
-                    <span className="text-primary">{bridge.fromChain}</span>
-                    <span className="text-muted-foreground mx-1">→</span>
-                    <span className="text-neon-green">{bridge.toChain}</span>
-                  </td>
-                  <td>{bridge.amount} {bridge.token}</td>
-                  <td>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-heading uppercase ${
-                      bridge.status === "Released" || bridge.status === "Minted" ? "bg-neon-green/10 text-neon-green"
-                      : bridge.status === "Locked" || bridge.status === "Burned" ? "bg-neon-orange/10 text-neon-orange"
-                      : "bg-neon-cyan/10 text-neon-cyan"
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        bridge.status === "Released" || bridge.status === "Minted" ? "bg-neon-green"
-                        : "bg-neon-orange animate-pulse"
-                      }`} />
-                      {bridge.status}
-                    </span>
-                  </td>
-                  <td className="font-mono">{bridge.signatures}</td>
-                  <td className="text-muted-foreground">{timeAgo(bridge.createdAt)}</td>
+          <div className="overflow-x-auto -mx-4 px-4">
+            <table className="data-table min-w-[500px]">
+              <thead>
+                <tr>
+                  <th>Route</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Sigs</th>
+                  <th>Time</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {bridgeTransactions.map((bridge) => (
+                  <tr key={bridge.id} data-testid={`row-bridge-${bridge.id}`}>
+                    <td>
+                      <span className="text-primary">{bridge.fromChain}</span>
+                      <span className="text-muted-foreground mx-1">→</span>
+                      <span className="text-neon-green">{bridge.toChain}</span>
+                    </td>
+                    <td>{bridge.amount} {bridge.token}</td>
+                    <td>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-heading uppercase ${
+                        bridge.status === "Released" || bridge.status === "Minted" ? "bg-neon-green/10 text-neon-green"
+                        : bridge.status === "Locked" || bridge.status === "Burned" ? "bg-neon-orange/10 text-neon-orange"
+                        : "bg-neon-cyan/10 text-neon-cyan"
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          bridge.status === "Released" || bridge.status === "Minted" ? "bg-neon-green"
+                          : "bg-neon-orange animate-pulse"
+                        }`} />
+                        {bridge.status}
+                      </span>
+                    </td>
+                    <td className="font-mono">{bridge.signatures}</td>
+                    <td className="text-muted-foreground">{timeAgo(bridge.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

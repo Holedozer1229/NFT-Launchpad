@@ -318,7 +318,7 @@ const AdjacencyHeatmap = memo(function AdjacencyHeatmap({ matrix }: { matrix: nu
   );
 
   return (
-    <div className="flex justify-center" data-testid="adjacency-heatmap">
+    <div className="flex justify-center overflow-x-auto" data-testid="adjacency-heatmap">
       <div className="inline-grid gap-px" style={{ gridTemplateColumns: `repeat(${size}, ${cellSize}px)` }}>
         {cells}
       </div>
@@ -528,7 +528,7 @@ export default function IITConsciousness() {
         </div>
       ) : phi ? (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: "Φ Total", value: phi.phi.toFixed(4), sub: `${LEVEL_ICONS[phi.level]} ${phi.levelLabel}`, color: NEON.magenta, icon: Atom },
               { label: "Von Neumann Entropy", value: phi.entropy.toFixed(4), sub: "bits of integration", color: NEON.cyan, icon: Waves },

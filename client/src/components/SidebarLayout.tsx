@@ -106,10 +106,10 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
 
       <button
         data-testid="button-mobile-menu"
-        className="fixed top-4 left-4 z-50 md:hidden p-2 rounded-sm bg-[hsl(var(--sidebar-bg))] border border-[hsl(var(--sidebar-border))] text-foreground"
+        className="fixed top-4 left-4 z-50 md:hidden p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-sm bg-[hsl(var(--sidebar-bg))] border border-[hsl(var(--sidebar-border))] text-foreground"
         onClick={() => setMobileOpen(!mobileOpen)}
       >
-        {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
       </button>
 
       {mobileOpen && (
@@ -249,7 +249,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
         </button>
       </aside>
 
-      <main className="flex-1 overflow-y-auto relative z-10 p-6 md:p-8" data-testid="main-content">
+      <main className="flex-1 overflow-y-auto relative z-10 p-4 pt-14 md:p-8 md:pt-8" data-testid="main-content">
         {children}
       </main>
 

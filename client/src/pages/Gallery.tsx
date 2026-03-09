@@ -242,7 +242,7 @@ export default function Gallery() {
                       className="w-8 h-8 rounded-sm object-cover"
                     />
                     <div className="min-w-0">
-                      <div className="text-[10px] font-heading text-foreground truncate max-w-[120px]">{nft.title}</div>
+                      <div className="text-[10px] font-heading text-foreground truncate max-w-[150px] sm:max-w-[120px]">{nft.title}</div>
                       <div className={`text-[9px] font-mono ${rConf.color.split(" ")[0]}`}>{nft.rarity} | {nft.price}</div>
                     </div>
                     {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#2081E2] shrink-0" />}
@@ -259,7 +259,7 @@ export default function Gallery() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2" data-testid="chain-distribution">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" data-testid="chain-distribution">
         {chainIds.map((cid) => {
           const c = SUPPORTED_CHAINS[cid];
           const count = chainCounts[cid] || 0;
