@@ -29,6 +29,7 @@ const NotFound = lazy(() => import("@/pages/not-found"));
 const GenesisMiner = lazy(() => import("@/pages/GenesisMiner"));
 const ZkWormhole = lazy(() => import("@/pages/ZkWormhole"));
 const RarityProofEngine = lazy(() => import("@/pages/RarityProofEngine"));
+const P2PNetworkPage = lazy(() => import("@/pages/P2PNetwork"));
 const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
 import { QuantumMiner } from "@/components/QuantumMiner";
 
@@ -104,6 +105,7 @@ function AppRouter() {
             <Route path="/genesis-miner" component={GenesisMiner} />
             <Route path="/wormhole" component={ZkWormhole} />
             <Route path="/rarity-proof" component={RarityProofEngine} />
+            <Route path="/p2p-network" component={P2PNetworkPage} />
             <Route path="/wallet" component={WalletPage} />
             <Route path="/admin" component={AdminGuard} />
             <Route component={NotFound} />

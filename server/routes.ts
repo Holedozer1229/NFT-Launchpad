@@ -41,6 +41,11 @@ function eigenvaluesSymmetric4x4(matrix: number[][]): number[] {
 import { getChainInfo, getBalance, getTransaction, getBlock, getRecentBlocks as getSkyntRecentBlocks, mintNftOnSkynt, isChainValid } from "./skynt-blockchain";
 import { qgMiner } from "./qg-miner-v8";
 import { getLedgerState, getP2PPeers, getNetworkTopology, broadcastTransaction } from "./p2p-ledger";
+import {
+  registerNode, removeNode, nodeHeartbeat, getChainDownload, syncNodeBlocks,
+  announceNewBlock, validateNetworkBlock, getNetworkNodes, getNetworkNode,
+  getNetworkSeedNodes, getP2PNetworkStats, getP2PTopology, getBlockAnnouncements,
+} from "./p2p-network";
 import { rosettaRouter } from "./rosetta/routes";
 
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
@@ -1796,6 +1801,142 @@ export async function registerRoutes(
       res.json(state || { peers: [], blockHeight: 0, networkHashRate: 0, consensusStatus: "offline", lastBlockTime: 0 });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch ledger state" });
+    }
+  });
+
+  // ========== P2P NETWORK (SERVERLESS) ==========
+
+  app.get("/api/network/stats", (_req, res) => {
+    try {
+      const stats = getP2PNetworkStats();
+      if (!stats) return res.json({ status: "offline" });
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch network stats" });
+    }
+  });
+
+  app.get("/api/network/nodes", (_req, res) => {
+    try {
+      res.json(getNetworkNodes());
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch nodes" });
+    }
+  });
+
+  app.get("/api/network/nodes/seeds", (_req, res) => {
+    try {
+      res.json(getNetworkSeedNodes());
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch seed nodes" });
+    }
+  });
+
+  app.get("/api/network/node/:nodeId", (req, res) => {
+    try {
+      const node = getNetworkNode(req.params.nodeId);
+      if (!node) return res.status(404).json({ message: "Node not found" });
+      res.json(node);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch node" });
+    }
+  });
+
+  app.post("/api/network/node/register", (req, res) => {
+    try {
+      const { name, address, publicKey, capabilities, region } = req.body;
+      if (!name || !address) return res.status(400).json({ message: "name and address required" });
+      const node = registerNode({ name, address, publicKey, capabilities, region });
+      res.json(node);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to register node" });
+    }
+  });
+
+  app.delete("/api/network/node/:nodeId", (req, res) => {
+    try {
+      const removed = removeNode(req.params.nodeId);
+      if (!removed) return res.status(404).json({ message: "Node not found or is a seed node" });
+      res.json({ message: "Node removed", nodeId: req.params.nodeId });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to remove node" });
+    }
+  });
+
+  app.post("/api/network/node/:nodeId/heartbeat", (req, res) => {
+    try {
+      const ok = nodeHeartbeat(req.params.nodeId, req.body);
+      if (!ok) return res.status(404).json({ message: "Node not found" });
+      res.json({ message: "Heartbeat received", nodeId: req.params.nodeId });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to process heartbeat" });
+    }
+  });
+
+  app.get("/api/network/chain/download", (req, res) => {
+    try {
+      const fromHeight = parseInt(req.query.from as string) || 0;
+      const maxBlocks = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const snapshot = getChainDownload(fromHeight, maxBlocks);
+      res.json(snapshot);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to download chain" });
+    }
+  });
+
+  app.post("/api/network/chain/sync", (req, res) => {
+    try {
+      const { nodeId, fromHeight, toHeight } = req.body;
+      if (!nodeId) return res.status(400).json({ message: "nodeId required" });
+      const syncResult = syncNodeBlocks({
+        nodeId,
+        fromHeight: fromHeight || 0,
+        toHeight: toHeight || Infinity,
+        requestedAt: Date.now(),
+      });
+      res.json(syncResult);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to sync blocks" });
+    }
+  });
+
+  app.post("/api/network/block/announce", (req, res) => {
+    try {
+      const { block, proposerNodeId } = req.body;
+      if (!block || !proposerNodeId) return res.status(400).json({ message: "block and proposerNodeId required" });
+      const announcement = announceNewBlock(block, proposerNodeId);
+      res.json(announcement);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to announce block" });
+    }
+  });
+
+  app.post("/api/network/block/validate", (req, res) => {
+    try {
+      const { block } = req.body;
+      if (!block) return res.status(400).json({ message: "block required" });
+      const result = validateNetworkBlock(block);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to validate block" });
+    }
+  });
+
+  app.get("/api/network/announcements", (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 20;
+      res.json(getBlockAnnouncements(limit));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch announcements" });
+    }
+  });
+
+  app.get("/api/network/topology", (_req, res) => {
+    try {
+      const topology = getP2PTopology();
+      res.json(topology || { nodes: [], edges: [], networkId: "" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch topology" });
     }
   });
 

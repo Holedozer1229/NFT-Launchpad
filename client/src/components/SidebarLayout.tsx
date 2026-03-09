@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck } from "lucide-react";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -35,6 +35,7 @@ const navGroups = [
     items: [
       { path: "/bridge", label: "Bridge", icon: ArrowLeftRight, adminOnly: false },
       { path: "/wormhole", label: "ZK Wormhole", icon: Orbit, adminOnly: false },
+      { path: "/p2p-network", label: "P2P Network", icon: Globe, adminOnly: false },
       { path: "/iit", label: "IIT Consciousness", icon: Brain, adminOnly: false },
     ]
   },

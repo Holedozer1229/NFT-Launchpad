@@ -7,6 +7,7 @@ import { createServer } from "http";
 import { seedDatabase } from "./seed";
 import { startEngine } from "./iit-engine";
 import { startP2PLedger } from "./p2p-ledger";
+import { startP2PNetwork } from "./p2p-network";
 import { startTreasuryYieldEngine } from "./treasury-yield";
 
 const app = express();
@@ -140,6 +141,7 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
       startEngine();
       startP2PLedger();
+      startP2PNetwork();
       startTreasuryYieldEngine();
     },
   );
