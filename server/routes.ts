@@ -53,7 +53,10 @@ const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 export function rateLimit(windowMs: number, maxRequests: number) {
   return (req: any, res: any, next: any) => {
-    const key = req.ip || req.connection.remoteAddress || 'unknown';
+    const userId = req.user?.id;
+    const ip = req.ip || req.connection.remoteAddress || 'unknown';
+    const route = req.path || req.url || '';
+    const key = userId ? `user:${userId}:${route}` : `ip:${ip}:${route}`;
     const now = Date.now();
     const record = rateLimitStore.get(key);
     
@@ -63,7 +66,8 @@ export function rateLimit(windowMs: number, maxRequests: number) {
     }
     
     if (record.count >= maxRequests) {
-      return res.status(429).json({ message: "Too many requests. Please try again later." });
+      const retryAfter = Math.ceil((record.resetTime - now) / 1000);
+      return res.status(429).json({ message: `Too many requests. Try again in ${retryAfter}s.`, retryAfter });
     }
     
     record.count++;
@@ -1273,9 +1277,8 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/deployments/deploy", rateLimit(60000, 3), async (req, res) => {
+  app.post("/api/deployments/deploy", rateLimit(30000, 10), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
-    if (!req.user!.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const { walletAddress, chain } = req.body;
       if (!walletAddress) return res.status(400).json({ message: "Wallet address required" });
@@ -1312,9 +1315,8 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/deployments/deploy-all", rateLimit(120000, 2), async (req, res) => {
+  app.post("/api/deployments/deploy-all", rateLimit(30000, 5), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
-    if (!req.user!.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const { walletAddress } = req.body;
       if (!walletAddress) return res.status(400).json({ message: "Wallet address required" });

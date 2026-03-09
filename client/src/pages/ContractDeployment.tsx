@@ -97,6 +97,16 @@ export default function ContractDeployment() {
     },
   });
 
+  const parseApiError = (err: Error): string => {
+    const raw = err.message.replace(/^\d+:\s*/, "");
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed.message || raw;
+    } catch {
+      return raw;
+    }
+  };
+
   const deployAllMutation = useMutation({
     mutationFn: async () => {
       if (!address) throw new Error("Connect wallet first");
@@ -115,7 +125,7 @@ export default function ContractDeployment() {
     },
     onError: (err: Error) => {
       setDeployPhase("");
-      toast({ title: "Deployment Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Deployment Failed", description: parseApiError(err), variant: "destructive" });
     },
   });
 
@@ -130,7 +140,7 @@ export default function ContractDeployment() {
       toast({ title: "Contracts Deployed", description: data.message });
     },
     onError: (err: Error) => {
-      toast({ title: "Deployment Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Deployment Failed", description: parseApiError(err), variant: "destructive" });
     },
   });
 
