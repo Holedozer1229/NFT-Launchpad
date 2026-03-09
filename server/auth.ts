@@ -92,7 +92,13 @@ export function jwtAuthMiddleware(req: Request, res: Response, next: NextFunctio
 }
 
 async function seedAdminUser(): Promise<void> {
-  const adminUsername = "BigDickRick11316969";
+  const adminUsername = process.env.ADMIN_USERNAME;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminUsername || !adminPassword) {
+    console.warn("[Auth] ADMIN_USERNAME or ADMIN_PASSWORD not set — skipping admin seed");
+    return;
+  }
+
   const existing = await storage.getUserByUsername(adminUsername);
   if (existing) {
     if (!existing.isAdmin) {
@@ -104,10 +110,9 @@ async function seedAdminUser(): Promise<void> {
     return;
   }
 
-  const fibPassword = "11235813213455";
   const user = await storage.createUser({
     username: adminUsername,
-    password: await hashPassword(fibPassword),
+    password: await hashPassword(adminPassword),
     isAdmin: true,
     authProvider: "local",
   });
