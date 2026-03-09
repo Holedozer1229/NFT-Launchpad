@@ -10,6 +10,7 @@ import { Launch, RARITY_TIERS, RarityTier, SUPPORTED_CHAINS, ChainId, SKYNT_CONT
 import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink, ShoppingBag, Server, Shield } from "lucide-react";
 import { TermsGate } from "./TermsGate";
 import { useToast } from "@/hooks/use-toast";
+import { haptic } from "@/lib/haptics";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
 import missionPatch from "../assets/mission-patch.png";
@@ -138,6 +139,7 @@ export function MintCard({ mission }: MintCardProps) {
       const openseaUrl = nftResult.openseaUrl;
       const openseaSupported = nftResult.openseaSupported;
 
+      haptic("heavy");
       if (openseaSupported && openseaUrl) {
         toast({
           title: "ARTIFACT MINTED — SENT TO OPENSEA",
@@ -153,6 +155,7 @@ export function MintCard({ mission }: MintCardProps) {
         });
       }
     } catch (err) {
+      haptic("error");
       toast({
         title: "MINT FAILED",
         description: "The Oracle could not inscribe the artifact. Try again.",

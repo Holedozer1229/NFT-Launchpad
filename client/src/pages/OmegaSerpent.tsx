@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { haptic } from "@/lib/haptics";
 import { Coins, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Gamepad2, Crown, Gift, Skull, X, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
 
 const GRID_W = 50;
@@ -336,6 +337,7 @@ export default function OmegaSerpent() {
       queryClient.invalidateQueries({ queryKey: ["/api/game/scores"] });
       queryClient.invalidateQueries({ queryKey: ["/api/game/leaderboard"] });
       const feeMsg = data.claimFeeCharged ? ` (${data.claimFeeCharged} SKYNT fee deducted)` : "";
+      haptic("transaction");
       toast({ title: "SKYNT Claimed!", description: `Reward deposited to your SKYNT wallet${feeMsg}` });
     },
     onError: (err: Error) => {

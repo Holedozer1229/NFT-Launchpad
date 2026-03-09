@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { haptic } from "@/lib/haptics";
 import { 
   Cpu, 
   Zap, 
@@ -370,6 +371,7 @@ export default function GenesisMiner() {
   useEffect(() => {
     if (mempoolStats?.blockHeight && prevBlockHeightRef.current !== null && mempoolStats.blockHeight !== prevBlockHeightRef.current) {
       addNotification("block", `New BTC block #${mempoolStats.blockHeight} confirmed on mainnet`, NEON_COLORS.cyan);
+      haptic("mining-block");
       toast({ title: "New Block Mined", description: `BTC block #${mempoolStats.blockHeight} confirmed` });
     }
     if (mempoolStats?.blockHeight) prevBlockHeightRef.current = mempoolStats.blockHeight;
@@ -408,6 +410,7 @@ export default function GenesisMiner() {
     onSuccess: (_, chain) => {
       queryClient.invalidateQueries({ queryKey: ["/api/merge-mine/status"] });
       addNotification("mining", `Merge mining activated on ${chain.toUpperCase()}`, NEON_COLORS.green);
+      haptic("success");
       toast({ title: "Mining Started", description: `Active on ${chain.toUpperCase()}` });
     },
     onError: (error: any) => {
@@ -441,6 +444,7 @@ export default function GenesisMiner() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/stx-lending/status"] });
       addNotification("mining", "STX staking position opened", NEON_COLORS.green);
+      haptic("transaction");
       toast({ title: "Stake Successful", description: "Your STX is now earning cross-chain yield." });
     },
     onError: (error: any) => {
@@ -458,6 +462,7 @@ export default function GenesisMiner() {
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["/api/mining/status"] });
         addNotification("mining", "Premium Mining Pass activated!", NEON_COLORS.gold);
+        haptic("milestone");
         toast({ title: "Premium Activated", description: data.message });
       } else {
         toast({ title: "Activation Failed", description: data.message, variant: "destructive" });

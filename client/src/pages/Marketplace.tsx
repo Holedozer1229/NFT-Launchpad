@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { haptic } from "@/lib/haptics";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { SUPPORTED_CHAINS, RARITY_TIERS } from "@shared/schema";
@@ -92,6 +93,7 @@ export default function Marketplace() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/marketplace/listings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/marketplace/my-listings"] });
+      haptic("success");
       toast({ title: "Listed!", description: "Your NFT is now on the marketplace" });
       setSellDialogOpen(false);
       setNewTitle("");
@@ -113,6 +115,7 @@ export default function Marketplace() {
       queryClient.invalidateQueries({ queryKey: ["/api/marketplace/listings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/marketplace/my-listings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/wallet/list"] });
+      haptic("transaction");
       toast({ title: "NFT Purchased!", description: `Transaction: ${data.txHash?.slice(0, 12)}...` });
     },
     onError: (err: any) => toast({ title: "Purchase Failed", description: err.message, variant: "destructive" }),

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { haptic } from "@/lib/haptics";
 import { 
   Orbit, 
   Zap, 
@@ -93,6 +94,7 @@ export default function ZkWormhole() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/wormhole/status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/wormhole/network'] });
+      haptic("success");
       toast({ title: "Wormhole Opened", description: "Your per-user cross-chain tunnel is now active." });
     },
     onError: (error) => {
@@ -130,6 +132,7 @@ export default function ZkWormhole() {
         setTransferStep(step);
         if (step >= 4) {
           clearInterval(interval);
+          haptic("transaction");
           toast({ title: "Transfer Complete", description: "Assets have been successfully wormholed." });
           setTimeout(() => setTransferStep(0), 5000);
         }

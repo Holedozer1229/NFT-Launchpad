@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { haptic } from "@/lib/haptics";
 import { useAccount } from "wagmi";
 import {
   Rocket, CheckCircle2, Loader2, AlertTriangle, Zap,
@@ -118,6 +119,7 @@ export default function ContractDeployment() {
       setDeployResult(data);
       setDeployPhase("");
       queryClient.invalidateQueries({ queryKey: ["/api/deployments/address", address] });
+      haptic("heavy");
       toast({
         title: "All Contracts Deployed",
         description: `${data.totalNew} new contracts deployed across ${Object.keys(data.chains).length} chains`,

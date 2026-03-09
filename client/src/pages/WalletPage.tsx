@@ -7,6 +7,7 @@ import { useAccount, useDisconnect, useConnect } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
 import { usePrices } from "@/hooks/use-prices";
+import { haptic } from "@/lib/haptics";
 
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = { ...extra };
@@ -208,6 +209,7 @@ export default function WalletPage() {
       });
       const data = await res.json();
       if (res.ok) {
+        haptic("transaction");
         setSendSuccess(true);
         setSendTo("");
         setSendAmount("");
@@ -215,9 +217,11 @@ export default function WalletPage() {
         queryClient.invalidateQueries({ queryKey: ["/api/wallet", activeWallet.id, "transactions"] });
         setTimeout(() => setSendSuccess(false), 4000);
       } else {
+        haptic("error");
         setSendError(data.message || "Transaction failed");
       }
     } catch (err) {
+      haptic("error");
       setSendError("Network error");
     } finally {
       setSending(false);

@@ -4,6 +4,7 @@ import { queryClient, apiRequest, setJwtTokens, clearJwtTokens, getJwtToken } fr
 import { useLocation } from "wouter";
 import { useAccount, useSignMessage } from "wagmi";
 import { useToast } from "@/hooks/use-toast";
+import { haptic } from "@/lib/haptics";
 
 type User = {
   id: number;
@@ -148,12 +149,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { token: _t, refreshToken: _rt, ...userData } = data;
       queryClient.setQueryData(["/api/user"], userData);
 
+      haptic("success");
       toast({
         title: "Wallet Linked",
         description: `${address.slice(0, 6)}...${address.slice(-4)} verified and linked to your account.`,
       });
     } catch (err: any) {
       const msg = err?.message || "Failed to link wallet";
+      haptic("error");
       if (msg.includes("rejected") || msg.includes("denied") || msg.includes("User rejected")) {
         toast({
           title: "Signature Rejected",
