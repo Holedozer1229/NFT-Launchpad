@@ -1,9 +1,10 @@
-# SKYNT Protocol - SphinxOS Oracle Minter
+# SKYNT Protocol — RocketBabesNFT Launchpad
 
 ## Overview
-Multi-page NFT minting protocol application combining SphinxOS Oracle Minter with Cosmos Launchpad design. Features sidebar navigation, cosmic theme with neon accents, and user authentication.
+Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via RainbowKit + wagmi.
 
 ## Recent Changes
+- **Mar 2026**: **RocketBabesNFT Rebrand** — renamed RocketGirls to RocketBabes across all routes, components, metadata, contracts, and documentation. Updated SEO meta tags (title, OG, Twitter) to feature RocketBabesNFT. Added keywords meta tag.
 - **Mar 2026**: **Enhanced Mobile Responsiveness** — comprehensive mobile optimization across all pages
   - Global CSS: reduced card padding, stat value font sizes, scrollable tabs, capped h1 headings, full-width dialogs, smaller monospace text, canvas height limits, safe area insets for notched phones
   - WalletPage: stacked header/buttons on mobile, responsive balance grid, full-width tabs, truncated transaction addresses
