@@ -410,6 +410,11 @@ export default function GenesisMiner() {
       addNotification("mining", `Merge mining activated on ${chain.toUpperCase()}`, NEON_COLORS.green);
       toast({ title: "Mining Started", description: `Active on ${chain.toUpperCase()}` });
     },
+    onError: (error: any) => {
+      const msg = error?.message || "Failed to start mining";
+      addNotification("mining", msg, NEON_COLORS.red);
+      toast({ title: "Mining Error", description: msg, variant: "destructive" });
+    },
   });
 
   const stopMergeMining = useMutation({
@@ -422,6 +427,10 @@ export default function GenesisMiner() {
       addNotification("mining", `Mining stopped on ${chain.toUpperCase()}`, NEON_COLORS.orange);
       toast({ title: "Mining Stopped", description: `Stopped on ${chain.toUpperCase()}` });
     },
+    onError: (error: any) => {
+      const msg = error?.message || "Failed to stop mining";
+      toast({ title: "Mining Error", description: msg, variant: "destructive" });
+    },
   });
 
   const stakeLending = useMutation({
@@ -433,6 +442,10 @@ export default function GenesisMiner() {
       queryClient.invalidateQueries({ queryKey: ["/api/stx-lending/status"] });
       addNotification("mining", "STX staking position opened", NEON_COLORS.green);
       toast({ title: "Stake Successful", description: "Your STX is now earning cross-chain yield." });
+    },
+    onError: (error: any) => {
+      const msg = error?.message || "Failed to stake";
+      toast({ title: "Staking Error", description: msg, variant: "destructive" });
     },
   });
 
@@ -449,6 +462,10 @@ export default function GenesisMiner() {
       } else {
         toast({ title: "Activation Failed", description: data.message, variant: "destructive" });
       }
+    },
+    onError: (error: any) => {
+      const msg = error?.message || "Failed to activate premium";
+      toast({ title: "Premium Error", description: msg, variant: "destructive" });
     },
   });
 
@@ -870,7 +887,7 @@ export default function GenesisMiner() {
 
         <TabsContent value="mining" className="mt-6">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Object.entries(MERGE_MINING_CHAINS).map(([id, chain]) => {
+            {Object.entries(MERGE_MINING_CHAINS).filter(([id]) => id !== "randomx").map(([id, chain]) => {
               const stats = miningStatus?.mergeMining?.[id];
               const active = stats?.isActive;
               const chainColor = CHAIN_NEON_COLORS[id] || NEON_COLORS.cyan;

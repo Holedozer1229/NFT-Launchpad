@@ -443,6 +443,17 @@ export const MERGE_MINING_CHAINS = {
     rewardMultiplier: 0.002,
     blockTime: 0.4,
   },
+  randomx: {
+    id: "randomx",
+    name: "RandomX CPU",
+    symbol: "BTC",
+    algorithm: "randomx",
+    color: "#4D7CFF",
+    icon: "⚡",
+    difficultyFactor: 4,
+    rewardMultiplier: 0.00000625,
+    blockTime: 120,
+  },
 } as const;
 
 export type MergeMiningChainId = keyof typeof MERGE_MINING_CHAINS;

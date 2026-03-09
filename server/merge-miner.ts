@@ -221,7 +221,7 @@ export function getMergeMiningStatusMap(userId: number): { mergeMining: Record<s
   let randomx: MergeMiningStats | null = null;
   if (session) {
     for (const [chainId, stats] of session.stats) {
-      if (chainId === 'randomx' as any) {
+      if (chainId === 'randomx') {
         randomx = stats;
       } else {
         mergeMining[chainId] = stats;
