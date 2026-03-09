@@ -1,12 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, ExternalLink, Coins, Clock, Shield, ChevronDown, Fingerprint, AlertTriangle, Smartphone, Lock, Globe, Zap, Download } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getJwtToken } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useAccount, useDisconnect, useConnect } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
 import { usePrices } from "@/hooks/use-prices";
+
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...extra };
+  const token = getJwtToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  return headers;
+}
 
 interface LiveChainBalance {
   eth: string;
@@ -102,7 +109,7 @@ export default function WalletPage() {
     staleTime: 5000,
     queryFn: async () => {
       if (!activeWallet) return [];
-      const res = await fetch(`/api/wallet/${activeWallet.id}/transactions`, { credentials: "include" });
+      const res = await fetch(`/api/wallet/${activeWallet.id}/transactions`, { credentials: "include", headers: authHeaders() });
       if (!res.ok) throw new Error("Failed to fetch transactions");
       return res.json();
     },
@@ -110,12 +117,7 @@ export default function WalletPage() {
 
   useEffect(() => {
     if (wallets.length === 0 && !loading) {
-      fetch("/api/wallet/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ name: "Main Wallet" }),
-      }).then(res => {
+      apiRequest("POST", "/api/wallet/create", { name: "Main Wallet" }).then(res => {
         if (res.ok) {
           queryClient.invalidateQueries({ queryKey: ["/api/wallet/list"] });
         }
@@ -129,7 +131,7 @@ export default function WalletPage() {
     refetchInterval: 30000,
     staleTime: 15000,
     queryFn: async () => {
-      const res = await fetch(`/api/chain/ethereum/balance/${externalAddress}`, { credentials: "include" });
+      const res = await fetch(`/api/chain/ethereum/balance/${externalAddress}`, { credentials: "include", headers: authHeaders() });
       if (!res.ok) throw new Error("Failed to fetch live balance");
       return res.json();
     },
@@ -141,7 +143,7 @@ export default function WalletPage() {
     refetchInterval: 30000,
     staleTime: 20000,
     queryFn: async () => {
-      const res = await fetch(`/api/chain/ethereum/transactions/${externalAddress}?limit=15`, { credentials: "include" });
+      const res = await fetch(`/api/chain/ethereum/transactions/${externalAddress}?limit=15`, { credentials: "include", headers: authHeaders() });
       if (!res.ok) throw new Error("Failed to fetch live transactions");
       return res.json();
     },
@@ -152,7 +154,7 @@ export default function WalletPage() {
     refetchInterval: 12000,
     staleTime: 10000,
     queryFn: async () => {
-      const res = await fetch("/api/chain/ethereum/gas", { credentials: "include" });
+      const res = await fetch("/api/chain/ethereum/gas", { credentials: "include", headers: authHeaders() });
       if (!res.ok) throw new Error("Failed to fetch gas");
       return res.json();
     },
@@ -200,7 +202,7 @@ export default function WalletPage() {
     try {
       const res = await fetch(`/api/wallet/${activeWallet.id}/send`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         credentials: "include",
         body: JSON.stringify({ toAddress: sendTo, amount: sendAmount, token: sendToken }),
       });
