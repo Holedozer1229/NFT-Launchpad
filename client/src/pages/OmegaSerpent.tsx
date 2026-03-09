@@ -490,6 +490,7 @@ export default function OmegaSerpent() {
             const newLives = l - 1;
             if (newLives <= 0) {
               addEvent("\u{1F480} PLAYER TERMINATED \u2014 GAME OVER");
+              haptic("error");
               setTimeout(() => endGame(), 100);
               return 0;
             }
@@ -556,12 +557,12 @@ export default function OmegaSerpent() {
                 const newE = e + t.value * 3;
                 const newM = Math.floor(newE / 50);
                 setMilestones(pm => {
-                  if (newM > pm) { addEvent(`\u26A1 MILESTONE #${newM} \u2014 +${t.value * 30} SKYNT BONUS`); sfxMilestone(); }
+                  if (newM > pm) { addEvent(`\u26A1 MILESTONE #${newM} \u2014 +${t.value * 30} SKYNT BONUS`); sfxMilestone(); haptic("milestone"); }
                   return newM;
                 });
                 const newSM = Math.floor(newE / 500);
                 setSuperMilestones(psm => {
-                  if (newSM > psm) { addEvent(`\u{1F3C6} SUPER MILESTONE #${newSM} \u2014 OMEGA NFT TRIGGER`); sfxMilestone(); }
+                  if (newSM > psm) { addEvent(`\u{1F3C6} SUPER MILESTONE #${newSM} \u2014 OMEGA NFT TRIGGER`); sfxMilestone(); haptic("heavy"); }
                   return newSM;
                 });
                 return newE;

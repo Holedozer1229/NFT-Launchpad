@@ -4,6 +4,10 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via RainbowKit + wagmi.
 
 ## Recent Changes
+- **Mar 2026**: **Haptic Feedback Integration**
+  - `client/src/lib/haptics.ts` — pattern-based vibration utility using `navigator.vibrate()`
+  - Patterns: `tap`, `success`, `error`, `warning`, `mining-block`, `milestone`, `transaction`, `heavy`
+  - Integrated across all major interaction points: wallet linking, send transactions, NFT minting, mining events, contract deployment, wormhole bridge transfers, marketplace buy/sell, OmegaSerpent game over/milestones/claims
 - **Mar 2026**: **Auto-Payout Mining Rewards**
   - Mining rewards automatically sent to connected external wallet when threshold is reached
   - Configurable threshold (min 0.1 SKYNT, default 1.0 SKYNT), toggle on/off via switch
