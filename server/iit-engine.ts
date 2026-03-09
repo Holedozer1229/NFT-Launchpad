@@ -218,6 +218,7 @@ let engineInterval: ReturnType<typeof setInterval> | null = null;
 let lastBlockHeight = 0;
 
 const ENGINE_TICK_MS = 30_000;
+let lastTickKey = "";
 
 async function fetchBlockHeight(): Promise<number> {
   try {
@@ -236,7 +237,15 @@ async function fetchBlockHeight(): Promise<number> {
 
 function tick(blockHeight: number): NetworkPerception {
   const now = Date.now();
-  const blockData = `block-${blockHeight}-${Math.floor(now / 30000)}`;
+  const timeSlot = Math.floor(now / 30000);
+  const tickKey = `${blockHeight}-${timeSlot}`;
+
+  if (tickKey === lastTickKey && latestPerception) {
+    return latestPerception;
+  }
+  lastTickKey = tickKey;
+
+  const blockData = `block-${blockHeight}-${timeSlot}`;
   const currentPhi = calculatePhi(blockData);
 
   phiHistory.push({ timestamp: now, phi: currentPhi.phi });

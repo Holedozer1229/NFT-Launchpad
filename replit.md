@@ -4,6 +4,16 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via RainbowKit + wagmi.
 
 ## Recent Changes
+- **Mar 2026**: **IIT Mining Performance Polish**
+  - Backend: Skip redundant Φ tick recomputation when block height + time slot unchanged (dedup key)
+  - Backend: Align miner Φ cache key to 30s time slots for better cache hit rate
+  - Frontend: Throttle NeuralCanvas and BackgroundMiner canvas animations to 30fps (from uncapped 60fps)
+  - Frontend: Use squared-distance check before sqrt in NeuralCanvas connection loop (skip sqrt for non-connected pairs)
+  - Frontend: Stop BackgroundMiner canvas animation loop entirely when miner is idle (no rAF cycles)
+  - Frontend: Remove `transition-all` from AdjacencyHeatmap grid cells (eliminates CSS layout thrashing on updates)
+  - Frontend: Align IIT network/status polling to 30s intervals (matches engine tick, was 10s/15s)
+  - Frontend: Sync countdown timer to 30s cycle
+  - Security: Moved hardcoded admin credentials to ADMIN_USERNAME/ADMIN_PASSWORD env secrets
 - **Mar 2026**: **JWT Security Hardening & Mining Cycle Polish**
   - Moved `JWT_SECRET` and `VITE_ALCHEMY_API_KEY` from hardcoded `.replit` to Replit Secrets
   - Shortened JWT access token expiry from 7d to 1h (refresh token stays 30d)

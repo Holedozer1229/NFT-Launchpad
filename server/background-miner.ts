@@ -215,7 +215,8 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
     stats.anchoredHash = liveBlockSeed.slice(0, 16);
     stats.cyclesCompleted++;
 
-    const phiResult = calculatePhi(`mine-${userId}-${Math.floor(Date.now() / 15000)}`);
+    const phiTimeSlot = Math.floor(Date.now() / 30000);
+    const phiResult = calculatePhi(`mine-${userId}-${phiTimeSlot}`);
     stats.currentPhiBoost = Math.max(1.0, Math.min(2.0, Math.exp(phiResult.phi)));
 
     currentBalance -= fee;

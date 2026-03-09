@@ -42,7 +42,24 @@ function MinerVisualization({ stats }: { stats: MiningStats }) {
     if (!ctx) return;
 
     let animId: number;
-    const draw = () => {
+
+    if (!stats.isActive) {
+      ctx.fillStyle = "rgba(0,0,0,0.9)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+
+    let lastFrameTime = 0;
+    const targetInterval = 1000 / 30;
+
+    const draw = (timestamp: number) => {
+      const elapsed = timestamp - lastFrameTime;
+      if (elapsed < targetInterval) {
+        animId = requestAnimationFrame(draw);
+        return;
+      }
+      lastFrameTime = timestamp - (elapsed % targetInterval);
+
       frameRef.current++;
       const f = frameRef.current;
       const w = canvas.width;
@@ -51,45 +68,38 @@ function MinerVisualization({ stats }: { stats: MiningStats }) {
       ctx.fillStyle = "rgba(0,0,0,0.15)";
       ctx.fillRect(0, 0, w, h);
 
-      if (stats.isActive) {
-        const cols = 32;
-        for (let i = 0; i < cols; i++) {
-          const x = (i / cols) * w;
-          const speed = 0.5 + (Math.sin(i * 0.7) * 0.3);
-          const y = ((f * speed + i * 17) % (h + 20)) - 10;
-          const char = Math.random() > 0.5 ? "1" : "0";
-          ctx.fillStyle = `hsla(${150 + Math.sin(f * 0.02 + i) * 30}, 100%, ${50 + Math.sin(f * 0.05 + i * 0.3) * 20}%, ${0.3 + Math.random() * 0.4})`;
-          ctx.font = "10px monospace";
-          ctx.fillText(char, x, y);
-        }
+      const cols = 32;
+      ctx.font = "10px monospace";
+      for (let i = 0; i < cols; i++) {
+        const x = (i / cols) * w;
+        const speed = 0.5 + (Math.sin(i * 0.7) * 0.3);
+        const y = ((f * speed + i * 17) % (h + 20)) - 10;
+        const char = Math.random() > 0.5 ? "1" : "0";
+        ctx.fillStyle = `hsla(${150 + Math.sin(f * 0.02 + i) * 30}, 100%, ${50 + Math.sin(f * 0.05 + i * 0.3) * 20}%, ${0.3 + Math.random() * 0.4})`;
+        ctx.fillText(char, x, y);
+      }
 
-        if (f % 3 === 0) {
-          const px = Math.random() * w;
-          const py = Math.random() * h;
-          const radius = 1 + Math.random() * 2;
-          ctx.beginPath();
-          ctx.arc(px, py, radius, 0, Math.PI * 2);
-          ctx.fillStyle = `hsla(${120 + stats.currentPhiBoost * 60}, 100%, 70%, 0.6)`;
-          ctx.fill();
-        }
+      if (f % 3 === 0) {
+        const px = Math.random() * w;
+        const py = Math.random() * h;
+        const radius = 1 + Math.random() * 2;
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${120 + stats.currentPhiBoost * 60}, 100%, 70%, 0.6)`;
+        ctx.fill();
+      }
 
-        if (stats.lastBlockTime && Date.now() - stats.lastBlockTime < 3000) {
-          const pulse = 1 - ((Date.now() - stats.lastBlockTime) / 3000);
-          ctx.strokeStyle = `hsla(45, 100%, 60%, ${pulse * 0.8})`;
-          ctx.lineWidth = 2;
-          ctx.strokeRect(2, 2, w - 4, h - 4);
-        }
-      } else {
-        if (f % 60 === 0) {
-          ctx.fillStyle = "rgba(0,0,0,0.9)";
-          ctx.fillRect(0, 0, w, h);
-        }
+      if (stats.lastBlockTime && Date.now() - stats.lastBlockTime < 3000) {
+        const pulse = 1 - ((Date.now() - stats.lastBlockTime) / 3000);
+        ctx.strokeStyle = `hsla(45, 100%, 60%, ${pulse * 0.8})`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(2, 2, w - 4, h - 4);
       }
 
       animId = requestAnimationFrame(draw);
     };
 
-    draw();
+    animId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animId);
   }, [stats.isActive, stats.currentPhiBoost, stats.lastBlockTime]);
 

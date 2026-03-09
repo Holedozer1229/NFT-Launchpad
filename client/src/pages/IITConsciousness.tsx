@@ -93,7 +93,17 @@ function NeuralCanvas({ phi, level }: { phi: number; level: string }) {
     const color = LEVEL_COLORS[level] || NEON.cyan;
     let animId: number;
 
-    const draw = () => {
+    let lastFrameTime = 0;
+    const targetInterval = 1000 / 30;
+
+    const draw = (timestamp: number) => {
+      const elapsed = timestamp - lastFrameTime;
+      if (elapsed < targetInterval) {
+        animId = requestAnimationFrame(draw);
+        return;
+      }
+      lastFrameTime = timestamp - (elapsed % targetInterval);
+
       frameRef.current++;
       const f = frameRef.current;
       const w = canvas.width;
@@ -113,19 +123,21 @@ function NeuralCanvas({ phi, level }: { phi: number; level: string }) {
       }
 
       const connectionDist = 60 + phi * 40;
+      const connectionDistSq = connectionDist * connectionDist;
+      ctx.lineWidth = 0.5;
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const dx = nodes[i].x - nodes[j].x;
           const dy = nodes[i].y - nodes[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < connectionDist) {
+          const distSq = dx * dx + dy * dy;
+          if (distSq < connectionDistSq) {
+            const dist = Math.sqrt(distSq);
             const alpha = (1 - dist / connectionDist) * 0.3 * phi;
             const hue = (f * 0.5 + i * 10) % 360;
             ctx.beginPath();
             ctx.moveTo(nodes[i].x, nodes[i].y);
             ctx.lineTo(nodes[j].x, nodes[j].y);
             ctx.strokeStyle = `hsla(${hue}, 100%, 65%, ${alpha})`;
-            ctx.lineWidth = 0.5;
             ctx.stroke();
           }
         }
@@ -159,7 +171,7 @@ function NeuralCanvas({ phi, level }: { phi: number; level: string }) {
       animId = requestAnimationFrame(draw);
     };
 
-    draw();
+    animId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animId);
   }, [phi, level]);
 
@@ -296,7 +308,7 @@ const AdjacencyHeatmap = memo(function AdjacencyHeatmap({ matrix }: { matrix: nu
         return (
           <div
             key={`${i}-${j}`}
-            className="flex items-center justify-center font-mono transition-all duration-300"
+            className="flex items-center justify-center font-mono"
             style={{
               width: cellSize,
               height: cellSize,
@@ -414,17 +426,17 @@ export default function IITConsciousness() {
 
   const { data: network, isLoading, refetch, isFetching } = useQuery<NetworkPerception>({
     queryKey: ["/api/iit/network"],
-    refetchInterval: 10000,
+    refetchInterval: 30000,
   });
 
   const { data: engineStatus } = useQuery<{ running: boolean }>({
     queryKey: ["/api/iit/status"],
-    refetchInterval: 15000,
+    refetchInterval: 30000,
   });
 
   useEffect(() => {
     const countdown = setInterval(() => {
-      setSecondsUntilNext(prev => prev <= 1 ? 10 : prev - 1);
+      setSecondsUntilNext(prev => prev <= 1 ? 30 : prev - 1);
     }, 1000);
     return () => clearInterval(countdown);
   }, []);
@@ -432,7 +444,7 @@ export default function IITConsciousness() {
   useEffect(() => {
     if (network) {
       setTickCount(prev => prev + 1);
-      setSecondsUntilNext(10);
+      setSecondsUntilNext(30);
     }
   }, [network?.currentPhi?.timestamp]);
 
