@@ -614,6 +614,10 @@ export const CONTRACT_DEFINITIONS = [
   { contractId: "SphinxYieldAggregator", name: "SphinxYieldAggregator", description: "Gas-optimized multi-chain yield aggregator with zk-proof verification", gasRange: [200000, 320000] },
   { contractId: "SkynetZkBridge", name: "SkynetZkBridge", description: "zkSync Era cross-chain bridge with zk-SNARK mint proof verification for ETH/STX/DOGE/XMR", gasRange: [100000, 180000] },
   { contractId: "ZkWormhole", name: "ZkWormhole", description: "Per-user ZK-Wormhole cross-chain portal with zk-SNARK proof verification for 11-chain bridging including Polygon zkEVM", gasRange: [150000, 250000] },
+  { contractId: "RocketGirlsNFT", name: "RocketGirlsNFT", description: "Cosmic-themed model NFT collection with 33% discount minting, 6 overlay templates, zero platform fees", gasRange: [140000, 220000] },
+  { contractId: "ECDSAVerifier", name: "ECDSAVerifier", description: "zkSNARK proof verification utility for PoW mining bridge cross-chain mints", gasRange: [80000, 120000] },
+  { contractId: "SpectralEntropyVerifier", name: "SpectralEntropyVerifier", description: "Groth16 zk-SNARK verifier for spectral entropy proofs with pairing-based verification", gasRange: [90000, 140000] },
+  { contractId: "SkynetBridge", name: "SkynetBridge", description: "Solana-to-EVM bridge for SKYNT token minting with PoW nonce verification", gasRange: [120000, 190000] },
 ] as const;
 
 export type ContractId = typeof CONTRACT_DEFINITIONS[number]["contractId"];

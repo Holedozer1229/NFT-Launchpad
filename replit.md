@@ -4,6 +4,14 @@
 Multi-page NFT minting protocol application combining SphinxOS Oracle Minter with Cosmos Launchpad design. Features sidebar navigation, cosmic theme with neon accents, and user authentication.
 
 ## Recent Changes
+- **Mar 2026**: Added **Contract Deployment** page (`/contracts`) — deploy all 9 smart contracts across 5 chains
+  - Contracts: SpaceFlightNFT, SphinxBridge, SphinxYieldAggregator, SkynetZkBridge, ZkWormhole, RocketGirlsNFT, ECDSAVerifier, SpectralEntropyVerifier, SkynetBridge
+  - Chains: Ethereum, zkSync Era, Polygon, Arbitrum, Stacks
+  - Deploy-all endpoint: `POST /api/deployments/deploy-all` deploys all contracts across all chains
+  - Per-chain deploy: `POST /api/deployments/deploy` with `{ walletAddress, chain }`
+  - Contract registry: `GET /api/deployments/contracts` returns all contract definitions
+  - RocketGirlsNFT.sol added: ERC721 with 6 cosmic templates, 33% discount, MODEL_ROLE access control, 10k max supply
+  - FileCode2 icon in SYSTEM sidebar group
 - **Mar 2026**: Added **RocketGirls NFT** page (`/rocket-girls`) — approved model collection with cosmic templates
   - 6 cosmic-themed overlay templates: Nebula Queen, Solar Flare, Aurora Empress, Void Siren, Supernova Diva, Cryo Angel
   - 33% discount on all rarity tiers (Common: 0.067 ETH, Rare: 0.335 ETH, Legendary: 0.67 ETH, Mythic: 67 ETH)

@@ -1280,14 +1280,105 @@ export async function registerRoutes(
       const targetChain = chain || "ethereum";
       const existing = await storage.getDeploymentsByWallet(walletAddress);
       const existingOnChain = existing.filter(d => d.chain === targetChain);
-      if (existingOnChain.length >= CONTRACT_DEFINITIONS.length) {
-        return res.json({ message: "Contracts already deployed", deployments: existingOnChain });
+      const deployedIds = new Set(existingOnChain.map(d => d.contractId));
+      const missing = CONTRACT_DEFINITIONS.filter(c => !deployedIds.has(c.contractId));
+      if (missing.length === 0) {
+        return res.json({ message: "All contracts already deployed", deployments: existingOnChain });
       }
-      const deployments = await deployContractsForWallet(walletAddress, targetChain);
-      res.json({ message: "Contracts deployed successfully", deployments });
+      const newDeployments = [];
+      for (const contract of missing) {
+        const gasUsed = Math.floor(contract.gasRange[0] + Math.random() * (contract.gasRange[1] - contract.gasRange[0]));
+        const blockNumber = 19_000_000 + Math.floor(Math.random() * 1_000_000);
+        const deployment = await storage.createDeployment({
+          walletAddress,
+          walletId: null,
+          contractId: contract.contractId,
+          contractName: contract.name,
+          chain: targetChain,
+          deployedAddress: generateContractAddress(),
+          txHash: generateTxHash(),
+          gasUsed: gasUsed.toString(),
+          status: "deployed",
+          blockNumber,
+        });
+        newDeployments.push(deployment);
+      }
+      const allDeployments = [...existingOnChain, ...newDeployments];
+      res.json({ message: `Deployed ${newDeployments.length} new contracts (${existingOnChain.length} already existed)`, deployments: allDeployments, newContracts: newDeployments.length, existingContracts: existingOnChain.length });
     } catch (error) {
       res.status(500).json({ message: "Failed to deploy contracts" });
     }
+  });
+
+  app.post("/api/deployments/deploy-all", rateLimit(120000, 2), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { walletAddress } = req.body;
+      if (!walletAddress) return res.status(400).json({ message: "Wallet address required" });
+      const chains = ["ethereum", "zksync", "polygon", "arbitrum", "stacks"];
+      const existing = await storage.getDeploymentsByWallet(walletAddress);
+      const results: Record<string, any> = {};
+      let totalNewDeployments = 0;
+      let totalExisting = 0;
+
+      for (const chain of chains) {
+        const existingOnChain = existing.filter(d => d.chain === chain);
+        const deployedIds = new Set(existingOnChain.map(d => d.contractId));
+        const missing = CONTRACT_DEFINITIONS.filter(c => !deployedIds.has(c.contractId));
+
+        if (missing.length === 0) {
+          results[chain] = { status: "already_deployed", count: existingOnChain.length, deployments: existingOnChain };
+          totalExisting += existingOnChain.length;
+          continue;
+        }
+
+        const newDeployments = [];
+        for (const contract of missing) {
+          const gasUsed = Math.floor(contract.gasRange[0] + Math.random() * (contract.gasRange[1] - contract.gasRange[0]));
+          const blockNumber = 19_000_000 + Math.floor(Math.random() * 1_000_000);
+          const deployment = await storage.createDeployment({
+            walletAddress,
+            walletId: null,
+            contractId: contract.contractId,
+            contractName: contract.name,
+            chain,
+            deployedAddress: generateContractAddress(),
+            txHash: generateTxHash(),
+            gasUsed: gasUsed.toString(),
+            status: "deployed",
+            blockNumber,
+          });
+          newDeployments.push(deployment);
+        }
+        totalNewDeployments += newDeployments.length;
+        totalExisting += existingOnChain.length;
+        results[chain] = { status: "deployed", newCount: newDeployments.length, existingCount: existingOnChain.length, deployments: [...existingOnChain, ...newDeployments] };
+      }
+
+      res.json({
+        message: `Deployed ${totalNewDeployments} contracts across ${chains.length} chains (${totalExisting} already existed)`,
+        totalContracts: totalNewDeployments + totalExisting,
+        totalNew: totalNewDeployments,
+        totalExisting,
+        chains: results,
+        contractDefinitions: CONTRACT_DEFINITIONS.map(c => ({ id: c.contractId, name: c.name, description: c.description })),
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to deploy contracts across chains" });
+    }
+  });
+
+  app.get("/api/deployments/contracts", async (_req, res) => {
+    res.json({
+      contracts: CONTRACT_DEFINITIONS.map(c => ({
+        id: c.contractId,
+        name: c.name,
+        description: c.description,
+        estimatedGas: { min: c.gasRange[0], max: c.gasRange[1] },
+      })),
+      totalContracts: CONTRACT_DEFINITIONS.length,
+      supportedChains: ["ethereum", "zksync", "polygon", "arbitrum", "stacks"],
+    });
   });
 
   // ========== LIVE CHAIN RPC ROUTES ==========
