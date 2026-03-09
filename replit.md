@@ -4,6 +4,13 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via RainbowKit + wagmi.
 
 ## Recent Changes
+- **Mar 2026**: **Wallet Linking Fix + Auth Polish**
+  - Fixed wallet link-wallet logic: auto-generated `wallet_XXXX` accounts no longer block wallet linking
+  - When linking a wallet already tied to an auto-generated wallet-auth account, the system transfers ownership instead of returning 409
+  - hCaptcha integration (frontend widget + backend verification, requires HCAPTCHA_SECRET_KEY/HCAPTCHA_SITE_KEY)
+  - Google/Apple OAuth buttons on auth page (requires GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET, APPLE_CLIENT_ID)
+  - Admin seed syncs password from ADMIN_PASSWORD secret on every startup
+  - Deployment configured: autoscale with `npm run build` / `npm run start`
 - **Mar 2026**: **IIT Mining Performance Polish**
   - Backend: Skip redundant Φ tick recomputation when block height + time slot unchanged (dedup key)
   - Backend: Align miner Φ cache key to 30s time slots for better cache hit rate
