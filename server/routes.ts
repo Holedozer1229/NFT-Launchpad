@@ -2432,8 +2432,24 @@ export async function registerRoutes(
       const totalBlocks = minedBlocks.length + Object.values(mergeBlocks).reduce((s, b) => s + b.length, 0);
       const totalRewards = minedBlocks.reduce((s, b) => s + b.reward, 0);
 
+      const [
+        userNfts,
+        userDeployments,
+        gameScores,
+        transactions,
+        liveOnChain,
+      ] = await Promise.all([
+        storage.getNftsByUser(user.id).catch(() => []),
+        storage.getDeploymentsByUser(user.id).catch(() => []),
+        storage.getGameScoresByUser(user.id).catch(() => []),
+        wallet ? storage.getWalletTransactions(wallet.id).catch(() => []) : Promise.resolve([]),
+        (user as any).walletAddress
+          ? liveChain.getWalletBalance((user as any).walletAddress, "ethereum").catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
       const walletJson = {
-        version: "1.0.0",
+        version: "2.0.0",
         protocol: "SKYNT Genesis BTC Hard Fork",
         network: "skynt-genesis-mainnet",
         exportedAt: new Date().toISOString(),
@@ -2446,15 +2462,71 @@ export async function registerRoutes(
           createdAt: wallet.createdAt,
           externalWallet: (user as any).walletAddress || null,
         } : null,
+        tokens: {
+          skynt: { balance: wallet?.balanceSkynt || "0", symbol: "SKYNT", protocol: "SKYNT Genesis" },
+          stx: { balance: wallet?.balanceStx || "0", symbol: "STX", protocol: "Stacks" },
+          eth: { balance: wallet?.balanceEth || "0", symbol: "ETH", protocol: "Ethereum" },
+          onChainTokens: liveOnChain?.tokens || [],
+        },
+        nfts: {
+          minted: userNfts.map((n: any) => ({
+            id: n.id,
+            name: n.name,
+            rarity: n.rarity,
+            chain: n.chain,
+            contractAddress: n.contractAddress,
+            tokenId: n.tokenId,
+            imageUrl: n.imageUrl,
+            mintedAt: n.createdAt,
+          })),
+          onChain: liveOnChain?.nfts || [],
+          totalCount: (userNfts?.length || 0) + (liveOnChain?.nfts?.length || 0),
+        },
         mining: {
           totalBlocksMined: totalBlocks,
           totalRewards: parseFloat(totalRewards.toFixed(8)),
           lifetimeBlocks: miningStats.lifetimeBlocksFound,
           lifetimeEarned: parseFloat(miningStats.lifetimeSkyntEarned.toFixed(8)),
           bestStreak: miningStats.bestStreak,
+          currentStreak: miningStats.streak,
+          streakMultiplier: miningStats.streakMultiplier,
+          hashRate: miningStats.hashRate,
+          difficulty: miningStats.difficulty,
           algorithm: "qg-v8-three-gate",
           powAlgorithm: chainInfo.powAlgorithm,
+          milestones: miningStats.milestones.filter((m: any) => m.achieved),
         },
+        game: {
+          totalGames: gameScores.length,
+          highScore: gameScores.length > 0 ? Math.max(...gameScores.map((s: any) => s.score)) : 0,
+          totalSkyntEarned: gameScores.reduce((sum: number, s: any) => sum + parseFloat(s.skyntEarned || "0"), 0).toFixed(4),
+          scores: gameScores.slice(0, 20).map((s: any) => ({
+            score: s.score,
+            chain: s.chain,
+            skyntEarned: s.skyntEarned,
+            ergotropy: s.ergotropy,
+            claimed: s.claimed,
+            playedAt: s.createdAt,
+          })),
+        },
+        deployments: userDeployments.map((d: any) => ({
+          id: d.id,
+          chain: d.chain,
+          status: d.status,
+          contractAddress: d.contractAddress,
+          txHash: d.txHash,
+          deployedAt: d.createdAt,
+        })),
+        transactions: transactions.slice(0, 50).map((tx: any) => ({
+          type: tx.type,
+          amount: tx.amount,
+          token: tx.token,
+          status: tx.status,
+          to: tx.toAddress,
+          from: tx.fromAddress,
+          txHash: tx.txHash,
+          date: tx.createdAt,
+        })),
         chain: {
           networkHeight: chainInfo.latestBlockHeight,
           networkHash: chainInfo.latestBlockHash,
@@ -2699,6 +2771,137 @@ export async function registerRoutes(
       res.json(cert);
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Failed to download certificate" });
+    }
+  });
+
+  // ========== ROCKETGIRLS NFT ROUTES ==========
+
+  const ROCKETGIRLS_DISCOUNT = 0.33;
+  const ROCKETGIRLS_RARITY_PRICES: Record<string, number> = {
+    common: 0.1,
+    rare: 0.5,
+    legendary: 1.0,
+    mythic: 100,
+  };
+
+  app.get("/api/rocket-girls/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userNfts = await storage.getNftsByUser(req.user!.id);
+      const rocketGirlCount = userNfts.filter((n: any) => n.title?.startsWith("RG:") || n.openseaStatus === "rocket-girl").length;
+      res.json({
+        approved: true,
+        role: "model",
+        mintCount: rocketGirlCount,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch status" });
+    }
+  });
+
+  app.get("/api/rocket-girls/collection", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userNfts = await storage.getNftsByUser(req.user!.id);
+      const rocketGirls = userNfts.filter((n: any) => n.openseaStatus === "rocket-girl");
+      res.json(rocketGirls);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch collection" });
+    }
+  });
+
+  app.post("/api/rocket-girls/mint", rateLimit(15000, 3), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { name, template, rarity, chain, imageData } = req.body;
+      if (!name || typeof name !== "string" || name.length > 60) {
+        return res.status(400).json({ message: "Valid NFT name required (max 60 chars)" });
+      }
+      if (!template || typeof template !== "string") {
+        return res.status(400).json({ message: "Template selection required" });
+      }
+      if (!imageData || typeof imageData !== "string" || !imageData.startsWith("data:image/")) {
+        return res.status(400).json({ message: "Valid image upload required" });
+      }
+      if (imageData.length > 15 * 1024 * 1024) {
+        return res.status(400).json({ message: "Image data too large (max ~10MB)" });
+      }
+
+      const rarityKey = (rarity || "rare").toLowerCase();
+      const basePrice = ROCKETGIRLS_RARITY_PRICES[rarityKey];
+      if (!basePrice) return res.status(400).json({ message: "Invalid rarity tier" });
+
+      const discountPrice = parseFloat((basePrice * (1 - ROCKETGIRLS_DISCOUNT)).toFixed(4));
+      const targetChain = chain || "ethereum";
+
+      const userWallets = await storage.getWalletsByUser(req.user!.id);
+      if (userWallets.length === 0) return res.status(400).json({ message: "No wallet found. Create a wallet first." });
+      const wallet = userWallets[0];
+
+      const currentEth = parseFloat(wallet.balanceEth);
+      if (currentEth < discountPrice) {
+        return res.status(400).json({
+          message: `Insufficient ETH. RocketGirls ${rarityKey} costs ${discountPrice} ETH (33% off ${basePrice} ETH).`,
+        });
+      }
+
+      await storage.updateWalletBalance(wallet.id, "ETH", (currentEth - discountPrice).toString());
+
+      const tokenId = "0x" + randomBytes(16).toString("hex");
+      const chainData = SUPPORTED_CHAINS[targetChain as ChainId];
+      const contractAddr = chainData?.contractAddress || "0x0000000000000000000000000000000000000000";
+
+      await storage.createTransaction({
+        walletId: wallet.id,
+        type: "mint",
+        amount: discountPrice.toString(),
+        token: "ETH",
+        status: "completed",
+        txHash: "0x" + randomBytes(32).toString("hex"),
+      });
+
+      let engineResult: { transactionId?: string; txHash?: string | null; status?: string } = {};
+      const useEngine = isEngineConfigured() && (targetChain === "zksync" || targetChain === "ethereum" || targetChain === "base" || targetChain === "arbitrum" || targetChain === "polygon");
+      if (useEngine) {
+        try {
+          const tokenIdNum = BigInt(parseInt(tokenId.slice(2, 10), 16) % 1000);
+          engineResult = await mintNftViaEngine({
+            recipientAddress: wallet.address.startsWith("0x") ? wallet.address : TREASURY_WALLET,
+            tokenId: tokenIdNum,
+            quantity: 1n,
+          });
+        } catch (engineErr) {
+          console.error("[RocketGirls] Engine mint failed (continuing):", engineErr);
+        }
+      }
+
+      const nftTitle = `RG: ${name}`;
+      const nft = await storage.createNft({
+        title: nftTitle,
+        image: imageData.slice(0, 500),
+        rarity: rarityKey,
+        status: "minted",
+        mintDate: new Date().toISOString(),
+        tokenId,
+        owner: wallet.address,
+        price: discountPrice.toString(),
+        chain: targetChain,
+        mintedBy: req.user!.id,
+        openseaStatus: "rocket-girl",
+      });
+
+      res.json({
+        nft,
+        discount: "33%",
+        fees: "none",
+        pricePaid: discountPrice,
+        originalPrice: basePrice,
+        saved: parseFloat((basePrice - discountPrice).toFixed(4)),
+        engineStatus: engineResult.status || "simulated",
+        txHash: engineResult.txHash || null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to mint RocketGirl NFT" });
     }
   });
 

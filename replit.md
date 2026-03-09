@@ -4,6 +4,16 @@
 Multi-page NFT minting protocol application combining SphinxOS Oracle Minter with Cosmos Launchpad design. Features sidebar navigation, cosmic theme with neon accents, and user authentication.
 
 ## Recent Changes
+- **Mar 2026**: Added **RocketGirls NFT** page (`/rocket-girls`) — approved model collection with cosmic templates
+  - 6 cosmic-themed overlay templates: Nebula Queen, Solar Flare, Aurora Empress, Void Siren, Supernova Diva, Cryo Angel
+  - 33% discount on all rarity tiers (Common: 0.067 ETH, Rare: 0.335 ETH, Legendary: 0.67 ETH, Mythic: 67 ETH)
+  - Zero platform fees, zero gas fees (covered by treasury)
+  - Image upload → template preview → fullscreen preview → mint flow
+  - API routes: `GET /api/rocket-girls/status`, `GET /api/rocket-girls/collection`, `POST /api/rocket-girls/mint`
+  - NFTs tagged with `openseaStatus: "rocket-girl"` and title prefix `RG:` for collection filtering
+  - Rocket icon in CORE sidebar nav group
+  - Supports all chains: Ethereum, Polygon, Base, zkSync, SKYNT
+- **Mar 2026**: Enhanced **wallet.json** export (v2.0.0) — unified file with all tokens, NFTs (minted + on-chain), game scores, deployments, transactions, mining milestones, and live on-chain token data
 - **Mar 2026**: Added **Starship Flight NFT Showcase** to Mint NFT page — horizontal scroll of 7 IFT mission cards with crew rosters, mission objectives, outcome badges, and "Mint Flight" buttons
 - **Mar 2026**: Added **NFT Rarity Proof Engine** page (`/rarity-proof`) — ZK-proof certificate system for NFT rarity verification
   - `server/rarity-proof-engine.ts` — Groth16-BN254 simulated ZK proof generation, rarity scoring, Phi-boost from IIT engine
