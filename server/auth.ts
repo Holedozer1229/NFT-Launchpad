@@ -119,17 +119,9 @@ async function seedAdminUser(): Promise<void> {
 
   const existing = await storage.getUserByUsername(adminUsername);
   if (existing) {
-    const hashedPassword = await hashPassword(adminPassword);
-    const updates: Record<string, any> = {};
-    if (!existing.isAdmin) updates.isAdmin = true;
-    const passwordChanged = !(await comparePasswords(adminPassword, existing.password));
-    if (passwordChanged) updates.password = hashedPassword;
-    if (Object.keys(updates).length > 0) {
-      await db.update(users).set(updates).where(eq(users.id, existing.id));
-      console.log(`[Auth] Updated admin user "${adminUsername}" (${Object.keys(updates).join(", ")})`);
-    } else {
-      console.log(`[Auth] Admin user "${adminUsername}" already exists`);
-    }
+    const newHash = await hashPassword(adminPassword);
+    await db.update(users).set({ password: newHash, isAdmin: true }).where(eq(users.id, existing.id));
+    console.log(`[Auth] Admin user "${adminUsername}" synced with environment credentials`);
     return;
   }
 
