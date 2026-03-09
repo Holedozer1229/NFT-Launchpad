@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { ChevronRight } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ChevronRight, X } from "lucide-react";
 
 const STORAGE_KEY = "skynt-onboarded";
 
@@ -34,65 +34,64 @@ export function OnboardingTour() {
     if (el) {
       const rect = el.getBoundingClientRect();
       setSpotlightRect(rect);
-    } else if (currentStep === 3) {
+    } else if (currentStep === steps.length - 1) {
       setSpotlightRect(new DOMRect(window.innerWidth - 120, window.innerHeight - 120, 100, 100));
     }
   }, [active, currentStep]);
 
-  const finish = () => {
+  const finish = useCallback(() => {
     setActive(false);
     localStorage.setItem(STORAGE_KEY, "true");
-  };
+  }, []);
 
-  const next = () => {
+  const next = useCallback(() => {
     if (currentStep < steps.length - 1) setCurrentStep((s) => s + 1);
     else finish();
-  };
+  }, [currentStep, finish]);
+
+  useEffect(() => {
+    if (!active) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") finish();
+      if (e.key === "Enter" || e.key === " ") next();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [active, finish, next]);
 
   if (!active) return null;
 
   const step = steps[currentStep];
-  const cardStyle: React.CSSProperties = {};
+  const cardStyle: React.CSSProperties = { position: "fixed", zIndex: 102 };
 
   if (spotlightRect) {
     if (step.position === "right") {
-      cardStyle.top = spotlightRect.top + spotlightRect.height / 2 - 80;
-      cardStyle.left = spotlightRect.right + 16;
+      cardStyle.top = Math.min(
+        spotlightRect.top + spotlightRect.height / 2 - 80,
+        window.innerHeight - 200
+      );
+      cardStyle.left = Math.min(spotlightRect.right + 16, window.innerWidth - 304);
     } else if (step.position === "left") {
       cardStyle.bottom = 100;
-      cardStyle.right = 40;
+      cardStyle.right = Math.min(40, window.innerWidth - 304);
     } else {
-      cardStyle.top = spotlightRect.bottom + 16;
-      cardStyle.left = spotlightRect.left;
+      cardStyle.top = Math.min(spotlightRect.bottom + 16, window.innerHeight - 200);
+      cardStyle.left = Math.min(spotlightRect.left, window.innerWidth - 304);
     }
-    cardStyle.position = "fixed";
+  } else {
+    cardStyle.top = "50%";
+    cardStyle.left = "50%";
+    cardStyle.transform = "translate(-50%, -50%)";
   }
 
   return (
     <div data-testid="onboarding-tour" className="fixed inset-0 z-[100]">
-      <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: "none" }}>
-        <defs>
-          <mask id="spotlight-mask">
-            <rect width="100%" height="100%" fill="white" />
-            {spotlightRect && (
-              <rect
-                x={spotlightRect.x - 8}
-                y={spotlightRect.y - 8}
-                width={spotlightRect.width + 16}
-                height={spotlightRect.height + 16}
-                rx="8"
-                fill="black"
-              />
-            )}
-          </mask>
-        </defs>
-        <rect
-          width="100%" height="100%"
-          fill="rgba(0,0,0,0.75)"
-          mask="url(#spotlight-mask)"
-          style={{ pointerEvents: "all" }}
-        />
-      </svg>
+      <div
+        className="absolute inset-0"
+        style={{ background: "rgba(0,0,0,0.75)" }}
+        onClick={finish}
+        data-testid="tour-backdrop"
+      />
 
       {spotlightRect && (
         <div
@@ -104,17 +103,29 @@ export function OnboardingTour() {
             height: spotlightRect.height + 16,
             boxShadow: "0 0 0 3px hsl(185 100% 50% / 0.5), 0 0 30px hsl(185 100% 50% / 0.2)",
             borderRadius: 8,
+            zIndex: 101,
           }}
         />
       )}
 
       <div
         data-testid="tour-card"
-        className="cosmic-card cosmic-card-cyan p-5 w-72 z-[101]"
+        className="cosmic-card cosmic-card-cyan p-5 w-72"
         style={cardStyle}
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="font-heading text-sm font-bold tracking-widest text-neon-cyan mb-2" data-testid="tour-step-title">
-          {step.title}
+        <div className="flex items-start justify-between mb-2">
+          <div className="font-heading text-sm font-bold tracking-widest text-neon-cyan" data-testid="tour-step-title">
+            {step.title}
+          </div>
+          <button
+            data-testid="button-close-tour"
+            onClick={finish}
+            className="p-1 -mt-1 -mr-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+            aria-label="Close tour"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
         <p className="text-xs text-muted-foreground font-mono mb-4" data-testid="tour-step-description">
           {step.description}
@@ -136,7 +147,7 @@ export function OnboardingTour() {
               className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
               onClick={finish}
             >
-              Skip Tour
+              Skip
             </button>
             <button
               data-testid="button-next-step"

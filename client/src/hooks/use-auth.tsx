@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useContext, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest, setJwtTokens, clearJwtTokens } from "@/lib/queryClient";
+import { queryClient, apiRequest, setJwtTokens, clearJwtTokens, getJwtToken } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { useAccount } from "wagmi";
 
@@ -29,11 +29,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
   const { address, isConnected } = useAccount();
   const linkingRef = useRef(false);
+  const linkFailedRef = useRef(false);
 
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/api/user"],
     queryFn: async () => {
-      const res = await fetch("/api/user", { credentials: "include" });
+      const headers: Record<string, string> = {};
+      const token = getJwtToken();
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch("/api/user", { credentials: "include", headers });
       if (res.status === 401) return null;
       if (!res.ok) throw new Error("Failed to fetch user");
       return res.json();
@@ -89,6 +93,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onSuccess: (data) => {
       queryClient.setQueryData(["/api/user"], data);
     },
+    onError: () => {
+      linkFailedRef.current = true;
+    },
   });
 
   const registerMutation = useMutation({
@@ -118,20 +125,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const doLinkWallet = useCallback(async (addr: string) => {
-    if (linkingRef.current) return;
+    if (linkingRef.current || linkFailedRef.current) return;
     linkingRef.current = true;
     try {
       await linkWalletMutation.mutateAsync({ address: addr });
+      linkFailedRef.current = false;
+    } catch {
+      linkFailedRef.current = true;
     } finally {
       linkingRef.current = false;
     }
   }, [linkWalletMutation]);
 
   useEffect(() => {
-    if (isConnected && address && user && !walletLinked && !linkingRef.current) {
+    if (isConnected && address && user && !walletLinked && !linkingRef.current && !linkFailedRef.current) {
       doLinkWallet(address);
     }
-  }, [isConnected, address, user?.id, walletLinked]);
+  }, [isConnected, address, user?.id, walletLinked, doLinkWallet]);
+
+  useEffect(() => {
+    linkFailedRef.current = false;
+  }, [address]);
 
   return (
     <AuthContext.Provider

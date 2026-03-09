@@ -69,12 +69,14 @@ export function EmbeddedWallet() {
   const prevConnected = useRef(false);
   const { user, walletLinked, linkWallet } = useAuth();
   const [isLinking, setIsLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const userHasWallet = !!user?.walletAddress;
 
   useEffect(() => {
     if (isConnected && !prevConnected.current) {
       setShowConnectAnim(true);
+      setLinkError(null);
       const timer = setTimeout(() => setShowConnectAnim(false), 1800);
       return () => clearTimeout(timer);
     }
@@ -84,8 +86,18 @@ export function EmbeddedWallet() {
   const handleManualLink = async () => {
     if (!address || isLinking) return;
     setIsLinking(true);
+    setLinkError(null);
     try {
       await linkWallet(address);
+    } catch (err: any) {
+      const msg = err?.message || "Failed to link wallet";
+      if (msg.includes("409")) {
+        setLinkError("This wallet is already linked to another account.");
+      } else if (msg.includes("400")) {
+        setLinkError("Invalid wallet address format.");
+      } else {
+        setLinkError("Failed to link wallet. Please try again.");
+      }
     } finally {
       setIsLinking(false);
     }
@@ -180,16 +192,23 @@ export function EmbeddedWallet() {
 
         {!walletLinked && !isLinking && user && (
           <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-            <div className="flex items-center gap-2 text-xs font-mono text-yellow-500/80">
-              <AlertCircle className="w-3 h-3" />
-              <span>Wallet detected but not linked to your account yet.</span>
-            </div>
+            {linkError ? (
+              <div className="flex items-center gap-2 text-xs font-mono text-red-400/90">
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                <span>{linkError}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-xs font-mono text-yellow-500/80">
+                <AlertCircle className="w-3 h-3" />
+                <span>Wallet detected but not linked to your account yet.</span>
+              </div>
+            )}
             <Button
               data-testid="button-link-wallet"
               onClick={handleManualLink}
               className="w-full bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 font-heading"
             >
-              LINK WALLET TO ACCOUNT
+              {linkError ? "RETRY LINK" : "LINK WALLET TO ACCOUNT"}
             </Button>
           </div>
         )}
