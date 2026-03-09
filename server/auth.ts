@@ -11,7 +11,7 @@ import connectPg from "connect-pg-simple";
 import { pool, db } from "./db";
 import { eq } from "drizzle-orm";
 import { rateLimit } from "./routes";
-import { verifyMessage } from "viem";
+import { verifyMessage, recoverMessageAddress } from "viem";
 import jwt from "jsonwebtoken";
 
 const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET_KEY || "";
@@ -464,7 +464,7 @@ export function setupAuth(app: Express) {
       if (!/^0x[a-fA-F0-9]{40}$/.test(addrStr)) {
         return res.status(400).json({ message: "Invalid wallet address format" });
       }
-      if (!/^0x[a-fA-F0-9]{128,130}$/.test(sigStr)) {
+      if (!sigStr.startsWith("0x") || sigStr.length < 4) {
         return res.status(400).json({ message: "Invalid signature format" });
       }
 
@@ -477,9 +477,18 @@ export function setupAuth(app: Express) {
           message,
           signature: sigStr as `0x${string}`,
         });
-      } catch (sigError: any) {
-        console.error("[Auth] Wallet auth signature error:", sigError.message);
-        return res.status(400).json({ message: "Signature verification failed. Please try again." });
+      } catch (verifyError: any) {
+        console.log(`[Auth] Wallet auth verifyMessage threw, trying recoverMessageAddress. Error: ${verifyError.message}`);
+        try {
+          const recovered = await recoverMessageAddress({
+            message,
+            signature: sigStr as `0x${string}`,
+          });
+          isValid = recovered.toLowerCase() === addrStr.toLowerCase();
+        } catch (recoverError: any) {
+          console.error("[Auth] Wallet auth signature recovery failed:", recoverError.message);
+          return res.status(400).json({ message: "Signature verification failed. Please try again." });
+        }
       }
 
       if (!isValid) {
@@ -576,7 +585,7 @@ export function setupAuth(app: Express) {
       }
 
       const sigStr = String(signature).trim();
-      if (!/^0x[a-fA-F0-9]{128,130}$/.test(sigStr)) {
+      if (!sigStr.startsWith("0x") || sigStr.length < 4) {
         return res.status(400).json({ message: "Invalid signature format" });
       }
 
@@ -593,9 +602,18 @@ export function setupAuth(app: Express) {
           message,
           signature: sigStr as `0x${string}`,
         });
-      } catch (sigError: any) {
-        console.error("[Auth] Signature verification error:", sigError.message);
-        return res.status(400).json({ message: "Signature verification failed. Please try again." });
+      } catch (verifyError: any) {
+        console.log(`[Auth] verifyMessage threw, trying recoverMessageAddress. Error: ${verifyError.message}`);
+        try {
+          const recovered = await recoverMessageAddress({
+            message,
+            signature: sigStr as `0x${string}`,
+          });
+          isValid = recovered.toLowerCase() === normalized.toLowerCase();
+        } catch (recoverError: any) {
+          console.error("[Auth] Signature recovery also failed:", recoverError.message);
+          return res.status(400).json({ message: "Invalid signature. Please disconnect your wallet and try again." });
+        }
       }
 
       if (!isValid) {
