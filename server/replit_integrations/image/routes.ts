@@ -3,11 +3,16 @@ import { openai } from "./client";
 
 export function registerImageRoutes(app: Express): void {
   app.post("/api/generate-image", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
     try {
       const { prompt, size = "1024x1024" } = req.body;
 
       if (!prompt) {
         return res.status(400).json({ error: "Prompt is required" });
+      }
+
+      if (typeof prompt !== "string" || prompt.length > 2000) {
+        return res.status(400).json({ error: "Prompt must be a string under 2000 characters" });
       }
 
       const response = await openai.images.generate({
@@ -28,4 +33,3 @@ export function registerImageRoutes(app: Express): void {
     }
   });
 }
-

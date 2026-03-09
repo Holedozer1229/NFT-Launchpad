@@ -272,6 +272,16 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
 - GenesisMiner displays live ETH block number, transaction count, base fee, and anchor hash alongside BTC mempool data
 - Wallet linking centralized in `use-auth.tsx` AuthProvider — auto-links wallet to account on connect, exposes `walletLinked` state and `linkWallet` function
 
+### Security Hardening
+- **Helmet.js**: Full security header suite — CSP, X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, HSTS (production), Cross-Origin-Opener-Policy
+- **CORS whitelist**: Production CORS restricted to `.replit.app`, `.replit.dev`, `.repl.co` domains only (dev allows all origins)
+- **CSRF protection**: SameSite=strict cookies + Content-Type/Origin header validation on all POST/PUT/DELETE requests in production
+- **Session hardening**: Custom cookie name `__skynt_sid`, 7-day maxAge (reduced from 30), httpOnly, secure in production, SameSite=strict, session pruning every 10 minutes
+- **Auth guards added**: POST /api/miners, POST /api/deployments/deploy, POST /api/iit/compute, POST /api/generate-image, all /api/conversations routes (GET/POST/DELETE), POST /api/conversations/:id/messages
+- **Rate limiting expanded**: /api/wallet/create (3/min), /api/deployments/deploy (3/min), /api/iit/compute (10/min), /api/network/node/register (5/min)
+- **Input validation**: Body size limits (1mb JSON, 10mb audio), string length caps on prompts/content/data fields
+- **Error sanitization**: Production errors log message only (no stack traces exposed)
+
 ## User Preferences
 - Cosmic/space-themed UI with neon accents
 - SphinxOS and aerospace branding throughout

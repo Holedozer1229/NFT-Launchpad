@@ -291,6 +291,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/miners", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const parsed = insertMinerSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json(parsed.error);
@@ -718,7 +719,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/wallet/create", async (req, res) => {
+  app.post("/api/wallet/create", rateLimit(60000, 3), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { name } = req.body;
@@ -1271,7 +1272,8 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/deployments/deploy", async (req, res) => {
+  app.post("/api/deployments/deploy", rateLimit(60000, 3), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { walletAddress, chain } = req.body;
       if (!walletAddress) return res.status(400).json({ message: "Wallet address required" });
@@ -1400,11 +1402,12 @@ export async function registerRoutes(
     res.json({ running: isEngineRunning() });
   });
 
-  app.post("/api/iit/compute", async (req, res) => {
+  app.post("/api/iit/compute", rateLimit(60000, 10), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { data } = req.body;
-      if (!data || typeof data !== "string") {
-        return res.status(400).json({ message: "Data string is required" });
+      if (!data || typeof data !== "string" || data.length > 1000) {
+        return res.status(400).json({ message: "Data string is required (max 1000 chars)" });
       }
       const phi = calculatePhi(data);
       res.json(phi);
@@ -1842,7 +1845,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/network/node/register", (req, res) => {
+  app.post("/api/network/node/register", rateLimit(60000, 5), (req, res) => {
     try {
       const { name, address, publicKey, capabilities, region } = req.body;
       if (!name || !address) return res.status(400).json({ message: "name and address required" });

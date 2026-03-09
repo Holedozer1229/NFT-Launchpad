@@ -89,19 +89,28 @@ async function findOrCreateOAuthUser(opts: {
 export function setupAuth(app: Express) {
   const PostgresSessionStore = connectPg(session);
 
+  if (!process.env.SESSION_SECRET) {
+    const generated = randomBytes(32).toString("hex");
+    process.env.SESSION_SECRET = generated;
+    console.warn("[Auth] SESSION_SECRET not set — generated ephemeral secret (sessions will not persist across restarts)");
+  }
+
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || randomBytes(32).toString("hex"),
+    secret: process.env.SESSION_SECRET,
+    name: "__skynt_sid",
     resave: false,
     saveUninitialized: false,
     store: new PostgresSessionStore({
       pool,
       createTableIfMissing: true,
+      pruneSessionInterval: 600,
     }),
     cookie: {
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "strict",
+      path: "/",
     },
   };
 
