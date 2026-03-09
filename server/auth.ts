@@ -460,12 +460,12 @@ export function setupAuth(app: Express) {
       }
 
       const addrStr = String(address).trim();
-      const sigStr = String(signature).trim();
+      let sigStr = String(signature).trim();
       if (!/^0x[a-fA-F0-9]{40}$/.test(addrStr)) {
         return res.status(400).json({ message: "Invalid wallet address format" });
       }
-      if (!sigStr.startsWith("0x") || sigStr.length < 4) {
-        return res.status(400).json({ message: "Invalid signature format" });
+      if (!sigStr.startsWith("0x")) {
+        sigStr = `0x${sigStr}`;
       }
 
       const message = `Sign this message to authenticate with SKYNT Protocol (Contract: 0x22d3f06afB69e5FCFAa98C20009510dD11aF2517)\nNonce: ${nonce}`;
@@ -584,9 +584,9 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Signature verification required to link wallet" });
       }
 
-      const sigStr = String(signature).trim();
-      if (!sigStr.startsWith("0x") || sigStr.length < 4) {
-        return res.status(400).json({ message: "Invalid signature format" });
+      let sigStr = String(signature).trim();
+      if (!sigStr.startsWith("0x")) {
+        sigStr = `0x${sigStr}`;
       }
 
       const currentUser = await storage.getUser(req.user.id);
