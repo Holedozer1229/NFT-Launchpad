@@ -981,72 +981,70 @@ export default function GenesisMiner() {
               style={{ borderColor: `${NEON_COLORS.blue}20`, backgroundColor: `${NEON_COLORS.blue}04` }}
               data-testid="card-randomx-solo"
             >
-              <div className="absolute top-0 right-0 p-4">
-                <Badge className="flex items-center gap-1 border-none shadow-[0_0_10px_rgba(77,124,255,0.2)]"
-                  style={{ backgroundColor: `${NEON_COLORS.blue}20`, color: NEON_COLORS.blue }}
-                >
-                  <Pickaxe className="w-3 h-3" /> SOLO MINING
-                </Badge>
-              </div>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap style={{ color: NEON_COLORS.blue }} />
-                  <span style={{ color: NEON_COLORS.blue }}>RandomX CPU Miner</span>
-                </CardTitle>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap style={{ color: NEON_COLORS.blue }} />
+                    <span style={{ color: NEON_COLORS.blue }}>RandomX CPU Miner</span>
+                  </CardTitle>
+                  <Badge className="flex items-center gap-1 border-none shadow-[0_0_10px_rgba(77,124,255,0.2)]"
+                    style={{ backgroundColor: `${NEON_COLORS.blue}20`, color: NEON_COLORS.blue }}
+                  >
+                    <Pickaxe className="w-3 h-3" /> SOLO MINING
+                  </Badge>
+                </div>
                 <p className="text-xs text-muted-foreground font-mono">CPU-optimized solo mining algorithm for fair distribution.</p>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 sm:space-y-6">
                 <RandomXVisualization isActive={miningStatus?.randomx?.isActive ?? false} />
 
-                <div className="grid md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                   <div className="space-y-1">
                     <p className="text-[9px] font-mono text-muted-foreground uppercase">Hashrate</p>
-                    <p className="text-xl font-heading" style={{ color: NEON_COLORS.blue }} data-testid="text-randomx-hashrate">
+                    <p className="text-lg sm:text-xl font-heading" style={{ color: NEON_COLORS.blue }} data-testid="text-randomx-hashrate">
                       {miningStatus?.randomx ? formatHashRate(miningStatus.randomx.hashRate) : "0 H/s"}
                     </p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[9px] font-mono text-muted-foreground uppercase">Nonces</p>
-                    <p className="text-xl font-heading text-white" data-testid="text-randomx-nonces">
+                    <p className="text-lg sm:text-xl font-heading text-white" data-testid="text-randomx-nonces">
                       {miningStatus?.randomx?.noncesChecked?.toLocaleString() ?? "0"}
                     </p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[9px] font-mono text-muted-foreground uppercase">Blocks Found</p>
-                    <p className="text-xl font-heading" style={{ color: NEON_COLORS.gold }} data-testid="text-randomx-blocks">
+                    <p className="text-lg sm:text-xl font-heading" style={{ color: NEON_COLORS.gold }} data-testid="text-randomx-blocks">
                       {miningStatus?.randomx?.blocksFound ?? "0"}
                     </p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[9px] font-mono text-muted-foreground uppercase">Total BTC</p>
-                    <p className="text-xl font-heading" style={{ color: NEON_COLORS.green }} data-testid="text-randomx-rewards">
+                    <p className="text-lg sm:text-xl font-heading" style={{ color: NEON_COLORS.green }} data-testid="text-randomx-rewards">
                       {miningStatus?.randomx?.btcEarned?.toFixed(8) ?? "0.00000000"}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex gap-4">
-                  <Button 
-                    className="flex-1 font-heading tracking-widest h-12 border transition-all"
-                    style={{
-                      backgroundColor: `${NEON_COLORS.blue}15`,
-                      color: NEON_COLORS.blue,
-                      borderColor: `${NEON_COLORS.blue}40`,
-                    }}
-                    data-testid="button-randomx-toggle"
-                    onClick={() => {
-                      const active = miningStatus?.randomx?.isActive;
-                      if (active) stopMergeMining.mutate("randomx");
-                      else startMergeMining.mutate("randomx");
-                    }}
-                  >
-                    {miningStatus?.randomx?.isActive ? (
-                      <><ZapOff className="w-4 h-4 mr-2" /> TERMINATE SESSION</>
-                    ) : (
-                      <><Zap className="w-4 h-4 mr-2" /> INITIALIZE CPU MINER</>
-                    )}
-                  </Button>
-                </div>
+                <Button 
+                  className="w-full font-heading tracking-widest h-12 border transition-all text-xs sm:text-sm"
+                  style={{
+                    backgroundColor: `${NEON_COLORS.blue}15`,
+                    color: NEON_COLORS.blue,
+                    borderColor: `${NEON_COLORS.blue}40`,
+                  }}
+                  data-testid="button-randomx-toggle"
+                  onClick={() => {
+                    const active = miningStatus?.randomx?.isActive;
+                    if (active) stopMergeMining.mutate("randomx");
+                    else startMergeMining.mutate("randomx");
+                  }}
+                >
+                  {miningStatus?.randomx?.isActive ? (
+                    <><ZapOff className="w-4 h-4 mr-2" /> TERMINATE SESSION</>
+                  ) : (
+                    <><Zap className="w-4 h-4 mr-2" /> INITIALIZE CPU MINER</>
+                  )}
+                </Button>
               </CardContent>
             </Card>
 
