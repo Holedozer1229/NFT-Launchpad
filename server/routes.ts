@@ -232,7 +232,7 @@ export async function registerRoutes(
 
   app.get("/api/public/iit-demo", (req, res) => {
     try {
-      const coupling = parseFloat(req.query.coupling as string) || DEFAULT_COUPLING;
+      const coupling = Math.max(0.01, Math.min(parseFloat(req.query.coupling as string) || DEFAULT_COUPLING, 10.0));
       const h = getToyHamiltonian(coupling);
       const eigenvalues = eigenvaluesSymmetric4x4(h);
       
@@ -754,7 +754,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/wallet/:id/send", async (req, res) => {
+  app.post("/api/wallet/:id/send", rateLimit(10000, 5), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const wallet = await storage.getWallet(parseInt(req.params.id));
@@ -1881,10 +1881,12 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/p2p/broadcast", (req, res) => {
+  app.post("/api/p2p/broadcast", rateLimit(10000, 5), (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { tx } = req.body;
-      broadcastTransaction(tx || { type: "test", timestamp: Date.now() });
+      if (!tx || typeof tx !== "object") return res.status(400).json({ message: "Transaction object required" });
+      broadcastTransaction({ ...tx, timestamp: Date.now() });
       res.json({ message: "Transaction broadcast to P2P network" });
     } catch (error) {
       res.status(500).json({ message: "Failed to broadcast" });
@@ -1950,6 +1952,9 @@ export async function registerRoutes(
   });
 
   app.delete("/api/network/node/:nodeId", (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
     try {
       const removed = removeNode(req.params.nodeId);
       if (!removed) return res.status(404).json({ message: "Node not found or is a seed node" });
@@ -1980,14 +1985,17 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/network/chain/sync", (req, res) => {
+  app.post("/api/network/chain/sync", rateLimit(30000, 5), (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { nodeId, fromHeight, toHeight } = req.body;
-      if (!nodeId) return res.status(400).json({ message: "nodeId required" });
+      if (!nodeId || typeof nodeId !== "string") return res.status(400).json({ message: "Valid nodeId required" });
+      const clampedFrom = Math.max(0, parseInt(fromHeight) || 0);
+      const clampedTo = Math.min(parseInt(toHeight) || 1000000, 1000000);
       const syncResult = syncNodeBlocks({
         nodeId,
-        fromHeight: fromHeight || 0,
-        toHeight: toHeight || Infinity,
+        fromHeight: clampedFrom,
+        toHeight: clampedTo,
         requestedAt: Date.now(),
       });
       res.json(syncResult);
@@ -1996,10 +2004,12 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/network/block/announce", (req, res) => {
+  app.post("/api/network/block/announce", rateLimit(10000, 3), (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { block, proposerNodeId } = req.body;
-      if (!block || !proposerNodeId) return res.status(400).json({ message: "block and proposerNodeId required" });
+      if (!block || typeof block !== "object") return res.status(400).json({ message: "Valid block object required" });
+      if (!proposerNodeId || typeof proposerNodeId !== "string") return res.status(400).json({ message: "Valid proposerNodeId required" });
       const announcement = announceNewBlock(block, proposerNodeId);
       res.json(announcement);
     } catch (error: any) {
@@ -2007,10 +2017,11 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/network/block/validate", (req, res) => {
+  app.post("/api/network/block/validate", rateLimit(10000, 5), (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { block } = req.body;
-      if (!block) return res.status(400).json({ message: "block required" });
+      if (!block || typeof block !== "object") return res.status(400).json({ message: "Valid block object required" });
       const result = validateNetworkBlock(block);
       res.json(result);
     } catch (error: any) {
@@ -2020,7 +2031,7 @@ export async function registerRoutes(
 
   app.get("/api/network/announcements", (req, res) => {
     try {
-      const limit = parseInt(req.query.limit as string) || 20;
+      const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 20, 1), 100);
       res.json(getBlockAnnouncements(limit));
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch announcements" });
@@ -2406,6 +2417,7 @@ export async function registerRoutes(
    * Returns all recorded submissions for a challenge.
    */
   app.get("/api/pow/submissions/:challengeId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const submissions = await storage.getPowSubmissions(req.params.challengeId);
       res.json(submissions);
@@ -2419,7 +2431,7 @@ export async function registerRoutes(
    * Updates a submission's solanaTxHash and marks it confirmed.
    */
   app.patch("/api/pow/submissions/:id/confirm", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.isAuthenticated() || !(req.user as any).isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const id = parseInt(req.params.id);
       if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid submission id" });
@@ -2866,7 +2878,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/wormhole/transfer", async (req, res) => {
+  app.post("/api/wormhole/transfer", rateLimit(10000, 5), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { wormholeId, amount, token } = req.body;
@@ -2927,7 +2939,7 @@ export async function registerRoutes(
   });
 
   // Rarity Proof Engine
-  app.post("/api/rarity-proof/generate", async (req, res) => {
+  app.post("/api/rarity-proof/generate", rateLimit(30000, 3), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { nftId } = req.body as { nftId: number };
@@ -3096,6 +3108,13 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to mint RocketGirl NFT" });
+    }
+  });
+
+  app.use((err: any, _req: any, res: any, _next: any) => {
+    console.error("[Global Error Handler]", err?.message || err);
+    if (!res.headersSent) {
+      res.status(500).json({ message: "Internal server error" });
     }
   });
 

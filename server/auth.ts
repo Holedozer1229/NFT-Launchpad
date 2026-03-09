@@ -382,20 +382,27 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/auth/nonce", async (req, res) => {
-    const { address } = req.query;
-    if (!address || typeof address !== "string") {
-      return res.status(400).json({ message: "Address is required" });
+  app.get("/api/auth/nonce", rateLimit(60000, 20), async (req, res) => {
+    try {
+      const { address } = req.query;
+      if (!address || typeof address !== "string") {
+        return res.status(400).json({ message: "Address is required" });
+      }
+      if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+        return res.status(400).json({ message: "Invalid wallet address format" });
+      }
+      const nonce = randomBytes(16).toString("hex");
+      const user = await storage.getUserByWalletAddress(address);
+      if (user) {
+        await storage.updateUserNonce(user.id, nonce);
+      }
+      res.json({ nonce });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to generate nonce" });
     }
-    const nonce = randomBytes(16).toString("hex");
-    const user = await storage.getUserByWalletAddress(address);
-    if (user) {
-      await storage.updateUserNonce(user.id, nonce);
-    }
-    res.json({ nonce });
   });
 
-  app.post("/api/auth/wallet", async (req, res, next) => {
+  app.post("/api/auth/wallet", rateLimit(60000, 10), async (req, res, next) => {
     try {
       const { address, signature, nonce } = req.body;
       if (!address || !signature || !nonce) {
@@ -510,11 +517,15 @@ export function setupAuth(app: Express) {
   });
 
   app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      const { password: _, ...safeUser } = req.user as User;
+      return res.json(safeUser);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch user" });
     }
-    const { password: _, ...safeUser } = req.user as User;
-    return res.json(safeUser);
   });
 
   app.post("/api/auth/token/refresh", rateLimit(60000, 10), async (req, res) => {
@@ -543,23 +554,27 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.get("/api/auth/token/verify", (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith("Bearer ")) {
-      return res.status(401).json({ valid: false, message: "No token provided" });
+  app.get("/api/auth/token/verify", rateLimit(60000, 30), (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith("Bearer ")) {
+        return res.status(401).json({ valid: false, message: "No token provided" });
+      }
+      const token = authHeader.slice(7);
+      const payload = verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ valid: false, message: "Invalid or expired token" });
+      }
+      res.json({
+        valid: true,
+        sub: payload.sub,
+        username: payload.username,
+        isAdmin: payload.isAdmin,
+        exp: payload.exp,
+        iss: payload.iss,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Token verification failed" });
     }
-    const token = authHeader.slice(7);
-    const payload = verifyToken(token);
-    if (!payload) {
-      return res.status(401).json({ valid: false, message: "Invalid or expired token" });
-    }
-    res.json({
-      valid: true,
-      sub: payload.sub,
-      username: payload.username,
-      isAdmin: payload.isAdmin,
-      exp: payload.exp,
-      iss: payload.iss,
-    });
   });
 }

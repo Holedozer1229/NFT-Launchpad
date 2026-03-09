@@ -4,6 +4,13 @@
 Multi-page NFT minting protocol application combining SphinxOS Oracle Minter with Cosmos Launchpad design. Features sidebar navigation, cosmic theme with neon accents, and user authentication.
 
 ## Recent Changes
+- **Mar 2026**: **Security Hardening & API Error Handling** — comprehensive audit and fixes across all routes
+  - Added auth checks to: `/api/p2p/broadcast`, `/api/network/node/:nodeId` DELETE (admin-only), `/api/network/chain/sync`, `/api/network/block/announce`, `/api/network/block/validate`, `/api/pow/submissions/:challengeId`
+  - Upgraded `/api/pow/submissions/:id/confirm` to admin-only
+  - Added rate limiting to: wallet send, P2P broadcast, chain sync, block announce/validate, wormhole transfer, rarity-proof generate, auth nonce, auth wallet, token verify
+  - Input validation: IIT coupling clamped to [0.01, 10.0], wallet address format validated on nonce endpoint, announcement limit clamped to [1, 100], chain sync heights clamped
+  - Added try/catch to: `/api/user`, `/api/auth/nonce`, `/api/auth/token/verify`
+  - Added global Express error handler as final middleware
 - **Mar 2026**: Added **JWT Authentication** — dual auth system (sessions + JWT) with admin user seeding
   - Login/register/wallet-auth return `token` + `refreshToken` alongside user data
   - JWT middleware checks `Authorization: Bearer <token>`, falls back to session auth
