@@ -11,7 +11,7 @@ import connectPg from "connect-pg-simple";
 import { pool, db } from "./db";
 import { eq } from "drizzle-orm";
 import { rateLimit } from "./routes";
-import { verifyMessage, recoverMessageAddress } from "viem";
+import { getAlchemySigner } from "./alchemy-signer";
 import jwt from "jsonwebtoken";
 
 const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET_KEY || "";
@@ -470,28 +470,15 @@ export function setupAuth(app: Express) {
 
       const message = `Sign this message to authenticate with SKYNT Protocol (Contract: 0x22d3f06afB69e5FCFAa98C20009510dD11aF2517)\nNonce: ${nonce}`;
       
-      let isValid = false;
-      try {
-        isValid = await verifyMessage({
-          address: addrStr as `0x${string}`,
-          message,
-          signature: sigStr as `0x${string}`,
-        });
-      } catch (verifyError: any) {
-        console.log(`[Auth] Wallet auth verifyMessage threw, trying recoverMessageAddress. Error: ${verifyError.message}`);
-        try {
-          const recovered = await recoverMessageAddress({
-            message,
-            signature: sigStr as `0x${string}`,
-          });
-          isValid = recovered.toLowerCase() === addrStr.toLowerCase();
-        } catch (recoverError: any) {
-          console.error("[Auth] Wallet auth signature recovery failed:", recoverError.message);
-          return res.status(400).json({ message: "Signature verification failed. Please try again." });
-        }
-      }
+      const signer = getAlchemySigner();
+      const { isValid, recoveredAddress, error: sigError } = signer.verifySignature(message, sigStr, addrStr);
 
+      if (sigError) {
+        console.error("[Auth] Wallet auth signature verification failed:", sigError);
+        return res.status(400).json({ message: "Signature verification failed. Please try again." });
+      }
       if (!isValid) {
+        console.log(`[Auth] Wallet auth signature mismatch. Expected: ${addrStr}, Recovered: ${recoveredAddress}`);
         return res.status(401).json({ message: "Invalid signature" });
       }
 
@@ -595,28 +582,15 @@ export function setupAuth(app: Express) {
       }
 
       const message = `SKYNT Protocol — Link Wallet\nAccount: ${req.user.username}\nWallet: ${normalized}\nNonce: ${nonce}`;
-      let isValid = false;
-      try {
-        isValid = await verifyMessage({
-          address: normalized as `0x${string}`,
-          message,
-          signature: sigStr as `0x${string}`,
-        });
-      } catch (verifyError: any) {
-        console.log(`[Auth] verifyMessage threw, trying recoverMessageAddress. Error: ${verifyError.message}`);
-        try {
-          const recovered = await recoverMessageAddress({
-            message,
-            signature: sigStr as `0x${string}`,
-          });
-          isValid = recovered.toLowerCase() === normalized.toLowerCase();
-        } catch (recoverError: any) {
-          console.error("[Auth] Signature recovery also failed:", recoverError.message);
-          return res.status(400).json({ message: "Invalid signature. Please disconnect your wallet and try again." });
-        }
-      }
+      const signer = getAlchemySigner();
+      const { isValid, recoveredAddress, error: sigError } = signer.verifySignature(message, sigStr, normalized);
 
+      if (sigError) {
+        console.error("[Auth] Link wallet signature verification failed:", sigError);
+        return res.status(400).json({ message: "Invalid signature. Please disconnect your wallet and try again." });
+      }
       if (!isValid) {
+        console.log(`[Auth] Link wallet signature mismatch. Expected: ${normalized}, Recovered: ${recoveredAddress}`);
         return res.status(401).json({ message: "Signature verification failed. You must sign with the wallet you are linking." });
       }
 

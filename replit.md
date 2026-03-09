@@ -4,6 +4,13 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via RainbowKit + wagmi.
 
 ## Recent Changes
+- **Mar 2026**: **Alchemy SDK Signer Integration & Mobile Modal Fix**
+  - `server/alchemy-signer.ts` — AlchemySigner class using Alchemy SDK's ethersproject stack for signature verification
+  - Replaced viem's `verifyMessage`/`recoverMessageAddress` in `server/auth.ts` with Alchemy SDK-powered `AlchemySigner.verifySignature()`
+  - `verifySignature()` uses `@ethersproject/wallet.verifyMessage` (primary) with `@ethersproject/transactions.recoverAddress` fallback
+  - Client-side signing flow (`use-auth.tsx`) improved: timeout protection (60s sign, 10s nonce, 15s verify), structured error types, `linkError` state exposed to components
+  - `EmbeddedWallet.tsx` refactored: uses `linkError` from auth context (no duplicate state), retry clears via `resetLinkState()`
+  - RainbowKit mobile modal CSS rewritten: full-viewport overlay, bottom-sheet layout with `border-radius: 16px 16px 0 0`, `100dvh`/`85dvh` constraints, touch-scroll (`-webkit-overflow-scrolling: touch`), 48px min-height buttons, short-screen (`max-height: 600px`) fallback
 - **Mar 2026**: **Haptic Feedback Integration**
   - `client/src/lib/haptics.ts` — pattern-based vibration utility using `navigator.vibrate()`
   - Patterns: `tap`, `success`, `error`, `warning`, `mining-block`, `milestone`, `transaction`, `heavy`

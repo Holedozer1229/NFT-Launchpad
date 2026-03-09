@@ -25,9 +25,22 @@ type AuthContextType = {
   logout: () => Promise<void>;
   walletLinked: boolean;
   isLinkingWallet: boolean;
+  linkError: string | null;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+const SIGN_TIMEOUT_MS = 60000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms);
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
@@ -35,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { signMessageAsync } = useSignMessage();
   const { toast } = useToast();
   const [isLinkingWallet, setIsLinkingWallet] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const linkingRef = useRef(false);
 
   const { data: user, isLoading } = useQuery<User | null>({
@@ -120,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetLinkState = useCallback(() => {
     linkingRef.current = false;
     setIsLinkingWallet(false);
+    setLinkError(null);
   }, []);
 
   const doLinkWallet = useCallback(async () => {
@@ -128,19 +143,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     linkingRef.current = true;
     setIsLinkingWallet(true);
+    setLinkError(null);
+
     try {
-      const nonceRes = await apiRequest("POST", "/api/auth/link-wallet/nonce", { address });
+      const nonceRes = await withTimeout(
+        apiRequest("POST", "/api/auth/link-wallet/nonce", { address }),
+        10000,
+        "Nonce request"
+      );
+      if (!nonceRes.ok) {
+        const errData = await nonceRes.json().catch(() => ({ message: "Failed to get verification nonce" }));
+        throw new Error(errData.message || "Failed to get verification nonce");
+      }
       const { nonce } = await nonceRes.json();
+
+      if (!nonce || typeof nonce !== "string") {
+        throw new Error("Server returned invalid nonce");
+      }
 
       const message = `SKYNT Protocol — Link Wallet\nAccount: ${user.username}\nWallet: ${address}\nNonce: ${nonce}`;
 
-      const signature = await signMessageAsync({ message });
+      let signature: string;
+      try {
+        signature = await withTimeout(
+          signMessageAsync({ message }),
+          SIGN_TIMEOUT_MS,
+          "Wallet signature"
+        );
+      } catch (signErr: any) {
+        const msg = signErr?.message || "";
+        if (msg.includes("rejected") || msg.includes("denied") || msg.includes("User rejected") || msg.includes("user rejected")) {
+          throw new Error("rejected");
+        }
+        if (msg.includes("timed out")) {
+          throw new Error("Signature request timed out. Please try again.");
+        }
+        throw new Error(`Wallet signing failed: ${msg.slice(0, 100)}`);
+      }
 
-      const res = await apiRequest("POST", "/api/auth/link-wallet", {
-        address,
-        signature,
-        nonce,
-      });
+      if (!signature || !signature.startsWith("0x")) {
+        throw new Error("Invalid signature returned from wallet");
+      }
+
+      const res = await withTimeout(
+        apiRequest("POST", "/api/auth/link-wallet", { address, signature, nonce }),
+        15000,
+        "Link verification"
+      );
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: "Verification failed" }));
+        if (res.status === 409) {
+          throw new Error("409:" + (errData.message || "already linked"));
+        }
+        if (res.status === 401) {
+          throw new Error(errData.message || "Signature verification failed");
+        }
+        throw new Error(errData.message || "Failed to link wallet");
+      }
+
       const data = await res.json();
 
       if (data.token && data.refreshToken) {
@@ -150,32 +211,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(["/api/user"], userData);
 
       haptic("success");
+      setLinkError(null);
       toast({
         title: "Wallet Linked",
-        description: `${address.slice(0, 6)}...${address.slice(-4)} verified and linked to your account.`,
+        description: `${address.slice(0, 6)}...${address.slice(-4)} verified via Alchemy signer.`,
       });
     } catch (err: any) {
       const msg = err?.message || "Failed to link wallet";
       haptic("error");
-      if (msg.includes("rejected") || msg.includes("denied") || msg.includes("User rejected")) {
-        toast({
-          title: "Signature Rejected",
-          description: "You must sign the verification message to link your wallet.",
-          variant: "destructive",
-        });
+
+      let userMessage: string;
+      if (msg === "rejected" || msg.includes("rejected") || msg.includes("denied") || msg.includes("User rejected")) {
+        userMessage = "Signature rejected. You must sign the message to verify wallet ownership.";
+        toast({ title: "Signature Rejected", description: userMessage, variant: "destructive" });
       } else if (msg.includes("409") || msg.includes("already linked")) {
-        toast({
-          title: "Wallet Conflict",
-          description: "This wallet is already linked to another account.",
-          variant: "destructive",
-        });
+        userMessage = "This wallet is already linked to another account.";
+        toast({ title: "Wallet Conflict", description: userMessage, variant: "destructive" });
+      } else if (msg.includes("timed out")) {
+        userMessage = msg;
+        toast({ title: "Request Timed Out", description: userMessage, variant: "destructive" });
+      } else if (msg.includes("nonce") || msg.includes("expired")) {
+        userMessage = "Verification nonce expired. Please try again.";
+        toast({ title: "Nonce Expired", description: userMessage, variant: "destructive" });
       } else {
-        toast({
-          title: "Wallet Link Failed",
-          description: msg,
-          variant: "destructive",
-        });
+        userMessage = msg.length > 120 ? msg.slice(0, 120) + "..." : msg;
+        toast({ title: "Wallet Link Failed", description: userMessage, variant: "destructive" });
       }
+      setLinkError(userMessage);
     } finally {
       linkingRef.current = false;
       setIsLinkingWallet(false);
@@ -189,6 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         walletLinked,
         isLinkingWallet,
+        linkError,
         login: async (username, password, captchaToken?) => {
           await loginMutation.mutateAsync({ username, password, captchaToken });
         },

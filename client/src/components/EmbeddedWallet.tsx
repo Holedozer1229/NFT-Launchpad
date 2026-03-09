@@ -68,15 +68,13 @@ export function EmbeddedWallet() {
   const [showConnectAnim, setShowConnectAnim] = useState(false);
   const prevConnected = useRef(false);
   const autoLinkAttempted = useRef(false);
-  const { user, walletLinked, linkWallet, isLinkingWallet, resetLinkState } = useAuth();
-  const [linkError, setLinkError] = useState<string | null>(null);
+  const { user, walletLinked, linkWallet, isLinkingWallet, linkError, resetLinkState } = useAuth();
 
   const userHasWallet = !!user?.walletAddress;
 
   useEffect(() => {
     if (isConnected && !prevConnected.current) {
       setShowConnectAnim(true);
-      setLinkError(null);
       autoLinkAttempted.current = false;
       const timer = setTimeout(() => setShowConnectAnim(false), 1800);
       return () => clearTimeout(timer);
@@ -85,26 +83,14 @@ export function EmbeddedWallet() {
   }, [isConnected]);
 
   useEffect(() => {
-    setLinkError(null);
     autoLinkAttempted.current = false;
   }, [address]);
 
   useEffect(() => {
     if (!isConnected || !user || !address || walletLinked || isLinkingWallet || autoLinkAttempted.current) return;
     autoLinkAttempted.current = true;
-    const timer = setTimeout(async () => {
-      try {
-        await linkWallet();
-      } catch (err: any) {
-        const msg = err?.message || "Failed to link wallet";
-        if (msg.includes("409")) {
-          setLinkError("This wallet is already linked to another account.");
-        } else if (msg.includes("rejected") || msg.includes("denied")) {
-          setLinkError("Signature rejected. Sign to verify ownership.");
-        } else {
-          setLinkError("Failed to link wallet automatically.");
-        }
-      }
+    const timer = setTimeout(() => {
+      linkWallet();
     }, 500);
     return () => clearTimeout(timer);
   }, [isConnected, user, address, walletLinked, isLinkingWallet, linkWallet]);
@@ -196,18 +182,21 @@ export function EmbeddedWallet() {
           </div>
         )}
 
-        {!walletLinked && user && linkError && (
+        {!walletLinked && user && linkError && !isLinkingWallet && (
           <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-            <div className="flex items-center gap-2 text-xs font-mono text-red-400/90">
-              <AlertCircle className="w-3 h-3 shrink-0" />
+            <div className="flex items-start gap-2 text-xs font-mono text-red-400/90 p-2 bg-red-500/5 border border-red-500/15 rounded-sm">
+              <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
               <span>{linkError}</span>
             </div>
             <Button
               data-testid="button-retry-link-wallet"
-              onClick={() => { setLinkError(null); autoLinkAttempted.current = false; }}
+              onClick={() => {
+                resetLinkState();
+                autoLinkAttempted.current = false;
+              }}
               className="w-full bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30 font-heading text-xs"
             >
-              RETRY LINKING
+              RETRY SIGNING
             </Button>
           </div>
         )}
@@ -215,14 +204,14 @@ export function EmbeddedWallet() {
         {isLinkingWallet && (
           <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-sm text-primary font-mono text-xs">
             <RefreshCw className="w-3 h-3 animate-spin" />
-            <span>LINKING_WALLET...</span>
+            <span>ALCHEMY_VERIFY — sign the message in your wallet...</span>
           </div>
         )}
 
         {!walletLinked && !isLinkingWallet && !linkError && user && (
           <div className="flex items-center gap-2 p-3 bg-yellow-500/5 border border-yellow-500/20 rounded-sm text-yellow-500 font-mono text-xs">
             <RefreshCw className="w-3 h-3 animate-spin" />
-            <span>AUTO_LINKING — sign the message in your wallet...</span>
+            <span>INITIALIZING — preparing Alchemy signature verification...</span>
           </div>
         )}
 
