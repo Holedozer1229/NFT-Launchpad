@@ -67,7 +67,7 @@ export function EmbeddedWallet() {
   const { disconnect } = useDisconnect();
   const [showConnectAnim, setShowConnectAnim] = useState(false);
   const prevConnected = useRef(false);
-  const { user, walletLinked, linkWallet } = useAuth();
+  const { user, walletLinked, linkWallet, resetLinkState } = useAuth();
   const [isLinking, setIsLinking] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
 
@@ -83,10 +83,15 @@ export function EmbeddedWallet() {
     prevConnected.current = isConnected;
   }, [isConnected]);
 
+  useEffect(() => {
+    setLinkError(null);
+  }, [address]);
+
   const handleManualLink = async () => {
     if (!address || isLinking) return;
     setIsLinking(true);
     setLinkError(null);
+    resetLinkState();
     try {
       await linkWallet(address);
     } catch (err: any) {

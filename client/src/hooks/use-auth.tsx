@@ -18,6 +18,7 @@ type AuthContextType = {
   login: (username: string, password: string) => Promise<void>;
   loginWithWallet: (address: string, signature: string, nonce: string) => Promise<void>;
   linkWallet: (address: string) => Promise<void>;
+  resetLinkState: () => void;
   register: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   walletLinked: boolean;
@@ -124,22 +125,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const resetLinkState = useCallback(() => {
+    linkFailedRef.current = false;
+    linkingRef.current = false;
+  }, []);
+
   const doLinkWallet = useCallback(async (addr: string) => {
-    if (linkingRef.current || linkFailedRef.current) return;
+    if (linkingRef.current) return;
+    linkFailedRef.current = false;
     linkingRef.current = true;
     try {
       await linkWalletMutation.mutateAsync({ address: addr });
       linkFailedRef.current = false;
     } catch {
       linkFailedRef.current = true;
+      throw new Error("Link failed");
     } finally {
       linkingRef.current = false;
     }
   }, [linkWalletMutation]);
 
   useEffect(() => {
-    if (isConnected && address && user && !walletLinked && !linkingRef.current && !linkFailedRef.current) {
-      doLinkWallet(address);
+    if (
+      isConnected &&
+      address &&
+      user &&
+      !walletLinked &&
+      !linkingRef.current &&
+      !linkFailedRef.current
+    ) {
+      const timer = setTimeout(() => {
+        if (!linkingRef.current && !linkFailedRef.current) {
+          doLinkWallet(address).catch(() => {});
+        }
+      }, 300);
+      return () => clearTimeout(timer);
     }
   }, [isConnected, address, user?.id, walletLinked, doLinkWallet]);
 
@@ -160,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await loginWithWalletMutation.mutateAsync({ address, signature, nonce });
         },
         linkWallet: doLinkWallet,
+        resetLinkState,
         register: async (username, password) => {
           await registerMutation.mutateAsync({ username, password });
         },
