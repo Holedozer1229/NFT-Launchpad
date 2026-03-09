@@ -72,28 +72,33 @@ export function EmbeddedWallet() {
 
   const userHasWallet = !!user?.walletAddress;
 
+  const lastLinkedAddress = useRef<string | null>(null);
+
   useEffect(() => {
     if (isConnected && !prevConnected.current) {
       setShowConnectAnim(true);
-      autoLinkAttempted.current = false;
       const timer = setTimeout(() => setShowConnectAnim(false), 1800);
       return () => clearTimeout(timer);
+    }
+    if (!isConnected) {
+      lastLinkedAddress.current = null;
+      autoLinkAttempted.current = false;
     }
     prevConnected.current = isConnected;
   }, [isConnected]);
 
   useEffect(() => {
-    autoLinkAttempted.current = false;
-  }, [address]);
+    if (!isConnected || !user || !address || walletLinked || isLinkingWallet) return;
+    if (autoLinkAttempted.current && lastLinkedAddress.current === address) return;
 
-  useEffect(() => {
-    if (!isConnected || !user || !address || walletLinked || isLinkingWallet || autoLinkAttempted.current) return;
     autoLinkAttempted.current = true;
+    lastLinkedAddress.current = address;
+
     const timer = setTimeout(() => {
       linkWallet();
-    }, 500);
+    }, 600);
     return () => clearTimeout(timer);
-  }, [isConnected, user, address, walletLinked, isLinkingWallet, linkWallet]);
+  }, [isConnected, user, address, walletLinked]);
 
   if (!isConnected) {
     return (

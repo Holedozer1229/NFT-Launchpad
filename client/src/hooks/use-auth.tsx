@@ -50,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLinkingWallet, setIsLinkingWallet] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const linkingRef = useRef(false);
+  const lastLinkAttempt = useRef(0);
 
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/api/user"],
@@ -140,6 +141,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const doLinkWallet = useCallback(async () => {
     if (linkingRef.current || !address || !isConnected || !user) return;
     if (walletLinked) return;
+
+    const now = Date.now();
+    if (now - lastLinkAttempt.current < 3000) return;
+    lastLinkAttempt.current = now;
 
     linkingRef.current = true;
     setIsLinkingWallet(true);
