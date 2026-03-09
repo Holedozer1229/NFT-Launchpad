@@ -32,7 +32,7 @@ const CONTRACT_ICONS: Record<string, any> = {
   SphinxYieldAggregator: TrendingUp,
   SkynetZkBridge: Zap,
   ZkWormhole: Orbit,
-  RocketGirlsNFT: Rocket,
+  RocketBabesNFT: Rocket,
   ECDSAVerifier: Shield,
   SpectralEntropyVerifier: Eye,
   SkynetBridge: Layers,

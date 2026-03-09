@@ -132,7 +132,7 @@ function TemplatePreview({ template, image, selected, onClick }: {
   );
 }
 
-export default function RocketGirlsNFT() {
+export default function RocketBabesNFT() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -148,11 +148,11 @@ export default function RocketGirlsNFT() {
   const [showChainPicker, setShowChainPicker] = useState(false);
 
   const { data: approvalStatus } = useQuery<{ approved: boolean; role: string; mintCount: number }>({
-    queryKey: ["/api/rocket-girls/status"],
+    queryKey: ["/api/rocket-babes/status"],
   });
 
   const { data: collection = [] } = useQuery<any[]>({
-    queryKey: ["/api/rocket-girls/collection"],
+    queryKey: ["/api/rocket-babes/collection"],
   });
 
   const mintMutation = useMutation({
@@ -163,14 +163,14 @@ export default function RocketGirlsNFT() {
       chain: string;
       imageData: string;
     }) => {
-      const res = await apiRequest("POST", "/api/rocket-girls/mint", data);
+      const res = await apiRequest("POST", "/api/rocket-babes/mint", data);
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/rocket-girls/collection"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/rocket-girls/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rocket-babes/collection"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rocket-babes/status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/wallet/list"] });
-      toast({ title: "NFT Minted!", description: `${data.nft?.title || "RocketGirl"} minted on ${selectedChain} — zero fees applied` });
+      toast({ title: "NFT Minted!", description: `${data.nft?.title || "RocketBabe"} minted on ${selectedChain} — zero fees applied` });
       setUploadedImage(null);
       setUploadedFile(null);
       setNftName("");
@@ -219,7 +219,7 @@ export default function RocketGirlsNFT() {
   const isApproved = approvalStatus?.approved ?? true;
 
   return (
-    <div className="space-y-6 pb-12" data-testid="rocket-girls-page">
+    <div className="space-y-6 pb-12" data-testid="rocket-babes-page">
       <div className="relative overflow-hidden rounded-lg p-6 sm:p-8" style={{
         background: "linear-gradient(135deg, rgba(255,0,120,0.12) 0%, rgba(180,0,255,0.08) 50%, rgba(0,200,255,0.06) 100%)",
         border: `1px solid ${NEON.pink}30`,
@@ -237,7 +237,7 @@ export default function RocketGirlsNFT() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-heading tracking-widest" style={{ color: NEON.pink }} data-testid="text-page-title">
-                ROCKETGIRLS NFT
+                ROCKETBABES NFT
               </h1>
               <p className="text-[10px] font-mono text-white/40 tracking-wider">COSMIC MODEL COLLECTION — 33% DISCOUNT — ZERO FEES</p>
             </div>
@@ -485,7 +485,7 @@ export default function RocketGirlsNFT() {
                 <span className="text-white/30 line-through">{activeRarity.price} ETH</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-white/40">RocketGirls Price</span>
+                <span className="text-white/40">RocketBabes Price</span>
                 <span className="font-heading text-sm" style={{ color: NEON.green }}>{activeRarity.discountPrice} ETH</span>
               </div>
               <div className="flex justify-between">
@@ -520,7 +520,7 @@ export default function RocketGirlsNFT() {
               ) : (
                 <Rocket className="w-4 h-4 mr-2" />
               )}
-              {mintMutation.isPending ? "MINTING..." : "MINT ROCKETGIRL NFT"}
+              {mintMutation.isPending ? "MINTING..." : "MINT ROCKETBABE NFT"}
             </Button>
 
             <div className="flex items-center justify-center gap-1.5 mt-2">
@@ -537,7 +537,7 @@ export default function RocketGirlsNFT() {
               <Star className="w-3.5 h-3.5" /> COLLECTION ({collection.length})
             </h3>
             {collection.length === 0 ? (
-              <p className="text-[10px] font-mono text-white/25 text-center py-4">No RocketGirl NFTs minted yet</p>
+              <p className="text-[10px] font-mono text-white/25 text-center py-4">No RocketBabe NFTs minted yet</p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {collection.slice(0, 6).map((nft: any) => (

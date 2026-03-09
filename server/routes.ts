@@ -2980,43 +2980,43 @@ export async function registerRoutes(
     }
   });
 
-  // ========== ROCKETGIRLS NFT ROUTES ==========
+  // ========== ROCKETBABES NFT ROUTES ==========
 
-  const ROCKETGIRLS_DISCOUNT = 0.33;
-  const ROCKETGIRLS_RARITY_PRICES: Record<string, number> = {
+  const ROCKETBABES_DISCOUNT = 0.33;
+  const ROCKETBABES_RARITY_PRICES: Record<string, number> = {
     common: 0.1,
     rare: 0.5,
     legendary: 1.0,
     mythic: 100,
   };
 
-  app.get("/api/rocket-girls/status", async (req, res) => {
+  app.get("/api/rocket-babes/status", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userNfts = await storage.getNftsByUser(req.user!.id);
-      const rocketGirlCount = userNfts.filter((n: any) => n.title?.startsWith("RG:") || n.openseaStatus === "rocket-girl").length;
+      const rocketBabeCount = userNfts.filter((n: any) => n.title?.startsWith("RB:") || n.openseaStatus === "rocket-babe").length;
       res.json({
         approved: true,
         role: "model",
-        mintCount: rocketGirlCount,
+        mintCount: rocketBabeCount,
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch status" });
     }
   });
 
-  app.get("/api/rocket-girls/collection", async (req, res) => {
+  app.get("/api/rocket-babes/collection", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userNfts = await storage.getNftsByUser(req.user!.id);
-      const rocketGirls = userNfts.filter((n: any) => n.openseaStatus === "rocket-girl");
-      res.json(rocketGirls);
+      const rocketBabes = userNfts.filter((n: any) => n.openseaStatus === "rocket-babe");
+      res.json(rocketBabes);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch collection" });
     }
   });
 
-  app.post("/api/rocket-girls/mint", rateLimit(15000, 3), async (req, res) => {
+  app.post("/api/rocket-babes/mint", rateLimit(15000, 3), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { name, template, rarity, chain, imageData } = req.body;
@@ -3034,10 +3034,10 @@ export async function registerRoutes(
       }
 
       const rarityKey = (rarity || "rare").toLowerCase();
-      const basePrice = ROCKETGIRLS_RARITY_PRICES[rarityKey];
+      const basePrice = ROCKETBABES_RARITY_PRICES[rarityKey];
       if (!basePrice) return res.status(400).json({ message: "Invalid rarity tier" });
 
-      const discountPrice = parseFloat((basePrice * (1 - ROCKETGIRLS_DISCOUNT)).toFixed(4));
+      const discountPrice = parseFloat((basePrice * (1 - ROCKETBABES_DISCOUNT)).toFixed(4));
       const targetChain = chain || "ethereum";
 
       const userWallets = await storage.getWalletsByUser(req.user!.id);
@@ -3047,7 +3047,7 @@ export async function registerRoutes(
       const currentEth = parseFloat(wallet.balanceEth);
       if (currentEth < discountPrice) {
         return res.status(400).json({
-          message: `Insufficient ETH. RocketGirls ${rarityKey} costs ${discountPrice} ETH (33% off ${basePrice} ETH).`,
+          message: `Insufficient ETH. RocketBabes ${rarityKey} costs ${discountPrice} ETH (33% off ${basePrice} ETH).`,
         });
       }
 
@@ -3077,11 +3077,11 @@ export async function registerRoutes(
             quantity: 1n,
           });
         } catch (engineErr) {
-          console.error("[RocketGirls] Engine mint failed (continuing):", engineErr);
+          console.error("[RocketBabes] Engine mint failed (continuing):", engineErr);
         }
       }
 
-      const nftTitle = `RG: ${name}`;
+      const nftTitle = `RB: ${name}`;
       const nft = await storage.createNft({
         title: nftTitle,
         image: imageData.slice(0, 500),
@@ -3093,7 +3093,7 @@ export async function registerRoutes(
         price: discountPrice.toString(),
         chain: targetChain,
         mintedBy: req.user!.id,
-        openseaStatus: "rocket-girl",
+        openseaStatus: "rocket-babe",
       });
 
       res.json({
@@ -3107,7 +3107,7 @@ export async function registerRoutes(
         txHash: engineResult.txHash || null,
       });
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to mint RocketGirl NFT" });
+      res.status(500).json({ message: error.message || "Failed to mint RocketBabe NFT" });
     }
   });
 

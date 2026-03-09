@@ -20,7 +20,7 @@ const navGroups = [
       { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
       { path: "/gallery", label: "Gallery", icon: Image, adminOnly: false },
       { path: "/marketplace", label: "Marketplace", icon: Store, adminOnly: false },
-      { path: "/rocket-girls", label: "RocketGirls", icon: Rocket, adminOnly: false },
+      { path: "/rocket-babes", label: "RocketBabes", icon: Rocket, adminOnly: false },
     ]
   },
   {

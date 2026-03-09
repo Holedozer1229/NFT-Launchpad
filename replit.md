@@ -39,24 +39,24 @@ Multi-page NFT minting protocol application combining SphinxOS Oracle Minter wit
   - MintNFT: Smaller showcase cards on mobile (260px), snap scroll, larger text for readability
   - Dashboard: Narrower table min-width (480px), truncated wallet addresses on mobile
   - Gallery: Wider chain grid on tablets, larger NFT title truncation on mobile
-  - RocketGirls: Template grid 2→3→6 cols for larger touch targets
+  - RocketBabes: Template grid 2→3→6 cols for larger touch targets
   - ContractDeployment: Full-width deploy button on mobile, stacked deployment rows, responsive grids
   - IIT Consciousness: Stats stack vertically on mobile, scrollable matrix visualizations
 - **Mar 2026**: Added **Contract Deployment** page (`/contracts`) — deploy all 9 smart contracts across 5 chains
-  - Contracts: SpaceFlightNFT, SphinxBridge, SphinxYieldAggregator, SkynetZkBridge, ZkWormhole, RocketGirlsNFT, ECDSAVerifier, SpectralEntropyVerifier, SkynetBridge
+  - Contracts: SpaceFlightNFT, SphinxBridge, SphinxYieldAggregator, SkynetZkBridge, ZkWormhole, RocketBabesNFT, ECDSAVerifier, SpectralEntropyVerifier, SkynetBridge
   - Chains: Ethereum, zkSync Era, Polygon, Arbitrum, Stacks
   - Deploy-all endpoint: `POST /api/deployments/deploy-all` deploys all contracts across all chains
   - Per-chain deploy: `POST /api/deployments/deploy` with `{ walletAddress, chain }`
   - Contract registry: `GET /api/deployments/contracts` returns all contract definitions
-  - RocketGirlsNFT.sol added: ERC721 with 6 cosmic templates, 33% discount, MODEL_ROLE access control, 10k max supply
+  - RocketBabesNFT.sol added: ERC721 with 6 cosmic templates, 33% discount, MODEL_ROLE access control, 10k max supply
   - FileCode2 icon in SYSTEM sidebar group
-- **Mar 2026**: Added **RocketGirls NFT** page (`/rocket-girls`) — approved model collection with cosmic templates
+- **Mar 2026**: Added **RocketBabes NFT** page (`/rocket-babes`) — approved model collection with cosmic templates
   - 6 cosmic-themed overlay templates: Nebula Queen, Solar Flare, Aurora Empress, Void Siren, Supernova Diva, Cryo Angel
   - 33% discount on all rarity tiers (Common: 0.067 ETH, Rare: 0.335 ETH, Legendary: 0.67 ETH, Mythic: 67 ETH)
   - Zero platform fees, zero gas fees (covered by treasury)
   - Image upload → template preview → fullscreen preview → mint flow
-  - API routes: `GET /api/rocket-girls/status`, `GET /api/rocket-girls/collection`, `POST /api/rocket-girls/mint`
-  - NFTs tagged with `openseaStatus: "rocket-girl"` and title prefix `RG:` for collection filtering
+  - API routes: `GET /api/rocket-babes/status`, `GET /api/rocket-babes/collection`, `POST /api/rocket-babes/mint`
+  - NFTs tagged with `openseaStatus: "rocket-babe"` and title prefix `RB:` for collection filtering
   - Rocket icon in CORE sidebar nav group
   - Supports all chains: Ethereum, Polygon, Base, zkSync, SKYNT
 - **Mar 2026**: Enhanced **wallet.json** export (v2.0.0) — unified file with all tokens, NFTs (minted + on-chain), game scores, deployments, transactions, mining milestones, and live on-chain token data
