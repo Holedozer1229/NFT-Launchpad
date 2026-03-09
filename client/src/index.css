@@ -829,30 +829,37 @@ html, body {
 }
 
 @media screen and (max-width: 767px) {
-  ._1ckjpok1,
-  ._1ckjpok2,
-  ._1ckjpok3,
-  ._1ckjpok4,
-  ._1ckjpok6 {
-    min-width: 0 !important;
+  [data-rk] [role="dialog"][aria-modal="true"] {
+    position: fixed !important;
+    inset: 0 !important;
     width: 100vw !important;
     max-width: 100vw !important;
-    box-sizing: border-box !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    align-items: flex-end !important;
   }
 
-  [data-rk] div[role="document"],
-  [data-rk] div[role="dialog"] {
-    max-width: 100vw !important;
+  [data-rk] [role="dialog"] [role="document"] {
     width: 100vw !important;
+    max-width: 100vw !important;
     min-width: 0 !important;
+    box-sizing: border-box !important;
     overflow-x: hidden !important;
   }
 
-  [data-rk] div[role="document"] > div,
-  [data-rk] div[role="dialog"] > div {
-    max-width: 100vw !important;
+  [data-rk] [role="dialog"] [role="document"] > div {
     width: 100% !important;
+    max-width: 100% !important;
     min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  [data-rk] [role="dialog"] [role="document"] > div > div {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
     overflow-x: hidden !important;
   }
 }
