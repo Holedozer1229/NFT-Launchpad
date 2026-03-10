@@ -14,6 +14,9 @@ export const users = pgTable("users", {
   email: text("email"),
   avatarUrl: text("avatar_url"),
   authProvider: text("auth_provider").default("local"),
+  mfaEnabled: boolean("mfa_enabled").notNull().default(false),
+  mfaSecret: text("mfa_secret"),
+  mfaBackupCodes: text("mfa_backup_codes"),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });

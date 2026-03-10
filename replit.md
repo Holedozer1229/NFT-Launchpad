@@ -4,6 +4,16 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
+- **Mar 2026**: **MFA / Two-Factor Authentication (TOTP)**
+  - Full TOTP-based MFA using `otplib` (`generateSync`, `verifySync`, `generateSecret`, `generateURI`) + `qrcode` for QR data URLs
+  - Login flow: credentials → if MFA enabled, server returns `{ mfaRequired: true, mfaToken }` (5-min JWT) → client shows 6-digit code input → `POST /api/auth/mfa/verify` completes login
+  - Backup codes: 8 random hex codes generated on MFA confirm, each single-use, count tracked in `/api/auth/mfa/status`
+  - Sensitive fields (`mfaSecret`, `mfaBackupCodes`) stripped from all user API responses (`/api/user`, `/api/login`, `/api/auth/token/refresh`)
+  - Server endpoints: `/api/auth/mfa/setup` (generate secret + QR), `/api/auth/mfa/confirm` (verify code + enable + return backup codes), `/api/auth/mfa/verify` (login step 2), `/api/auth/mfa/disable` (requires password), `/api/auth/mfa/status`
+  - `client/src/components/MfaSetup.tsx` — full setup/disable/status component with QR code display, manual secret entry, backup code grid, copy functionality
+  - `client/src/pages/AuthPage.tsx` — MFA challenge step with 6-digit input, accepts backup codes, back-to-login button
+  - `client/src/hooks/use-auth.tsx` — `verifyMfa(mfaToken, code)` mutation, login returns `MfaChallenge | void`
+  - MfaSetup component added to WalletPage for account security management
 - **Mar 2026**: **Pure wagmi Wallet Integration (RainbowKit removed)**
   - Replaced RainbowKit entirely with pure wagmi connectors: `metaMask()` (MetaMask SDK), `coinbaseWallet()`, `injected()` from `@wagmi/connectors`
   - `client/src/lib/wagmi.ts` — `createConfig` with direct wagmi connectors + Alchemy RPC transports (mainnet, polygon, base)

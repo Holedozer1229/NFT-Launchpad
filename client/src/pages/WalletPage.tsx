@@ -8,6 +8,7 @@ import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
 import { usePrices } from "@/hooks/use-prices";
 import { haptic } from "@/lib/haptics";
+import { MfaSetup } from "@/components/MfaSetup";
 
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = { ...extra };
@@ -738,6 +739,10 @@ export default function WalletPage() {
           )}
         </>
       )}
+
+      <div className="mt-6">
+        <MfaSetup />
+      </div>
 
       {wallets.length === 0 && !loading && (
         <div className="cosmic-card p-8 text-center space-y-4">

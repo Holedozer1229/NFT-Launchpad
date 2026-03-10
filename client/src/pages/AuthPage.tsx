@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Gem, Loader2, Eye, Shield, Wallet } from "lucide-react";
+import { Gem, Loader2, Eye, Shield, Wallet, KeyRound, ArrowLeft } from "lucide-react";
 import { SiGoogle, SiApple } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import bgCosmic from "@/assets/bg-cosmic.png";
@@ -21,8 +21,12 @@ export default function AuthPage() {
   const [usernameError, setUsernameError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [isMfaSubmitting, setIsMfaSubmitting] = useState(false);
   const captchaRef = useRef<HCaptcha>(null);
-  const { login, register, loginWithWallet } = useAuth();
+  const mfaInputRef = useRef<HTMLInputElement>(null);
+  const { login, register, loginWithWallet, verifyMfa } = useAuth();
   const { toast } = useToast();
 
   const { data: captchaConfig } = useQuery<{ enabled: boolean; siteKey: string }>({
@@ -107,7 +111,11 @@ export default function AuthPage() {
     setIsSubmitting(true);
     try {
       if (isLogin) {
-        await login(username, password, captchaToken || undefined);
+        const result = await login(username, password, captchaToken || undefined);
+        if (result?.mfaToken) {
+          setMfaToken(result.mfaToken);
+          setTimeout(() => mfaInputRef.current?.focus(), 100);
+        }
       } else {
         await register(username, password, captchaToken || undefined);
       }
@@ -122,6 +130,27 @@ export default function AuthPage() {
       setCaptchaToken(null);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleMfaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaToken || !mfaCode) return;
+
+    setIsMfaSubmitting(true);
+    try {
+      await verifyMfa(mfaToken, mfaCode);
+    } catch (error: any) {
+      const msg = error?.message || "Verification failed";
+      toast({
+        title: "MFA Verification Failed",
+        description: msg.includes(":") ? msg.split(":").slice(1).join(":").trim() : msg,
+        variant: "destructive",
+      });
+      setMfaCode("");
+      mfaInputRef.current?.focus();
+    } finally {
+      setIsMfaSubmitting(false);
     }
   };
 
@@ -147,6 +176,8 @@ export default function AuthPage() {
   useEffect(() => {
     captchaRef.current?.resetCaptcha();
     setCaptchaToken(null);
+    setMfaToken(null);
+    setMfaCode("");
   }, [isLogin]);
 
   return (
@@ -187,160 +218,222 @@ export default function AuthPage() {
           </p>
         </div>
 
-        <Card className="cosmic-card cosmic-card-cyan border-primary/20 bg-card/90 backdrop-blur-xl" data-testid="auth-card">
-          <CardHeader className="text-center pb-4">
-            <CardTitle className="font-heading text-lg text-primary tracking-wider">
-              {isLogin ? "AUTHENTICATE" : "INITIALIZE IDENTITY"}
-            </CardTitle>
-            <CardDescription className="font-mono text-xs text-muted-foreground">
-              {isLogin ? "Enter credentials to access the network" : "Create a new identity node"}
-            </CardDescription>
-          </CardHeader>
+        {mfaToken ? (
+          <Card className="cosmic-card cosmic-card-cyan border-primary/20 bg-card/90 backdrop-blur-xl" data-testid="mfa-card">
+            <CardHeader className="text-center pb-4">
+              <CardTitle className="font-heading text-lg text-primary tracking-wider flex items-center justify-center gap-2">
+                <KeyRound className="w-5 h-5" />
+                MFA VERIFICATION
+              </CardTitle>
+              <CardDescription className="font-mono text-xs text-muted-foreground">
+                Enter the 6-digit code from your authenticator app
+              </CardDescription>
+            </CardHeader>
 
-          <CardContent className="space-y-5">
-            {(providers?.google || providers?.apple) && (
-              <>
-                <div className="flex gap-3">
-                  {providers?.google && (
-                    <Button
-                      data-testid="button-google-login"
-                      type="button"
-                      variant="outline"
-                      disabled={isSubmitting || isWalletConnecting}
-                      onClick={handleGoogleLogin}
-                      className="flex-1 border-white/15 bg-white/5 hover:bg-white/10 text-foreground font-heading font-bold tracking-wider uppercase py-5"
-                    >
-                      <SiGoogle className="w-4 h-4 mr-2" />
-                      Google
-                    </Button>
-                  )}
-                  {providers?.apple && (
-                    <Button
-                      data-testid="button-apple-login"
-                      type="button"
-                      variant="outline"
-                      disabled={isSubmitting || isWalletConnecting}
-                      onClick={handleAppleLogin}
-                      className="flex-1 border-white/15 bg-white/5 hover:bg-white/10 text-foreground font-heading font-bold tracking-wider uppercase py-5"
-                    >
-                      <SiApple className="w-4 h-4 mr-2" />
-                      Apple
-                    </Button>
-                  )}
-                </div>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border/50" />
-                  </div>
-                  <div className="relative flex justify-center text-[10px] uppercase tracking-tighter">
-                    <span className="bg-card px-2 text-muted-foreground font-mono">Or continue with</span>
-                  </div>
-                </div>
-              </>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-[10px] font-heading font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <Eye className="w-3 h-3" /> Username
-                </label>
-                <Input
-                  data-testid="input-username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => { setUsername(e.target.value); validateUsername(e.target.value); }}
-                  placeholder="Enter username..."
-                  className="bg-input/50 border-border/50 text-foreground font-mono text-sm focus:border-primary focus:ring-primary/20"
-                />
-                {usernameError && (
-                  <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-username">{usernameError}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-heading font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <Shield className="w-3 h-3" /> Password
-                </label>
-                <Input
-                  data-testid="input-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); validatePassword(e.target.value); }}
-                  placeholder="Enter password..."
-                  className="bg-input/50 border-border/50 text-foreground font-mono text-sm focus:border-primary focus:ring-primary/20"
-                />
-                {passwordError && (
-                  <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-password">{passwordError}</p>
-                )}
-              </div>
-
-              {captchaEnabled && (
-                <div className="flex justify-center" data-testid="captcha-container">
-                  <HCaptcha
-                    ref={captchaRef}
-                    sitekey={captchaConfig.siteKey}
-                    theme="dark"
-                    onVerify={(token) => setCaptchaToken(token)}
-                    onExpire={() => setCaptchaToken(null)}
-                    onError={() => setCaptchaToken(null)}
+            <CardContent className="space-y-5">
+              <form onSubmit={handleMfaSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-heading font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                    <Shield className="w-3 h-3" /> Verification Code
+                  </label>
+                  <Input
+                    ref={mfaInputRef}
+                    data-testid="input-mfa-code"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={8}
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value.replace(/[^0-9a-fA-F]/g, ""))}
+                    placeholder="000000"
+                    className="bg-input/50 border-border/50 text-foreground font-mono text-2xl text-center tracking-[0.5em] focus:border-primary focus:ring-primary/20"
                   />
+                  <p className="text-[9px] font-mono text-muted-foreground/60 text-center">
+                    Or enter a backup code if you lost access to your authenticator
+                  </p>
                 </div>
+
+                <Button
+                  data-testid="button-mfa-submit"
+                  type="submit"
+                  disabled={isMfaSubmitting || mfaCode.length < 6}
+                  className="w-full font-heading font-bold tracking-wider uppercase py-6 connect-wallet-btn"
+                >
+                  {isMfaSubmitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "VERIFY CODE"
+                  )}
+                </Button>
+              </form>
+
+              <button
+                data-testid="button-mfa-back"
+                type="button"
+                onClick={() => { setMfaToken(null); setMfaCode(""); }}
+                className="w-full flex items-center justify-center gap-2 text-xs font-mono text-muted-foreground hover:text-primary transition-colors"
+              >
+                <ArrowLeft className="w-3 h-3" />
+                Back to login
+              </button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="cosmic-card cosmic-card-cyan border-primary/20 bg-card/90 backdrop-blur-xl" data-testid="auth-card">
+            <CardHeader className="text-center pb-4">
+              <CardTitle className="font-heading text-lg text-primary tracking-wider">
+                {isLogin ? "AUTHENTICATE" : "INITIALIZE IDENTITY"}
+              </CardTitle>
+              <CardDescription className="font-mono text-xs text-muted-foreground">
+                {isLogin ? "Enter credentials to access the network" : "Create a new identity node"}
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-5">
+              {(providers?.google || providers?.apple) && (
+                <>
+                  <div className="flex gap-3">
+                    {providers?.google && (
+                      <Button
+                        data-testid="button-google-login"
+                        type="button"
+                        variant="outline"
+                        disabled={isSubmitting || isWalletConnecting}
+                        onClick={handleGoogleLogin}
+                        className="flex-1 border-white/15 bg-white/5 hover:bg-white/10 text-foreground font-heading font-bold tracking-wider uppercase py-5"
+                      >
+                        <SiGoogle className="w-4 h-4 mr-2" />
+                        Google
+                      </Button>
+                    )}
+                    {providers?.apple && (
+                      <Button
+                        data-testid="button-apple-login"
+                        type="button"
+                        variant="outline"
+                        disabled={isSubmitting || isWalletConnecting}
+                        onClick={handleAppleLogin}
+                        className="flex-1 border-white/15 bg-white/5 hover:bg-white/10 text-foreground font-heading font-bold tracking-wider uppercase py-5"
+                      >
+                        <SiApple className="w-4 h-4 mr-2" />
+                        Apple
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border/50" />
+                    </div>
+                    <div className="relative flex justify-center text-[10px] uppercase tracking-tighter">
+                      <span className="bg-card px-2 text-muted-foreground font-mono">Or continue with</span>
+                    </div>
+                  </div>
+                </>
               )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-heading font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                    <Eye className="w-3 h-3" /> Username
+                  </label>
+                  <Input
+                    data-testid="input-username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => { setUsername(e.target.value); validateUsername(e.target.value); }}
+                    placeholder="Enter username..."
+                    className="bg-input/50 border-border/50 text-foreground font-mono text-sm focus:border-primary focus:ring-primary/20"
+                  />
+                  {usernameError && (
+                    <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-username">{usernameError}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-heading font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                    <Shield className="w-3 h-3" /> Password
+                  </label>
+                  <Input
+                    data-testid="input-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); validatePassword(e.target.value); }}
+                    placeholder="Enter password..."
+                    className="bg-input/50 border-border/50 text-foreground font-mono text-sm focus:border-primary focus:ring-primary/20"
+                  />
+                  {passwordError && (
+                    <p className="text-[10px] font-mono text-red-400 mt-1" data-testid="error-password">{passwordError}</p>
+                  )}
+                </div>
+
+                {captchaEnabled && (
+                  <div className="flex justify-center" data-testid="captcha-container">
+                    <HCaptcha
+                      ref={captchaRef}
+                      sitekey={captchaConfig.siteKey}
+                      theme="dark"
+                      onVerify={(token) => setCaptchaToken(token)}
+                      onExpire={() => setCaptchaToken(null)}
+                      onError={() => setCaptchaToken(null)}
+                    />
+                  </div>
+                )}
+
+                <Button
+                  data-testid="button-submit"
+                  type="submit"
+                  disabled={isSubmitting || isWalletConnecting || !username || !password || !!usernameError || !!passwordError || (captchaEnabled && !captchaToken)}
+                  className="w-full font-heading font-bold tracking-wider uppercase py-6 connect-wallet-btn"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : isLogin ? (
+                    "ACCESS NETWORK"
+                  ) : (
+                    "CREATE IDENTITY"
+                  )}
+                </Button>
+              </form>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border/50" />
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-tighter">
+                  <span className="bg-card px-2 text-muted-foreground font-mono">Or connect via</span>
+                </div>
+              </div>
 
               <Button
-                data-testid="button-submit"
-                type="submit"
-                disabled={isSubmitting || isWalletConnecting || !username || !password || !!usernameError || !!passwordError || (captchaEnabled && !captchaToken)}
-                className="w-full font-heading font-bold tracking-wider uppercase py-6 connect-wallet-btn"
-              >
-                {isSubmitting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : isLogin ? (
-                  "ACCESS NETWORK"
-                ) : (
-                  "CREATE IDENTITY"
-                )}
-              </Button>
-            </form>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border/50" />
-              </div>
-              <div className="relative flex justify-center text-[10px] uppercase tracking-tighter">
-                <span className="bg-card px-2 text-muted-foreground font-mono">Or connect via</span>
-              </div>
-            </div>
-
-            <Button
-              data-testid="button-wallet-login"
-              type="button"
-              variant="outline"
-              disabled={isSubmitting || isWalletConnecting}
-              onClick={handleWalletLogin}
-              className="w-full border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary font-heading font-bold tracking-wider uppercase py-6"
-            >
-              {isWalletConnecting ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <Wallet className="w-4 h-4 mr-2" />
-              )}
-              {isWalletConnecting ? "SIGNING..." : "CONNECT WALLET"}
-            </Button>
-
-            <div className="text-center">
-              <button
-                data-testid="button-toggle-auth"
+                data-testid="button-wallet-login"
                 type="button"
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-xs font-mono text-muted-foreground hover:text-primary transition-colors"
+                variant="outline"
+                disabled={isSubmitting || isWalletConnecting}
+                onClick={handleWalletLogin}
+                className="w-full border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary font-heading font-bold tracking-wider uppercase py-6"
               >
-                {isLogin ? "Need an identity? Register here" : "Already have access? Login here"}
-              </button>
-            </div>
-          </CardContent>
-        </Card>
+                {isWalletConnecting ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Wallet className="w-4 h-4 mr-2" />
+                )}
+                {isWalletConnecting ? "SIGNING..." : "CONNECT WALLET"}
+              </Button>
+
+              <div className="text-center">
+                <button
+                  data-testid="button-toggle-auth"
+                  type="button"
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="text-xs font-mono text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {isLogin ? "Need an identity? Register here" : "Already have access? Login here"}
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

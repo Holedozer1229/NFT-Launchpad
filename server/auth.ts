@@ -13,6 +13,8 @@ import { eq } from "drizzle-orm";
 import { rateLimit } from "./routes";
 import { getAlchemySigner } from "./alchemy-signer";
 import jwt from "jsonwebtoken";
+import { generateSync, verifySync, generateSecret, generateURI } from "otplib";
+import QRCode from "qrcode";
 
 const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET_KEY || "";
 const HCAPTCHA_VERIFY_URL = "https://api.hcaptcha.com/siteverify";
@@ -354,6 +356,15 @@ export function setupAuth(app: Express) {
       if (err) return next(err);
       if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
 
+      if (user.mfaEnabled && user.mfaSecret) {
+        const mfaToken = jwt.sign(
+          { sub: user.id, type: "mfa_challenge" },
+          getJwtSecret(),
+          { expiresIn: "5m", issuer: "skynt-protocol" }
+        );
+        return res.status(200).json({ mfaRequired: true, mfaToken });
+      }
+
       req.login(user, async (err: any) => {
         if (err) return next(err);
         
@@ -366,7 +377,7 @@ export function setupAuth(app: Express) {
           console.error("Failed to auto-create wallet on login:", walletErr);
         }
 
-        const { password: _, ...safeUser } = user;
+        const { password: _, mfaSecret: _ms, mfaBackupCodes: _mb, ...safeUser } = user;
         const token = generateToken(user);
         const refreshToken = generateRefreshToken(user);
         return res.json({ ...safeUser, token, refreshToken });
@@ -471,7 +482,7 @@ export function setupAuth(app: Express) {
       const message = `Sign this message to authenticate with SKYNT Protocol (Contract: 0x22d3f06afB69e5FCFAa98C20009510dD11aF2517)\nNonce: ${nonce}`;
       
       const signer = getAlchemySigner();
-      const { isValid, recoveredAddress, error: sigError } = signer.verifySignature(message, sigStr, addrStr);
+      const { isValid, recoveredAddress, error: sigError } = await signer.verifySignature(message, sigStr, addrStr);
 
       if (sigError) {
         console.error("[Auth] Wallet auth signature verification failed:", sigError);
@@ -583,7 +594,7 @@ export function setupAuth(app: Express) {
 
       const message = `SKYNT Protocol — Link Wallet\nAccount: ${req.user.username}\nWallet: ${normalized}\nNonce: ${nonce}`;
       const signer = getAlchemySigner();
-      const { isValid, recoveredAddress, error: sigError } = signer.verifySignature(message, sigStr, normalized);
+      const { isValid, recoveredAddress, error: sigError } = await signer.verifySignature(message, sigStr, normalized);
 
       if (sigError) {
         console.error("[Auth] Link wallet signature verification failed:", sigError);
@@ -642,7 +653,7 @@ export function setupAuth(app: Express) {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Not authenticated" });
       }
-      const { password: _, ...safeUser } = req.user as User;
+      const { password: _, mfaSecret: _ms, mfaBackupCodes: _mb, ...safeUser } = req.user as User;
       return res.json(safeUser);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch user" });
@@ -668,7 +679,7 @@ export function setupAuth(app: Express) {
 
       const newToken = generateToken(user);
       const newRefreshToken = generateRefreshToken(user);
-      const { password: _, ...safeUser } = user;
+      const { password: _, mfaSecret: _ms, mfaBackupCodes: _mb, ...safeUser } = user;
       res.json({ ...safeUser, token: newToken, refreshToken: newRefreshToken });
     } catch {
       res.status(401).json({ message: "Token refresh failed" });
@@ -697,5 +708,214 @@ export function setupAuth(app: Express) {
     } catch (error) {
       res.status(500).json({ message: "Token verification failed" });
     }
+  });
+
+  app.post("/api/auth/mfa/verify", rateLimit(60000, 10), async (req, res, next) => {
+    try {
+      const { mfaToken, code } = req.body;
+      if (!mfaToken || !code) {
+        return res.status(400).json({ message: "MFA token and code are required" });
+      }
+
+      const payload = verifyToken(mfaToken);
+      if (!payload || !payload.sub || payload.type !== "mfa_challenge") {
+        return res.status(401).json({ message: "Invalid or expired MFA session. Please log in again." });
+      }
+
+      const user = await storage.getUser(payload.sub as number);
+      if (!user || !user.mfaSecret) {
+        return res.status(401).json({ message: "User not found or MFA not configured" });
+      }
+
+      const codeStr = String(code).trim().replace(/\s/g, "");
+
+      let valid = verifySync({ token: codeStr, secret: user.mfaSecret }).valid;
+
+      if (!valid && user.mfaBackupCodes) {
+        const backupCodes: string[] = JSON.parse(user.mfaBackupCodes);
+        const codeIndex = backupCodes.indexOf(codeStr);
+        if (codeIndex !== -1) {
+          valid = true;
+          backupCodes.splice(codeIndex, 1);
+          await db.update(users)
+            .set({ mfaBackupCodes: JSON.stringify(backupCodes) })
+            .where(eq(users.id, user.id));
+          console.log(`[Auth] MFA backup code used by user ${user.username} (${backupCodes.length} remaining)`);
+        }
+      }
+
+      if (!valid) {
+        return res.status(401).json({ message: "Invalid verification code" });
+      }
+
+      req.login(user, async (err: any) => {
+        if (err) return next(err);
+
+        try {
+          const userWallets = await storage.getWalletsByUser(user.id);
+          if (userWallets.length === 0) {
+            await storage.createWallet(user.id, "Main Wallet");
+          }
+        } catch (walletErr) {
+          console.error("Failed to auto-create wallet on MFA login:", walletErr);
+        }
+
+        const { password: _, mfaSecret: _ms, mfaBackupCodes: _mb, ...safeUser } = user;
+        const token = generateToken(user);
+        const refreshToken = generateRefreshToken(user);
+        console.log(`[Auth] MFA verification successful for user ${user.username}`);
+        return res.json({ ...safeUser, token, refreshToken });
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/auth/mfa/setup", rateLimit(60000, 5), async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Must be logged in" });
+      }
+
+      const user = await storage.getUser(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (user.mfaEnabled) {
+        return res.status(400).json({ message: "MFA is already enabled" });
+      }
+
+      const secret = generateSecret();
+      const otpAuthUrl = generateURI({ secret, issuer: "SKYNT Protocol", label: `SKYNT Protocol:${user.username}` });
+
+      const qrCodeDataUrl = await QRCode.toDataURL(otpAuthUrl);
+
+      await db.update(users)
+        .set({ mfaSecret: secret })
+        .where(eq(users.id, user.id));
+
+      res.json({
+        secret,
+        qrCode: qrCodeDataUrl,
+        otpAuthUrl,
+      });
+    } catch (error) {
+      console.error("[Auth] MFA setup error:", error);
+      res.status(500).json({ message: "Failed to initialize MFA setup" });
+    }
+  });
+
+  app.post("/api/auth/mfa/confirm", rateLimit(60000, 10), async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Must be logged in" });
+      }
+
+      const { code } = req.body;
+      if (!code) {
+        return res.status(400).json({ message: "Verification code is required" });
+      }
+
+      const user = await storage.getUser(req.user.id);
+      if (!user || !user.mfaSecret) {
+        return res.status(400).json({ message: "MFA setup not initialized. Start setup first." });
+      }
+
+      if (user.mfaEnabled) {
+        return res.status(400).json({ message: "MFA is already enabled" });
+      }
+
+      const codeStr = String(code).trim().replace(/\s/g, "");
+      const valid = verifySync({ token: codeStr, secret: user.mfaSecret }).valid;
+
+      if (!valid) {
+        return res.status(401).json({ message: "Invalid verification code. Please try again." });
+      }
+
+      const backupCodes: string[] = [];
+      for (let i = 0; i < 8; i++) {
+        backupCodes.push(randomBytes(4).toString("hex"));
+      }
+
+      await db.update(users)
+        .set({
+          mfaEnabled: true,
+          mfaBackupCodes: JSON.stringify(backupCodes),
+        })
+        .where(eq(users.id, user.id));
+
+      console.log(`[Auth] MFA enabled for user ${user.username}`);
+
+      res.json({
+        enabled: true,
+        backupCodes,
+      });
+    } catch (error) {
+      console.error("[Auth] MFA confirm error:", error);
+      res.status(500).json({ message: "Failed to confirm MFA setup" });
+    }
+  });
+
+  app.post("/api/auth/mfa/disable", rateLimit(60000, 5), async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Must be logged in" });
+      }
+
+      const { code, password } = req.body;
+      if (!password) {
+        return res.status(400).json({ message: "Password is required to disable MFA" });
+      }
+
+      const user = await storage.getUser(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (!user.mfaEnabled) {
+        return res.status(400).json({ message: "MFA is not enabled" });
+      }
+
+      const passwordValid = await comparePasswords(password, user.password);
+      if (!passwordValid) {
+        return res.status(401).json({ message: "Invalid password" });
+      }
+
+      if (code && user.mfaSecret) {
+        const codeStr = String(code).trim().replace(/\s/g, "");
+        const codeValid = verifySync({ token: codeStr, secret: user.mfaSecret }).valid;
+        if (!codeValid) {
+          return res.status(401).json({ message: "Invalid verification code" });
+        }
+      }
+
+      await db.update(users)
+        .set({
+          mfaEnabled: false,
+          mfaSecret: null,
+          mfaBackupCodes: null,
+        })
+        .where(eq(users.id, user.id));
+
+      console.log(`[Auth] MFA disabled for user ${user.username}`);
+
+      res.json({ disabled: true });
+    } catch (error) {
+      console.error("[Auth] MFA disable error:", error);
+      res.status(500).json({ message: "Failed to disable MFA" });
+    }
+  });
+
+  app.get("/api/auth/mfa/status", (req, res) => {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ message: "Must be logged in" });
+    }
+    const user = req.user as User;
+    res.json({
+      enabled: user.mfaEnabled,
+      hasBackupCodes: !!(user.mfaBackupCodes && JSON.parse(user.mfaBackupCodes).length > 0),
+      backupCodesRemaining: user.mfaBackupCodes ? JSON.parse(user.mfaBackupCodes).length : 0,
+    });
   });
 }

@@ -12,12 +12,18 @@ type User = {
   isAdmin: boolean;
   walletAddress?: string | null;
   authProvider?: string | null;
+  mfaEnabled?: boolean;
+};
+
+type MfaChallenge = {
+  mfaToken: string;
 };
 
 type AuthContextType = {
   user: User | null;
   isLoading: boolean;
-  login: (username: string, password: string, captchaToken?: string) => Promise<void>;
+  login: (username: string, password: string, captchaToken?: string) => Promise<MfaChallenge | void>;
+  verifyMfa: (mfaToken: string, code: string) => Promise<void>;
   loginWithWallet: (address: string, signature: string, nonce: string) => Promise<void>;
   linkWallet: () => Promise<void>;
   resetLinkState: () => void;
@@ -76,6 +82,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: async ({ username, password, captchaToken }: { username: string; password: string; captchaToken?: string }) => {
       const res = await apiRequest("POST", "/api/login", { username, password, captchaToken });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.mfaRequired) {
+        return;
+      }
+      if (data.token && data.refreshToken) {
+        setJwtTokens(data.token, data.refreshToken);
+      }
+      const { token: _t, refreshToken: _rt, ...userData } = data;
+      queryClient.setQueryData(["/api/user"], userData);
+      setLocation("/");
+    },
+  });
+
+  const verifyMfaMutation = useMutation({
+    mutationFn: async ({ mfaToken, code }: { mfaToken: string; code: string }) => {
+      const res = await apiRequest("POST", "/api/auth/mfa/verify", { mfaToken, code });
       return res.json();
     },
     onSuccess: (data) => {
@@ -258,7 +282,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLinkingWallet,
         linkError,
         login: async (username, password, captchaToken?) => {
-          await loginMutation.mutateAsync({ username, password, captchaToken });
+          const data = await loginMutation.mutateAsync({ username, password, captchaToken });
+          if (data?.mfaRequired) {
+            return { mfaToken: data.mfaToken };
+          }
+        },
+        verifyMfa: async (mfaToken, code) => {
+          await verifyMfaMutation.mutateAsync({ mfaToken, code });
         },
         loginWithWallet: async (address, signature, nonce) => {
           await loginWithWalletMutation.mutateAsync({ address, signature, nonce });
