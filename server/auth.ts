@@ -330,7 +330,7 @@ export function setupAuth(app: Express) {
 
       req.login(user, (err: any) => {
         if (err) return next(err);
-        const { password: _, ...safeUser } = user;
+        const { password: _, mfaSecret: _ms, mfaBackupCodes: _mb, ...safeUser } = user;
         const token = generateToken(user);
         const refreshToken = generateRefreshToken(user);
         return res.status(201).json({ ...safeUser, token, refreshToken });
@@ -425,7 +425,7 @@ export function setupAuth(app: Express) {
 
       req.login(user, (err) => {
         if (err) return next(err);
-        const { password: _, ...safeUser } = user;
+        const { password: _, mfaSecret: _ms, mfaBackupCodes: _mb, ...safeUser } = user;
         res.json(safeUser);
       });
     } catch (error) {
@@ -510,7 +510,7 @@ export function setupAuth(app: Express) {
           .where(eq(users.id, req.user.id));
 
         const updatedUser = await storage.getUser(req.user.id);
-        const { password: _, ...safeUser } = updatedUser!;
+        const { password: _, mfaSecret: _ms, mfaBackupCodes: _mb, ...safeUser } = updatedUser!;
         const token = generateToken(updatedUser!);
         const refreshToken = generateRefreshToken(updatedUser!);
         return res.json({ ...safeUser, token, refreshToken });
@@ -535,7 +535,7 @@ export function setupAuth(app: Express) {
 
       req.login(user, (err) => {
         if (err) return next(err);
-        const { password: _, ...safeUser } = user!;
+        const { password: _, mfaSecret: _ms, mfaBackupCodes: _mb, ...safeUser } = user!;
         const token = generateToken(user!);
         const refreshToken = generateRefreshToken(user!);
         res.json({ ...safeUser, token, refreshToken });
@@ -624,7 +624,7 @@ export function setupAuth(app: Express) {
         .where(eq(users.id, req.user.id));
 
       const updatedUser = await storage.getUser(req.user.id);
-      const { password: _, ...safeUser } = updatedUser!;
+      const { password: _, mfaSecret: _ms, mfaBackupCodes: _mb, ...safeUser } = updatedUser!;
       const token = generateToken(updatedUser!);
       const refreshToken = generateRefreshToken(updatedUser!);
       console.log(`[Auth] Wallet ${normalized.slice(0, 10)}... securely linked to "${req.user.username}" (ID: ${req.user.id}) via signature verification`);
@@ -729,7 +729,15 @@ export function setupAuth(app: Express) {
 
       const codeStr = String(code).trim().replace(/\s/g, "");
 
-      let valid = verifySync({ token: codeStr, secret: user.mfaSecret }).valid;
+      let valid = false;
+
+      if (/^\d{6}$/.test(codeStr)) {
+        try {
+          valid = verifySync({ token: codeStr, secret: user.mfaSecret }).valid;
+        } catch {
+          valid = false;
+        }
+      }
 
       if (!valid && user.mfaBackupCodes) {
         const backupCodes: string[] = JSON.parse(user.mfaBackupCodes);
