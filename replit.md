@@ -1,17 +1,17 @@
 # SKYNT Protocol — RocketBabesNFT Launchpad
 
 ## Overview
-Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via RainbowKit + wagmi + MetaMask SDK + Alchemy SDK.
+Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
-- **Mar 2026**: **RainbowKit + MetaMask SDK Wallet Integration (WalletConnect-free)**
-  - RainbowKit v2 configured with `connectorsForWallets` using MetaMask SDK, Coinbase Wallet, Phantom, Rabby, and injected wallets — no WalletConnect relay
-  - `client/src/lib/wagmi.ts` — `connectorsForWallets` from `@rainbow-me/rainbowkit/wallets`, `createConfig` from wagmi with Alchemy RPC transports
-  - `client/src/main.tsx` — `WagmiProvider` + `RainbowKitProvider` (darkTheme, compact modal) + `QueryClientProvider`
-  - RainbowKit `ConnectButton` used in: SidebarLayout, EmbeddedWallet, WalletConnect, WalletPicker, MintCard, WalletPage, YieldGenerator, Bridge
-  - Mobile polish: bottom-sheet modal (`border-radius: 16px 16px 0 0`), `100dvh`/`85dvh`, touch-scroll, 48px buttons, short-screen fallbacks
-  - Desktop: `z-index: 2147483647` on modal ensures it renders above sidebar/overflow containers
-  - No WalletConnect WebSocket errors — only browser extension wallets included
+- **Mar 2026**: **Pure wagmi Wallet Integration (RainbowKit removed)**
+  - Replaced RainbowKit entirely with pure wagmi connectors: `metaMask()` (MetaMask SDK), `coinbaseWallet()`, `injected()` from `@wagmi/connectors`
+  - `client/src/lib/wagmi.ts` — `createConfig` with direct wagmi connectors + Alchemy RPC transports (mainnet, polygon, base)
+  - `client/src/main.tsx` — `WagmiProvider` + `QueryClientProvider` (no RainbowKitProvider)
+  - Custom `ConnectWalletButton` component (`client/src/components/ConnectWalletButton.tsx`): portal-based modal, chain selector, account dropdown with copy/explorer/disconnect
+  - Used in: SidebarLayout, EmbeddedWallet, WalletConnect, WalletPicker, MintCard, WalletPage, YieldGenerator, Bridge
+  - Zero WebSocket errors — no WalletConnect relay, no project ID needed
+  - Mobile polish: portal-based modal at z-index 2147483647, 52px touch targets, ESC to close
 - **Mar 2026**: **Alchemy SDK Signer Integration & Mobile Modal Fix**
   - `server/alchemy-signer.ts` — AlchemySigner class using Alchemy SDK's ethersproject stack for signature verification
   - Replaced viem's `verifyMessage`/`recoverMessageAddress` in `server/auth.ts` with Alchemy SDK-powered `AlchemySigner.verifySignature()`

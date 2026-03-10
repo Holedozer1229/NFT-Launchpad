@@ -1,32 +1,23 @@
-import { connectorsForWallets } from "@rainbow-me/rainbowkit";
-import {
-  metaMaskWallet,
-  coinbaseWallet,
-  injectedWallet,
-  phantomWallet,
-  rabbyWallet,
-} from "@rainbow-me/rainbowkit/wallets";
 import { createConfig, http } from "wagmi";
 import { mainnet, polygon, base } from "wagmi/chains";
+import { metaMask, coinbaseWallet, injected } from "@wagmi/connectors";
 
 const alchemyApiKey = import.meta.env.VITE_ALCHEMY_API_KEY || "";
 
-const connectors = connectorsForWallets(
-  [
-    {
-      groupName: "Recommended",
-      wallets: [metaMaskWallet, coinbaseWallet, phantomWallet, rabbyWallet, injectedWallet],
-    },
-  ],
-  {
-    appName: "SKYNT Protocol",
-    projectId: "skynt_protocol_placeholder",
-  }
-);
-
 export const wagmiConfig = createConfig({
-  connectors,
   chains: [mainnet, polygon, base],
+  connectors: [
+    metaMask({
+      dappMetadata: {
+        name: "SKYNT Protocol",
+        url: typeof window !== "undefined" ? window.location.origin : "https://skynt.io",
+      },
+    }),
+    coinbaseWallet({
+      appName: "SKYNT Protocol",
+    }),
+    injected(),
+  ],
   transports: alchemyApiKey
     ? {
         [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${alchemyApiKey}`),

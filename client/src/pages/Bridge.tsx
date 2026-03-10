@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ArrowDownUp, Wallet, Shield, Clock, AlertTriangle, ChevronDown, Zap, ExternalLink, Coins, Users, Lock, Unlock, Fingerprint, CheckCircle, Loader2, Smartphone, DollarSign, Pickaxe, Activity, Hash, Share2, Server, Globe, Cpu } from "lucide-react";
 import { useAccount, useConnect } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";

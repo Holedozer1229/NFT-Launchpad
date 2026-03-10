@@ -26,8 +26,15 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error("[ErrorBoundary] Caught error:", error, errorInfo);
   }
 
+  componentDidUpdate(prevProps: Props) {
+    if (this.state.hasError && prevProps.children !== this.props.children) {
+      this.setState({ hasError: false, error: null });
+    }
+  }
+
   handleReset = () => {
     this.setState({ hasError: false, error: null });
+    window.location.reload();
   };
 
   render() {
@@ -35,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) return this.props.fallback;
 
       return (
-        <div className="flex flex-col items-center justify-center min-h-[40vh] text-center space-y-4 p-8" data-testid="error-boundary">
+        <div className="flex flex-col items-center justify-center min-h-screen cosmic-bg text-center space-y-4 p-8" data-testid="error-boundary">
           <AlertTriangle className="w-10 h-10 text-neon-orange" />
           <h2 className="font-heading text-lg font-bold text-foreground">Something went wrong</h2>
           <p className="font-mono text-xs text-muted-foreground max-w-md">
@@ -48,7 +55,7 @@ export class ErrorBoundary extends Component<Props, State> {
             data-testid="button-error-retry"
           >
             <RefreshCw className="w-4 h-4" />
-            Try Again
+            Reload App
           </Button>
         </div>
       );

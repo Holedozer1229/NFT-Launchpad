@@ -6,7 +6,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useAccount, useDisconnect } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import DynamicBackground from "@/components/DynamicBackground";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -208,7 +208,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
             </div>
           ) : (
             <div className={`space-y-1.5 ${collapsed ? "[&_button]:!p-2 [&_button]:!min-w-0" : ""}`} data-testid="sidebar-connect-wallet">
-              <ConnectButton
+              <ConnectWalletButton
                 showBalance={false}
                 chainStatus="icon"
                 accountStatus={collapsed ? "avatar" : "address"}

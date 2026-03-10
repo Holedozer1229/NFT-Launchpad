@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, getJwtToken } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useAccount, useDisconnect, useConnect } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { isMobileDevice, openWalletApp } from "@/lib/wallet-utils";
 import { usePrices } from "@/hooks/use-prices";
 import { haptic } from "@/lib/haptics";
@@ -677,7 +677,7 @@ export default function WalletPage() {
                       You can connect an external wallet for additional signing security, but it is not required for in-app transfers.
                     </p>
                     <div className="flex gap-2">
-                      <ConnectButton
+                      <ConnectWalletButton
                         showBalance={false}
                         chainStatus="icon"
                         label="Connect External Wallet"

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Wallet, ShieldCheck, CheckCircle2, AlertCircle, RefreshCw, Link2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { useAccount, useDisconnect } from "wagmi";
 
 function ConnectionPulse({ color }: { color: number[] }) {
@@ -118,7 +118,7 @@ export function EmbeddedWallet() {
             </div>
           )}
           <div data-testid="wallet-connect-gateway" className="flex justify-center [&_button]:w-full [&_button]:font-heading [&_button]:font-bold [&_button]:py-6">
-            <ConnectButton
+            <ConnectWalletButton
               showBalance={false}
               chainStatus="icon"
             />
