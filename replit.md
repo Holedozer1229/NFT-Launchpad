@@ -4,11 +4,18 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
-- **Mar 2026**: **Full Alchemy SDK Migration (Server)**
-  - Replaced all `viem` usage on the server with Alchemy SDK (`alchemy-sdk`)
-  - `server/live-chain.ts` — replaced viem `createPublicClient` with `alchemy.core.*` for all block, gas, balance, and transaction queries; uses `alchemy.ws.on("block", ...)` for subscriptions; `alchemy.transact.sendTransaction()` for raw tx; `Utils.formatEther()`/`Utils.formatUnits()` for formatting
-  - `server/alchemy-engine.ts` — replaced viem `createWalletClient`/`createPublicClient` with Alchemy SDK `Wallet`, `Contract`, and `alchemy.config.getProvider()` for NFT minting on zkSync; `alchemy.core.getTransactionReceipt()` for tx status
-  - Frontend still uses wagmi + viem for browser wallet connections (MetaMask, Coinbase, Injected) — wagmi is the standard React wallet hook library and runs client-side only
+- **Mar 2026**: **Production Mainnet Hardening**
+  - Full Alchemy SDK migration: replaced all viem server-side usage with `alchemy-sdk` (`alchemy.core.*`, `alchemy.ws.*`, `alchemy.transact.*`, `Wallet`, `Contract`)
+  - Contract addresses (`SKYNT_CONTRACT_ADDRESS`, `TREASURY_WALLET_ADDRESS`) now read from env vars with hardcoded fallback defaults
+  - Production simulation guard: `mintNftViaEngine` throws error in production if `TREASURY_PRIVATE_KEY` missing (no fake tx hashes on mainnet)
+  - Health check endpoint: `GET /api/health` — reports database, Alchemy, and treasury status with uptime
+  - Graceful shutdown: SIGTERM/SIGINT handlers close HTTP server and drain database pool (10s timeout)
+  - Production secret validation: server refuses to start in production without `JWT_SECRET`, `SESSION_SECRET`, `ALCHEMY_API_KEY`
+  - Database pool hardened: production pool size 20, idle timeout 30s, connection timeout 5s, pool error handler
+  - HSTS preload enabled in production
+  - Error handler sanitized: production error responses hide internal messages
+  - CORS: supports `CUSTOM_DOMAIN` env var for custom domain origins
+  - Deployment: autoscale with `npm run build` / `npm run start`
 - **Mar 2026**: **MFA / Two-Factor Authentication (TOTP)**
   - Full TOTP-based MFA using `otplib` (`generateSync`, `verifySync`, `generateSecret`, `generateURI`) + `qrcode` for QR data URLs
   - Login flow: credentials → if MFA enabled, server returns `{ mfaRequired: true, mfaToken }` (5-min JWT) → client shows 6-digit code input → `POST /api/auth/mfa/verify` completes login

@@ -10,6 +10,8 @@ import { startEngine } from "./iit-engine";
 import { startP2PLedger } from "./p2p-ledger";
 import { startP2PNetwork } from "./p2p-network";
 import { startTreasuryYieldEngine } from "./treasury-yield";
+import { pool } from "./db";
+import { isEngineConfigured } from "./alchemy-engine";
 
 const app = express();
 
@@ -34,7 +36,7 @@ app.use(
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
     crossOriginResourcePolicy: { policy: "cross-origin" },
-    hsts: process.env.NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true } : false,
+    hsts: process.env.NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
     frameguard: { action: "deny" },
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
   })
@@ -61,6 +63,7 @@ const ALLOWED_ORIGINS = new Set([
   process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "",
   process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : "",
   process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : "",
+  process.env.CUSTOM_DOMAIN ? `https://${process.env.CUSTOM_DOMAIN}` : "",
 ].filter(Boolean));
 
 app.use("/api", (req: Request, res: Response, next: NextFunction) => {
@@ -98,6 +101,32 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
   if (process.env.NODE_ENV !== "production") return next();
 
   return res.status(403).json({ message: "Forbidden" });
+});
+
+app.get("/api/health", async (_req: Request, res: Response) => {
+  try {
+    const dbResult = await pool.query("SELECT 1");
+    const dbOk = !!dbResult.rows.length;
+
+    const status = {
+      status: dbOk ? "healthy" : "degraded",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      services: {
+        database: dbOk ? "connected" : "disconnected",
+        alchemy: isEngineConfigured() ? "configured" : "not_configured",
+        treasury: !!process.env.TREASURY_PRIVATE_KEY ? "configured" : "not_configured",
+      },
+    };
+
+    res.status(dbOk ? 200 : 503).json(status);
+  } catch (err: any) {
+    res.status(503).json({
+      status: "unhealthy",
+      timestamp: new Date().toISOString(),
+      error: process.env.NODE_ENV === "production" ? "Service unavailable" : err.message,
+    });
+  }
 });
 
 setupAuth(app);
@@ -159,7 +188,7 @@ app.use((req, res, next) => {
       return next(err);
     }
 
-    return res.status(status).json({ message });
+    return res.status(status).json({ message: process.env.NODE_ENV === "production" ? "Internal Server Error" : message });
   });
 
   if (process.env.NODE_ENV === "production") {
@@ -167,6 +196,15 @@ app.use((req, res, next) => {
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    const requiredSecrets = ["JWT_SECRET", "SESSION_SECRET", "ALCHEMY_API_KEY"];
+    const missing = requiredSecrets.filter(k => !process.env[k]);
+    if (missing.length > 0) {
+      console.error(`[FATAL] Missing required secrets for production: ${missing.join(", ")}`);
+      process.exit(1);
+    }
   }
 
   const port = parseInt(process.env.PORT || "5000", 10);
@@ -178,10 +216,37 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      log(`environment: ${process.env.NODE_ENV || "development"}`);
       startEngine();
       startP2PLedger();
       startP2PNetwork();
       startTreasuryYieldEngine();
     },
   );
+
+  let shuttingDown = false;
+  async function gracefulShutdown(signal: string) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    log(`${signal} received — shutting down gracefully`, "server");
+
+    httpServer.close(() => {
+      log("HTTP server closed", "server");
+    });
+
+    try {
+      await pool.end();
+      log("Database pool closed", "server");
+    } catch (err: any) {
+      console.error("[server] Error closing database pool:", err.message);
+    }
+
+    setTimeout(() => {
+      console.error("[server] Forced shutdown after timeout");
+      process.exit(1);
+    }, 10_000);
+  }
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 })();

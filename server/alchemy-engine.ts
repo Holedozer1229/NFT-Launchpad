@@ -1,7 +1,7 @@
 import { Alchemy, Network, Utils, Wallet, Contract } from "alchemy-sdk";
 
-const SKYNT_CONTRACT_ADDRESS = "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20";
-const TREASURY_WALLET = "0x7Fbe68677e63272ECB55355a6778fCee974d4895";
+const SKYNT_CONTRACT_ADDRESS = process.env.SKYNT_CONTRACT_ADDRESS || "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20";
+const TREASURY_WALLET = process.env.TREASURY_WALLET_ADDRESS || "0x7Fbe68677e63272ECB55355a6778fCee974d4895";
 
 let _alchemy: Alchemy | null = null;
 
@@ -35,7 +35,11 @@ export async function mintNftViaEngine(params: {
 }> {
   const privateKey = process.env.TREASURY_PRIVATE_KEY;
   if (!privateKey) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("TREASURY_PRIVATE_KEY is required for mainnet minting");
+    }
     const transactionId = `sim_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    console.warn("[AlchemyEngine] TREASURY_PRIVATE_KEY not set — returning simulated transaction (dev only)");
     return {
       transactionId,
       txHash: `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`,
@@ -65,6 +69,7 @@ export async function mintNftViaEngine(params: {
       status: receipt.status === 1 ? "confirmed" : "reverted",
     };
   } catch (err: any) {
+    console.error("[AlchemyEngine] Mint transaction failed:", err.message);
     const transactionId = `err_${Date.now()}`;
     return {
       transactionId,
