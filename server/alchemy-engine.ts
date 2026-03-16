@@ -1,7 +1,4 @@
-import { Alchemy, Network } from "alchemy-sdk";
-import { createWalletClient, createPublicClient, http, parseAbi } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { zkSync } from "viem/chains";
+import { Alchemy, Network, Utils, Wallet, Contract } from "alchemy-sdk";
 
 const SKYNT_CONTRACT_ADDRESS = "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20";
 const TREASURY_WALLET = "0x7Fbe68677e63272ECB55355a6778fCee974d4895";
@@ -16,28 +13,16 @@ function getAlchemy(): Alchemy {
     }
     _alchemy = new Alchemy({
       apiKey,
-      network: Network.ETH_MAINNET,
+      network: Network.ZKSYNC_MAINNET,
     });
   }
   return _alchemy;
 }
 
-function getPublicClient() {
-  const apiKey = process.env.ALCHEMY_API_KEY;
-  const rpcUrl = apiKey
-    ? `https://zksync-mainnet.g.alchemy.com/v2/${apiKey}`
-    : "https://mainnet.era.zksync.io";
-
-  return createPublicClient({
-    chain: zkSync,
-    transport: http(rpcUrl),
-  });
-}
-
-const ERC1155_ABI = parseAbi([
+const ERC1155_ABI = [
   "function mint(address to, uint256 id, uint256 amount, bytes data) external",
   "function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes data) external",
-]);
+];
 
 export async function mintNftViaEngine(params: {
   recipientAddress: string;
@@ -59,34 +44,25 @@ export async function mintNftViaEngine(params: {
   }
 
   try {
-    const apiKey = process.env.ALCHEMY_API_KEY;
-    const rpcUrl = apiKey
-      ? `https://zksync-mainnet.g.alchemy.com/v2/${apiKey}`
-      : "https://mainnet.era.zksync.io";
+    const alchemy = getAlchemy();
+    const provider = await alchemy.config.getProvider();
+    const wallet = new Wallet(privateKey, provider);
 
-    const account = privateKeyToAccount(privateKey as `0x${string}`);
-    const walletClient = createWalletClient({
-      account,
-      chain: zkSync,
-      transport: http(rpcUrl),
-    });
+    const contract = new Contract(SKYNT_CONTRACT_ADDRESS, ERC1155_ABI, wallet);
 
-    const txHash = await walletClient.writeContract({
-      address: SKYNT_CONTRACT_ADDRESS as `0x${string}`,
-      abi: ERC1155_ABI,
-      functionName: "mint",
-      args: [
-        params.recipientAddress as `0x${string}`,
-        params.tokenId,
-        params.quantity,
-        "0x" as `0x${string}`,
-      ],
-    });
+    const tx = await contract.mint(
+      params.recipientAddress,
+      params.tokenId.toString(),
+      params.quantity.toString(),
+      "0x"
+    );
+
+    const receipt = await tx.wait();
 
     return {
-      transactionId: txHash,
-      txHash,
-      status: "confirmed",
+      transactionId: receipt.transactionHash,
+      txHash: receipt.transactionHash,
+      status: receipt.status === 1 ? "confirmed" : "reverted",
     };
   } catch (err: any) {
     const transactionId = `err_${Date.now()}`;
@@ -107,15 +83,20 @@ export async function getEngineTransactionStatus(transactionId: string) {
   }
 
   try {
-    const publicClient = getPublicClient();
-    const receipt = await publicClient.getTransactionReceipt({
-      hash: transactionId as `0x${string}`,
-    });
+    const alchemy = getAlchemy();
+    const receipt = await alchemy.core.getTransactionReceipt(transactionId);
+
+    if (!receipt) {
+      return {
+        status: "pending",
+        transactionId,
+      };
+    }
 
     return {
-      status: receipt.status === "success" ? "confirmed" : "reverted",
+      status: receipt.status === 1 ? "confirmed" : "reverted",
       transactionId,
-      blockNumber: Number(receipt.blockNumber),
+      blockNumber: receipt.blockNumber,
       gasUsed: receipt.gasUsed.toString(),
     };
   } catch {
