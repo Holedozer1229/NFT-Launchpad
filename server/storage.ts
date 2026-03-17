@@ -1,4 +1,4 @@
-import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, marketplaceListings, powChallenges, powSubmissions, zkWormholes, zkWormholeTransfers, rarityCertificates, type RarityCertificate, type InsertRarityCertificate, type ZkWormhole, type InsertZkWormhole, type ZkWormholeTransfer, type InsertZkWormholeTransfer, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing, type PowChallenge, type InsertPowChallenge, type PowSubmission, type InsertPowSubmission } from "@shared/schema";
+import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, marketplaceListings, powChallenges, powSubmissions, zkWormholes, zkWormholeTransfers, rarityCertificates, rocketBabeModels, type RarityCertificate, type InsertRarityCertificate, type ZkWormhole, type InsertZkWormhole, type ZkWormholeTransfer, type InsertZkWormholeTransfer, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing, type PowChallenge, type InsertPowChallenge, type PowSubmission, type InsertPowSubmission, type RocketBabeModel, type InsertRocketBabeModel } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -94,6 +94,13 @@ export interface IStorage {
   getRarityCertificatesByUser(userId: number): Promise<RarityCertificate[]>;
   getRarityCertificateByNft(nftId: number, userId: number): Promise<RarityCertificate | undefined>;
   getRarityCertificateById(certificateId: string): Promise<RarityCertificate | undefined>;
+
+  getModelByUserId(userId: number): Promise<RocketBabeModel | undefined>;
+  getModelById(id: number): Promise<RocketBabeModel | undefined>;
+  createModel(model: InsertRocketBabeModel): Promise<RocketBabeModel>;
+  updateModel(id: number, updates: Partial<InsertRocketBabeModel>): Promise<RocketBabeModel | undefined>;
+  getApprovedModels(): Promise<RocketBabeModel[]>;
+  getAllModels(): Promise<RocketBabeModel[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -568,6 +575,37 @@ export class DatabaseStorage implements IStorage {
     const [cert] = await db.select().from(rarityCertificates)
       .where(eq(rarityCertificates.certificateId, certificateId));
     return cert;
+  }
+
+  async getModelByUserId(userId: number): Promise<RocketBabeModel | undefined> {
+    const [model] = await db.select().from(rocketBabeModels).where(eq(rocketBabeModels.userId, userId));
+    return model;
+  }
+
+  async getModelById(id: number): Promise<RocketBabeModel | undefined> {
+    const [model] = await db.select().from(rocketBabeModels).where(eq(rocketBabeModels.id, id));
+    return model;
+  }
+
+  async createModel(model: InsertRocketBabeModel): Promise<RocketBabeModel> {
+    const [created] = await db.insert(rocketBabeModels).values(model).returning();
+    return created;
+  }
+
+  async updateModel(id: number, updates: Partial<InsertRocketBabeModel>): Promise<RocketBabeModel | undefined> {
+    const [updated] = await db.update(rocketBabeModels).set(updates).where(eq(rocketBabeModels.id, id)).returning();
+    return updated;
+  }
+
+  async getApprovedModels(): Promise<RocketBabeModel[]> {
+    return await db.select().from(rocketBabeModels)
+      .where(eq(rocketBabeModels.approved, true))
+      .orderBy(desc(rocketBabeModels.totalMints));
+  }
+
+  async getAllModels(): Promise<RocketBabeModel[]> {
+    return await db.select().from(rocketBabeModels)
+      .orderBy(desc(rocketBabeModels.createdAt));
   }
 }
 

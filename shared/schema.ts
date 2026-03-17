@@ -825,3 +825,33 @@ export const rarityCertificates = pgTable("rarity_certificates", {
 export const insertRarityCertificateSchema = createInsertSchema(rarityCertificates).omit({ id: true, createdAt: true });
 export type RarityCertificate = typeof rarityCertificates.$inferSelect;
 export type InsertRarityCertificate = z.infer<typeof insertRarityCertificateSchema>;
+
+export const rocketBabeModels = pgTable("rocket_babe_models", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("user_id").notNull(),
+  displayName: text("display_name").notNull(),
+  bio: text("bio").default(""),
+  avatarUrl: text("avatar_url"),
+  socialLinks: jsonb("social_links").default({}),
+  tier: text("tier").notNull().default("rising"),
+  approved: boolean("approved").notNull().default(false),
+  totalMints: integer("total_mints").notNull().default(0),
+  totalEarnings: text("total_earnings").notNull().default("0"),
+  revenueSharePct: integer("revenue_share_pct").notNull().default(70),
+  perks: jsonb("perks").default([]),
+  verifiedAt: timestamp("verified_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertRocketBabeModelSchema = createInsertSchema(rocketBabeModels).omit({ id: true, createdAt: true });
+export type RocketBabeModel = typeof rocketBabeModels.$inferSelect;
+export type InsertRocketBabeModel = z.infer<typeof insertRocketBabeModelSchema>;
+
+export const MODEL_TIERS = {
+  rising: { label: "Rising Star", color: "#39ff14", minMints: 0, revShare: 70, perks: ["33% mint discount", "Zero gas fees", "OpenSea auto-list"] },
+  verified: { label: "Verified Babe", color: "#00f3ff", minMints: 5, revShare: 75, perks: ["33% mint discount", "Zero gas fees", "OpenSea auto-list", "Priority support", "Custom template access"] },
+  elite: { label: "Elite Model", color: "#ff2d78", minMints: 25, revShare: 80, perks: ["33% mint discount", "Zero gas fees", "OpenSea auto-list", "Priority support", "Custom template access", "Featured collection slot", "Promotional boost"] },
+  legendary: { label: "Legendary Icon", color: "#ffd700", minMints: 100, revShare: 85, perks: ["33% mint discount", "Zero gas fees", "OpenSea auto-list", "Priority support", "Custom template access", "Featured collection slot", "Promotional boost", "Exclusive drops", "Revenue dashboard", "Brand partnerships"] },
+} as const;
+
+export type ModelTierId = keyof typeof MODEL_TIERS;
