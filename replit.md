@@ -4,6 +4,14 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
+- **Mar 2026**: **Mining Rewards On-Chain Transmission + OpenSea Seaport Signing + OpenClaw Terminal**
+  - `server/alchemy-engine.ts`: Added `transmitRewardToWallet()` for real on-chain EVM reward payouts via Alchemy SDK (`Wallet.sendTransaction` for ETH/MATIC, `Contract.transfer` for SKYNT/ERC20), `relayToUtxoChain()` for BTC/DOGE via public RPC, `getExplorerUrl()`, `isTreasuryConfigured()`, `getOnChainBalance()`, per-chain Alchemy instances via `CHAIN_NETWORK_MAP`
+  - `server/background-miner.ts`: Auto-payout now calls `transmitRewardToWallet` for real on-chain tx when Alchemy is configured, falls back gracefully to simulated hash; records actual txHash and status in wallet_transactions
+  - `server/opensea.ts`: Added `signSeaportOrder()` using EIP-712 typed data signing via Alchemy SDK Wallet (`_signTypedData` with full Seaport domain/types); replaced hardcoded `"0x"` signature; added TREASURY_PRIVATE_KEY guard with clear error messaging
+  - `server/routes.ts`: Added `/api/openclaw/chat` SSE route with rate limiting, auth guard, streaming OpenAI response via `gpt-4o-mini` model with crypto-native terminal agent system prompt
+  - `client/src/pages/OpenClawTerminal.tsx`: Full terminal UI with command history (arrow keys), streaming responses, copy-to-clipboard, suggestion chips, abort with Ctrl+C, emerald/black cyberpunk aesthetic
+  - `client/src/App.tsx`: Added `/openclaw` route with lazy-loaded `OpenClawTerminal`
+  - `client/src/components/SidebarLayout.tsx`: Added "OpenClaw" nav entry under TOOLS group with Hash icon
 - **Mar 2026**: **Production Mainnet Hardening**
   - Full Alchemy SDK migration: replaced all viem server-side usage with `alchemy-sdk` (`alchemy.core.*`, `alchemy.ws.*`, `alchemy.transact.*`, `Wallet`, `Contract`)
   - Contract addresses (`SKYNT_CONTRACT_ADDRESS`, `TREASURY_WALLET_ADDRESS`) now read from env vars with hardcoded fallback defaults

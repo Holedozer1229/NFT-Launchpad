@@ -44,6 +44,7 @@ const navGroups = [
   {
     label: "TOOLS",
     items: [
+      { path: "/openclaw", label: "OpenClaw", icon: Hash, adminOnly: false },
       { path: "/analytics", label: "Analytics", icon: BarChart3, adminOnly: false },
       { path: "/rarity-proof", label: "Rarity Proof", icon: ShieldCheck, adminOnly: false },
       { path: "/starship", label: "Starship", icon: Flame, adminOnly: false },

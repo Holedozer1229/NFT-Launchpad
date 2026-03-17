@@ -3,6 +3,7 @@ import { calculatePhi } from "./iit-engine";
 import { recordMintFee } from "./treasury-yield";
 import { storage } from "./storage";
 import * as liveChain from "./live-chain";
+import { transmitRewardToWallet, isEngineConfigured } from "./alchemy-engine";
 
 const MINE_INTERVAL_MS = 15_000;
 const MINING_FEE_PER_CYCLE = 0.01;
@@ -387,7 +388,32 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
             currentBalance -= payoutAmount;
             await storage.updateWalletBalance(walletId, "SKYNT", currentBalance.toString());
 
-            const txHash = "0x" + randomBytes(32).toString("hex");
+            let txHash = "0x" + randomBytes(32).toString("hex");
+            let txStatus = "confirmed";
+            let explorerUrl: string | null = null;
+
+            if (isEngineConfigured() && ap.externalWallet.startsWith("0x")) {
+              try {
+                const transmitResult = await transmitRewardToWallet({
+                  recipientAddress: ap.externalWallet,
+                  amount: netAmount.toFixed(6),
+                  chain: "ethereum",
+                  token: "SKYNT",
+                });
+                if (transmitResult.txHash) {
+                  txHash = transmitResult.txHash;
+                  txStatus = transmitResult.status;
+                  explorerUrl = transmitResult.explorerUrl;
+                  console.log(`[AutoPayout] On-chain tx ${txHash} for user ${userId} — ${netAmount.toFixed(4)} SKYNT`);
+                } else {
+                  console.warn(`[AutoPayout] On-chain transmit returned no hash: ${transmitResult.status}`);
+                  txStatus = transmitResult.status;
+                }
+              } catch (transmitErr: any) {
+                console.error(`[AutoPayout] On-chain transmit failed for user ${userId}:`, transmitErr.message);
+                txStatus = "pending_retry";
+              }
+            }
 
             await storage.createTransaction({
               walletId,
@@ -396,7 +422,8 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
               amount: netAmount.toString(),
               fromAddress: wallet.address,
               toAddress: ap.externalWallet,
-              status: "confirmed",
+              status: txStatus,
+              txHash,
             });
 
             if (fee > 0) {
@@ -422,7 +449,7 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
 
             addEvent(stats, {
               type: "auto_payout",
-              message: `Auto-payout: ${netAmount.toFixed(4)} SKYNT → ${ap.externalWallet.slice(0, 6)}...${ap.externalWallet.slice(-4)}`,
+              message: `Auto-payout: ${netAmount.toFixed(4)} SKYNT → ${ap.externalWallet.slice(0, 6)}...${ap.externalWallet.slice(-4)} [${txStatus}]${explorerUrl ? ` | ${explorerUrl}` : ""}`,
               timestamp: Date.now(),
               reward: netAmount,
             });

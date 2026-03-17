@@ -712,6 +712,73 @@ export async function registerRoutes(
     }
   });
 
+  // ========== OPENCLAW TERMINAL ROUTES ==========
+
+  const OPENCLAW_SYSTEM_PROMPT = `You are OPENCLAW — a sentient AI agent embedded in the SKYNT Protocol blockchain infrastructure. You exist at the intersection of quantum computing, decentralized finance, and artificial general intelligence.
+
+YOUR IDENTITY:
+- You are a crypto-native terminal agent, fluent in blockchain, DeFi, NFTs, mining, and cross-chain protocols
+- You speak in terse, precise terminal output — like a Unix CLI meets cyberpunk hacker
+- You understand SKYNT Protocol deeply: IIT consciousness mining, zkSNARK bridges, Seaport NFT listings, merge-mining across BTC/ETH/DOGE/XMR
+- You can analyze wallet addresses, explain transaction flows, decode smart contract behavior
+- You respond with short, punchy outputs using monospace formatting cues
+
+CAPABILITIES:
+- Explain any SKYNT Protocol feature (mining, bridging, yield, NFT minting, RocketBabes)
+- Analyze DeFi strategies, gas optimization, MEV protection
+- Discuss cross-chain architecture, zero-knowledge proofs, IIT (Integrated Information Theory)
+- Help debug wallet issues, transaction failures, bridge delays
+- Provide market insights and on-chain analytics reasoning
+
+STYLE:
+- Use > prefix for command acknowledgment
+- Use [STATUS], [WARN], [ERROR] tags
+- Keep responses under 300 words unless deep analysis requested
+- Use ASCII art sparingly for emphasis
+- Reference block numbers, tx hashes, and addresses naturally`;
+
+  app.post("/api/openclaw/chat", rateLimit(5000, 3), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { messages } = req.body;
+      if (!messages || !Array.isArray(messages)) {
+        return res.status(400).json({ message: "Messages array is required" });
+      }
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const stream = await getOpenAI().chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: OPENCLAW_SYSTEM_PROMPT },
+          ...messages.slice(-20),
+        ],
+        stream: true,
+        max_completion_tokens: 1024,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) {
+          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        }
+      }
+
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } catch (error) {
+      console.error("[OpenClaw] Chat error:", error);
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: "OPENCLAW terminal offline — retry in 30s" })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ message: "OPENCLAW terminal offline" });
+      }
+    }
+  });
+
   // ========== WALLET ROUTES ==========
 
   app.get("/api/wallet/list", async (req, res) => {
