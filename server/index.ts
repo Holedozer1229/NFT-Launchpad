@@ -223,6 +223,13 @@ app.use((req, res, next) => {
       startP2PNetwork();
       startTreasuryYieldEngine();
       startDysonEvolution();
+      // Vault auto-init check
+      if (process.env.TREASURY_PRIVATE_KEY) {
+        log("[Vault] TREASURY_PRIVATE_KEY detected — engine auto-initialized for mainnet transactions");
+        log("[Vault] Auto-payout chain: Ethereum Mainnet | SKYNT rewards will transmit on-chain");
+      } else {
+        log("[Vault] TREASURY_PRIVATE_KEY not set — running in simulation mode (set env secret to enable mainnet)");
+      }
     },
   );
 

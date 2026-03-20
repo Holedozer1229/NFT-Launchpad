@@ -243,6 +243,8 @@ export default function OmegaSerpent() {
   const [lives, setLives] = useState(3);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showRewards, setShowRewards] = useState(false);
+  const [claimingId, setClaimingId] = useState<number | null>(null);
+  const [showClaimedHistory, setShowClaimedHistory] = useState(false);
   const [muted, setMuted] = useState(false);
   const [particles, setParticles] = useState<Particle[]>([]);
   const [shakeOffset, setShakeOffset] = useState({ x: 0, y: 0 });
@@ -330,17 +332,21 @@ export default function OmegaSerpent() {
 
   const claimMutation = useMutation({
     mutationFn: async (id: number) => {
+      setClaimingId(id);
       const res = await apiRequest("POST", `/api/game/claim/${id}`);
       return res.json();
     },
     onSuccess: (data: any) => {
+      setClaimingId(null);
       queryClient.invalidateQueries({ queryKey: ["/api/game/scores"] });
       queryClient.invalidateQueries({ queryKey: ["/api/game/leaderboard"] });
-      const feeMsg = data.claimFeeCharged ? ` (${data.claimFeeCharged} SKYNT fee deducted)` : "";
+      const earned = data.totalDeposited ? `+${parseFloat(data.totalDeposited).toFixed(4)} SKYNT` : "Reward deposited";
+      const feeMsg = data.claimFeeCharged ? ` (${data.claimFeeCharged} SKYNT fee)` : "";
       haptic("transaction");
-      toast({ title: "SKYNT Claimed!", description: `Reward deposited to your SKYNT wallet${feeMsg}` });
+      toast({ title: "SKYNT Claimed!", description: `${earned} credited to your wallet${feeMsg}` });
     },
     onError: (err: Error) => {
+      setClaimingId(null);
       toast({ title: "Claim Fee Error", description: parseApiError(err), variant: "destructive" });
     },
   });
@@ -947,31 +953,60 @@ export default function OmegaSerpent() {
 
         {/* GAME OVER OVERLAY */}
         {gameState === "gameover" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm z-10">
-            <Skull className="w-12 h-12 text-red-500 mb-3" />
-            <h2 className="font-heading text-2xl text-red-400 tracking-widest mb-2">GAME OVER</h2>
-            <div className="text-center space-y-1.5 mb-6">
-              <p className="font-mono text-2xl text-neon-green">SCORE: {score}</p>
-              <p className="font-mono text-lg text-neon-cyan flex items-center justify-center gap-1"><Coins className="w-5 h-5" /> {skyntReward} SKYNT</p>
-              <p className="font-mono text-xs text-muted-foreground">Ergotropy: {Math.floor(ergotropy)} | Milestones: {milestones} | Treasures: {treasuresCollected}</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm z-10 px-4">
+            <Skull className="w-10 h-10 text-red-500 mb-2 animate-pulse" />
+            <h2 className="font-heading text-2xl text-red-400 tracking-widest mb-4">GAME OVER</h2>
+
+            <div className="w-full max-w-xs space-y-2 mb-5">
+              <div className="flex justify-between items-center px-3 py-2 bg-white/5 border border-white/10 rounded font-mono text-sm">
+                <span className="text-muted-foreground text-xs">Score</span>
+                <span className="text-neon-green font-bold">{score.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center px-3 py-2 bg-neon-green/5 border border-neon-green/20 rounded font-mono text-sm">
+                <span className="text-muted-foreground text-xs flex items-center gap-1"><Coins className="w-3 h-3" /> Earned</span>
+                <span className="text-neon-green font-bold">{skyntReward} SKYNT</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                <div className="text-center px-2 py-1.5 bg-white/5 border border-white/10 rounded">
+                  <p className="font-mono text-[9px] text-muted-foreground">Ergotropy</p>
+                  <p className="font-mono text-xs text-neon-cyan font-bold">{Math.floor(ergotropy)}</p>
+                </div>
+                <div className="text-center px-2 py-1.5 bg-white/5 border border-white/10 rounded">
+                  <p className="font-mono text-[9px] text-muted-foreground">Milestones</p>
+                  <p className="font-mono text-xs text-neon-orange font-bold">{milestones}</p>
+                </div>
+                <div className="text-center px-2 py-1.5 bg-white/5 border border-white/10 rounded">
+                  <p className="font-mono text-[9px] text-muted-foreground">Treasures</p>
+                  <p className="font-mono text-xs text-neon-magenta font-bold">{treasuresCollected}</p>
+                </div>
+              </div>
+              <div className="flex justify-between items-center px-3 py-2 bg-white/5 border border-white/10 rounded">
+                <span className="font-mono text-[9px] text-muted-foreground">Chain</span>
+                <span className="font-mono text-xs text-foreground">{selectedChain} | Φ: {phi.toFixed(3)}</span>
+              </div>
             </div>
-            <div className="flex gap-3">
+
+            <div className="flex gap-2 w-full max-w-xs">
               <Button
                 data-testid="button-play-again"
-                className="bg-gradient-to-r from-neon-cyan via-neon-green to-neon-orange text-black font-heading font-bold tracking-widest px-8 py-3"
+                className="flex-1 bg-gradient-to-r from-neon-cyan via-neon-green to-neon-orange text-black font-heading font-bold tracking-wider text-sm"
                 onClick={startGame}
               >
                 PLAY AGAIN
               </Button>
               <Button
                 variant="outline"
-                className="border-neon-green/40 text-neon-green font-heading tracking-widest px-6 py-3"
-                onClick={() => setShowRewards(true)}
+                className="flex-1 border-neon-green/40 text-neon-green font-heading tracking-wider text-sm hover:bg-neon-green/10"
+                onClick={() => { setShowRewards(true); setShowClaimedHistory(false); }}
                 data-testid="button-view-rewards"
               >
-                CLAIM REWARDS
+                CLAIM SKYNT
               </Button>
             </div>
+
+            {saveScoreMutation.isPending && (
+              <p className="font-mono text-[10px] text-muted-foreground/60 mt-3 animate-pulse">Submitting score to chain…</p>
+            )}
           </div>
         )}
 
@@ -1060,33 +1095,81 @@ export default function OmegaSerpent() {
             </div>
             <button onClick={() => setShowRewards(false)} className="text-white/40 hover:text-white"><X className="w-4 h-4" /></button>
           </div>
+
+          {/* Toggle history */}
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5">
+            <button
+              onClick={() => setShowClaimedHistory(false)}
+              className={`flex-1 text-[10px] font-mono py-1 rounded transition-colors ${!showClaimedHistory ? "bg-neon-green/20 text-neon-green border border-neon-green/30" : "text-muted-foreground hover:text-foreground"}`}
+              data-testid="button-show-unclaimed"
+            >
+              PENDING
+            </button>
+            <button
+              onClick={() => setShowClaimedHistory(true)}
+              className={`flex-1 text-[10px] font-mono py-1 rounded transition-colors ${showClaimedHistory ? "bg-white/10 text-foreground border border-white/20" : "text-muted-foreground hover:text-foreground"}`}
+              data-testid="button-show-history"
+            >
+              HISTORY
+            </button>
+          </div>
+
           <div className="flex-1 overflow-y-auto p-3 space-y-2" data-testid="my-rewards">
-            {myScores && myScores.length > 0 ? myScores.slice(0, 10).map((entry: any) => (
-              <div key={entry.id} className="flex items-center justify-between p-2.5 bg-white/5 border border-white/10 rounded">
-                <div>
-                  <div className="font-mono text-xs text-foreground flex items-center gap-1"><Trophy className="w-3 h-3 text-neon-orange" /> {entry.score} pts</div>
-                  <div className="font-mono text-[10px] text-muted-foreground">{entry.chain} | {parseFloat(entry.skyntEarned).toFixed(2)} SKYNT</div>
-                </div>
-                {entry.claimed ? (
-                  <Badge variant="outline" className="text-[9px] border-neon-green/30 text-neon-green">CLAIMED</Badge>
-                ) : (
-                  <div className="flex flex-col items-end gap-0.5">
-                    <Button
-                      size="sm"
-                      data-testid={`button-claim-${entry.id}`}
-                      className="text-[10px] h-7 px-3 bg-neon-green/20 border border-neon-green/40 text-neon-green hover:bg-neon-green/30"
-                      onClick={() => claimMutation.mutate(entry.id)}
-                      disabled={claimMutation.isPending}
-                    >
-                      CLAIM
-                    </Button>
-                    {feeConfig && <span className="font-mono text-[8px] text-neon-orange/60">{feeConfig.claimFee} SKYNT fee</span>}
+            {(() => {
+              const allEntries = myScores ?? [];
+              const display = showClaimedHistory
+                ? allEntries.filter((e: any) => e.claimed)
+                : allEntries.filter((e: any) => !e.claimed);
+
+              if (allEntries.length === 0) {
+                return <p className="font-mono text-xs text-muted-foreground/50 text-center py-8">Play to earn rewards!</p>;
+              }
+
+              if (!showClaimedHistory && display.length === 0) {
+                return (
+                  <div className="text-center py-8 space-y-2">
+                    <Trophy className="w-8 h-8 text-neon-green/30 mx-auto" />
+                    <p className="font-mono text-xs text-neon-green/70">All rewards claimed!</p>
+                    <p className="font-mono text-[10px] text-muted-foreground/50">Play again to earn more SKYNT</p>
+                    <button onClick={() => setShowClaimedHistory(true)} className="font-mono text-[10px] text-muted-foreground underline underline-offset-2">View claim history</button>
                   </div>
-                )}
-              </div>
-            )) : (
-              <p className="font-mono text-xs text-muted-foreground/50 text-center py-8">Play to earn rewards!</p>
-            )}
+                );
+              }
+
+              if (showClaimedHistory && display.length === 0) {
+                return <p className="font-mono text-xs text-muted-foreground/50 text-center py-8">No claimed rewards yet.</p>;
+              }
+
+              return display.slice(0, 15).map((entry: any) => (
+                <div key={entry.id} className={`flex items-center justify-between p-2.5 border rounded transition-all ${entry.claimed ? "bg-white/[0.02] border-white/5 opacity-60" : "bg-white/5 border-neon-green/20"}`}>
+                  <div>
+                    <div className="font-mono text-xs text-foreground flex items-center gap-1"><Trophy className="w-3 h-3 text-neon-orange" /> {entry.score} pts</div>
+                    <div className="font-mono text-[10px] text-muted-foreground">{entry.chain} | {parseFloat(entry.skyntEarned).toFixed(2)} SKYNT</div>
+                  </div>
+                  {entry.claimed ? (
+                    <Badge variant="outline" className="text-[9px] border-neon-green/30 text-neon-green/60">CLAIMED</Badge>
+                  ) : (
+                    <div className="flex flex-col items-end gap-0.5">
+                      <Button
+                        size="sm"
+                        data-testid={`button-claim-${entry.id}`}
+                        className="text-[10px] h-7 px-3 bg-neon-green/20 border border-neon-green/40 text-neon-green hover:bg-neon-green/30"
+                        onClick={() => claimMutation.mutate(entry.id)}
+                        disabled={claimingId !== null}
+                      >
+                        {claimingId === entry.id ? (
+                          <span className="flex items-center gap-1">
+                            <span className="w-2.5 h-2.5 border border-neon-green/60 border-t-neon-green rounded-full animate-spin" />
+                            CLAIMING
+                          </span>
+                        ) : "CLAIM"}
+                      </Button>
+                      {feeConfig && <span className="font-mono text-[8px] text-neon-orange/60">{feeConfig.claimFee} SKYNT fee</span>}
+                    </div>
+                  )}
+                </div>
+              ));
+            })()}
           </div>
         </div>
       )}

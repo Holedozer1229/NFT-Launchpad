@@ -240,9 +240,38 @@ export default function TreasuryVault() {
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Lock className="w-4 h-4 text-orange-400" /> Private Key Authorization
                   </CardTitle>
-                  <CardDescription className="text-xs font-mono">Configure secure session key to enable on-chain autonomous minting.</CardDescription>
+                  <CardDescription className="text-xs font-mono">Secure session key enabling on-chain autonomous minting and reward payouts.</CardDescription>
                 </CardHeader>
                 <CardContent>
+                  {walletInfo?.isConfigured ? (
+                    <div className="space-y-4" data-testid="vault-auto-initialized">
+                      <div className="flex items-center gap-3 p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                        <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
+                        <div>
+                          <p className="font-heading text-sm text-green-400 font-bold tracking-wider">ENGINE AUTO-INITIALIZED</p>
+                          <p className="font-mono text-[10px] text-muted-foreground mt-0.5">Treasury key loaded from environment — on-chain transactions active.</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 rounded-lg bg-black/40 border border-white/5">
+                          <p className="font-mono text-[9px] text-muted-foreground uppercase mb-1">Mode</p>
+                          <p className="font-mono text-xs text-green-400 font-bold">MAINNET LIVE</p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-black/40 border border-white/5">
+                          <p className="font-mono text-[9px] text-muted-foreground uppercase mb-1">Chain</p>
+                          <p className="font-mono text-xs text-cyan-400 font-bold">Ethereum Mainnet</p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-black/40 border border-white/5">
+                          <p className="font-mono text-[9px] text-muted-foreground uppercase mb-1">Auto-Payout</p>
+                          <p className="font-mono text-xs text-neon-green font-bold">ENABLED</p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-black/40 border border-white/5">
+                          <p className="font-mono text-[9px] text-muted-foreground uppercase mb-1">Session</p>
+                          <p className="font-mono text-xs text-foreground font-bold">PERSISTENT</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit((v) => setKeyMutation.mutate(v))} className="space-y-4">
                       <FormField
@@ -285,9 +314,10 @@ export default function TreasuryVault() {
                   <div className="mt-4 p-3 rounded bg-orange-500/5 border border-orange-500/20 flex gap-3">
                     <AlertCircle className="w-5 h-5 text-orange-400 shrink-0" />
                     <p className="text-[10px] text-muted-foreground leading-relaxed">
-                      <span className="text-orange-400 font-bold">WARNING:</span> The private key is required for the backend to sign transactions for the SKYNT treasury. This session key is not persisted to disk and must be re-entered if the server restarts.
+                      <span className="text-orange-400 font-bold">TIP:</span> Set TREASURY_PRIVATE_KEY as an environment secret to auto-initialize the vault engine on every startup.
                     </p>
                   </div>
+                  )}
                 </CardContent>
               </Card>
 
