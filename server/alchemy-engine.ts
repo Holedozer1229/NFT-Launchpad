@@ -1,8 +1,10 @@
 import { Alchemy, Network, Utils, Wallet, Contract } from "alchemy-sdk";
 
-const SKYNT_CONTRACT_ADDRESS = process.env.SKYNT_CONTRACT_ADDRESS || "0xfbc620cc04cc73bf443981b1d9f99a03fd5de38d";
+export const SKYNT_CONTRACT_ADDRESS = process.env.SKYNT_CONTRACT_ADDRESS || "0x22d3f06afB69e5FCFAa98C20009510dD11aF2517";
 const SKYNT_MINING_CONTRACT_ADDRESS = process.env.SKYNT_MINING_CONTRACT_ADDRESS || "";
-const TREASURY_WALLET = process.env.TREASURY_WALLET_ADDRESS || "0x7Fbe68677e63272ECB55355a6778fCee974d4895";
+export const TREASURY_WALLET = process.env.TREASURY_WALLET_ADDRESS || "0x0000000000000000000000000000000000000000";
+
+const MIN_GAS_RESERVE_ETH = 0.005; // minimum ETH to keep as gas reserve
 
 let _alchemy: Alchemy | null = null;
 
@@ -138,6 +140,84 @@ function getAlchemyForChain(chain: string): Alchemy {
   return new Alchemy({ apiKey, network });
 }
 
+// ─── Self-Gas-Funding Treasury ────────────────────────────────────────────────
+
+interface GasStatus {
+  ethBalance: string;
+  ethBalanceFloat: number;
+  isHealthy: boolean;
+  isCritical: boolean;
+  reserveThreshold: number;
+  criticalThreshold: number;
+  treasuryAddress: string;
+  message: string;
+}
+
+let _lastGasCheck: GasStatus | null = null;
+let _lastGasCheckTime = 0;
+const GAS_CHECK_TTL_MS = 30_000;
+
+export async function getTreasuryGasStatus(): Promise<GasStatus> {
+  const now = Date.now();
+  if (_lastGasCheck && now - _lastGasCheckTime < GAS_CHECK_TTL_MS) {
+    return _lastGasCheck;
+  }
+
+  const address = TREASURY_WALLET;
+  const CRITICAL = 0.001;
+
+  if (!process.env.ALCHEMY_API_KEY || !address || address === "0x0000000000000000000000000000000000000000") {
+    return {
+      ethBalance: "0",
+      ethBalanceFloat: 0,
+      isHealthy: false,
+      isCritical: true,
+      reserveThreshold: MIN_GAS_RESERVE_ETH,
+      criticalThreshold: CRITICAL,
+      treasuryAddress: address,
+      message: "Treasury not configured",
+    };
+  }
+
+  try {
+    const alchemy = getAlchemyForChain("ethereum");
+    const balanceWei = await alchemy.core.getBalance(address, "latest");
+    const balanceEth = parseFloat(Utils.formatEther(balanceWei));
+    const status: GasStatus = {
+      ethBalance: balanceEth.toFixed(6),
+      ethBalanceFloat: balanceEth,
+      isHealthy: balanceEth >= MIN_GAS_RESERVE_ETH,
+      isCritical: balanceEth < CRITICAL,
+      reserveThreshold: MIN_GAS_RESERVE_ETH,
+      criticalThreshold: CRITICAL,
+      treasuryAddress: address,
+      message: balanceEth >= MIN_GAS_RESERVE_ETH
+        ? "Gas reserve healthy"
+        : balanceEth < CRITICAL
+          ? `CRITICAL: Only ${balanceEth.toFixed(6)} ETH — deposit ETH to ${address}`
+          : `Low gas: ${balanceEth.toFixed(6)} ETH (min ${MIN_GAS_RESERVE_ETH} ETH recommended)`,
+    };
+    _lastGasCheck = status;
+    _lastGasCheckTime = now;
+    if (!status.isHealthy) {
+      console.warn(`[Treasury Gas] ${status.message}`);
+    }
+    return status;
+  } catch (err: any) {
+    console.error("[Treasury Gas] Balance check failed:", err.message);
+    return {
+      ethBalance: "unknown",
+      ethBalanceFloat: 0,
+      isHealthy: false,
+      isCritical: false,
+      reserveThreshold: MIN_GAS_RESERVE_ETH,
+      criticalThreshold: CRITICAL,
+      treasuryAddress: address,
+      message: "Balance check unavailable",
+    };
+  }
+}
+
 export async function transmitRewardToWallet(params: {
   recipientAddress: string;
   amount: string;
@@ -148,6 +228,7 @@ export async function transmitRewardToWallet(params: {
   status: string;
   chain: string;
   explorerUrl: string | null;
+  gasStatus?: GasStatus;
 }> {
   const { recipientAddress, amount, chain, token } = params;
   const privateKey = process.env.TREASURY_PRIVATE_KEY;
@@ -170,6 +251,16 @@ export async function transmitRewardToWallet(params: {
     return { txHash: simHash, status: "simulated", chain, explorerUrl: null };
   }
 
+  // ── Self-gas check before transmitting ──────────────────────────────────────
+  const gasStatus = await getTreasuryGasStatus();
+  if (gasStatus.isCritical) {
+    console.error(`[Treasury Gas] CRITICAL: ${gasStatus.message}`);
+    return { txHash: null, status: "insufficient_gas", chain, explorerUrl: null, gasStatus };
+  }
+  if (!gasStatus.isHealthy) {
+    console.warn(`[Treasury Gas] Low reserve: ${gasStatus.message} — attempting transaction anyway`);
+  }
+
   try {
     const alchemy = getAlchemyForChain(chain);
     const provider = await alchemy.config.getProvider();
@@ -184,8 +275,7 @@ export async function transmitRewardToWallet(params: {
       });
     } else if (token === "SKYNT" || token === "ERC20") {
       const contract = new Contract(SKYNT_CONTRACT_ADDRESS, ERC20_ABI, wallet);
-      const decimals = 18;
-      const amountWei = Utils.parseUnits(amount, decimals);
+      const amountWei = Utils.parseUnits(amount, 18);
       tx = await contract.transfer(recipientAddress, amountWei);
     } else {
       tx = await wallet.sendTransaction({
@@ -196,6 +286,7 @@ export async function transmitRewardToWallet(params: {
 
     const receipt = await tx.wait();
     const explorerUrl = getExplorerUrl(chain, receipt.transactionHash);
+    _lastGasCheckTime = 0; // invalidate gas cache after tx
 
     console.log(`[RewardTransmit] ${amount} ${token} → ${recipientAddress} on ${chain} | tx: ${receipt.transactionHash}`);
     return {
@@ -203,9 +294,11 @@ export async function transmitRewardToWallet(params: {
       status: receipt.status === 1 ? "confirmed" : "reverted",
       chain,
       explorerUrl,
+      gasStatus,
     };
   } catch (err: any) {
     console.error(`[RewardTransmit] Failed ${chain}:`, err.message);
+    _lastGasCheckTime = 0;
     return {
       txHash: null,
       status: err.message?.includes("insufficient") ? "insufficient_funds" : "failed",
@@ -292,4 +385,3 @@ export function isTreasuryConfigured(): boolean {
   return !!process.env.TREASURY_PRIVATE_KEY;
 }
 
-export { SKYNT_CONTRACT_ADDRESS, TREASURY_WALLET };

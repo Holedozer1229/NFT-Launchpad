@@ -7,7 +7,7 @@ import {
   Vault, Shield, Wallet, CreditCard, Activity, 
   Settings, CheckCircle2, AlertCircle, Loader2,
   Lock, ArrowRight, Zap, RefreshCw, Layers, FileCode2,
-  ExternalLink, Copy
+  ExternalLink, Copy, Fuel, TrendingUp, TrendingDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -318,6 +318,99 @@ export default function TreasuryVault() {
                     </p>
                   </div>
                   )}
+                </CardContent>
+              </Card>
+
+              {/* Gas Tank */}
+              <Card className="bg-black/40 border-white/10" data-testid="card-gas-tank">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Fuel className="w-4 h-4 text-yellow-400" /> Gas Tank
+                  </CardTitle>
+                  <CardDescription className="text-xs font-mono">Self-funding ETH reserve for on-chain transactions.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {(() => {
+                    const gas = walletInfo?.gasStatus;
+                    if (!gas) return (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Checking gas balance…
+                      </div>
+                    );
+                    const isHealthy = gas.isHealthy;
+                    const isCritical = gas.isCritical;
+                    const pct = Math.min(100, (gas.ethBalanceFloat / (gas.reserveThreshold * 2)) * 100);
+                    return (
+                      <>
+                        <div className={`flex items-center gap-3 p-3 rounded-lg border ${isCritical ? "bg-red-500/10 border-red-500/30" : isHealthy ? "bg-green-500/10 border-green-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
+                          {isCritical ? (
+                            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                          ) : isHealthy ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-yellow-400 shrink-0" />
+                          )}
+                          <p className={`font-mono text-[10px] leading-relaxed ${isCritical ? "text-red-300" : isHealthy ? "text-green-300" : "text-yellow-300"}`}>
+                            {gas.message}
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="p-3 rounded-lg bg-black/40 border border-white/5 col-span-1">
+                            <p className="font-mono text-[9px] text-muted-foreground uppercase mb-1">ETH Balance</p>
+                            <p className={`font-mono text-sm font-bold ${isCritical ? "text-red-400" : isHealthy ? "text-green-400" : "text-yellow-400"}`}>
+                              {gas.ethBalance}
+                            </p>
+                            <p className="font-mono text-[8px] text-muted-foreground mt-0.5">ETH</p>
+                          </div>
+                          <div className="p-3 rounded-lg bg-black/40 border border-white/5 col-span-1">
+                            <p className="font-mono text-[9px] text-muted-foreground uppercase mb-1">Min Reserve</p>
+                            <p className="font-mono text-sm font-bold text-cyan-400">{gas.reserveThreshold}</p>
+                            <p className="font-mono text-[8px] text-muted-foreground mt-0.5">ETH</p>
+                          </div>
+                          <div className="p-3 rounded-lg bg-black/40 border border-white/5 col-span-1">
+                            <p className="font-mono text-[9px] text-muted-foreground uppercase mb-1">Critical</p>
+                            <p className="font-mono text-sm font-bold text-orange-400">{gas.criticalThreshold}</p>
+                            <p className="font-mono text-[8px] text-muted-foreground mt-0.5">ETH</p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between items-center mb-1.5">
+                            <span className="font-mono text-[9px] text-muted-foreground uppercase">Gas Reserve Level</span>
+                            <span className="font-mono text-[9px] text-muted-foreground">{pct.toFixed(0)}%</span>
+                          </div>
+                          <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-700 ${isCritical ? "bg-red-500" : pct > 60 ? "bg-green-500" : "bg-yellow-500"}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="p-3 rounded-lg bg-black/40 border border-white/5">
+                          <p className="font-mono text-[9px] text-muted-foreground uppercase mb-1">Treasury Address</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-mono text-[10px] text-foreground truncate flex-1">{gas.treasuryAddress}</p>
+                            <a
+                              href={`https://etherscan.io/address/${gas.treasuryAddress}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0"
+                              data-testid="link-treasury-etherscan"
+                            >
+                              <ExternalLink className="w-3 h-3 text-cyan-400 hover:text-cyan-300" />
+                            </a>
+                          </div>
+                          {isCritical && (
+                            <p className="font-mono text-[9px] text-red-400 mt-2 leading-relaxed">
+                              Send ETH to this address to restore gas funding capacity.
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </CardContent>
               </Card>
 

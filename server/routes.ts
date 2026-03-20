@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, ACCESS_TIERS, type ChainId, type RarityTier } from "@shared/schema";
 import { randomBytes, createHash } from "crypto";
-import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./alchemy-engine";
+import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, getTreasuryGasStatus, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./alchemy-engine";
 import { recordMintFee, getTreasuryYieldState, startTreasuryYieldEngine } from "./treasury-yield";
 import { z } from "zod";
 import OpenAI from "openai";
@@ -2765,31 +2765,28 @@ STYLE:
     }
     try {
       const isConfigured = !!process.env.TREASURY_PRIVATE_KEY;
-      const alchemyApiKey = process.env.ALCHEMY_API_KEY;
-      let balance = "0";
-      
-      if (alchemyApiKey) {
-        try {
-          const { Alchemy, Network } = await import("alchemy-sdk");
-          const alchemy = new Alchemy({
-            apiKey: alchemyApiKey,
-            network: Network.ETH_MAINNET,
-          });
-          const bal = await alchemy.core.getBalance(TREASURY_WALLET);
-          balance = bal.toString();
-        } catch (e) {
-          console.error("Failed to fetch real treasury balance:", e);
-        }
-      }
-
+      const gasStatus = await getTreasuryGasStatus();
       res.json({
         address: TREASURY_WALLET,
-        balance,
+        balance: gasStatus.ethBalance,
         isConfigured,
         skyntAddress: ENGINE_CONTRACT,
+        gasStatus,
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch treasury wallet info" });
+    }
+  });
+
+  app.get("/api/treasury/gas-status", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const status = await getTreasuryGasStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch gas status" });
     }
   });
 
