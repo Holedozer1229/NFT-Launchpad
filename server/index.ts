@@ -10,6 +10,7 @@ import { startEngine } from "./iit-engine";
 import { startP2PLedger } from "./p2p-ledger";
 import { startP2PNetwork } from "./p2p-network";
 import { startTreasuryYieldEngine } from "./treasury-yield";
+import { startDysonEvolution } from "./dyson-sphere-miner";
 import { pool } from "./db";
 import { isEngineConfigured } from "./alchemy-engine";
 
@@ -221,6 +222,7 @@ app.use((req, res, next) => {
       startP2PLedger();
       startP2PNetwork();
       startTreasuryYieldEngine();
+      startDysonEvolution();
     },
   );
 

@@ -32,7 +32,7 @@ export const SUPPORTED_CHAINS = {
     color: "#627EEA",
     chainId: 1,
     explorer: "https://etherscan.io",
-    contractAddress: "0x7A3F...SpaceFlightNFT",
+    contractAddress: "0xfbc620cc04cc73bf443981b1d9f99a03fd5de38d",
     gasEstimate: "~0.003 ETH",
     avgGasUnits: 180000,
   },
@@ -623,15 +623,59 @@ export const STARSHIP_FLIGHT_SHOWCASES = [
 export const RARITY_PROOF_FEE = 0.5;
 
 export const CONTRACT_DEFINITIONS = [
-  { contractId: "SpaceFlightNFT", name: "SpaceFlightNFT", description: "Gas-optimized tiered NFT minting with royalties and OpenSea integration", gasRange: [160000, 240000] },
-  { contractId: "SphinxBridge", name: "SphinxBridge", description: "Gas-optimized cross-chain bridge with 5-of-9 guardian multi-sig", gasRange: [180000, 280000] },
-  { contractId: "SphinxYieldAggregator", name: "SphinxYieldAggregator", description: "Gas-optimized multi-chain yield aggregator with zk-proof verification", gasRange: [200000, 320000] },
-  { contractId: "SkynetZkBridge", name: "SkynetZkBridge", description: "zkSync Era cross-chain bridge with zk-SNARK mint proof verification for ETH/STX/DOGE/XMR", gasRange: [100000, 180000] },
-  { contractId: "ZkWormhole", name: "ZkWormhole", description: "Per-user ZK-Wormhole cross-chain portal with zk-SNARK proof verification for 11-chain bridging including Polygon zkEVM", gasRange: [150000, 250000] },
+  // ─── Core Token & Mining ───────────────────────────────────────────────────
+  { contractId: "SKYNTToken", name: "SKYNTToken", description: "SKYNT ERC20 token — 21M max supply, 18 decimals, on Ethereum mainnet at 0xfbc620cc04cc73bf443981b1d9f99a03fd5de38d", gasRange: [50000, 80000], verified: true, address: "0xfbc620cc04cc73bf443981b1d9f99a03fd5de38d" },
+  { contractId: "SKYNTMining", name: "SKYNTMining", description: "On-chain keccak256 Proof-of-Work mining contract: submitWork(nonce), claimReward(), dynamic difficulty, halving schedule, cooldowns", gasRange: [80000, 140000], verified: true, address: "" },
+  // ─── NFT Contracts ────────────────────────────────────────────────────────
+  { contractId: "SpaceFlightNFT", name: "SpaceFlightNFT", description: "Gas-optimized tiered NFT minting with royalties and OpenSea Seaport integration", gasRange: [160000, 240000] },
   { contractId: "RocketBabesNFT", name: "RocketBabesNFT", description: "Cosmic-themed model NFT collection with 33% discount minting, 6 overlay templates, zero platform fees", gasRange: [140000, 220000] },
+  { contractId: "RocketGirlsNFT", name: "RocketGirlsNFT", description: "Companion collection to RocketBabes — limited 777 supply, generative art, SKYNT gated minting", gasRange: [130000, 200000] },
+  { contractId: "SKYNTGenesisNFT", name: "SKYNTGenesisNFT", description: "Genesis NFT collection — first 100 minters earn 10% mining bonus for life, ERC721A batch minting", gasRange: [120000, 180000] },
+  { contractId: "IITConsciousnessNFT", name: "IITConsciousnessNFT", description: "NFT representing IIT consciousness Φ score — dynamic metadata updated on-chain via oracle", gasRange: [150000, 220000] },
+  { contractId: "QuantumBerryNFT", name: "QuantumBerryNFT", description: "Berry Phase NFT collection — quantum entanglement-themed ERC1155 with staking integration", gasRange: [140000, 210000] },
+  { contractId: "StarshipLaunchNFT", name: "StarshipLaunchNFT", description: "SpaceX Starship launch milestone NFTs — each flight test edition, gated by IIT score", gasRange: [130000, 195000] },
+  { contractId: "MiningBadgeNFT", name: "MiningBadgeNFT", description: "Proof-of-Mining badge NFTs — soulbound ERC5192 tokens awarded per mining milestone", gasRange: [90000, 140000] },
+  // ─── Bridge & Cross-Chain ─────────────────────────────────────────────────
+  { contractId: "SphinxBridge", name: "SphinxBridge", description: "Gas-optimized cross-chain bridge with 5-of-9 guardian multi-sig, ETH ↔ STX ↔ DOGE", gasRange: [180000, 280000] },
+  { contractId: "SkynetZkBridge", name: "SkynetZkBridge", description: "zkSync Era cross-chain bridge with zk-SNARK mint proof verification for ETH/STX/DOGE/XMR", gasRange: [100000, 180000] },
+  { contractId: "ZkWormhole", name: "ZkWormhole", description: "Per-user ZK-Wormhole cross-chain portal with zk-SNARK proof verification for 11-chain bridging", gasRange: [150000, 250000] },
+  { contractId: "SkynetBridge", name: "SkynetBridge", description: "Solana-to-EVM bridge for SKYNT token minting with PoW nonce verification", gasRange: [120000, 190000] },
+  { contractId: "PolygonZkBridge", name: "PolygonZkBridge", description: "Polygon zkEVM ↔ Ethereum bridge for SKYNT with Groth16 proof verification", gasRange: [110000, 170000] },
+  { contractId: "ArbitrumBridge", name: "ArbitrumBridge", description: "Arbitrum One ↔ Ethereum optimistic bridge with 7-day challenge period and fraud proofs", gasRange: [95000, 150000] },
+  { contractId: "BaseBridge", name: "BaseBridge", description: "Base ↔ Ethereum bridge using Optimism stack with SKYNT token support", gasRange: [90000, 140000] },
+  { contractId: "CrossChainMessenger", name: "CrossChainMessenger", description: "Generic cross-chain message passing layer using EIP-5164 standard", gasRange: [120000, 180000] },
+  // ─── DeFi & Yield ────────────────────────────────────────────────────────
+  { contractId: "SphinxYieldAggregator", name: "SphinxYieldAggregator", description: "Multi-chain yield aggregator with zk-proof verification and auto-compounding", gasRange: [200000, 320000] },
+  { contractId: "SKYNTStaking", name: "SKYNTStaking", description: "SKYNT token staking with 3/6/12 month lockups, APR tiers, and compounding rewards", gasRange: [120000, 180000] },
+  { contractId: "LiquidityPool", name: "LiquidityPool", description: "AMM liquidity pool for SKYNT/ETH and SKYNT/USDC pairs with concentrated liquidity", gasRange: [200000, 320000] },
+  { contractId: "YieldVault", name: "YieldVault", description: "ERC4626 tokenized vault for multi-strategy yield optimization across Aave, Compound, and Curve", gasRange: [180000, 280000] },
+  { contractId: "STXLendingPool", name: "STXLendingPool", description: "Stacks STX lending pool with SKYNT collateral, cross-chain yield relay", gasRange: [130000, 200000] },
+  { contractId: "FeeDistributor", name: "FeeDistributor", description: "Protocol fee collection and distribution to SKYNT stakers (veSKYNT model)", gasRange: [100000, 160000] },
+  { contractId: "MerkleDistributor", name: "MerkleDistributor", description: "Merkle-proof airdrop distributor for SKYNT mining rewards and genesis allocations", gasRange: [80000, 120000] },
+  // ─── Mining Infrastructure ────────────────────────────────────────────────
+  { contractId: "MiningPool", name: "MiningPool", description: "Decentralized mining pool contract — shares proportional rewards among pool participants", gasRange: [150000, 230000] },
+  { contractId: "MiningRewardOracle", name: "MiningRewardOracle", description: "Chainlink-powered oracle for off-chain hashrate verification and reward multiplier updates", gasRange: [90000, 140000] },
+  { contractId: "DifficultyAdjuster", name: "DifficultyAdjuster", description: "On-chain difficulty retargeting contract with 2016-block intervals using EMA smoothing", gasRange: [70000, 110000] },
+  { contractId: "MergeMiningCoordinator", name: "MergeMiningCoordinator", description: "Coordinates merge-mining across BTC/DOGE/XMR chains with auxiliary PoW proof verification", gasRange: [120000, 190000] },
+  // ─── ZK / Cryptography ───────────────────────────────────────────────────
   { contractId: "ECDSAVerifier", name: "ECDSAVerifier", description: "zkSNARK proof verification utility for PoW mining bridge cross-chain mints", gasRange: [80000, 120000] },
   { contractId: "SpectralEntropyVerifier", name: "SpectralEntropyVerifier", description: "Groth16 zk-SNARK verifier for spectral entropy proofs with pairing-based verification", gasRange: [90000, 140000] },
-  { contractId: "SkynetBridge", name: "SkynetBridge", description: "Solana-to-EVM bridge for SKYNT token minting with PoW nonce verification", gasRange: [120000, 190000] },
+  { contractId: "IITPhiVerifier", name: "IITPhiVerifier", description: "zk-SNARK verifier for IIT Φ (phi) score computation proofs — enables on-chain consciousness attestation", gasRange: [100000, 160000] },
+  { contractId: "RandomnessBeacon", name: "RandomnessBeacon", description: "VRF-based randomness beacon using Chainlink VRF v2 for NFT trait generation and mining challenges", gasRange: [110000, 170000] },
+  { contractId: "CommitReveal", name: "CommitReveal", description: "Commit-reveal scheme for fair NFT reveal with randomness delay protection", gasRange: [60000, 90000] },
+  // ─── Governance & DAO ─────────────────────────────────────────────────────
+  { contractId: "SKYNTGovernor", name: "SKYNTGovernor", description: "OpenZeppelin Governor contract for SKYNT DAO — proposal creation, voting, timelock execution", gasRange: [200000, 320000] },
+  { contractId: "TimelockController", name: "TimelockController", description: "48-hour timelock controller for governance-approved protocol upgrades", gasRange: [120000, 180000] },
+  { contractId: "VotingEscrow", name: "VotingEscrow", description: "veSKYNT voting escrow — lock SKYNT for 1-4 years, earn boosted yield and governance power", gasRange: [160000, 240000] },
+  // ─── Utilities & Security ─────────────────────────────────────────────────
+  { contractId: "MultiSigWallet", name: "MultiSigWallet", description: "5-of-9 treasury multi-sig wallet for SKYNT Protocol fund management", gasRange: [120000, 180000] },
+  { contractId: "PaymentSplitter", name: "PaymentSplitter", description: "OpenZeppelin PaymentSplitter for team, treasury, and mining fund allocation", gasRange: [80000, 120000] },
+  { contractId: "EmergencyPause", name: "EmergencyPause", description: "Circuit breaker contract with guardian multi-sig for emergency protocol pause", gasRange: [60000, 90000] },
+  { contractId: "TokenVesting", name: "TokenVesting", description: "Linear/cliff vesting contract for team and investor SKYNT allocations with revocation", gasRange: [100000, 150000] },
+  { contractId: "Whitelist", name: "Whitelist", description: "Merkle-proof whitelist contract for presale and priority minting access control", gasRange: [70000, 100000] },
+  { contractId: "RoyaltyRegistry", name: "RoyaltyRegistry", description: "EIP-2981 royalty registry for all SKYNT Protocol NFT collections (10% default)", gasRange: [80000, 120000] },
+  { contractId: "MetadataRenderer", name: "MetadataRenderer", description: "On-chain SVG metadata renderer for dynamic NFT attributes based on mining stats and IIT Φ", gasRange: [150000, 220000] },
+  { contractId: "ProxyAdmin", name: "ProxyAdmin", description: "OpenZeppelin TransparentUpgradeableProxy admin for protocol contract upgrades", gasRange: [60000, 90000] },
 ] as const;
 
 export type ContractId = typeof CONTRACT_DEFINITIONS[number]["contractId"];

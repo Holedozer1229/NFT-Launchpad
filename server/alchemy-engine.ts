@@ -1,6 +1,7 @@
 import { Alchemy, Network, Utils, Wallet, Contract } from "alchemy-sdk";
 
-const SKYNT_CONTRACT_ADDRESS = process.env.SKYNT_CONTRACT_ADDRESS || "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20";
+const SKYNT_CONTRACT_ADDRESS = process.env.SKYNT_CONTRACT_ADDRESS || "0xfbc620cc04cc73bf443981b1d9f99a03fd5de38d";
+const SKYNT_MINING_CONTRACT_ADDRESS = process.env.SKYNT_MINING_CONTRACT_ADDRESS || "";
 const TREASURY_WALLET = process.env.TREASURY_WALLET_ADDRESS || "0x7Fbe68677e63272ECB55355a6778fCee974d4895";
 
 let _alchemy: Alchemy | null = null;

@@ -18,6 +18,7 @@ import { STARSHIP_FLIGHT_SHOWCASES } from "@shared/schema";
 import { MERGE_MINING_CHAINS, STX_LENDING_TIERS, type MergeMiningChainId, type StxLendingTierId } from "@shared/schema";
 import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
 import * as liveChain from "./live-chain";
+import { dysonMiner } from "./dyson-sphere-miner";
 
 // Toy Hamiltonian constant
 const DEFAULT_COUPLING = 1.0;
@@ -3225,6 +3226,37 @@ STYLE:
 
   app.get("/api/berry-phase/tunnels", (_req, res) => {
     res.json(getActiveTunnels());
+  });
+
+  // ─── Dyson Sphere Miner API ─────────────────────────────────────────────────
+  app.get("/api/dyson/state", (_req, res) => {
+    try {
+      res.json(dysonMiner.getState());
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/dyson/candidates", (req, res) => {
+    try {
+      const seed = String(req.query.seed || "skynt-protocol");
+      const n = Math.min(30, Math.max(1, parseInt(String(req.query.n || "20"))));
+      const candidates = dysonMiner.generateValknutCandidates(seed, n);
+      res.json(candidates);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/dyson/mine", (req, res) => {
+    try {
+      const blockData = String(req.body?.blockData || `skynt:${Date.now()}`);
+      const maxAttempts = Math.min(10000, Math.max(100, parseInt(String(req.body?.maxAttempts || "5000"))));
+      const result = dysonMiner.mine(blockData, maxAttempts);
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
 
   app.use((err: any, _req: any, res: any, _next: any) => {
