@@ -1,4 +1,4 @@
-import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, marketplaceListings, powChallenges, powSubmissions, zkWormholes, zkWormholeTransfers, rarityCertificates, rocketBabeModels, type RarityCertificate, type InsertRarityCertificate, type ZkWormhole, type InsertZkWormhole, type ZkWormholeTransfer, type InsertZkWormholeTransfer, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing, type PowChallenge, type InsertPowChallenge, type PowSubmission, type InsertPowSubmission, type RocketBabeModel, type InsertRocketBabeModel } from "@shared/schema";
+import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, marketplaceListings, powChallenges, powSubmissions, zkWormholes, zkWormholeTransfers, rarityCertificates, rocketBabeModels, airdrops, airdropClaims, type RarityCertificate, type InsertRarityCertificate, type ZkWormhole, type InsertZkWormhole, type ZkWormholeTransfer, type InsertZkWormholeTransfer, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing, type PowChallenge, type InsertPowChallenge, type PowSubmission, type InsertPowSubmission, type RocketBabeModel, type InsertRocketBabeModel, type Airdrop, type InsertAirdrop, type AirdropClaim, type InsertAirdropClaim } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -101,6 +101,15 @@ export interface IStorage {
   updateModel(id: number, updates: Partial<InsertRocketBabeModel>): Promise<RocketBabeModel | undefined>;
   getApprovedModels(): Promise<RocketBabeModel[]>;
   getAllModels(): Promise<RocketBabeModel[]>;
+
+  getAirdrops(): Promise<Airdrop[]>;
+  getAirdrop(id: number): Promise<Airdrop | undefined>;
+  createAirdrop(airdrop: InsertAirdrop): Promise<Airdrop>;
+  updateAirdropStatus(id: number, status: string): Promise<void>;
+  incrementAirdropClaimed(id: number): Promise<void>;
+  getUserAirdropClaim(airdropId: number, userId: number): Promise<AirdropClaim | undefined>;
+  createAirdropClaim(claim: InsertAirdropClaim): Promise<AirdropClaim>;
+  getAirdropClaims(airdropId: number): Promise<AirdropClaim[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -606,6 +615,48 @@ export class DatabaseStorage implements IStorage {
   async getAllModels(): Promise<RocketBabeModel[]> {
     return await db.select().from(rocketBabeModels)
       .orderBy(desc(rocketBabeModels.createdAt));
+  }
+
+  async getAirdrops(): Promise<Airdrop[]> {
+    return await db.select().from(airdrops).orderBy(desc(airdrops.createdAt));
+  }
+
+  async getAirdrop(id: number): Promise<Airdrop | undefined> {
+    const [airdrop] = await db.select().from(airdrops).where(eq(airdrops.id, id));
+    return airdrop;
+  }
+
+  async createAirdrop(airdrop: InsertAirdrop): Promise<Airdrop> {
+    const [created] = await db.insert(airdrops).values(airdrop).returning();
+    return created;
+  }
+
+  async updateAirdropStatus(id: number, status: string): Promise<void> {
+    await db.update(airdrops).set({ status }).where(eq(airdrops.id, id));
+  }
+
+  async incrementAirdropClaimed(id: number): Promise<void> {
+    const [airdrop] = await db.select().from(airdrops).where(eq(airdrops.id, id));
+    if (airdrop) {
+      await db.update(airdrops).set({ claimedCount: airdrop.claimedCount + 1 }).where(eq(airdrops.id, id));
+    }
+  }
+
+  async getUserAirdropClaim(airdropId: number, userId: number): Promise<AirdropClaim | undefined> {
+    const [claim] = await db.select().from(airdropClaims)
+      .where(and(eq(airdropClaims.airdropId, airdropId), eq(airdropClaims.userId, userId)));
+    return claim;
+  }
+
+  async createAirdropClaim(claim: InsertAirdropClaim): Promise<AirdropClaim> {
+    const [created] = await db.insert(airdropClaims).values(claim).returning();
+    return created;
+  }
+
+  async getAirdropClaims(airdropId: number): Promise<AirdropClaim[]> {
+    return await db.select().from(airdropClaims)
+      .where(eq(airdropClaims.airdropId, airdropId))
+      .orderBy(desc(airdropClaims.claimedAt));
   }
 }
 

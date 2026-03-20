@@ -899,3 +899,41 @@ export const MODEL_TIERS = {
 } as const;
 
 export type ModelTierId = keyof typeof MODEL_TIERS;
+
+// ==================== Airdrops ====================
+
+export const airdrops = pgTable("airdrops", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  tokenAmount: text("token_amount").notNull(),
+  totalSupply: integer("total_supply").notNull(),
+  claimedCount: integer("claimed_count").notNull().default(0),
+  eligibilityType: text("eligibility_type").notNull().default("all"),
+  minSkynt: text("min_skynt").notNull().default("0"),
+  minNfts: integer("min_nfts").notNull().default(0),
+  requiredChain: text("required_chain"),
+  status: text("status").notNull().default("upcoming"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  createdBy: integer("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAirdropSchema = createInsertSchema(airdrops).omit({ id: true, claimedCount: true, createdAt: true });
+export type Airdrop = typeof airdrops.$inferSelect;
+export type InsertAirdrop = z.infer<typeof insertAirdropSchema>;
+
+export const airdropClaims = pgTable("airdrop_claims", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  airdropId: integer("airdrop_id").notNull().references(() => airdrops.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  walletAddress: text("wallet_address").notNull(),
+  amountClaimed: text("amount_claimed").notNull(),
+  txHash: text("tx_hash"),
+  claimedAt: timestamp("claimed_at").defaultNow(),
+});
+
+export const insertAirdropClaimSchema = createInsertSchema(airdropClaims).omit({ id: true, claimedAt: true });
+export type AirdropClaim = typeof airdropClaims.$inferSelect;
+export type InsertAirdropClaim = z.infer<typeof insertAirdropClaimSchema>;

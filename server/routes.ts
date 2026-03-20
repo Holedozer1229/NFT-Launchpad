@@ -3259,6 +3259,140 @@ STYLE:
     }
   });
 
+  // ─── Airdrop Routes ───────────────────────────────────────────────────────
+
+  app.get("/api/airdrops", async (req, res) => {
+    try {
+      const all = await storage.getAirdrops();
+      const now = new Date();
+      const updated = all.map(a => {
+        let status = a.status;
+        if (status !== "ended" && new Date(a.endDate) < now) status = "ended";
+        else if (status === "upcoming" && new Date(a.startDate) <= now) status = "active";
+        return { ...a, status };
+      });
+      const userId = req.user?.id;
+      if (userId) {
+        const withClaim = await Promise.all(updated.map(async (a) => {
+          const claim = await storage.getUserAirdropClaim(a.id, userId);
+          return { ...a, claimed: !!claim, claimTxHash: claim?.txHash ?? null };
+        }));
+        return res.json(withClaim);
+      }
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/airdrops/:id", async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+    try {
+      const airdrop = await storage.getAirdrop(id);
+      if (!airdrop) return res.status(404).json({ message: "Airdrop not found" });
+      const claims = await storage.getAirdropClaims(id);
+      res.json({ ...airdrop, claims });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/airdrops", async (req, res) => {
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    try {
+      const parsed = z.object({
+        title: z.string().min(1),
+        description: z.string().min(1),
+        tokenAmount: z.string(),
+        totalSupply: z.number().int().positive(),
+        eligibilityType: z.enum(["all", "holders", "miners", "stakers"]).default("all"),
+        minSkynt: z.string().default("0"),
+        minNfts: z.number().int().default(0),
+        requiredChain: z.string().nullable().optional(),
+        status: z.enum(["upcoming", "active", "ended"]).default("upcoming"),
+        startDate: z.string(),
+        endDate: z.string(),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid airdrop data", errors: parsed.error.errors });
+      const airdrop = await storage.createAirdrop({
+        ...parsed.data,
+        startDate: new Date(parsed.data.startDate),
+        endDate: new Date(parsed.data.endDate),
+        createdBy: req.user.id,
+      });
+      res.status(201).json(airdrop);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/airdrops/:id/status", async (req, res) => {
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+    const { status } = req.body;
+    if (!["upcoming", "active", "ended"].includes(status)) return res.status(400).json({ message: "Invalid status" });
+    try {
+      await storage.updateAirdropStatus(id, status);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/airdrops/:id/claim", async (req, res) => {
+    if (!req.user) return res.status(401).json({ message: "Not authenticated" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+    try {
+      const airdrop = await storage.getAirdrop(id);
+      if (!airdrop) return res.status(404).json({ message: "Airdrop not found" });
+      const now = new Date();
+      if (airdrop.status === "upcoming" && new Date(airdrop.startDate) > now) {
+        return res.status(400).json({ message: "Airdrop has not started yet" });
+      }
+      if (airdrop.status === "ended" || new Date(airdrop.endDate) < now) {
+        return res.status(400).json({ message: "Airdrop has ended" });
+      }
+      if (airdrop.claimedCount >= airdrop.totalSupply) {
+        return res.status(400).json({ message: "All tokens have been claimed" });
+      }
+      const existing = await storage.getUserAirdropClaim(id, req.user.id);
+      if (existing) return res.status(400).json({ message: "Already claimed" });
+      const wallets = await storage.getWalletsByUser(req.user.id);
+      const wallet = wallets[0];
+      const walletAddress = wallet?.address ?? req.user.walletAddress ?? "0x0000000000000000000000000000000000000000";
+      const txHash = "0x" + randomBytes(32).toString("hex");
+      const claim = await storage.createAirdropClaim({
+        airdropId: id,
+        userId: req.user.id,
+        walletAddress,
+        amountClaimed: airdrop.tokenAmount,
+        txHash,
+      });
+      await storage.incrementAirdropClaimed(id);
+      if (wallet) {
+        const current = parseFloat(wallet.balanceSkynt) || 0;
+        const reward = parseFloat(airdrop.tokenAmount) || 0;
+        await storage.updateWalletBalance(wallet.id, "SKYNT", String(current + reward));
+        await storage.createTransaction({
+          walletId: wallet.id,
+          type: "airdrop",
+          fromAddress: "SKYNT Treasury",
+          toAddress: walletAddress,
+          amount: airdrop.tokenAmount,
+          token: "SKYNT",
+          status: "completed",
+          txHash,
+        });
+      }
+      res.json({ success: true, claim, txHash });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.use((err: any, _req: any, res: any, _next: any) => {
     console.error("[Global Error Handler]", err?.message || err);
     if (!res.headersSent) {

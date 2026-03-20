@@ -34,6 +34,7 @@ const TreasuryVault = lazy(() => import("@/pages/TreasuryVault"));
 const QuantumBerryPhase = lazy(() => import("@/pages/QuantumBerryPhase"));
 const OpenClawTerminal = lazy(() => import("@/pages/OpenClawTerminal"));
 const DysonSphereMiner = lazy(() => import("@/pages/DysonSphereMiner"));
+const AirdropPage = lazy(() => import("@/pages/Airdrop"));
 const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
 const QuantumMiner = lazy(() => import("@/components/QuantumMiner").then(m => ({ default: m.QuantumMiner })));
 
@@ -128,6 +129,7 @@ function AppRouter() {
             <Route path="/rocket-babes" component={RocketBabesNFT} />
             <Route path="/openclaw" component={OpenClawTerminal} />
             <Route path="/dyson-sphere" component={DysonSphereMiner} />
+            <Route path="/airdrop" component={AirdropPage} />
             <Route path="/contracts" component={ContractDeployment} />
             <Route path="/treasury" component={TreasuryVaultGuard} />
             <Route path="/wallet" component={WalletPage} />
