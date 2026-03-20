@@ -4,6 +4,14 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
+- **Mar 2026**: **Airdrop System**
+  - `shared/schema.ts`: Added `airdrops` and `airdrop_claims` tables with full Drizzle schema/types
+  - `server/storage.ts`: Full `IStorage` interface + `DatabaseStorage` implementations for airdrop CRUD and claim tracking
+  - `server/routes.ts`: REST API — `GET /api/airdrops`, `GET /api/airdrops/:id`, `POST /api/airdrops` (admin), `PATCH /api/airdrops/:id/status` (admin), `POST /api/airdrops/:id/claim`; auto-credits SKYNT wallet and records transaction on claim
+  - `client/src/pages/Airdrop.tsx`: Full user-facing page with live/upcoming/ended sections, per-claim progress bars, one-click claim, tx hash display; seeded with 3 demo airdrops
+  - `client/src/pages/Admin.tsx`: New "Airdrops" tab with create-airdrop form (title, description, amount, supply, dates, eligibility settings) and management list with activate/end controls
+  - `client/src/components/SidebarLayout.tsx`: "Airdrop" nav entry added to EARN group with Gift icon
+  - `client/src/App.tsx`: `/airdrop` route registered
 - **Mar 2026**: **Security dependency updates & Vite package fix**
   - Updated `h3` (1.15.5→1.15.6) and `socket.io-parser` (4.2.5→4.2.6) per security scan (both resolved via transitive dependency tree)
   - Reinstalled `vite` package which had been removed from node_modules, resolving 500 errors on API routes that fell through to the Vite middleware

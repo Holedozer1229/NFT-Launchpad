@@ -3,9 +3,236 @@ import { MintTimeline } from "@/components/MintTimeline";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Settings, Download, Rocket, Activity } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Settings, Download, Rocket, Activity, Gift, Plus, Users, Coins, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { useState } from "react";
+import { format } from "date-fns";
+
+interface AirdropEntry {
+  id: number;
+  title: string;
+  description: string;
+  tokenAmount: string;
+  totalSupply: number;
+  claimedCount: number;
+  eligibilityType: string;
+  minSkynt: string;
+  minNfts: number;
+  requiredChain: string | null;
+  status: string;
+  startDate: string;
+  endDate: string;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === "active") return <Badge className="bg-neon-green/20 text-neon-green border-neon-green/40 font-mono text-[10px]">● LIVE</Badge>;
+  if (status === "upcoming") return <Badge className="bg-neon-cyan/20 text-neon-cyan border-neon-cyan/40 font-mono text-[10px]">◌ UPCOMING</Badge>;
+  return <Badge className="bg-muted/30 text-muted-foreground border-border/40 font-mono text-[10px]">✕ ENDED</Badge>;
+}
+
+function CreateAirdropForm({ onSuccess }: { onSuccess: () => void }) {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    tokenAmount: "100",
+    totalSupply: "1000",
+    eligibilityType: "all",
+    minSkynt: "0",
+    minNfts: "0",
+    requiredChain: "",
+    status: "upcoming",
+    startDate: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
+    endDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16),
+  });
+
+  const create = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/airdrops", {
+      ...form,
+      totalSupply: parseInt(form.totalSupply),
+      minNfts: parseInt(form.minNfts),
+      requiredChain: form.requiredChain || null,
+    }),
+    onSuccess: () => {
+      toast({ title: "Airdrop created!", description: "The airdrop is now live in the system." });
+      onSuccess();
+    },
+    onError: (e: any) => {
+      toast({ title: "Failed to create airdrop", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const field = (key: keyof typeof form) => ({
+    value: form[key],
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm(f => ({ ...f, [key]: e.target.value })),
+  });
+
+  return (
+    <div className="cosmic-card p-6 space-y-5" data-testid="form-create-airdrop">
+      <div>
+        <h3 className="font-heading font-bold text-base text-primary mb-1">New Airdrop</h3>
+        <p className="font-mono text-xs text-muted-foreground">Schedule a SKYNT token distribution event</p>
+      </div>
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <label className="font-mono text-xs text-muted-foreground">Title *</label>
+          <Input data-testid="input-airdrop-title" placeholder="Genesis Drop #1" {...field("title")} className="bg-black/40 border-border/50 font-mono text-sm" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="font-mono text-xs text-muted-foreground">Status</label>
+          <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+            <SelectTrigger data-testid="select-airdrop-status" className="bg-black/40 border-border/50 font-mono text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="upcoming">Upcoming</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="ended">Ended</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <label className="font-mono text-xs text-muted-foreground">Description *</label>
+        <Textarea data-testid="input-airdrop-description" placeholder="Describe the airdrop and eligibility requirements…" {...field("description")} className="bg-black/40 border-border/50 font-mono text-sm min-h-[80px]" />
+      </div>
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <label className="font-mono text-xs text-muted-foreground">SKYNT per claim</label>
+          <Input data-testid="input-airdrop-amount" type="number" min="1" placeholder="100" {...field("tokenAmount")} className="bg-black/40 border-border/50 font-mono text-sm" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="font-mono text-xs text-muted-foreground">Total claimable slots</label>
+          <Input data-testid="input-airdrop-supply" type="number" min="1" placeholder="1000" {...field("totalSupply")} className="bg-black/40 border-border/50 font-mono text-sm" />
+        </div>
+      </div>
+      <div className="grid md:grid-cols-3 gap-4">
+        <div className="space-y-1.5">
+          <label className="font-mono text-xs text-muted-foreground">Eligibility</label>
+          <Select value={form.eligibilityType} onValueChange={v => setForm(f => ({ ...f, eligibilityType: v }))}>
+            <SelectTrigger data-testid="select-airdrop-eligibility" className="bg-black/40 border-border/50 font-mono text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Open to All</SelectItem>
+              <SelectItem value="holders">NFT Holders</SelectItem>
+              <SelectItem value="miners">Miners</SelectItem>
+              <SelectItem value="stakers">Stakers</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <label className="font-mono text-xs text-muted-foreground">Min SKYNT required</label>
+          <Input data-testid="input-airdrop-minskynt" type="number" min="0" placeholder="0" {...field("minSkynt")} className="bg-black/40 border-border/50 font-mono text-sm" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="font-mono text-xs text-muted-foreground">Min NFTs required</label>
+          <Input data-testid="input-airdrop-minnfts" type="number" min="0" placeholder="0" {...field("minNfts")} className="bg-black/40 border-border/50 font-mono text-sm" />
+        </div>
+      </div>
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <label className="font-mono text-xs text-muted-foreground">Start date</label>
+          <Input data-testid="input-airdrop-start" type="datetime-local" {...field("startDate")} className="bg-black/40 border-border/50 font-mono text-sm" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="font-mono text-xs text-muted-foreground">End date</label>
+          <Input data-testid="input-airdrop-end" type="datetime-local" {...field("endDate")} className="bg-black/40 border-border/50 font-mono text-sm" />
+        </div>
+      </div>
+      <Button
+        className="w-full font-heading font-bold tracking-wider"
+        onClick={() => create.mutate()}
+        disabled={create.isPending || !form.title || !form.description}
+        data-testid="button-create-airdrop"
+      >
+        <Plus className="w-4 h-4 mr-2" />
+        {create.isPending ? "Creating…" : "Create Airdrop"}
+      </Button>
+    </div>
+  );
+}
+
+function AirdropManageList() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: airdrops = [], isLoading } = useQuery<AirdropEntry[]>({ queryKey: ["/api/airdrops"] });
+
+  const updateStatus = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) =>
+      apiRequest("PATCH", `/api/airdrops/${id}/status`, { status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/airdrops"] });
+      toast({ title: "Status updated" });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  if (isLoading) return <div className="h-24 animate-pulse bg-muted/20 rounded-lg" />;
+  if (!airdrops.length) return (
+    <div className="text-center py-10 text-muted-foreground font-mono text-xs">No airdrops yet — create one above.</div>
+  );
+
+  return (
+    <div className="space-y-3">
+      {airdrops.map(a => (
+        <div key={a.id} className="cosmic-card p-4 flex items-center gap-4" data-testid={`row-airdrop-${a.id}`}>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <StatusBadge status={a.status} />
+              <span className="font-heading font-bold text-sm text-foreground truncate">{a.title}</span>
+            </div>
+            <div className="flex items-center gap-4 font-mono text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1"><Coins className="w-3 h-3" />{a.tokenAmount} SKYNT</span>
+              <span className="flex items-center gap-1"><Users className="w-3 h-3" />{a.claimedCount}/{a.totalSupply}</span>
+              <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{format(new Date(a.endDate), "MMM d, yyyy")}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {a.status !== "active" && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-neon-green/40 text-neon-green hover:bg-neon-green/10 font-mono text-xs h-7 px-2"
+                onClick={() => updateStatus.mutate({ id: a.id, status: "active" })}
+                disabled={updateStatus.isPending}
+                data-testid={`button-activate-airdrop-${a.id}`}
+              >
+                Activate
+              </Button>
+            )}
+            {a.status !== "ended" && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-destructive/40 text-destructive hover:bg-destructive/10 font-mono text-xs h-7 px-2"
+                onClick={() => updateStatus.mutate({ id: a.id, status: "ended" })}
+                disabled={updateStatus.isPending}
+                data-testid={`button-end-airdrop-${a.id}`}
+              >
+                End
+              </Button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function Admin() {
+  const [activeTab, setActiveTab] = useState("overview");
+  const qc = useQueryClient();
+
   return (
     <div data-testid="admin-page">
       <div className="flex items-center justify-between mb-8">
@@ -26,9 +253,12 @@ export default function Admin() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-8">
-        <TabsList className="bg-muted/30 border border-border/50">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+        <TabsList className="bg-muted/30 border border-border/50 flex-wrap h-auto gap-1 p-1">
           <TabsTrigger value="overview" data-testid="tab-flight-status">Flight Status</TabsTrigger>
+          <TabsTrigger value="airdrops" data-testid="tab-airdrops">
+            <Gift className="w-3.5 h-3.5 mr-1.5" />Airdrops
+          </TabsTrigger>
           <TabsTrigger value="mint" data-testid="tab-mission-config">Mission Config</TabsTrigger>
           <TabsTrigger value="metadata" data-testid="tab-payload">Payload (Metadata)</TabsTrigger>
           <TabsTrigger value="cross-chain" data-testid="tab-mining">Mining (StarLord 2)</TabsTrigger>
@@ -66,6 +296,14 @@ export default function Admin() {
             <div className="h-full cosmic-card p-0 overflow-hidden">
               <LaunchChecklist />
             </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="airdrops" className="space-y-6">
+          <CreateAirdropForm onSuccess={() => { qc.invalidateQueries({ queryKey: ["/api/airdrops"] }); }} />
+          <div>
+            <h3 className="font-heading font-bold text-sm text-foreground mb-4 uppercase tracking-widest">All Airdrops</h3>
+            <AirdropManageList />
           </div>
         </TabsContent>
 
