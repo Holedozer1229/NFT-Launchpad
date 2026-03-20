@@ -139,15 +139,6 @@ export default function Dashboard() {
 
   const { data: miners, isLoading: minersLoading } = useQuery<MinerData[]>({
     queryKey: ["/api/miners/all"],
-    queryFn: async () => {
-      const addresses = ["miner-alpha", "miner-beta", "miner-gamma"];
-      const results = await Promise.all(
-        addresses.map(addr =>
-          fetch(`/api/miners/${addr}`).then(r => r.ok ? r.json() : null)
-        )
-      );
-      return results.filter(Boolean);
-    },
     refetchInterval: 15000,
   });
 

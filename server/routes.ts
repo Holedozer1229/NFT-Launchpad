@@ -286,6 +286,18 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/miners/all", async (_req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { miners: minersTable } = await import("@shared/schema");
+      const { desc: drizzleDesc } = await import("drizzle-orm");
+      const allMiners = await db.select().from(minersTable).orderBy(drizzleDesc(minersTable.hashRate)).limit(50);
+      res.json(allMiners);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch miners" });
+    }
+  });
+
   app.get("/api/miners/:address", async (req, res) => {
     try {
       const miner = await storage.getMiner(req.params.address);
@@ -865,6 +877,111 @@ STYLE:
       res.json({ transaction, newBalance });
     } catch (error) {
       res.status(500).json({ message: "Failed to send transaction" });
+    }
+  });
+
+  // ========== ANALYTICS ROUTES ==========
+
+  app.get("/api/analytics/stats", async (_req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { nfts, walletTransactions } = await import("@shared/schema");
+      const { sql: drizzleSql } = await import("drizzle-orm");
+
+      // Total minted
+      const [mintedRow] = await db.select({ count: drizzleSql<number>`COUNT(*)::int` }).from(nfts);
+      const totalMinted = mintedRow?.count ?? 0;
+
+      // Unique holders
+      const [holdersRow] = await db.select({ count: drizzleSql<number>`COUNT(DISTINCT owner)::int` }).from(nfts);
+      const uniqueHolders = holdersRow?.count ?? 0;
+
+      // Rarity distribution
+      const rarityRows = await db.select({
+        rarity: nfts.rarity,
+        count: drizzleSql<number>`COUNT(*)::int`,
+      }).from(nfts).groupBy(nfts.rarity);
+      const rarityColors: Record<string, string> = {
+        Common: "hsl(210 100% 55%)",
+        Uncommon: "hsl(145 100% 50%)",
+        Rare: "hsl(185 100% 50%)",
+        Epic: "hsl(300 100% 60%)",
+        Legendary: "hsl(45 100% 50%)",
+      };
+      const rarityDistribution = rarityRows.map(r => ({
+        name: r.rarity,
+        value: r.count,
+        color: rarityColors[r.rarity] ?? "hsl(220 15% 50%)",
+      }));
+
+      // Top holders
+      const holderRows = await db.select({
+        address: nfts.owner,
+        count: drizzleSql<number>`COUNT(*)::int`,
+      }).from(nfts).groupBy(nfts.owner).orderBy(drizzleSql`COUNT(*) DESC`).limit(8);
+      const topHolders = holderRows.map(h => ({
+        address: `${h.address.slice(0, 6)}...${h.address.slice(-4)}`,
+        holdings: h.count,
+        percentage: totalMinted > 0 ? parseFloat(((h.count / totalMinted) * 100).toFixed(1)) : 0,
+      }));
+
+      // Monthly mint volume (last 12 months)
+      const monthRows = await db.select({
+        month: drizzleSql<string>`TO_CHAR(mint_date::date, 'Mon')`,
+        count: drizzleSql<number>`COUNT(*)::int`,
+      }).from(nfts).groupBy(drizzleSql`TO_CHAR(mint_date::date, 'Mon'), DATE_TRUNC('month', mint_date::date)`)
+        .orderBy(drizzleSql`DATE_TRUNC('month', mint_date::date)`).limit(12);
+      const mintVolumeByMonth = monthRows.map(r => ({
+        date: r.month,
+        volume: r.count,
+        revenue: parseFloat((r.count * 0.02).toFixed(2)),
+      }));
+
+      // Daily activity (wallet transactions by day of week)
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const txRows = await db.select({
+        dow: drizzleSql<number>`EXTRACT(DOW FROM created_at)::int`,
+        type: walletTransactions.type,
+        count: drizzleSql<number>`COUNT(*)::int`,
+      }).from(walletTransactions).groupBy(drizzleSql`EXTRACT(DOW FROM created_at)`, walletTransactions.type);
+
+      const activityMap: Record<number, { rewards: number; fees: number }> = {};
+      for (let i = 0; i < 7; i++) activityMap[i] = { rewards: 0, fees: 0 };
+      txRows.forEach(r => {
+        if (r.type === "reward") activityMap[r.dow].rewards += r.count;
+        else activityMap[r.dow].fees += r.count;
+      });
+      const dailyActivity = dayNames.map((day, i) => ({
+        day,
+        mints: activityMap[i]?.rewards ?? 0,
+        transfers: activityMap[i]?.fees ?? 0,
+        burns: 0,
+      }));
+
+      // 24h volume
+      const [volRow] = await db.select({
+        total: drizzleSql<string>`COALESCE(SUM(amount::numeric), 0)::text`,
+      }).from(walletTransactions).where(drizzleSql`created_at > NOW() - INTERVAL '24 hours' AND status = 'completed'`);
+      const volume24h = parseFloat(volRow?.total ?? "0").toFixed(2);
+
+      // All-time volume
+      const [allVolRow] = await db.select({
+        total: drizzleSql<string>`COALESCE(SUM(amount::numeric), 0)::text`,
+      }).from(walletTransactions).where(drizzleSql`status = 'completed'`);
+      const allTimeVolume = parseFloat(allVolRow?.total ?? "0").toFixed(2);
+
+      res.json({
+        totalMinted,
+        uniqueHolders,
+        volume24h,
+        allTimeVolume,
+        rarityDistribution,
+        topHolders,
+        mintVolumeByMonth,
+        dailyActivity,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch analytics" });
     }
   });
 
@@ -3132,6 +3249,27 @@ STYLE:
     legendary: 1.0,
     mythic: 100,
   };
+
+  app.get("/api/rocket-babes/stats", async (_req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { nfts: nftsTable, walletTransactions } = await import("@shared/schema");
+      const { sql: drizzleSql } = await import("drizzle-orm");
+      const [mintedRow] = await db.select({ count: drizzleSql<number>`COUNT(*)::int` })
+        .from(nftsTable).where(drizzleSql`opensea_status = 'rocket-babe' OR title LIKE 'RB:%'`);
+      const [holdersRow] = await db.select({ count: drizzleSql<number>`COUNT(DISTINCT owner)::int` })
+        .from(nftsTable).where(drizzleSql`opensea_status = 'rocket-babe' OR title LIKE 'RB:%'`);
+      const [volRow] = await db.select({ total: drizzleSql<string>`COALESCE(SUM(amount::numeric), 0)::text` })
+        .from(walletTransactions).where(drizzleSql`type = 'rocket_babe_mint' AND status = 'completed'`);
+      res.json({
+        totalMinted: mintedRow?.count ?? 0,
+        totalModels: holdersRow?.count ?? 0,
+        soldVolume: parseFloat(volRow?.total ?? "0").toFixed(2),
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
 
   app.get("/api/rocket-babes/status", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });

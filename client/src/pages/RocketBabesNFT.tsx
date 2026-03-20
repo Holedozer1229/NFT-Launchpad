@@ -303,6 +303,11 @@ export default function RocketBabesNFT() {
     queryKey: ["/api/rocket-babes/status"],
   });
 
+  const { data: rbStats } = useQuery<{ totalMinted: number; totalModels: number; soldVolume: string }>({
+    queryKey: ["/api/rocket-babes/stats"],
+    refetchInterval: 60000,
+  });
+
   const { data: collection = [] } = useQuery<any[]>({
     queryKey: ["/api/rocket-babes/collection"],
   });
@@ -435,10 +440,10 @@ export default function RocketBabesNFT() {
           {/* Stats bar */}
           <div className="flex flex-wrap gap-6 mt-6">
             {[
-              { label: "Models",    value: "427",     icon: "💋", color: NEON.pink  },
-              { label: "Minted",    value: "3,841",   icon: "🔥", color: NEON.orange},
-              { label: "Sold Vol.", value: "821 ETH", icon: "💰", color: NEON.gold  },
-              { label: "Your Mints",value: String(mintCount), icon: "👑", color: NEON.cyan },
+              { label: "Models",    value: rbStats ? String(rbStats.totalModels) : "—",                          icon: "💋", color: NEON.pink  },
+              { label: "Minted",    value: rbStats ? rbStats.totalMinted.toLocaleString() : "—",                 icon: "🔥", color: NEON.orange},
+              { label: "Sold Vol.", value: rbStats ? `${parseFloat(rbStats.soldVolume).toLocaleString()} SKYNT` : "—", icon: "💰", color: NEON.gold  },
+              { label: "Your Mints",value: String(mintCount),                                                    icon: "👑", color: NEON.cyan },
             ].map(s => (
               <div key={s.label} className="flex items-center gap-2" data-testid={`stat-${s.label.toLowerCase().replace(/\s/g,"-")}`}>
                 <span className="text-base">{s.icon}</span>

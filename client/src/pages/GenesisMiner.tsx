@@ -950,7 +950,7 @@ export default function GenesisMiner() {
                         </div>
                         <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: `${chainColor}15` }}>
                           <div className="h-full rounded-full transition-all duration-1000 animate-pulse" 
-                            style={{ width: `${30 + Math.random() * 70}%`, backgroundColor: chainColor }} />
+                            style={{ width: `${Math.min(98, Math.max(5, stats.hashRate % 100))}%`, backgroundColor: chainColor }} />
                         </div>
                       </div>
                     )}
