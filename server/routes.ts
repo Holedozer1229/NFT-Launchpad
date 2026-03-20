@@ -3017,7 +3017,18 @@ STYLE:
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const result = await getWormholeStatus(req.user!.id);
-      res.json(result);
+      const wormholes = result.wormholes.map((w: any) => ({
+        id: w.wormholeId,
+        sourceChain: w.sourceChain,
+        destChain: w.destChain,
+        status: w.status,
+        totalTransferred: w.totalTransferred,
+        capacity: parseFloat(w.capacity),
+        transferCount: w.transferCount,
+        phiBoost: parseFloat(w.phiBoost),
+        zkProofHash: w.zkProofHash ?? "",
+      }));
+      res.json(wormholes);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to get wormhole status" });
     }
@@ -3039,7 +3050,18 @@ STYLE:
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const transfers = await getUserTransfers(req.user!.id);
-      res.json(transfers);
+      const mapped = transfers.map((t: any) => ({
+        id: String(t.id),
+        wormholeId: String(t.wormholeId),
+        sourceChain: t.sourceChain,
+        destChain: t.destChain,
+        amount: t.amount,
+        token: t.token,
+        status: t.status,
+        proofHash: t.zkProofHash ?? "",
+        createdAt: t.createdAt,
+      }));
+      res.json(mapped);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to get transfers" });
     }
@@ -3048,7 +3070,12 @@ STYLE:
   app.get("/api/wormhole/network", async (_req, res) => {
     try {
       const stats = getNetworkWormholeStats();
-      res.json(stats);
+      res.json({
+        totalPortals: stats.totalWormholesOpened,
+        volumeTransferred: `${stats.totalVolumeTransferred} SKYNT`,
+        activeWormholes: stats.activePortals,
+        proofsVerified: stats.totalProofsVerified,
+      });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to get network stats" });
     }
