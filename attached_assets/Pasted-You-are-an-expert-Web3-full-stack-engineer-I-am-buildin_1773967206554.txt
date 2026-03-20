@@ -1,0 +1,144 @@
+You are an expert Web3 full-stack engineer.
+
+I am building a production Ethereum dApp using my ERC20 token SKYNT at address:
+0xfbc620cc04cc73bf443981b1d9f99a03fd5de38d
+
+Fix and implement the following system end-to-end so it works on Ethereum mainnet:
+
+----------------------------------------
+GOALS
+----------------------------------------
+
+1. NFT minting must work on mainnet
+2. Wallet balances must display correctly
+3. Mining rewards must be REAL and on-chain using SKYNT (not off-chain)
+4. All blockchain interactions must use a consistent mainnet provider
+
+----------------------------------------
+REQUIREMENTS
+----------------------------------------
+
+A. SMART CONTRACT (MINING)
+
+Create a Solidity contract called SKYNTMining that:
+
+- Accepts the SKYNT token address in constructor
+- Uses ERC20 interface
+- Allows users to submit mining work via:
+    submitWork(uint256 nonce)
+
+- Uses deterministic hashing:
+    keccak256(abi.encodePacked(msg.sender, nonce, challengeNumber))
+
+- Validates difficulty:
+    require(uint256(hash) < difficulty)
+
+- Prevents duplicate solutions
+- Stores rewards in:
+    mapping(address => uint256) pendingRewards
+
+- Allows claiming:
+    claimReward()
+
+- Transfers SKYNT tokens to user on claim
+
+- Includes:
+    dynamic difficulty
+    cooldown per wallet
+    challengeNumber that updates periodically
+
+----------------------------------------
+
+B. BACKEND / FRONTEND (REPLIT)
+
+Using Node.js + ethers.js:
+
+1. CONNECT TO MAINNET
+- Use Alchemy or Infura
+- Ensure chainId = 1 everywhere
+
+2. WALLET INTEGRATION
+- Connect via MetaMask or WalletConnect
+- Force network switch to mainnet
+
+3. MINING LOOP (OFF-CHAIN)
+
+- Implement a CPU mining loop:
+    - Iterates nonce
+    - Computes keccak256(msg.sender, nonce, challengeNumber)
+    - Stops when hash < difficulty
+
+- On success:
+    call submitWork(nonce)
+
+4. REWARD FLOW
+
+- After submission:
+    - Read pendingRewards from contract
+    - Allow user to click "Claim"
+    - Call claimReward()
+
+5. BALANCE FIX
+
+- Fetch SKYNT balance using:
+    balanceOf(address)
+
+- Ensure token decimals handled correctly (18)
+
+----------------------------------------
+
+C. NFT FIX
+
+- Ensure NFT contract is deployed on mainnet
+- Use signer (not provider) for mint
+- Ensure gas estimation works
+- Add error handling for failed transactions
+
+----------------------------------------
+
+D. FUNDING REQUIREMENT
+
+- Add script to transfer SKYNT tokens into mining contract
+- Prevent claim if contract balance is insufficient
+
+----------------------------------------
+
+E. DEBUGGING + LOGGING
+
+- Log all transactions (hash, status)
+- Show clear UI errors:
+    - wrong network
+    - insufficient gas
+    - contract not funded
+
+----------------------------------------
+
+F. OUTPUT
+
+Return:
+
+1. Complete Solidity contract
+2. Deployment script
+3. Mining loop JS code
+4. Frontend interaction functions
+5. Step-by-step instructions to run on Replit
+6. Environment variable setup
+
+----------------------------------------
+
+IMPORTANT CONSTRAINTS
+
+- Do NOT use testnet
+- Everything must be mainnet-compatible
+- Do NOT simulate rewards off-chain
+- All rewards must come from smart contract
+
+----------------------------------------
+
+SUCCESS CONDITION
+
+- User can mine a valid nonce
+- Submit transaction succeeds
+- Pending rewards increase on-chain
+- Claim transfers SKYNT tokens to wallet
+- Wallet shows updated SKYNT balance
