@@ -290,6 +290,7 @@ export default function TreasuryVault() {
                       </div>
                     </div>
                   ) : (
+                  <>
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit((v) => setKeyMutation.mutate(v))} className="space-y-4">
                       <FormField
@@ -335,6 +336,7 @@ export default function TreasuryVault() {
                       <span className="text-orange-400 font-bold">TIP:</span> Set TREASURY_PRIVATE_KEY as an environment secret to auto-initialize the vault engine on every startup.
                     </p>
                   </div>
+                  </>
                   )}
                 </CardContent>
               </Card>
