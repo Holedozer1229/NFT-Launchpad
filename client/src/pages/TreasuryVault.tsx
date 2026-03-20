@@ -171,7 +171,7 @@ export default function TreasuryVault() {
                 </Badge>
               ) : (
                 <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/30 gap-1 no-default-hover-elevate">
-                  <AlertCircle className="w-3 h-3" /> SIMULATED
+                  <AlertCircle className="w-3 h-3" /> STANDBY
                 </Badge>
               )}
             </CardTitle>

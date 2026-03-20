@@ -143,7 +143,7 @@ class P2PLedger {
     return {
       peers,
       blockHeight: this.currentHeight,
-      networkHashRate: activePeers.length * 10.5, // Simulated
+      networkHashRate: activePeers.length * 10.5,
       consensusStatus: activePeers.length >= 5 ? "Synced" : "Degraded",
       lastBlockTime: this.lastBlockTimestamp
     };

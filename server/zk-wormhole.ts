@@ -1,7 +1,9 @@
 import { storage } from "./storage";
 import { createHash, randomBytes } from "crypto";
-import { ZK_WORMHOLE_CHAINS, type ZkWormholeChainId } from "@shared/schema";
+import { ZK_WORMHOLE_CHAINS, zkWormholes, zkWormholeTransfers, type ZkWormholeChainId } from "@shared/schema";
 import { qgMiner } from "./qg-miner-v8";
+import { db } from "./db";
+import { sql, eq, inArray } from "drizzle-orm";
 
 function generateWormholeId(): string {
   return "0xWH" + randomBytes(14).toString("hex");
@@ -208,20 +210,30 @@ export async function getUserTransfers(userId: number) {
   return storage.getZkWormholeTransfersByUser(userId);
 }
 
-const networkStats = {
-  totalWormholesOpened: 247,
-  totalVolumeTransferred: "1,842,506.42",
-  activePortals: 34,
-  totalProofsVerified: 1203,
-  avgTransferTime: "8.2s",
-  supportedChains: Object.keys(ZK_WORMHOLE_CHAINS).length,
-};
+export async function getNetworkWormholeStats() {
+  const [totalRow] = await db
+    .select({ count: sql<number>`COUNT(*)::int` })
+    .from(zkWormholes);
 
-export function getNetworkWormholeStats() {
-  networkStats.activePortals = 30 + Math.floor(Math.random() * 15);
-  networkStats.totalProofsVerified += Math.floor(Math.random() * 3);
+  const [activeRow] = await db
+    .select({ count: sql<number>`COUNT(*)::int` })
+    .from(zkWormholes)
+    .where(inArray(zkWormholes.status, ["open", "bridging"]));
+
+  const [completedRow] = await db
+    .select({ count: sql<number>`COUNT(*)::int` })
+    .from(zkWormholeTransfers)
+    .where(eq(zkWormholeTransfers.status, "completed"));
+
+  const [volumeRow] = await db
+    .select({ total: sql<string>`COALESCE(SUM(total_transferred::numeric), 0)::text` })
+    .from(zkWormholes);
+
   return {
-    ...networkStats,
-    chains: ZK_WORMHOLE_CHAINS,
+    totalPortals: totalRow?.count ?? 0,
+    volumeTransferred: `${parseFloat(volumeRow?.total ?? "0").toFixed(2)} SKYNT`,
+    activeWormholes: activeRow?.count ?? 0,
+    proofsVerified: completedRow?.count ?? 0,
+    supportedChains: Object.keys(ZK_WORMHOLE_CHAINS).length,
   };
 }

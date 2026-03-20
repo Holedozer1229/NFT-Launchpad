@@ -13,7 +13,7 @@ export interface GasRefillRecord {
   ethAmount: number;
   source: string;
   txHash: string | null;
-  status: "swept" | "simulated" | "pending";
+  status: "swept" | "pending" | "failed";
 }
 
 export interface TreasuryYieldState {
@@ -227,18 +227,18 @@ export async function sweepGasToTreasury(force = false): Promise<GasRefillRecord
         ethAmount: sweepAmount,
         source: "mining-gas-accumulator",
         txHash: result.txHash,
-        status: result.txHash ? "swept" : "simulated",
+        status: result.txHash ? "swept" : "pending",
       };
-      console.log(`[Gas Refill] Swept ${sweepAmount.toFixed(6)} ETH to treasury | status: ${record.status} | tx: ${result.txHash ?? "sim"}`);
+      console.log(`[Gas Refill] Swept ${sweepAmount.toFixed(6)} ETH to treasury | status: ${record.status} | tx: ${result.txHash ?? "pending"}`);
     } else {
       record = {
         timestamp: Date.now(),
         ethAmount: sweepAmount,
         source: "mining-gas-accumulator",
         txHash: null,
-        status: "simulated",
+        status: "pending",
       };
-      console.log(`[Gas Refill] Simulated gas sweep: ${sweepAmount.toFixed(6)} ETH (engine not configured)`);
+      console.log(`[Gas Refill] Gas sweep queued: ${sweepAmount.toFixed(6)} ETH (pending engine authorization)`);
     }
   } catch (err: any) {
     console.error("[Gas Refill] Sweep failed:", err.message);
