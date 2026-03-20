@@ -3,7 +3,8 @@ import { calculatePhi } from "./iit-engine";
 import { recordMintFee } from "./treasury-yield";
 import { storage } from "./storage";
 import * as liveChain from "./live-chain";
-import { transmitRewardToWallet, isEngineConfigured } from "./alchemy-engine";
+import { transmitRewardToWallet, isEngineConfigured, getTreasuryGasStatus } from "./alchemy-engine";
+import { accumulateGasFromMining, sweepGasToTreasury } from "./treasury-yield";
 
 const MINE_INTERVAL_MS = 15_000;
 const MINING_FEE_PER_CYCLE = 0.01;
@@ -270,6 +271,7 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
 
     currentBalance -= fee;
     recordMintFee(fee, "background-mine", "SKYNT", `mine-fee-${Date.now()}-${userId}`);
+    accumulateGasFromMining(fee);
 
     let totalMilestoneReward = 0;
 
@@ -453,6 +455,19 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
               timestamp: Date.now(),
               reward: netAmount,
             });
+
+            // After payout, check gas health and auto-sweep if critical
+            try {
+              const gasStatus = await getTreasuryGasStatus();
+              if (gasStatus.isCritical || !gasStatus.isHealthy) {
+                const swept = await sweepGasToTreasury(gasStatus.isCritical);
+                if (swept) {
+                  console.log(`[Gas Refill] Auto-sweep triggered: ${swept.ethAmount.toFixed(6)} ETH | ${swept.status}`);
+                }
+              }
+            } catch (gasErr: any) {
+              console.warn("[Gas Refill] Auto-sweep check failed:", gasErr.message);
+            }
           }
         }
       }

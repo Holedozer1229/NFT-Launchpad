@@ -79,6 +79,24 @@ export default function TreasuryVault() {
     },
   });
 
+  const sweepGasMutation = useMutation({
+    mutationFn: async (force: boolean) => {
+      const res = await apiRequest("POST", "/api/treasury/sweep-gas", { force });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/treasury/wallet"] });
+      toast({ title: "Gas Swept", description: data.message });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Sweep Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   useEffect(() => {
     const MMSDK = new MetaMaskSDK({
       dappMetadata: {
@@ -404,10 +422,51 @@ export default function TreasuryVault() {
                           </div>
                           {isCritical && (
                             <p className="font-mono text-[9px] text-red-400 mt-2 leading-relaxed">
-                              Send ETH to this address to restore gas funding capacity.
+                              Send ETH to this address or sweep mining pool to restore gas funding.
                             </p>
                           )}
                         </div>
+
+                        {/* Mining Gas Refill Pool */}
+                        {walletInfo?.refillPool && (
+                          <div className="p-3 rounded-lg bg-yellow-500/5 border border-yellow-500/20 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-mono text-[9px] text-yellow-400 uppercase font-bold">Mining Gas Pool</p>
+                                <p className="font-mono text-xs text-foreground font-bold mt-0.5">
+                                  {walletInfo.refillPool.poolEth.toFixed(6)} ETH accumulated
+                                </p>
+                                <p className="font-mono text-[8px] text-muted-foreground mt-0.5">
+                                  Sweep threshold: {walletInfo.refillPool.threshold} ETH
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 font-mono text-[9px] uppercase shrink-0"
+                                onClick={() => sweepGasMutation.mutate(walletInfo.refillPool!.poolEth >= walletInfo.refillPool!.threshold)}
+                                disabled={sweepGasMutation.isPending || walletInfo.refillPool.poolEth <= 0}
+                                data-testid="button-sweep-mining-gas"
+                              >
+                                {sweepGasMutation.isPending ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Fuel className="w-3 h-3 mr-1" />
+                                )}
+                                Sweep
+                              </Button>
+                            </div>
+                            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-yellow-500 rounded-full transition-all duration-700"
+                                style={{ width: `${Math.min(100, (walletInfo.refillPool.poolEth / walletInfo.refillPool.threshold) * 100)}%` }}
+                              />
+                            </div>
+                            <p className="font-mono text-[8px] text-muted-foreground">
+                              ETH auto-accumulates every mining cycle — auto-sweeps when gas is critical.
+                            </p>
+                          </div>
+                        )}
                       </>
                     );
                   })()}
@@ -415,8 +474,14 @@ export default function TreasuryVault() {
               </Card>
 
               <div className="grid grid-cols-2 gap-4">
-                <Button variant="outline" className="h-auto py-4 flex flex-col gap-2 items-center border-white/10 hover:bg-cyan-500/10 hover:text-cyan-400" data-testid="button-sweep-eth">
-                  <RefreshCw className="w-5 h-5" />
+                <Button
+                  variant="outline"
+                  className="h-auto py-4 flex flex-col gap-2 items-center border-white/10 hover:bg-cyan-500/10 hover:text-cyan-400"
+                  data-testid="button-sweep-eth"
+                  disabled={sweepGasMutation.isPending}
+                  onClick={() => sweepGasMutation.mutate(true)}
+                >
+                  {sweepGasMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
                   <span className="text-[10px] font-mono uppercase">Sweep ETH Fees</span>
                 </Button>
                 <Button variant="outline" className="h-auto py-4 flex flex-col gap-2 items-center border-white/10 hover:bg-purple-500/10 hover:text-purple-400" data-testid="button-rebalance">

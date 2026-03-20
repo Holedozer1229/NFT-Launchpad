@@ -8,6 +8,14 @@ export interface MintFeeRecord {
   txHash: string;
 }
 
+export interface GasRefillRecord {
+  timestamp: number;
+  ethAmount: number;
+  source: string;
+  txHash: string | null;
+  status: "swept" | "simulated" | "pending";
+}
+
 export interface TreasuryYieldState {
   totalMintFeesCollected: number;
   totalReinvested: number;
@@ -21,6 +29,11 @@ export interface TreasuryYieldState {
   strategyAllocations: StrategyAllocation[];
   projectedAnnualYield: number;
   phiBoostMultiplier: number;
+  gasRefillPool: number;
+  totalGasRefilled: number;
+  gasRefillHistory: GasRefillRecord[];
+  autoGasRefillEnabled: boolean;
+  gasRefillThreshold: number;
 }
 
 export interface StrategyAllocation {
@@ -58,6 +71,11 @@ const STRATEGY_NAMES: Record<string, string> = {
   "single-stake": "SKYNT Single Stake",
 };
 
+// ETH-equivalent contribution per mining cycle fee (SKYNT fee × price ratio)
+const GAS_ETH_RATIO = 0.000035; // ~0.035 gwei-equivalent per SKYNT fee
+const GAS_SWEEP_THRESHOLD = 0.002; // auto-sweep when pool hits 0.002 ETH
+const GAS_REFILL_MAX_HISTORY = 50;
+
 let state: TreasuryYieldState = {
   totalMintFeesCollected: 0,
   totalReinvested: 0,
@@ -79,6 +97,11 @@ let state: TreasuryYieldState = {
   })),
   projectedAnnualYield: 0,
   phiBoostMultiplier: 1.0,
+  gasRefillPool: 0,
+  totalGasRefilled: 0,
+  gasRefillHistory: [],
+  autoGasRefillEnabled: true,
+  gasRefillThreshold: GAS_SWEEP_THRESHOLD,
 };
 
 let compoundInterval: ReturnType<typeof setInterval> | null = null;
@@ -153,6 +176,89 @@ export function recordMintFee(amount: number, rarity: string, chain: string, txH
     (sum, a) => sum + a.apr * a.weight, 0
   );
   state.projectedAnnualYield = state.totalReinvested * (weightedAPR / 100) * state.phiBoostMultiplier;
+
+  // Contribute ETH-equivalent to gas refill pool from every fee event
+  const gasContribution = amount * GAS_ETH_RATIO;
+  state.gasRefillPool += gasContribution;
+}
+
+// Called by background-miner on every mining cycle
+export function accumulateGasFromMining(skynt_fee: number): void {
+  const eth = skynt_fee * GAS_ETH_RATIO;
+  state.gasRefillPool += eth;
+}
+
+export function getGasRefillPool(): { poolEth: number; threshold: number; autoEnabled: boolean; history: GasRefillRecord[] } {
+  return {
+    poolEth: state.gasRefillPool,
+    threshold: state.gasRefillThreshold,
+    autoEnabled: state.autoGasRefillEnabled,
+    history: [...state.gasRefillHistory],
+  };
+}
+
+// Sweeps accumulated ETH from the gas pool to the treasury wallet on-chain
+export async function sweepGasToTreasury(force = false): Promise<GasRefillRecord | null> {
+  const poolEth = state.gasRefillPool;
+  if (poolEth < GAS_SWEEP_THRESHOLD && !force) {
+    return null; // not enough accumulated yet
+  }
+  if (poolEth <= 0) return null;
+
+  const sweepAmount = poolEth;
+  state.gasRefillPool = 0;
+
+  let record: GasRefillRecord;
+
+  try {
+    const privateKey = process.env.TREASURY_PRIVATE_KEY;
+    const treasuryAddress = process.env.TREASURY_WALLET_ADDRESS;
+
+    if (privateKey && treasuryAddress && process.env.ALCHEMY_API_KEY) {
+      const { transmitRewardToWallet } = await import("./alchemy-engine");
+      const result = await transmitRewardToWallet({
+        recipientAddress: treasuryAddress,
+        amount: sweepAmount.toFixed(8),
+        chain: "ethereum",
+        token: "ETH",
+      });
+      record = {
+        timestamp: Date.now(),
+        ethAmount: sweepAmount,
+        source: "mining-gas-accumulator",
+        txHash: result.txHash,
+        status: result.txHash ? "swept" : "simulated",
+      };
+      console.log(`[Gas Refill] Swept ${sweepAmount.toFixed(6)} ETH to treasury | status: ${record.status} | tx: ${result.txHash ?? "sim"}`);
+    } else {
+      record = {
+        timestamp: Date.now(),
+        ethAmount: sweepAmount,
+        source: "mining-gas-accumulator",
+        txHash: null,
+        status: "simulated",
+      };
+      console.log(`[Gas Refill] Simulated gas sweep: ${sweepAmount.toFixed(6)} ETH (engine not configured)`);
+    }
+  } catch (err: any) {
+    console.error("[Gas Refill] Sweep failed:", err.message);
+    state.gasRefillPool += sweepAmount; // refund on failure
+    record = {
+      timestamp: Date.now(),
+      ethAmount: sweepAmount,
+      source: "mining-gas-accumulator",
+      txHash: null,
+      status: "pending",
+    };
+  }
+
+  state.totalGasRefilled += sweepAmount;
+  state.gasRefillHistory.unshift(record);
+  if (state.gasRefillHistory.length > GAS_REFILL_MAX_HISTORY) {
+    state.gasRefillHistory.pop();
+  }
+
+  return record;
 }
 
 export function getTreasuryYieldState(): TreasuryYieldState {

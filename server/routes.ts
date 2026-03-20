@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, ACCESS_TIERS, type ChainId, type RarityTier } from "@shared/schema";
 import { randomBytes, createHash } from "crypto";
 import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, getTreasuryGasStatus, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./alchemy-engine";
-import { recordMintFee, getTreasuryYieldState, startTreasuryYieldEngine } from "./treasury-yield";
+import { recordMintFee, getTreasuryYieldState, startTreasuryYieldEngine, getGasRefillPool, sweepGasToTreasury } from "./treasury-yield";
 import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception, startEngine, isEngineRunning } from "./iit-engine";
@@ -2766,12 +2766,14 @@ STYLE:
     try {
       const isConfigured = !!process.env.TREASURY_PRIVATE_KEY;
       const gasStatus = await getTreasuryGasStatus();
+      const refillPool = getGasRefillPool();
       res.json({
         address: TREASURY_WALLET,
         balance: gasStatus.ethBalance,
         isConfigured,
         skyntAddress: ENGINE_CONTRACT,
         gasStatus,
+        refillPool,
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch treasury wallet info" });
@@ -2784,9 +2786,31 @@ STYLE:
     }
     try {
       const status = await getTreasuryGasStatus();
-      res.json(status);
+      const pool = getGasRefillPool();
+      res.json({ ...status, refillPool: pool });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch gas status" });
+    }
+  });
+
+  app.post("/api/treasury/sweep-gas", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const force = req.body?.force === true;
+      const result = await sweepGasToTreasury(force);
+      if (!result) {
+        const pool = getGasRefillPool();
+        return res.status(400).json({
+          message: `Gas pool too low to sweep (${pool.poolEth.toFixed(6)} ETH). Threshold: ${pool.threshold} ETH. Keep mining to accumulate more.`,
+          poolEth: pool.poolEth,
+          threshold: pool.threshold,
+        });
+      }
+      res.json({ success: true, record: result, message: `Swept ${result.ethAmount.toFixed(6)} ETH to treasury gas tank [${result.status}]` });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Sweep failed" });
     }
   });
 
