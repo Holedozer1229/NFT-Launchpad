@@ -1,4 +1,4 @@
-import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, marketplaceListings, powChallenges, powSubmissions, zkWormholes, zkWormholeTransfers, rarityCertificates, rocketBabeModels, airdrops, airdropClaims, type RarityCertificate, type InsertRarityCertificate, type ZkWormhole, type InsertZkWormhole, type ZkWormholeTransfer, type InsertZkWormholeTransfer, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing, type PowChallenge, type InsertPowChallenge, type PowSubmission, type InsertPowSubmission, type RocketBabeModel, type InsertRocketBabeModel, type Airdrop, type InsertAirdrop, type AirdropClaim, type InsertAirdropClaim } from "@shared/schema";
+import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, marketplaceListings, powChallenges, powSubmissions, zkWormholes, zkWormholeTransfers, rarityCertificates, rocketBabeModels, airdrops, airdropClaims, kycSubmissions, type RarityCertificate, type InsertRarityCertificate, type ZkWormhole, type InsertZkWormhole, type ZkWormholeTransfer, type InsertZkWormholeTransfer, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing, type PowChallenge, type InsertPowChallenge, type PowSubmission, type InsertPowSubmission, type RocketBabeModel, type InsertRocketBabeModel, type Airdrop, type InsertAirdrop, type AirdropClaim, type InsertAirdropClaim, type KycSubmission, type InsertKycSubmission } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -110,6 +110,12 @@ export interface IStorage {
   getUserAirdropClaim(airdropId: number, userId: number): Promise<AirdropClaim | undefined>;
   createAirdropClaim(claim: InsertAirdropClaim): Promise<AirdropClaim>;
   getAirdropClaims(airdropId: number): Promise<AirdropClaim[]>;
+
+  getKycByUser(userId: number): Promise<KycSubmission | undefined>;
+  getKycById(id: number): Promise<KycSubmission | undefined>;
+  getAllKycSubmissions(): Promise<KycSubmission[]>;
+  createKycSubmission(sub: InsertKycSubmission): Promise<KycSubmission>;
+  updateKycStatus(id: number, status: string, reviewNotes: string | null, reviewedBy: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -657,6 +663,31 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(airdropClaims)
       .where(eq(airdropClaims.airdropId, airdropId))
       .orderBy(desc(airdropClaims.claimedAt));
+  }
+
+  async getKycByUser(userId: number): Promise<KycSubmission | undefined> {
+    const [row] = await db.select().from(kycSubmissions).where(eq(kycSubmissions.userId, userId));
+    return row;
+  }
+
+  async getKycById(id: number): Promise<KycSubmission | undefined> {
+    const [row] = await db.select().from(kycSubmissions).where(eq(kycSubmissions.id, id));
+    return row;
+  }
+
+  async getAllKycSubmissions(): Promise<KycSubmission[]> {
+    return await db.select().from(kycSubmissions).orderBy(desc(kycSubmissions.submittedAt));
+  }
+
+  async createKycSubmission(sub: InsertKycSubmission): Promise<KycSubmission> {
+    const [created] = await db.insert(kycSubmissions).values(sub).returning();
+    return created;
+  }
+
+  async updateKycStatus(id: number, status: string, reviewNotes: string | null, reviewedBy: number): Promise<void> {
+    await db.update(kycSubmissions)
+      .set({ status, reviewNotes, reviewedBy, reviewedAt: new Date(), updatedAt: new Date() })
+      .where(eq(kycSubmissions.id, id));
   }
 }
 

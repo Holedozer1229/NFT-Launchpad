@@ -4,6 +4,14 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
+- **Mar 2026**: **KYC (Know Your Customer) System**
+  - `shared/schema.ts`: Added `kycSubmissions` table with full user identity fields (name, DOB, nationality, country, address, ID type/number, document URLs), status workflow (`pending` → `under_review` → `approved`/`rejected`), and Drizzle schema/types
+  - `server/storage.ts`: `IStorage` interface + `DatabaseStorage` implementations for `getKycByUser`, `getKycById`, `getAllKycSubmissions`, `createKycSubmission`, `updateKycStatus`
+  - `server/routes.ts`: REST API — `GET /api/kyc/status` (user own status), `POST /api/kyc/submit` (with rate limit + re-submit after rejection), `GET /api/kyc/submissions` (admin), `PATCH /api/kyc/:id/review` (admin approve/reject/under_review with notes)
+  - `client/src/pages/KYC.tsx`: 3-step guided user flow (Personal Info → Identity Document → Document Photos), live status card after submission, re-submission support after rejection, document image preview
+  - `client/src/pages/Admin.tsx`: "KYC Review" tab with count cards per status (clickable filter), expandable submission rows, approve/reject/review controls, review notes textarea, document image viewer
+  - `client/src/components/SidebarLayout.tsx`: "KYC / ID Verify" entry added to SYSTEM group with UserCheck icon
+  - `client/src/App.tsx`: `/kyc` route registered
 - **Mar 2026**: **Airdrop System**
   - `shared/schema.ts`: Added `airdrops` and `airdrop_claims` tables with full Drizzle schema/types
   - `server/storage.ts`: Full `IStorage` interface + `DatabaseStorage` implementations for airdrop CRUD and claim tracking

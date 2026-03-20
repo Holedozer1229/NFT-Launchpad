@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Download, Rocket, Activity, Gift, Plus, Users, Coins, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { Settings, Download, Rocket, Activity, Gift, Plus, Users, Coins, CheckCircle2, Clock, XCircle, UserCheck, ShieldCheck, ShieldAlert, Loader2, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -229,6 +230,189 @@ function AirdropManageList() {
   );
 }
 
+interface KycSub {
+  id: number; userId: number; fullName: string; dateOfBirth: string;
+  nationality: string; country: string; address: string; idType: string;
+  idNumber: string; idFrontUrl: string | null; idBackUrl: string | null;
+  selfieUrl: string | null; status: string; reviewNotes: string | null;
+  submittedAt: string; reviewedAt: string | null;
+}
+
+const KYC_ID_LABELS: Record<string, string> = {
+  passport: "Passport", drivers_license: "Driver's License",
+  national_id: "National ID", residence_permit: "Residence Permit",
+};
+
+function KycReviewPanel() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [notes, setNotes] = useState<Record<number, string>>({});
+  const [filterStatus, setFilterStatus] = useState("all");
+
+  const { data: subs = [], isLoading } = useQuery<KycSub[]>({ queryKey: ["/api/kyc/submissions"] });
+
+  const reviewMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) =>
+      apiRequest("PATCH", `/api/kyc/${id}/review`, { status, reviewNotes: notes[id] ?? null }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/kyc/submissions"] });
+      toast({ title: "KYC updated" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+    pending:      { label: "Pending",      color: "text-neon-cyan",   icon: Clock },
+    under_review: { label: "Reviewing",    color: "text-neon-orange", icon: Loader2 },
+    approved:     { label: "Approved",     color: "text-neon-green",  icon: ShieldCheck },
+    rejected:     { label: "Rejected",     color: "text-plasma-red",  icon: ShieldAlert },
+  };
+
+  const filtered = filterStatus === "all" ? subs : subs.filter(s => s.status === filterStatus);
+  const counts = { pending: subs.filter(s => s.status === "pending").length, under_review: subs.filter(s => s.status === "under_review").length, approved: subs.filter(s => s.status === "approved").length, rejected: subs.filter(s => s.status === "rejected").length };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {Object.entries(counts).map(([k, v]) => {
+          const c = statusConfig[k] ?? statusConfig.pending;
+          const Icon = c.icon;
+          return (
+            <div key={k} className="cosmic-card p-4 flex items-center gap-3 cursor-pointer" onClick={() => setFilterStatus(filterStatus === k ? "all" : k)} data-testid={`card-kyc-count-${k}`}>
+              <Icon className={`w-5 h-5 ${c.color}`} />
+              <div>
+                <p className={`font-mono text-lg font-bold ${c.color}`}>{v}</p>
+                <p className="font-mono text-[10px] text-muted-foreground">{c.label}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger data-testid="select-kyc-filter" className="w-40 bg-black/40 border-border/50 font-mono text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Submissions</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="under_review">Under Review</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="font-mono text-xs text-muted-foreground">{filtered.length} submission{filtered.length !== 1 ? "s" : ""}</p>
+      </div>
+
+      {isLoading ? (
+        <div className="cosmic-card p-8 flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="cosmic-card p-8 text-center font-mono text-xs text-muted-foreground">No KYC submissions yet.</div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(s => {
+            const cfg = statusConfig[s.status] ?? statusConfig.pending;
+            const Icon = cfg.icon;
+            const isOpen = expanded === s.id;
+            return (
+              <div key={s.id} className="cosmic-card overflow-hidden" data-testid={`row-kyc-${s.id}`}>
+                <div
+                  className="p-4 flex items-center gap-4 cursor-pointer hover:bg-white/[0.02] transition-colors"
+                  onClick={() => setExpanded(isOpen ? null : s.id)}
+                >
+                  <div className={`w-8 h-8 rounded-full bg-black/40 flex items-center justify-center ${cfg.color}`}>
+                    <Icon className={`w-4 h-4 ${s.status === "under_review" ? "animate-spin" : ""}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-mono text-sm text-foreground font-bold truncate">{s.fullName}</p>
+                    <p className="font-mono text-[10px] text-muted-foreground">{s.country} • {KYC_ID_LABELS[s.idType] ?? s.idType} • Submitted {format(new Date(s.submittedAt), "MMM d, yyyy")}</p>
+                  </div>
+                  <span className={`font-mono text-[10px] font-bold ${cfg.color} hidden sm:block`}>{cfg.label}</span>
+                  {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </div>
+
+                {isOpen && (
+                  <div className="border-t border-border/30 p-4 space-y-4">
+                    <div className="grid sm:grid-cols-2 gap-3 font-mono text-xs">
+                      {[
+                        ["Full Name", s.fullName], ["Date of Birth", s.dateOfBirth],
+                        ["Nationality", s.nationality], ["Country", s.country],
+                        ["Address", s.address], ["ID Type", KYC_ID_LABELS[s.idType] ?? s.idType],
+                        ["ID Number", s.idNumber], ["Status", cfg.label],
+                        ["User ID", String(s.userId)], ["KYC ID", String(s.id)],
+                      ].map(([label, val]) => (
+                        <div key={label} className="flex justify-between py-1.5 border-b border-border/20">
+                          <span className="text-muted-foreground">{label}</span>
+                          <span className="text-foreground font-bold">{val}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {(s.idFrontUrl || s.idBackUrl || s.selfieUrl) && (
+                      <div className="grid grid-cols-3 gap-3">
+                        {[["Front", s.idFrontUrl], ["Back", s.idBackUrl], ["Selfie", s.selfieUrl]].map(([label, url]) => url ? (
+                          <div key={label} className="space-y-1">
+                            <p className="font-mono text-[10px] text-muted-foreground">{label}</p>
+                            <img src={url} alt={`${label}`} className="w-full aspect-[4/3] object-cover rounded-lg border border-border/40" />
+                          </div>
+                        ) : null)}
+                      </div>
+                    )}
+
+                    {s.reviewNotes && (
+                      <div className="p-3 rounded-lg bg-black/40 border border-border/30">
+                        <p className="font-mono text-[10px] text-muted-foreground mb-1">Previous Notes</p>
+                        <p className="font-mono text-xs text-foreground">{s.reviewNotes}</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <label className="font-mono text-xs text-muted-foreground flex items-center gap-1.5"><FileText className="w-3 h-3" />Review Notes</label>
+                      <Textarea
+                        data-testid={`textarea-kyc-notes-${s.id}`}
+                        value={notes[s.id] ?? ""}
+                        onChange={e => setNotes(n => ({ ...n, [s.id]: e.target.value }))}
+                        placeholder="Optional notes for the user…"
+                        className="bg-black/40 border-border/50 font-mono text-xs min-h-[60px]"
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm" variant="outline"
+                        className="border-neon-cyan/40 text-neon-cyan hover:bg-neon-cyan/10 font-mono text-xs"
+                        onClick={() => reviewMutation.mutate({ id: s.id, status: "under_review" })}
+                        disabled={reviewMutation.isPending || s.status === "under_review"}
+                        data-testid={`button-kyc-review-${s.id}`}
+                      >Mark Under Review</Button>
+                      <Button
+                        size="sm"
+                        className="bg-neon-green/20 hover:bg-neon-green/30 border border-neon-green/40 text-neon-green font-mono text-xs"
+                        onClick={() => reviewMutation.mutate({ id: s.id, status: "approved" })}
+                        disabled={reviewMutation.isPending || s.status === "approved"}
+                        data-testid={`button-kyc-approve-${s.id}`}
+                      >Approve</Button>
+                      <Button
+                        size="sm" variant="outline"
+                        className="border-plasma-red/40 text-plasma-red hover:bg-plasma-red/10 font-mono text-xs"
+                        onClick={() => reviewMutation.mutate({ id: s.id, status: "rejected" })}
+                        disabled={reviewMutation.isPending || s.status === "rejected"}
+                        data-testid={`button-kyc-reject-${s.id}`}
+                      >Reject</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Admin() {
   const [activeTab, setActiveTab] = useState("overview");
   const qc = useQueryClient();
@@ -258,6 +442,9 @@ export default function Admin() {
           <TabsTrigger value="overview" data-testid="tab-flight-status">Flight Status</TabsTrigger>
           <TabsTrigger value="airdrops" data-testid="tab-airdrops">
             <Gift className="w-3.5 h-3.5 mr-1.5" />Airdrops
+          </TabsTrigger>
+          <TabsTrigger value="kyc" data-testid="tab-kyc">
+            <UserCheck className="w-3.5 h-3.5 mr-1.5" />KYC Review
           </TabsTrigger>
           <TabsTrigger value="mint" data-testid="tab-mission-config">Mission Config</TabsTrigger>
           <TabsTrigger value="metadata" data-testid="tab-payload">Payload (Metadata)</TabsTrigger>
@@ -305,6 +492,10 @@ export default function Admin() {
             <h3 className="font-heading font-bold text-sm text-foreground mb-4 uppercase tracking-widest">All Airdrops</h3>
             <AirdropManageList />
           </div>
+        </TabsContent>
+
+        <TabsContent value="kyc" className="space-y-6">
+          <KycReviewPanel />
         </TabsContent>
 
         <TabsContent value="mint">

@@ -937,3 +937,44 @@ export const airdropClaims = pgTable("airdrop_claims", {
 export const insertAirdropClaimSchema = createInsertSchema(airdropClaims).omit({ id: true, claimedAt: true });
 export type AirdropClaim = typeof airdropClaims.$inferSelect;
 export type InsertAirdropClaim = z.infer<typeof insertAirdropClaimSchema>;
+
+// ==================== KYC ====================
+
+export const KYC_STATUSES = ["pending", "under_review", "approved", "rejected"] as const;
+export type KycStatus = typeof KYC_STATUSES[number];
+
+export const KYC_ID_TYPES = ["passport", "drivers_license", "national_id", "residence_permit"] as const;
+export type KycIdType = typeof KYC_ID_TYPES[number];
+
+export const kycSubmissions = pgTable("kyc_submissions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  fullName: text("full_name").notNull(),
+  dateOfBirth: text("date_of_birth").notNull(),
+  nationality: text("nationality").notNull(),
+  country: text("country").notNull(),
+  address: text("address").notNull(),
+  idType: text("id_type").notNull(),
+  idNumber: text("id_number").notNull(),
+  idFrontUrl: text("id_front_url"),
+  idBackUrl: text("id_back_url"),
+  selfieUrl: text("selfie_url"),
+  status: text("status").notNull().default("pending"),
+  reviewNotes: text("review_notes"),
+  reviewedBy: integer("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  submittedAt: timestamp("submitted_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertKycSubmissionSchema = createInsertSchema(kycSubmissions).omit({
+  id: true,
+  status: true,
+  reviewNotes: true,
+  reviewedBy: true,
+  reviewedAt: true,
+  submittedAt: true,
+  updatedAt: true,
+});
+export type KycSubmission = typeof kycSubmissions.$inferSelect;
+export type InsertKycSubmission = z.infer<typeof insertKycSubmissionSchema>;

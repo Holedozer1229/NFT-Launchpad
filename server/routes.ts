@@ -3259,6 +3259,77 @@ STYLE:
     }
   });
 
+  // ─── KYC Routes ───────────────────────────────────────────────────────────
+
+  app.get("/api/kyc/status", async (req, res) => {
+    if (!req.user) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const sub = await storage.getKycByUser(req.user.id);
+      res.json(sub ?? null);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/kyc/submit", rateLimit(60000, 3), async (req, res) => {
+    if (!req.user) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const existing = await storage.getKycByUser(req.user.id);
+      if (existing && existing.status !== "rejected") {
+        return res.status(400).json({ message: "KYC already submitted" });
+      }
+      const parsed = z.object({
+        fullName: z.string().min(2),
+        dateOfBirth: z.string().min(8),
+        nationality: z.string().min(2),
+        country: z.string().min(2),
+        address: z.string().min(5),
+        idType: z.enum(["passport", "drivers_license", "national_id", "residence_permit"]),
+        idNumber: z.string().min(3),
+        idFrontUrl: z.string().url().optional().nullable(),
+        idBackUrl: z.string().url().optional().nullable(),
+        selfieUrl: z.string().url().optional().nullable(),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+      if (existing && existing.status === "rejected") {
+        await storage.updateKycStatus(existing.id, "pending", null, 0);
+        const updated = await storage.getKycById(existing.id);
+        return res.json(updated);
+      }
+      const sub = await storage.createKycSubmission({ ...parsed.data, userId: req.user.id });
+      res.status(201).json(sub);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/kyc/submissions", async (req, res) => {
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    try {
+      const subs = await storage.getAllKycSubmissions();
+      res.json(subs);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/kyc/:id/review", async (req, res) => {
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+    const { status, reviewNotes } = req.body;
+    if (!["approved", "rejected", "under_review"].includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+    try {
+      await storage.updateKycStatus(id, status, reviewNotes ?? null, req.user.id);
+      const updated = await storage.getKycById(id);
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // ─── Airdrop Routes ───────────────────────────────────────────────────────
 
   app.get("/api/airdrops", async (req, res) => {
