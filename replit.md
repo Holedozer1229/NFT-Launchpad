@@ -4,6 +4,9 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
+- **Mar 2026**: **Security dependency updates & Vite package fix**
+  - Updated `h3` (1.15.5→1.15.6) and `socket.io-parser` (4.2.5→4.2.6) per security scan (both resolved via transitive dependency tree)
+  - Reinstalled `vite` package which had been removed from node_modules, resolving 500 errors on API routes that fell through to the Vite middleware
 - **Mar 2026**: **Mining Rewards On-Chain Transmission + OpenSea Seaport Signing + OpenClaw Terminal**
   - `server/alchemy-engine.ts`: Added `transmitRewardToWallet()` for real on-chain EVM reward payouts via Alchemy SDK (`Wallet.sendTransaction` for ETH/MATIC, `Contract.transfer` for SKYNT/ERC20), `relayToUtxoChain()` for BTC/DOGE via public RPC, `getExplorerUrl()`, `isTreasuryConfigured()`, `getOnChainBalance()`, per-chain Alchemy instances via `CHAIN_NETWORK_MAP`
   - `server/background-miner.ts`: Auto-payout now calls `transmitRewardToWallet` for real on-chain tx when Alchemy is configured, falls back gracefully to simulated hash; records actual txHash and status in wallet_transactions
