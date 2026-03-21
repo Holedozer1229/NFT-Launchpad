@@ -661,37 +661,42 @@ export default function WalletPage() {
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-neon-green shrink-0" />
                       <p className="text-xs font-heading text-neon-green uppercase tracking-wider">Transaction Broadcast</p>
+                      <span className="ml-auto text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-neon-orange/10 text-neon-orange border border-neon-orange/20">
+                        {lastSendReceipt.status}
+                      </span>
                     </div>
                     <div className="space-y-2 text-[11px] font-mono">
                       <div className="flex justify-between gap-2">
                         <span className="text-muted-foreground">Amount</span>
-                        <span className="text-foreground">{lastSendReceipt.amount} {lastSendReceipt.token}</span>
+                        <span className="text-foreground font-semibold">{lastSendReceipt.amount} {lastSendReceipt.token}</span>
                       </div>
                       <div className="flex justify-between gap-2">
                         <span className="text-muted-foreground">To</span>
-                        <span className="text-foreground truncate max-w-[160px]">{lastSendReceipt.toAddress}</span>
+                        <span className="text-foreground" data-testid="text-send-recipient">
+                          {lastSendReceipt.toAddress ? `${lastSendReceipt.toAddress.slice(0, 8)}...${lastSendReceipt.toAddress.slice(-6)}` : "—"}
+                        </span>
                       </div>
                       {lastSendReceipt.networkFee && (
                         <div className="flex justify-between gap-2">
-                          <span className="text-muted-foreground">Network Fee</span>
-                          <span className="text-neon-orange">{parseFloat(lastSendReceipt.networkFee).toFixed(8)} {lastSendReceipt.token === "ETH" ? "ETH" : lastSendReceipt.token === "STX" ? "STX" : ""}</span>
+                          <span className="text-muted-foreground">Est. Network Fee</span>
+                          <span className="text-neon-orange">
+                            {parseFloat(lastSendReceipt.networkFee).toFixed(8)} {lastSendReceipt.token === "ETH" ? "ETH" : lastSendReceipt.token === "STX" ? "STX" : ""}
+                          </span>
                         </div>
                       )}
-                      <div className="flex justify-between gap-2">
-                        <span className="text-muted-foreground">Status</span>
-                        <span className={lastSendReceipt.status === "confirmed" ? "text-neon-green" : "text-neon-orange"}>{lastSendReceipt.status}</span>
-                      </div>
                     </div>
                     {lastSendReceipt.txHash && (
-                      <div className="pt-2 border-t border-border/20 space-y-2">
+                      <div className="pt-2 border-t border-border/20 space-y-1.5">
                         <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Tx Hash</p>
                         <div className="flex items-center gap-2">
-                          <code className="flex-1 font-mono text-[10px] text-muted-foreground break-all" data-testid="text-send-txhash">{lastSendReceipt.txHash}</code>
+                          <code className="flex-1 font-mono text-[10px] text-muted-foreground" data-testid="text-send-txhash">
+                            {lastSendReceipt.txHash.slice(0, 10)}...{lastSendReceipt.txHash.slice(-8)}
+                          </code>
                           <button
                             data-testid="button-copy-txhash"
                             onClick={() => navigator.clipboard.writeText(lastSendReceipt!.txHash!)}
                             className="shrink-0 p-1.5 rounded-sm bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
-                            title="Copy hash"
+                            title="Copy full hash"
                           >
                             <Copy className="w-3 h-3" />
                           </button>
@@ -702,7 +707,7 @@ export default function WalletPage() {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="shrink-0 p-1.5 rounded-sm bg-neon-green/10 hover:bg-neon-green/20 text-neon-green transition-colors"
-                              title="View on explorer"
+                              title="View on block explorer"
                             >
                               <ExternalLink className="w-3 h-3" />
                             </a>

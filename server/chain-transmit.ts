@@ -55,16 +55,13 @@ export async function transmitEthereum(
     gasPrice,
   });
 
-  const receipt = await tx.wait();
-  const txHash: string = receipt.transactionHash;
-  const gasUsed = receipt.gasUsed;
-  const effectiveGasPrice = receipt.effectiveGasPrice ?? gasPrice;
-  const feeBN = gasUsed.mul(effectiveGasPrice);
-  const networkFee = Utils.formatEther(feeBN);
+  const txHash: string = tx.hash;
+  const estimatedFeeBN = gasPrice.mul(gasLimit);
+  const networkFee = Utils.formatEther(estimatedFeeBN);
 
   return {
     txHash,
-    status: receipt.status === 1 ? "confirmed" : "reverted",
+    status: "broadcast",
     explorerUrl: `https://etherscan.io/tx/${txHash}`,
     chain: "ethereum",
     networkFee,
@@ -249,16 +246,20 @@ export async function transmitToChain(
   _token: string
 ): Promise<ChainTransmitResult> {
   switch (chain) {
+    case "ethereum":
+    case "eth":
+      return transmitEthereum(recipientAddress, amount);
     case "solana":
       return transmitSolana(recipientAddress, amount);
     case "dogecoin":
       return transmitDogecoin(recipientAddress, amount);
     case "stacks":
+    case "stx":
       return transmitStacks(recipientAddress, amount);
     case "monero":
       return transmitMonero(recipientAddress, amount);
     case "skynt":
-      throw new Error("SphinxSkynet internal chain uses the native SphinxSkynet ledger — no external transmit needed");
+      throw new Error("SKYNT is an internal platform token — no external chain transmit needed");
     default:
       throw new Error(`Unsupported chain for live transmit: ${chain}`);
   }

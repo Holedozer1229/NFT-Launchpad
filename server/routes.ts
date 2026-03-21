@@ -860,34 +860,29 @@ STYLE:
         return res.status(400).json({ message: "Insufficient balance" });
       }
 
-      const newBalance = (currentBalance - sendAmount).toString();
-      await storage.updateWalletBalance(wallet.id, token, newBalance);
-
       let txHash: string | null = null;
       let explorerUrl: string | null = null;
       let networkFee: string | null = null;
       let status = "completed";
 
-      try {
-        if (token === "ETH") {
-          const result = await transmitEthereum(toAddress, amount);
-          txHash = result.txHash;
-          explorerUrl = result.explorerUrl;
-          networkFee = result.networkFee ?? null;
-          status = result.status;
-        } else if (token === "STX") {
-          const result = await transmitStacks(toAddress, amount);
-          txHash = result.txHash;
-          explorerUrl = result.explorerUrl;
-          networkFee = result.networkFee ?? null;
-          status = result.status;
-        } else {
-          txHash = "0x" + randomBytes(32).toString("hex");
-        }
-      } catch (transmitError: any) {
+      if (token === "ETH") {
+        const result = await transmitEthereum(toAddress, amount);
+        txHash = result.txHash;
+        explorerUrl = result.explorerUrl;
+        networkFee = result.networkFee ?? null;
+        status = result.status;
+      } else if (token === "STX") {
+        const result = await transmitStacks(toAddress, amount);
+        txHash = result.txHash;
+        explorerUrl = result.explorerUrl;
+        networkFee = result.networkFee ?? null;
+        status = result.status;
+      } else {
         txHash = "0x" + randomBytes(32).toString("hex");
-        status = "broadcast";
       }
+
+      const newBalance = (currentBalance - sendAmount).toString();
+      await storage.updateWalletBalance(wallet.id, token, newBalance);
 
       const transaction = await storage.createTransaction({
         walletId: wallet.id,
@@ -903,8 +898,9 @@ STYLE:
       });
 
       res.json({ transaction, newBalance });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to send transaction" });
+    } catch (error: any) {
+      const msg: string = error?.message ?? "Failed to send transaction";
+      res.status(500).json({ message: msg });
     }
   });
 
