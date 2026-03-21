@@ -200,6 +200,10 @@ export async function initiateTransfer(
     zkProofHash,
     guardianSigs: 0,
     txHash: null,
+    externalRecipient: externalRecipient || null,
+    onChainTxHash: null,
+    explorerUrl: null,
+    transmitStatus: externalRecipient ? "queued" : null,
   });
 
   await storage.updateZkWormholeStatus(wormhole.id, "bridging");
@@ -207,6 +211,8 @@ export async function initiateTransfer(
   const newTotal = (parseFloat(wormhole.totalTransferred) + amountNum).toFixed(6);
   const newCount = wormhole.transferCount + 1;
   await storage.updateZkWormholeStats(wormhole.id, newTotal, newCount);
+
+  const destChainForTransmit = wormhole.destChain;
 
   setTimeout(async () => {
     try {
@@ -231,6 +237,11 @@ export async function initiateTransfer(
               (destBal + boostedAmount).toFixed(6)
             );
           }
+
+          if (externalRecipient) {
+            transmitCrossChain(transfer.id, externalRecipient, netAmount.toFixed(6), token, destChainForTransmit)
+              .catch(err => console.error("[ZK-Wormhole] Transmit error:", err));
+          }
         } catch (e) {
           console.error("[ZK-Wormhole] Transfer completion error:", e);
           await storage.updateZkWormholeTransferStatus(transfer.id, "failed", undefined);
@@ -249,6 +260,7 @@ export async function initiateTransfer(
     netAmount: netAmount.toFixed(6),
     phiBoost: wormhole.phiBoost,
     zkProofHash,
+    externalRecipient: externalRecipient || null,
     estimatedCompletionMs: 8000,
   };
 }

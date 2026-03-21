@@ -66,6 +66,10 @@ interface WormholeTransfer {
   destChain: ZkWormholeChainId; amount: string; token: string;
   status: "pending" | "verified" | "completed" | "failed";
   proofHash: string; createdAt: string;
+  externalRecipient?: string | null;
+  onChainTxHash?: string | null;
+  explorerUrl?: string | null;
+  transmitStatus?: string | null;
 }
 interface RosettaStatus {
   blockchain: string; network: string; symbol: string; decimals: number;
@@ -109,6 +113,8 @@ export default function CrossChain() {
   const [transferToken, setTransferToken] = useState("SKYNT");
   const [selectedWormholeId, setSelectedWormholeId] = useState("");
   const [transferStep, setTransferStep] = useState(0);
+  const [externalRecipient, setExternalRecipient] = useState("");
+  const [lastTransferResult, setLastTransferResult] = useState<{ onChainTxHash?: string | null; explorerUrl?: string | null; transmitStatus?: string | null } | null>(null);
 
   // Queries — Bridge
   const { data: bridgeTxs = [], isLoading: txLoading } = useQuery<BridgeTx[]>({ queryKey: ["/api/bridge/transactions"], refetchInterval: 15000 });
@@ -170,13 +176,14 @@ export default function CrossChain() {
   });
 
   const initiateTransferMutation = useMutation({
-    mutationFn: async (body: { wormholeId: string; amount: string; token: string }) => {
+    mutationFn: async (body: { wormholeId: string; amount: string; token: string; externalRecipient?: string }) => {
       const res = await apiRequest("POST", "/api/wormhole/transfer", body);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/wormhole/all-transfers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/wormhole/status"] });
+      setLastTransferResult(null);
       setTransferStep(1);
       let step = 1;
       const interval = setInterval(() => {
@@ -185,7 +192,19 @@ export default function CrossChain() {
         if (step >= 4) {
           clearInterval(interval);
           haptic("transaction");
-          toast({ title: "Transfer Complete", description: "Assets successfully wormholed." });
+          const hasExternal = data?.externalRecipient;
+          toast({
+            title: hasExternal ? "Transfer + On-Chain Transmit Queued" : "Transfer Initiated",
+            description: hasExternal
+              ? `ZK proof verified. Live transmit to ${data.externalRecipient.slice(0, 10)}... is processing.`
+              : "Assets successfully wormholed.",
+          });
+          if (hasExternal) {
+            const pollInterval = setInterval(async () => {
+              await queryClient.invalidateQueries({ queryKey: ["/api/wormhole/all-transfers"] });
+            }, 4000);
+            setTimeout(() => clearInterval(pollInterval), 30000);
+          }
           setTimeout(() => setTransferStep(0), 5000);
         }
       }, 2000);
@@ -797,17 +816,43 @@ export default function CrossChain() {
                     </span>
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-heading text-muted-foreground uppercase px-1 flex items-center gap-2">
+                    <ExternalLink className="w-3 h-3 text-neon-cyan" />
+                    External Wallet Address
+                    <span className="text-[10px] text-neon-cyan/60 normal-case font-mono">(optional — receive on dest chain)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={externalRecipient}
+                    onChange={e => setExternalRecipient(e.target.value)}
+                    placeholder="0x... or native address (e.g. SOL, DOGE)"
+                    className="w-full bg-black/40 border border-neon-cyan/20 rounded-sm p-3 font-mono text-xs focus:outline-none focus:border-neon-cyan transition-colors placeholder:text-white/20"
+                    data-testid="input-external-recipient"
+                  />
+                  {externalRecipient && (
+                    <p className="text-[10px] font-mono text-neon-cyan/70 px-1 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-neon-cyan animate-pulse inline-block" />
+                      Live on-chain transmit will fire on ZK proof completion
+                    </p>
+                  )}
+                </div>
                 <Button data-testid="button-initiate-transfer"
                   onClick={() => {
                     if (!selectedWormholeId || !transferAmount || parseFloat(transferAmount) <= 0) {
                       toast({ title: "Invalid Input", description: "Select a portal and enter a valid amount.", variant: "destructive" });
                       return;
                     }
-                    initiateTransferMutation.mutate({ wormholeId: selectedWormholeId, amount: transferAmount, token: transferToken });
+                    initiateTransferMutation.mutate({
+                      wormholeId: selectedWormholeId,
+                      amount: transferAmount,
+                      token: transferToken,
+                      externalRecipient: externalRecipient.trim() || undefined,
+                    });
                   }}
                   disabled={initiateTransferMutation.isPending || !selectedWormholeId || !transferAmount}
                   className="w-full bg-neon-magenta/20 hover:bg-neon-magenta/30 text-neon-magenta border border-neon-magenta/40 font-heading tracking-widest h-12">
-                  {initiateTransferMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "INITIATE TRANSFER"}
+                  {initiateTransferMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : externalRecipient ? "INITIATE + LIVE TRANSFER" : "INITIATE TRANSFER"}
                 </Button>
               </div>
 
@@ -862,7 +907,8 @@ export default function CrossChain() {
                   <table className="w-full text-left font-mono text-xs">
                     <thead>
                       <tr className="bg-white/5 text-muted-foreground uppercase text-[10px] font-heading">
-                        <th className="p-4">Route</th><th className="p-4">Amount</th><th className="p-4">Status</th><th className="p-4">Proof Hash</th><th className="p-4">Date</th>
+                        <th className="p-4">Route</th><th className="p-4">Amount</th><th className="p-4">Status</th>
+                        <th className="p-4">On-Chain Tx</th><th className="p-4">Date</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
@@ -874,16 +920,55 @@ export default function CrossChain() {
                               <ArrowRight className="w-3 h-3 text-muted-foreground" />
                               <span className="text-white">{ZK_WORMHOLE_CHAINS[tx.destChain].name}</span>
                             </div>
+                            {tx.externalRecipient && (
+                              <div className="text-[10px] text-neon-cyan/60 mt-1 font-mono">
+                                → {tx.externalRecipient.slice(0, 14)}...
+                              </div>
+                            )}
                           </td>
                           <td className="p-4 text-neon-cyan">{tx.amount} {tx.token}</td>
-                          <td className="p-4">
+                          <td className="p-4 space-y-1">
                             <Badge className={`uppercase text-[9px] ${
                               tx.status === "completed" ? "bg-neon-green/10 text-neon-green" :
                               tx.status === "verified" ? "bg-neon-cyan/10 text-neon-cyan" :
                               tx.status === "pending" ? "bg-neon-orange/10 text-neon-orange" : "bg-red-500/10 text-red-400"
                             }`}>{tx.status}</Badge>
+                            {tx.transmitStatus && (
+                              <div>
+                                <Badge className={`uppercase text-[9px] ${
+                                  tx.transmitStatus === "confirmed" ? "bg-neon-green/10 text-neon-green" :
+                                  tx.transmitStatus === "simulated" ? "bg-neon-cyan/10 text-neon-cyan" :
+                                  tx.transmitStatus === "queued" ? "bg-neon-orange/10 text-neon-orange" :
+                                  tx.transmitStatus === "broadcast" ? "bg-blue-400/10 text-blue-400" :
+                                  "bg-white/5 text-muted-foreground"
+                                }`}>⛓ {tx.transmitStatus}</Badge>
+                              </div>
+                            )}
                           </td>
-                          <td className="p-4 text-muted-foreground opacity-60">{tx.proofHash.slice(0, 12)}...</td>
+                          <td className="p-4">
+                            {tx.onChainTxHash ? (
+                              <div className="space-y-1">
+                                <div className="text-muted-foreground opacity-70 font-mono text-[10px]">
+                                  {tx.onChainTxHash.slice(0, 14)}...
+                                </div>
+                                {tx.explorerUrl ? (
+                                  <a href={tx.explorerUrl} target="_blank" rel="noopener noreferrer"
+                                    className="text-neon-cyan text-[10px] flex items-center gap-1 hover:opacity-80 transition-opacity"
+                                    data-testid={`link-explorer-${tx.id}`}>
+                                    <ExternalLink className="w-3 h-3" /> View on Explorer
+                                  </a>
+                                ) : (
+                                  <span className="text-neon-cyan/50 text-[10px]">Simulated</span>
+                                )}
+                              </div>
+                            ) : tx.externalRecipient && tx.status !== "failed" ? (
+                              <span className="text-neon-orange/60 text-[10px] font-mono flex items-center gap-1">
+                                <Loader2 className="w-3 h-3 animate-spin" /> pending...
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/40 text-[10px] font-mono">{tx.proofHash?.slice(0, 12)}...</span>
+                            )}
+                          </td>
                           <td className="p-4 text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString()}</td>
                         </tr>
                       ))}

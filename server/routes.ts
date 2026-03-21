@@ -3240,11 +3240,11 @@ STYLE:
   app.post("/api/wormhole/transfer", rateLimit(10000, 5), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const { wormholeId, amount, token } = req.body;
+      const { wormholeId, amount, token, externalRecipient } = req.body;
       if (!wormholeId || !amount) {
         return res.status(400).json({ message: "wormholeId and amount required" });
       }
-      const result = await initiateTransfer(req.user!.id, wormholeId, amount, token || "SKYNT");
+      const result = await initiateTransfer(req.user!.id, wormholeId, amount, token || "SKYNT", externalRecipient || undefined);
       res.json(result);
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Failed to initiate transfer" });
@@ -3298,6 +3298,10 @@ STYLE:
         status: t.status,
         proofHash: t.zkProofHash ?? "",
         createdAt: t.createdAt,
+        externalRecipient: t.externalRecipient ?? null,
+        onChainTxHash: t.onChainTxHash ?? null,
+        explorerUrl: t.explorerUrl ?? null,
+        transmitStatus: t.transmitStatus ?? null,
       }));
       res.json(mapped);
     } catch (error: any) {
