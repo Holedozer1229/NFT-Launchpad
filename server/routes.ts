@@ -1474,7 +1474,7 @@ STYLE:
         status: "active",
         txHash: `skynt-stake-${Date.now()}-${req.user!.id}`,
       });
-      res.json({ position, newBalance: (currentBalance - stakeAmount).toFixed(8), message: "Staked successfully" });
+      res.status(201).json({ position, newBalance: (currentBalance - stakeAmount).toFixed(8), message: "Staked successfully" });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to stake" });
     }
@@ -1992,7 +1992,7 @@ STYLE:
       const parsed = insertGameScoreSchema.safeParse(scoreData);
       if (!parsed.success) return res.status(400).json(parsed.error);
       const score = await storage.createGameScore(parsed.data);
-      res.json({ ...score, miningFeeCharged: GAME_PLAY_FEE });
+      res.status(201).json({ ...score, miningFeeCharged: GAME_PLAY_FEE });
     } catch (error) {
       res.status(500).json({ message: "Failed to save game score" });
     }
@@ -2322,6 +2322,16 @@ STYLE:
       res.json(state || { peers: [], blockHeight: 0, networkHashRate: 0, consensusStatus: "offline", lastBlockTime: 0 });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch ledger state" });
+    }
+  });
+
+  app.get("/api/blockchain/status", (_req, res) => {
+    try {
+      const state = getLedgerState();
+      const base = state || { peers: [], blockHeight: 0, networkHashRate: 0, consensusStatus: "offline", lastBlockTime: 0 };
+      res.json({ ...base, chain: "SphinxSkynet", protocol: "IIT-PoX", version: "9.0.0" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch blockchain status" });
     }
   });
 
@@ -2692,12 +2702,12 @@ STYLE:
   app.get("/api/pow/challenge", async (_req, res) => {
     try {
       const challenge = await storage.getActivePowChallenge();
-      if (!challenge) return res.status(404).json({ message: "No active challenge" });
+      if (!challenge) return res.status(200).json({ message: "No active challenge", active: false });
 
       // Expire stale challenges lazily
       if (new Date(challenge.expiresAt) < new Date()) {
         await storage.updatePowChallengeStatus(challenge.challengeId, "expired");
-        return res.status(404).json({ message: "No active challenge" });
+        return res.status(200).json({ message: "No active challenge", active: false });
       }
 
       res.json(challenge);

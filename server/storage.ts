@@ -204,7 +204,7 @@ export class DatabaseStorage implements IStorage {
       userId,
       name,
       address,
-      balanceStx: "0",
+      balanceStx: "100",
       balanceSkynt: "1000",
       balanceEth: "0",
     }).returning();
