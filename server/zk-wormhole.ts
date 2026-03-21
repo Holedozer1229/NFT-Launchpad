@@ -5,19 +5,15 @@ import { qgMiner } from "./qg-miner-v8";
 import { db } from "./db";
 import { sql, eq, inArray } from "drizzle-orm";
 import { transmitRewardToWallet } from "./alchemy-engine";
+import { transmitToChain } from "./chain-transmit";
 
-const WORMHOLE_CHAIN_TO_ALCHEMY: Record<string, string | null> = {
+const EVM_CHAIN_MAP: Record<string, string> = {
   ethereum: "ethereum",
   polygon: "polygon",
   polygon_zkevm: "polygon",
   arbitrum: "arbitrum",
   base: "base",
   zksync: "zksync",
-  dogecoin: "doge",
-  solana: null,
-  stacks: null,
-  skynt: null,
-  monero: null,
 };
 
 const CHAIN_NATIVE_TOKEN: Record<string, string> = {
@@ -41,31 +37,37 @@ async function transmitCrossChain(
   token: string,
   destChain: string
 ): Promise<void> {
-  const alchemyChain = WORMHOLE_CHAIN_TO_ALCHEMY[destChain] ?? null;
   const resolvedToken = token === "NATIVE" ? (CHAIN_NATIVE_TOKEN[destChain] ?? token) : token;
+  const alchemyChain = EVM_CHAIN_MAP[destChain];
 
-  if (!alchemyChain) {
-    const simHash = "0x" + randomBytes(32).toString("hex");
-    console.log(`[ZK-Wormhole] Simulated transmit ${amount} ${resolvedToken} → ${recipientAddress} on ${destChain}`);
-    await storage.updateZkWormholeTransferOnChain(transferId, simHash, null, "simulated");
-    return;
+  try {
+    let txHash: string | null = null;
+    let explorerUrl: string | null = null;
+    let status: string;
+
+    if (alchemyChain) {
+      const result = await transmitRewardToWallet({
+        recipientAddress,
+        amount,
+        chain: alchemyChain,
+        token: resolvedToken,
+      });
+      txHash = result.txHash;
+      explorerUrl = result.explorerUrl;
+      status = result.status;
+    } else {
+      const result = await transmitToChain(destChain, recipientAddress, amount, resolvedToken);
+      txHash = result.txHash;
+      explorerUrl = result.explorerUrl;
+      status = result.status;
+    }
+
+    await storage.updateZkWormholeTransferOnChain(transferId, txHash, explorerUrl, status);
+    console.log(`[ZK-Wormhole] Live transmit ${amount} ${resolvedToken} → ${recipientAddress} on ${destChain} | status: ${status} | tx: ${txHash}`);
+  } catch (err: any) {
+    console.error(`[ZK-Wormhole] Transmit failed for ${destChain}:`, err.message);
+    await storage.updateZkWormholeTransferOnChain(transferId, null, null, `failed: ${err.message}`);
   }
-
-  const result = await transmitRewardToWallet({
-    recipientAddress,
-    amount,
-    chain: alchemyChain,
-    token: resolvedToken,
-  });
-
-  await storage.updateZkWormholeTransferOnChain(
-    transferId,
-    result.txHash,
-    result.explorerUrl,
-    result.status
-  );
-
-  console.log(`[ZK-Wormhole] On-chain transmit ${amount} ${resolvedToken} → ${recipientAddress} | status: ${result.status} | tx: ${result.txHash}`);
 }
 
 function generateWormholeId(): string {

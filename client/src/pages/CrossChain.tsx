@@ -933,17 +933,24 @@ export default function CrossChain() {
                               tx.status === "verified" ? "bg-neon-cyan/10 text-neon-cyan" :
                               tx.status === "pending" ? "bg-neon-orange/10 text-neon-orange" : "bg-red-500/10 text-red-400"
                             }`}>{tx.status}</Badge>
-                            {tx.transmitStatus && (
-                              <div>
-                                <Badge className={`uppercase text-[9px] ${
-                                  tx.transmitStatus === "confirmed" ? "bg-neon-green/10 text-neon-green" :
-                                  tx.transmitStatus === "simulated" ? "bg-neon-cyan/10 text-neon-cyan" :
-                                  tx.transmitStatus === "queued" ? "bg-neon-orange/10 text-neon-orange" :
-                                  tx.transmitStatus === "broadcast" ? "bg-blue-400/10 text-blue-400" :
-                                  "bg-white/5 text-muted-foreground"
-                                }`}>⛓ {tx.transmitStatus}</Badge>
-                              </div>
-                            )}
+                            {tx.transmitStatus && (() => {
+                              const s = tx.transmitStatus!;
+                              const isFailed = s.startsWith("failed:");
+                              const isConfirmed = s === "confirmed";
+                              const isBroadcast = s === "broadcast";
+                              const isQueued = s === "queued";
+                              const label = isFailed ? "⚠ failed" : `⛓ ${s}`;
+                              const cls = isConfirmed ? "bg-neon-green/10 text-neon-green" :
+                                isBroadcast ? "bg-blue-400/10 text-blue-400" :
+                                isQueued ? "bg-neon-orange/10 text-neon-orange" :
+                                isFailed ? "bg-red-500/10 text-red-400" :
+                                "bg-white/5 text-muted-foreground";
+                              return (
+                                <div title={isFailed ? s.replace("failed: ", "") : undefined}>
+                                  <Badge className={`uppercase text-[9px] ${cls}`}>{label}</Badge>
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="p-4">
                             {tx.onChainTxHash ? (

@@ -120,11 +120,6 @@ const ERC20_ABI = [
   "function balanceOf(address account) external view returns (uint256)",
 ];
 
-const BTC_RPC_ENDPOINTS: Record<string, string> = {
-  btc: "https://blockstream.info/api",
-  doge: "https://dogechain.info/api/v1",
-};
-
 const CHAIN_NETWORK_MAP: Record<string, Network> = {
   ethereum: Network.ETH_MAINNET,
   polygon: Network.MATIC_MAINNET,
@@ -234,21 +229,12 @@ export async function transmitRewardToWallet(params: {
   const privateKey = process.env.TREASURY_PRIVATE_KEY;
 
   if (!recipientAddress || !recipientAddress.startsWith("0x")) {
-    return { txHash: null, status: "invalid_address", chain, explorerUrl: null };
-  }
-
-  if (chain === "btc" || chain === "doge") {
-    return await relayToUtxoChain(chain, recipientAddress, amount);
+    throw new Error(`Invalid EVM address: "${recipientAddress}" — must start with 0x`);
   }
 
   if (!privateKey) {
-    if (process.env.NODE_ENV === "production") {
-      console.error("[RewardTransmit] TREASURY_PRIVATE_KEY missing — cannot send mainnet reward");
-      return { txHash: null, status: "missing_treasury_key", chain, explorerUrl: null };
-    }
-    const simHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
-    console.warn(`[RewardTransmit] Simulated reward ${amount} ${token} → ${recipientAddress} on ${chain}`);
-    return { txHash: simHash, status: "simulated", chain, explorerUrl: null };
+    console.error("[RewardTransmit] TREASURY_PRIVATE_KEY missing — cannot transmit on-chain");
+    throw new Error("TREASURY_PRIVATE_KEY is not configured — live on-chain transmit requires a funded treasury key");
   }
 
   // ── Self-gas check before transmitting ──────────────────────────────────────
@@ -305,54 +291,6 @@ export async function transmitRewardToWallet(params: {
       chain,
       explorerUrl: null,
     };
-  }
-}
-
-async function relayToUtxoChain(
-  chain: string,
-  address: string,
-  amount: string
-): Promise<{ txHash: string | null; status: string; chain: string; explorerUrl: string | null }> {
-  const endpoint = BTC_RPC_ENDPOINTS[chain];
-  if (!endpoint) {
-    return { txHash: null, status: "unsupported_utxo_chain", chain, explorerUrl: null };
-  }
-
-  try {
-    const response = await fetch(`${endpoint}/tx`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        recipient: address,
-        amount,
-        chain,
-        timestamp: Date.now(),
-      }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const txHash = data.txid || data.hash || null;
-      return {
-        txHash,
-        status: txHash ? "broadcast" : "queued",
-        chain,
-        explorerUrl: chain === "btc"
-          ? `https://blockstream.info/tx/${txHash}`
-          : `https://dogechain.info/tx/${txHash}`,
-      };
-    }
-
-    console.warn(`[UTXO-Relay] ${chain} RPC returned ${response.status} — reward queued for retry`);
-    return {
-      txHash: null,
-      status: "rpc_queued",
-      chain,
-      explorerUrl: null,
-    };
-  } catch (err: any) {
-    console.error(`[UTXO-Relay] ${chain} relay error:`, err.message);
-    return { txHash: null, status: "relay_error", chain, explorerUrl: null };
   }
 }
 
