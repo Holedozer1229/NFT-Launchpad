@@ -1,4 +1,4 @@
-import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, contractDeployments, gameScores, marketplaceListings, powChallenges, powSubmissions, zkWormholes, zkWormholeTransfers, rarityCertificates, rocketBabeModels, airdrops, airdropClaims, kycSubmissions, type RarityCertificate, type InsertRarityCertificate, type ZkWormhole, type InsertZkWormhole, type ZkWormholeTransfer, type InsertZkWormholeTransfer, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing, type PowChallenge, type InsertPowChallenge, type PowSubmission, type InsertPowSubmission, type RocketBabeModel, type InsertRocketBabeModel, type Airdrop, type InsertAirdrop, type AirdropClaim, type InsertAirdropClaim, type KycSubmission, type InsertKycSubmission } from "@shared/schema";
+import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, yieldPositions, contractDeployments, gameScores, marketplaceListings, powChallenges, powSubmissions, zkWormholes, zkWormholeTransfers, rarityCertificates, rocketBabeModels, airdrops, airdropClaims, kycSubmissions, type RarityCertificate, type InsertRarityCertificate, type ZkWormhole, type InsertZkWormhole, type ZkWormholeTransfer, type InsertZkWormholeTransfer, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type YieldPosition, type InsertYieldPosition, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing, type PowChallenge, type InsertPowChallenge, type PowSubmission, type InsertPowSubmission, type RocketBabeModel, type InsertRocketBabeModel, type Airdrop, type InsertAirdrop, type AirdropClaim, type InsertAirdropClaim, type KycSubmission, type InsertKycSubmission } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -693,6 +693,44 @@ export class DatabaseStorage implements IStorage {
     await db.update(kycSubmissions)
       .set({ status, reviewNotes, reviewedBy, reviewedAt: new Date(), updatedAt: new Date() })
       .where(eq(kycSubmissions.id, id));
+  }
+
+  async createYieldPosition(pos: InsertYieldPosition): Promise<YieldPosition> {
+    const [row] = await db.insert(yieldPositions).values(pos).returning();
+    return row;
+  }
+
+  async getUserYieldPositions(userId: number): Promise<YieldPosition[]> {
+    return await db.select().from(yieldPositions)
+      .where(and(eq(yieldPositions.userId, userId), eq(yieldPositions.status, "active")))
+      .orderBy(desc(yieldPositions.stakedAt));
+  }
+
+  async getYieldPosition(positionId: number): Promise<YieldPosition | undefined> {
+    const [row] = await db.select().from(yieldPositions).where(eq(yieldPositions.id, positionId));
+    return row;
+  }
+
+  async closeYieldPosition(positionId: number, finalRewards: number): Promise<void> {
+    await db.update(yieldPositions)
+      .set({ status: "closed", accruedRewards: finalRewards })
+      .where(eq(yieldPositions.id, positionId));
+  }
+
+  async updateYieldPositionRewards(positionId: number, accruedRewards: number): Promise<void> {
+    await db.update(yieldPositions)
+      .set({ accruedRewards, lastRewardAt: new Date() })
+      .where(eq(yieldPositions.id, positionId));
+  }
+
+  async compoundYieldPosition(positionId: number): Promise<YieldPosition | undefined> {
+    const pos = await this.getYieldPosition(positionId);
+    if (!pos) return undefined;
+    const [row] = await db.update(yieldPositions)
+      .set({ amountStaked: pos.amountStaked + pos.accruedRewards, accruedRewards: 0, lastRewardAt: new Date() })
+      .where(eq(yieldPositions.id, positionId))
+      .returning();
+    return row;
   }
 }
 

@@ -258,9 +258,16 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
     const difficultyTarget = BigInt("0xffffffffffffffff") / BigInt(Math.max(1, Math.floor(stats.difficulty * 20)));
     const blockFound = hashPrefix < difficultyTarget;
 
-    const simulatedNonces = 500 + Math.floor(Math.random() * 1500);
-    stats.noncesChecked += simulatedNonces;
-    stats.hashRate = Math.round(simulatedNonces / (MINE_INTERVAL_MS / 1000));
+    const hashLoopStart = Date.now();
+    let realNonces = 0;
+    while (Date.now() - hashLoopStart < 25) {
+      const nb = Buffer.alloc(4);
+      nb.writeUInt32LE(realNonces++);
+      createHash("sha256").update(Buffer.from(seed, "hex")).update(nb).update(Buffer.from(liveBlockSeed, "utf8")).digest();
+    }
+    const hashElapsed = Math.max(1, Date.now() - hashLoopStart);
+    stats.noncesChecked += realNonces;
+    stats.hashRate = Math.round(realNonces / (hashElapsed / 1000));
     stats.anchoredBlock = liveBlockNumber;
     stats.anchoredHash = liveBlockSeed.slice(0, 16);
     stats.cyclesCompleted++;

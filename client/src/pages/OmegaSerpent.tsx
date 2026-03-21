@@ -1012,7 +1012,7 @@ export default function OmegaSerpent() {
 
         {/* D-PAD — anchored bottom-right during gameplay */}
         {gameState === "playing" && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 opacity-80 hover:opacity-100 transition-opacity" data-testid="dpad-container">
+          <div className="absolute bottom-4 right-4 z-20 opacity-80 hover:opacity-100 transition-opacity" data-testid="dpad-container">
             <DPad onDir={handleDpadDir} />
           </div>
         )}

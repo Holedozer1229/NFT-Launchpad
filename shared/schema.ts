@@ -1074,3 +1074,23 @@ export const insertBtcZkEpochSchema = createInsertSchema(btcZkEpochs).omit({
 });
 export type BtcZkEpochRow = typeof btcZkEpochs.$inferSelect;
 export type InsertBtcZkEpoch = z.infer<typeof insertBtcZkEpochSchema>;
+
+export const yieldPositions = pgTable("yield_positions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  strategyId: text("strategy_id").notNull(),
+  amountStaked: real("amount_staked").notNull(),
+  accruedRewards: real("accrued_rewards").notNull().default(0),
+  stakedAt: timestamp("staked_at").defaultNow(),
+  lastRewardAt: timestamp("last_reward_at").defaultNow(),
+  status: text("status").notNull().default("active"),
+  txHash: text("tx_hash"),
+});
+
+export const insertYieldPositionSchema = createInsertSchema(yieldPositions).omit({
+  id: true,
+  stakedAt: true,
+  lastRewardAt: true,
+});
+export type YieldPosition = typeof yieldPositions.$inferSelect;
+export type InsertYieldPosition = z.infer<typeof insertYieldPositionSchema>;

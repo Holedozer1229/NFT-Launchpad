@@ -38,16 +38,7 @@ export async function mintNftViaEngine(params: {
 }> {
   const privateKey = process.env.TREASURY_PRIVATE_KEY;
   if (!privateKey) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("TREASURY_PRIVATE_KEY is required for mainnet minting");
-    }
-    const transactionId = `sim_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    console.warn("[AlchemyEngine] TREASURY_PRIVATE_KEY not set — returning simulated transaction (dev only)");
-    return {
-      transactionId,
-      txHash: `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`,
-      status: "simulated",
-    };
+    throw new Error("TREASURY_PRIVATE_KEY is not configured. Cannot execute mainnet transaction.");
   }
 
   try {

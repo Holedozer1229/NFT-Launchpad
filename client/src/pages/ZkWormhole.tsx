@@ -71,6 +71,7 @@ export default function ZkWormhole() {
   const [token, setToken] = useState("SKYNT");
   const [selectedWormholeId, setSelectedWormholeId] = useState<string>("");
   const [transferStep, setTransferStep] = useState<number>(0);
+  const [pendingTransferId, setPendingTransferId] = useState<string | null>(null);
 
   // Queries
   const { data: networkStats, isLoading: statsLoading } = useQuery<WormholeNetworkStats>({
@@ -83,7 +84,27 @@ export default function ZkWormhole() {
 
   const { data: transfers = [], isLoading: transfersLoading } = useQuery<WormholeTransfer[]>({
     queryKey: ['/api/wormhole/all-transfers'],
+    refetchInterval: pendingTransferId ? 3000 : false,
   });
+
+  useEffect(() => {
+    if (!pendingTransferId) return;
+    const tx = transfers.find((t) => t.id === pendingTransferId);
+    if (!tx) return;
+    if (tx.status === "pending") setTransferStep(1);
+    else if (tx.status === "verified") setTransferStep(2);
+    else if (tx.status === "completed") {
+      setTransferStep(3);
+      haptic("transaction");
+      toast({ title: "Transfer Complete", description: "Assets have been successfully wormholed." });
+      setPendingTransferId(null);
+      setTimeout(() => setTransferStep(0), 5000);
+    } else if (tx.status === "failed") {
+      setTransferStep(0);
+      toast({ title: "Transfer Failed", description: "The wormhole transfer could not be completed.", variant: "destructive" });
+      setPendingTransferId(null);
+    }
+  }, [transfers, pendingTransferId]);
 
   // Mutations
   const openWormholeMutation = useMutation({
@@ -121,22 +142,13 @@ export default function ZkWormhole() {
       const res = await apiRequest("POST", "/api/wormhole/transfer", body);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/wormhole/all-transfers'] });
       queryClient.invalidateQueries({ queryKey: ['/api/wormhole/status'] });
       setTransferStep(1);
-      // Simulate pipeline progress
-      let step = 1;
-      const interval = setInterval(() => {
-        step += 1;
-        setTransferStep(step);
-        if (step >= 4) {
-          clearInterval(interval);
-          haptic("transaction");
-          toast({ title: "Transfer Complete", description: "Assets have been successfully wormholed." });
-          setTimeout(() => setTransferStep(0), 5000);
-        }
-      }, 2000);
+      if (data?.transfer?.id) {
+        setPendingTransferId(data.transfer.id);
+      }
     },
     onError: (error) => {
       toast({ title: "Transfer Failed", description: error.message, variant: "destructive" });

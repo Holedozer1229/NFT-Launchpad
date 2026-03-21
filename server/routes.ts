@@ -1422,6 +1422,120 @@ STYLE:
     }
   });
 
+  app.get("/api/yield/positions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const wallets = await storage.getWalletsByUser(req.user!.id);
+      const wallet = wallets[0];
+      const positions = await storage.getUserYieldPositions(req.user!.id);
+      const strategies = await storage.getYieldStrategies();
+      const now = Date.now();
+      const enriched = positions.map((pos) => {
+        const strategy = strategies.find((s) => s.strategyId === pos.strategyId);
+        const apr = strategy ? parseFloat(strategy.apr) : 0;
+        const elapsedYears = (now - new Date(pos.lastRewardAt!).getTime()) / (1000 * 60 * 60 * 24 * 365);
+        const newRewards = pos.amountStaked * (apr / 100) * elapsedYears;
+        const totalAccrued = pos.accruedRewards + newRewards;
+        return { ...pos, liveAccruedRewards: totalAccrued, strategyName: strategy?.name ?? pos.strategyId, apr, color: strategy?.color ?? "cyan" };
+      });
+      res.json({ positions: enriched, walletBalance: wallet?.balanceSkynt ?? "0" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch yield positions" });
+    }
+  });
+
+  app.post("/api/yield/stake", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { strategyId, amount } = req.body;
+      if (!strategyId || !amount || parseFloat(amount) <= 0) {
+        return res.status(400).json({ message: "strategyId and positive amount required" });
+      }
+      const stakeAmount = parseFloat(amount);
+      const wallets = await storage.getWalletsByUser(req.user!.id);
+      const wallet = wallets[0];
+      if (!wallet) return res.status(400).json({ message: "No wallet found" });
+      const currentBalance = parseFloat(wallet.balanceSkynt);
+      if (currentBalance < stakeAmount) {
+        return res.status(400).json({ message: "Insufficient SKYNT balance" });
+      }
+      const strategies = await storage.getYieldStrategies();
+      const strategy = strategies.find((s) => s.strategyId === strategyId);
+      if (!strategy) return res.status(400).json({ message: "Strategy not found" });
+      await storage.updateWalletBalance(wallet.id, "SKYNT", (currentBalance - stakeAmount).toFixed(8));
+      const newTotal = (parseFloat(strategy.totalStaked) + stakeAmount).toFixed(8);
+      const newTvl = (parseFloat(strategy.tvl) + stakeAmount).toFixed(8);
+      await storage.updateYieldStrategy(strategyId, newTvl, newTotal);
+      const position = await storage.createYieldPosition({
+        userId: req.user!.id,
+        strategyId,
+        amountStaked: stakeAmount,
+        accruedRewards: 0,
+        status: "active",
+        txHash: `skynt-stake-${Date.now()}-${req.user!.id}`,
+      });
+      res.json({ position, newBalance: (currentBalance - stakeAmount).toFixed(8), message: "Staked successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to stake" });
+    }
+  });
+
+  app.post("/api/yield/unstake/:positionId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const positionId = parseInt(req.params.positionId);
+      const pos = await storage.getYieldPosition(positionId);
+      if (!pos) return res.status(404).json({ message: "Position not found" });
+      if (pos.userId !== req.user!.id) return res.status(403).json({ message: "Unauthorized" });
+      if (pos.status !== "active") return res.status(400).json({ message: "Position is not active" });
+      const strategies = await storage.getYieldStrategies();
+      const strategy = strategies.find((s) => s.strategyId === pos.strategyId);
+      const apr = strategy ? parseFloat(strategy.apr) : 0;
+      const elapsedYears = (Date.now() - new Date(pos.lastRewardAt!).getTime()) / (1000 * 60 * 60 * 24 * 365);
+      const newRewards = pos.amountStaked * (apr / 100) * elapsedYears;
+      const totalRewards = pos.accruedRewards + newRewards;
+      const totalReturn = pos.amountStaked + totalRewards;
+      await storage.closeYieldPosition(positionId, totalRewards);
+      if (strategy) {
+        const newTotal = Math.max(0, parseFloat(strategy.totalStaked) - pos.amountStaked).toFixed(8);
+        const newTvl = Math.max(0, parseFloat(strategy.tvl) - pos.amountStaked).toFixed(8);
+        await storage.updateYieldStrategy(pos.strategyId, newTvl, newTotal);
+      }
+      const wallets = await storage.getWalletsByUser(req.user!.id);
+      const wallet = wallets[0];
+      if (wallet) {
+        const current = parseFloat(wallet.balanceSkynt);
+        await storage.updateWalletBalance(wallet.id, "SKYNT", (current + totalReturn).toFixed(8));
+      }
+      res.json({ totalRewards, totalReturn, message: "Unstaked successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to unstake" });
+    }
+  });
+
+  app.post("/api/yield/compound/:positionId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const positionId = parseInt(req.params.positionId);
+      const pos = await storage.getYieldPosition(positionId);
+      if (!pos) return res.status(404).json({ message: "Position not found" });
+      if (pos.userId !== req.user!.id) return res.status(403).json({ message: "Unauthorized" });
+      if (pos.status !== "active") return res.status(400).json({ message: "Position is not active" });
+      if (pos.accruedRewards <= 0) {
+        const strategies = await storage.getYieldStrategies();
+        const strategy = strategies.find((s) => s.strategyId === pos.strategyId);
+        const apr = strategy ? parseFloat(strategy.apr) : 0;
+        const elapsedYears = (Date.now() - new Date(pos.lastRewardAt!).getTime()) / (1000 * 60 * 60 * 24 * 365);
+        const newRewards = pos.amountStaked * (apr / 100) * elapsedYears;
+        await storage.updateYieldPositionRewards(positionId, newRewards);
+      }
+      const updated = await storage.compoundYieldPosition(positionId);
+      res.json({ position: updated, message: "Rewards compounded into stake" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to compound" });
+    }
+  });
+
   // ========== PRICE FEED ROUTES ==========
 
   let priceCache: { data: any; timestamp: number } | null = null;

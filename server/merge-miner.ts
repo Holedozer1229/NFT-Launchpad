@@ -113,10 +113,17 @@ async function runMergeMiningCycle(userId: number, chainId: MergeMiningChainId) 
       }
     } catch {}
 
-    const simulatedHashes = 1000 + Math.floor(Math.random() * 5000);
-    stats.hashRate = Math.round(simulatedHashes / (MINE_INTERVAL_MS / 1000));
-
     const seed = randomBytes(32).toString("hex") + liveAnchorHash;
+
+    const hashLoopStart = Date.now();
+    let realHashes = 0;
+    while (Date.now() - hashLoopStart < 15) {
+      const nb = Buffer.alloc(4);
+      nb.writeUInt32LE(realHashes++);
+      createHash("sha256").update(Buffer.from(seed.slice(0, 32), "utf8")).update(nb).digest();
+    }
+    const hashElapsed = Math.max(1, Date.now() - hashLoopStart);
+    stats.hashRate = Math.round(realHashes / (hashElapsed / 1000));
     const nonce = Math.floor(Math.random() * 0xffffffff);
     
     let blockFound = false;

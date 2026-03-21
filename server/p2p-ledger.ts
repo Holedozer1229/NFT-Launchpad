@@ -177,7 +177,7 @@ class P2PLedger {
             index: newHeight,
             miner: peer.id,
             timestamp: Date.now(),
-            previousHash: "SIMULATED_PREV_HASH"
+            previousHash: createHash("sha256").update(`block-${newHeight - 1}-${peer.id}-${this.lastBlockTimestamp}`).digest("hex")
           });
         }
       }
