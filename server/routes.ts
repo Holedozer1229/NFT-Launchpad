@@ -52,10 +52,10 @@ import {
 import { rosettaRouter } from "./rosetta/routes";
 
 function safeError(error: unknown, fallback: string): string {
-  if (process.env.NODE_ENV !== "production" && error instanceof Error) {
-    return error.message;
+  if (process.env.NODE_ENV === "production") {
+    return "Internal server error";
   }
-  return fallback;
+  return error instanceof Error ? error.message : fallback;
 }
 
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
