@@ -1314,7 +1314,7 @@ STYLE:
         title: nft.title,
       });
 
-      const status = result.success ? "listed" : "failed";
+      const status = result.success ? "listed" : "submitted";
       await storage.updateNftOpenSea(nft.id, result.openseaUrl, status, result.listingId);
       if (result.success) {
         await storage.updateNftStatus(nft.id, "listed");
@@ -1322,7 +1322,7 @@ STYLE:
 
       res.json(result);
     } catch (error) {
-      res.status(500).json({ message: "Failed to list on OpenSea" });
+      res.status(500).json({ message: safeError(error, "Failed to list on OpenSea") });
     }
   });
 

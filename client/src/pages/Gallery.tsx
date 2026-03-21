@@ -110,7 +110,10 @@ export default function Gallery() {
   const ITEMS_PER_PAGE = 12;
 
   const listableNfts = nfts.filter(
-    (nft) => nft.status === "minted" && !nft.openseaUrl && OPENSEA_SUPPORTED.has(nft.chain)
+    (nft) =>
+      OPENSEA_SUPPORTED.has(nft.chain) &&
+      nft.status !== "listed" &&
+      (nft.openseaStatus === null || nft.openseaStatus === "pending" || nft.openseaStatus === "submitted" || nft.openseaStatus === "error")
   );
 
   const listedNfts = nfts.filter((nft) => nft.openseaUrl || nft.status === "listed");

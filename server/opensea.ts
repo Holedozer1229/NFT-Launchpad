@@ -327,10 +327,6 @@ async function signSeaportOrder(
     ],
   };
 
-  const orderHash = createHash("sha256")
-    .update(JSON.stringify(orderParameters))
-    .digest("hex");
-
   const value = {
     offerer: orderParameters.offerer,
     zone: orderParameters.zone,
@@ -339,7 +335,7 @@ async function signSeaportOrder(
     orderType: orderParameters.orderType,
     startTime: orderParameters.startTime,
     endTime: orderParameters.endTime,
-    zoneHash: "0x0000000000000000000000000000000000000000000000000000000000000000",
+    zoneHash: orderParameters.zoneHash,
     salt: orderParameters.salt,
     conduitKey: orderParameters.conduitKey,
     counter: "0",
