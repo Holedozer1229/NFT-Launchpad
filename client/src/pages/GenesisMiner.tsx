@@ -376,11 +376,12 @@ export default function GenesisMiner() {
     const isActive = backgroundMiningStatus?.isActive ?? null;
     if (isActive === null) return;
     const wasStarted = localStorage.getItem("skynt_mining_started") === "1";
-    if (wasStarted && prevMiningActiveRef.current === true && isActive === false) {
+    if (wasStarted && isActive === false) {
       setSessionLost(true);
-      addNotification("mining", "Mining session interrupted — server restarted", NEON_COLORS.orange);
-    }
-    if (isActive === true) {
+      if (prevMiningActiveRef.current === true) {
+        addNotification("mining", "Mining session interrupted — server restarted", NEON_COLORS.orange);
+      }
+    } else if (isActive === true) {
       setSessionLost(false);
     }
     prevMiningActiveRef.current = isActive;
@@ -611,16 +612,26 @@ export default function GenesisMiner() {
             <p className="text-sm font-heading" style={{ color: NEON_COLORS.orange }}>Mining session interrupted</p>
             <p className="text-xs font-mono text-muted-foreground">The server restarted and your session was cleared. Restart to resume earning SKYNT.</p>
           </div>
-          <Button
-            size="sm"
-            onClick={() => restartMiningMutation.mutate()}
-            disabled={restartMiningMutation.isPending}
-            data-testid="button-restart-mining"
-            className="shrink-0 font-heading text-xs tracking-wider"
-            style={{ backgroundColor: `${NEON_COLORS.orange}25`, border: `1px solid ${NEON_COLORS.orange}50`, color: NEON_COLORS.orange }}
-          >
-            {restartMiningMutation.isPending ? <><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Restarting...</> : <><Power className="w-3.5 h-3.5 mr-1.5" /> Restart Mining</>}
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              onClick={() => restartMiningMutation.mutate()}
+              disabled={restartMiningMutation.isPending}
+              data-testid="button-restart-mining"
+              className="font-heading text-xs tracking-wider"
+              style={{ backgroundColor: `${NEON_COLORS.orange}25`, border: `1px solid ${NEON_COLORS.orange}50`, color: NEON_COLORS.orange }}
+            >
+              {restartMiningMutation.isPending ? <><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Restarting...</> : <><Power className="w-3.5 h-3.5 mr-1.5" /> Restart Mining</>}
+            </Button>
+            <button
+              data-testid="button-dismiss-session-lost"
+              onClick={() => { localStorage.removeItem("skynt_mining_started"); setSessionLost(false); }}
+              className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              title="Dismiss"
+            >
+              ×
+            </button>
+          </div>
         </div>
       )}
 
