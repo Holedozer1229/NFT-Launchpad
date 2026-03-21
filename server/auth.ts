@@ -98,7 +98,7 @@ export function jwtAuthMiddleware(req: Request, res: Response, next: NextFunctio
     return next();
   }
 
-  storage.getUser(payload.sub as number).then((user) => {
+  storage.getUser(Number(payload.sub)).then((user) => {
     if (user) {
       (req as any).user = user;
       (req as any).isAuthenticated = () => true;
@@ -494,8 +494,9 @@ export function setupAuth(app: Express) {
       }
 
       if (req.isAuthenticated() && req.user) {
+        const authedUser = req.user as User;
         const existingOwner = await storage.getUserByWalletAddress(addrStr);
-        if (existingOwner && existingOwner.id !== req.user.id) {
+        if (existingOwner && existingOwner.id !== authedUser.id) {
           const isAutoWalletAccount = existingOwner.username.startsWith("wallet_") && existingOwner.authProvider === "wallet";
           if (!isAutoWalletAccount) {
             return res.status(409).json({ message: "This wallet is already linked to another account" });
@@ -507,9 +508,9 @@ export function setupAuth(app: Express) {
 
         await db.update(users)
           .set({ walletAddress: addrStr, authNonce: null })
-          .where(eq(users.id, req.user.id));
+          .where(eq(users.id, authedUser.id));
 
-        const updatedUser = await storage.getUser(req.user.id);
+        const updatedUser = await storage.getUser(authedUser.id);
         const { password: _, mfaSecret: _ms, mfaBackupCodes: _mb, ...safeUser } = updatedUser!;
         const token = generateToken(updatedUser!);
         const refreshToken = generateRefreshToken(updatedUser!);
@@ -672,7 +673,7 @@ export function setupAuth(app: Express) {
         return res.status(401).json({ message: "Invalid or expired refresh token" });
       }
 
-      const user = await storage.getUser(payload.sub as number);
+      const user = await storage.getUser(Number(payload.sub));
       if (!user) {
         return res.status(401).json({ message: "User not found" });
       }
@@ -722,7 +723,7 @@ export function setupAuth(app: Express) {
         return res.status(401).json({ message: "Invalid or expired MFA session. Please log in again." });
       }
 
-      const user = await storage.getUser(payload.sub as number);
+      const user = await storage.getUser(Number(payload.sub));
       if (!user || !user.mfaSecret) {
         return res.status(401).json({ message: "User not found or MFA not configured" });
       }

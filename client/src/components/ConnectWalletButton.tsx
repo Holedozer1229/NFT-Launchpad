@@ -164,10 +164,10 @@ export function ConnectWalletButton({
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm font-mono text-[10px]
                   bg-white/5 border border-white/10 hover:border-primary/30 transition-colors text-foreground min-h-[32px]"
               >
-                {account.hasPendingUserOperation && (
+                {account.hasPendingTransactions && (
                   <Loader2 className="w-3 h-3 animate-spin text-primary" />
                 )}
-                {!account.hasPendingUserOperation && (
+                {!account.hasPendingTransactions && (
                   <div className="w-4 h-4 rounded-full bg-gradient-to-br from-primary/60 to-neon-cyan/60" />
                 )}
                 {accountStatus !== "avatar" && (

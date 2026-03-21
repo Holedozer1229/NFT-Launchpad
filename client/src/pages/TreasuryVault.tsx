@@ -20,6 +20,56 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
+interface GasStatus {
+  isHealthy: boolean;
+  isCritical: boolean;
+  ethBalance: string;
+  ethBalanceFloat: number;
+  reserveThreshold: number;
+  criticalThreshold: number;
+  message: string;
+  treasuryAddress: string;
+}
+
+interface RefillPool {
+  poolEth: number;
+  threshold: number;
+}
+
+interface WalletInfo {
+  isConfigured: boolean;
+  address: string;
+  balance: string;
+  gasStatus?: GasStatus;
+  refillPool?: RefillPool;
+}
+
+interface YieldStats {
+  treasuryBalance: string;
+  totalYieldGenerated: string;
+  phiBoost: number;
+}
+
+interface TreasuryTransaction {
+  hash?: string;
+  category?: string;
+  value?: number;
+  asset?: string;
+  to?: string;
+  blockNum?: number;
+}
+
+interface ContractDefinition {
+  id: string;
+  name: string;
+  description: string;
+  estimatedGas: { min: number; max: number };
+}
+
+interface ContractsInfo {
+  contracts?: ContractDefinition[];
+}
+
 const NEON = {
   cyan: "#00e5ff",
   green: "#39ff14",
@@ -40,19 +90,19 @@ export default function TreasuryVault() {
   const [account, setAccount] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
-  const { data: walletInfo, isLoading: isLoadingWallet } = useQuery({
+  const { data: walletInfo, isLoading: isLoadingWallet } = useQuery<WalletInfo>({
     queryKey: ["/api/treasury/wallet"],
   });
 
-  const { data: yieldStats } = useQuery({
+  const { data: yieldStats } = useQuery<YieldStats>({
     queryKey: ["/api/treasury/yield"],
   });
 
-  const { data: contractsInfo } = useQuery({
+  const { data: contractsInfo } = useQuery<ContractsInfo>({
     queryKey: ["/api/deployments/contracts"],
   });
 
-  const { data: transactions } = useQuery({
+  const { data: transactions } = useQuery<TreasuryTransaction[]>({
     queryKey: ["/api/treasury/wallet/transactions"],
     enabled: !!walletInfo?.isConfigured,
   });

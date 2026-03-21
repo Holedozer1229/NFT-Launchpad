@@ -39,7 +39,7 @@ export default function AuthPage() {
     staleTime: Infinity,
   });
 
-  const captchaEnabled = captchaConfig?.enabled && captchaConfig?.siteKey;
+  const captchaEnabled = !!(captchaConfig?.enabled && captchaConfig?.siteKey);
 
   const validateUsername = (value: string) => {
     if (!value) { setUsernameError(""); return; }

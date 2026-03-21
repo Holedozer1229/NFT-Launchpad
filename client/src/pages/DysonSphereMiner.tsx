@@ -62,8 +62,9 @@ function DysonSphereCanvas({ boost, equilibrium, epoch }: { boost: number; equil
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const ctxRaw = canvas.getContext("2d");
+    if (!ctxRaw) return;
+    const ctx = ctxRaw as CanvasRenderingContext2D;
 
     const W = canvas.width = canvas.offsetWidth;
     const H = canvas.height = canvas.offsetHeight;

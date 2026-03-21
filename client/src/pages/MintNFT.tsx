@@ -427,7 +427,7 @@ export default function MintNFT() {
                           <AlertCircle className="w-2.5 h-2.5 mr-1" /> PARTIAL
                         </Badge>
                       )}
-                      {flight.outcome === "failed" && (
+                      {(flight.outcome as string) === "failed" && (
                         <Badge className="bg-rose-500/10 text-rose-500 border-rose-500/30 text-[10px] sm:text-[9px] font-bold uppercase">
                           <XCircle className="w-2.5 h-2.5 mr-1" /> FAILED
                         </Badge>

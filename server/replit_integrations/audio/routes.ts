@@ -19,7 +19,7 @@ export function registerAudioRoutes(app: Express): void {
   app.get("/api/conversations/:id", async (req: Request, res: Response) => {
     if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params["id"] as string);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid conversation ID" });
       const conversation = await chatStorage.getConversation(id);
       if (!conversation) {
@@ -49,7 +49,7 @@ export function registerAudioRoutes(app: Express): void {
   app.delete("/api/conversations/:id", async (req: Request, res: Response) => {
     if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params["id"] as string);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid conversation ID" });
       await chatStorage.deleteConversation(id);
       res.status(204).send();
@@ -62,7 +62,7 @@ export function registerAudioRoutes(app: Express): void {
   app.post("/api/conversations/:id/messages", audioBodyParser, async (req: Request, res: Response) => {
     if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
     try {
-      const conversationId = parseInt(req.params.id);
+      const conversationId = parseInt(req.params["id"] as string);
       if (isNaN(conversationId)) return res.status(400).json({ error: "Invalid conversation ID" });
       const { audio, voice = "alloy" } = req.body;
 

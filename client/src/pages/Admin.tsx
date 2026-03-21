@@ -14,7 +14,6 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
-import { format } from "date-fns";
 
 interface AirdropEntry {
   id: number;
