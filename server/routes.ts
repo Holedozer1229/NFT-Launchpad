@@ -3779,8 +3779,9 @@ STYLE:
     }
   });
 
-  app.post("/api/governance/proposals", requireAuth, async (req, res) => {
+  app.post("/api/governance/proposals", async (req, res) => {
     try {
+      if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
       const { db } = await import("./db");
       const { title, description, category, timelockHours, endsAt } = req.body;
       if (!title || !description) return res.status(400).json({ message: "title and description required" });
@@ -3801,8 +3802,9 @@ STYLE:
     }
   });
 
-  app.post("/api/governance/proposals/:id/vote", requireAuth, async (req, res) => {
+  app.post("/api/governance/proposals/:id/vote", async (req, res) => {
     try {
+      if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
       const { db } = await import("./db");
       const { eq, and, sql: drizzleSql } = await import("drizzle-orm");
       const proposalId = parseInt(req.params.id);
@@ -3832,8 +3834,9 @@ STYLE:
     }
   });
 
-  app.get("/api/governance/proposals/:id/my-vote", requireAuth, async (req, res) => {
+  app.get("/api/governance/proposals/:id/my-vote", async (req, res) => {
     try {
+      if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
       const { db } = await import("./db");
       const { eq, and } = await import("drizzle-orm");
       const proposalId = parseInt(req.params.id);
@@ -3846,8 +3849,9 @@ STYLE:
     }
   });
 
-  app.get("/api/governance/my-votes", requireAuth, async (req, res) => {
+  app.get("/api/governance/my-votes", async (req, res) => {
     try {
+      if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
       const { db } = await import("./db");
       const { eq } = await import("drizzle-orm");
       const userId = (req as any).user.id;
@@ -3862,7 +3866,7 @@ STYLE:
 
   app.get("/api/rosetta/status", async (_req, res) => {
     try {
-      const chainInfo = await getChainInfo();
+      const chainInfo = getChainInfo();
       res.json({
         blockchain: "SphinxSkynet",
         network: "mainnet",

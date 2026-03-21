@@ -15,6 +15,8 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Gallery = lazy(() => import("@/pages/Gallery"));
 const Analytics = lazy(() => import("@/pages/Analytics"));
 const Bridge = lazy(() => import("@/pages/Bridge"));
+const CrossChain = lazy(() => import("@/pages/CrossChain"));
+const Governance = lazy(() => import("@/pages/Governance"));
 const YieldGenerator = lazy(() => import("@/pages/YieldGenerator"));
 const IITConsciousness = lazy(() => import("@/pages/IITConsciousness"));
 const Admin = lazy(() => import("@/pages/Admin"));
@@ -118,6 +120,8 @@ function AppRouter() {
             <Route path="/marketplace" component={Marketplace} />
             <Route path="/analytics" component={Analytics} />
             <Route path="/bridge" component={Bridge} />
+            <Route path="/cross-chain" component={CrossChain} />
+            <Route path="/governance" component={Governance} />
             <Route path="/yield" component={YieldGenerator} />
             <Route path="/iit" component={IITConsciousness} />
             <Route path="/berry-phase" component={QuantumBerryPhase} />

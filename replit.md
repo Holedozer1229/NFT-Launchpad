@@ -4,6 +4,22 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
+- **Mar 2026**: **Cross-Chain Portal + Governance + Rosetta Status**
+  - `client/src/pages/CrossChain.tsx`: Unified page combining SphinxBridge + ZK-Wormhole into one tabbed interface (Bridge / ZK-Wormhole / ZK-EVM Mining). IIT consciousness and Berry Phase holonomy metrics integrated into the wormhole proof pipeline. Rosetta mainnet status strip at top (block height, version, sync status, guardians). ZK-EVM Mining tab shows four-stage pipeline: IIT Spectral → Consciousness Gate → QG Curvature → Berry ZK-Proof with per-chain Phi metrics.
+  - `client/src/pages/Governance.tsx`: Full DAO governance page — SKYNT ERC-20 token utility grid (6 utility categories), veSKYNT escrow panel (1/2/4-year lock tiers with multipliers), live proposal list with vote bars, quorum progress, one-click For/Against/Abstain voting, new proposal creation form. Full Coinbase Rosetta API endpoint reference (17 endpoints across Data + Construction APIs).
+  - `shared/schema.ts`: Added `governanceProposals` and `governanceVotes` tables with full Drizzle schema and types.
+  - `server/routes.ts`: Added governance REST API (`GET /api/governance/proposals`, `POST /api/governance/proposals`, `POST /api/governance/proposals/:id/vote`, `GET /api/governance/my-votes`) and `GET /api/rosetta/status` (public Rosetta mainnet status endpoint).
+  - `client/src/components/SidebarLayout.tsx`: Replaced Bridge + ZK Wormhole entries with "Cross-Chain Portal" (Share2 icon) and "Governance" (Vote icon) under NETWORK group.
+  - `client/src/App.tsx`: Added `/cross-chain` and `/governance` routes; old `/bridge` and `/wormhole` routes preserved.
+  - Seeded 6 realistic governance proposals covering: ZK-EVM mining rewards, veSKYNT launch, Rosetta mainnet listing, Berry Phase threshold, guardian expansion, community mining tournament.
+- **Mar 2026**: **Token Swap (live CoinGecko rates)**
+  - `server/routes.ts`: `GET /api/wallet/:id/swap/quote` and `POST /api/wallet/:id/swap` — live CoinGecko prices, 0.3% protocol fee, balance validation
+  - `client/src/pages/WalletPage.tsx`: New "Swap" 4th tab with debounced live quote, token selectors, direction toggle, transaction history shows `swap` type with ArrowLeftRight icon
+- **Mar 2026**: **Mining session-loss banner**
+  - `client/src/components/BackgroundMiner.tsx`: sets/clears `skynt_mining_started` localStorage on start/stop
+  - `client/src/pages/GenesisMiner.tsx`: orange banner when session stopped unexpectedly, Restart + Dismiss buttons
+- **Mar 2026**: **Mining probability fix**
+  - `server/background-miner.ts`: difficultyTarget changed from 48-bit to 64-bit — blocks now found ~every 5 min
 - **Mar 2026**: **KYC (Know Your Customer) System**
   - `shared/schema.ts`: Added `kycSubmissions` table with full user identity fields (name, DOB, nationality, country, address, ID type/number, document URLs), status workflow (`pending` → `under_review` → `approved`/`rejected`), and Drizzle schema/types
   - `server/storage.ts`: `IStorage` interface + `DatabaseStorage` implementations for `getKycByUser`, `getKycById`, `getAllKycSubmissions`, `createKycSubmission`, `updateKycStatus`
