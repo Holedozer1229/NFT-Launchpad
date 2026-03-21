@@ -3789,6 +3789,71 @@ STYLE:
     }
   });
 
+  // Starship NFT Pack Mint — mints one NFT per item in the pack
+  app.post("/api/starship/mint-pack", rateLimit(30000, 3), async (req, res) => {
+    try {
+      const { packId, packName, tier, items, chain, walletAddress } = req.body as {
+        packId: string;
+        packName: string;
+        tier: string;
+        items: Array<{ rarity: string; title: string; type: string }>;
+        chain: string;
+        walletAddress: string;
+      };
+
+      if (!packId || !packName || !tier || !items?.length || !chain || !walletAddress) {
+        return res.status(400).json({ message: "packId, packName, tier, items, chain, and walletAddress are required" });
+      }
+      if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        return res.status(400).json({ message: "Invalid wallet address" });
+      }
+
+      const RARITY_TIERS: Record<string, { multiplier: number; basePower: number }> = {
+        mythic:    { multiplier: 10.0, basePower: 9500 },
+        legendary: { multiplier: 4.5,  basePower: 7500 },
+        rare:      { multiplier: 2.0,  basePower: 4500 },
+        common:    { multiplier: 1.0,  basePower: 1500 },
+      };
+
+      const mintedNfts = [];
+
+      for (const item of items) {
+        const rarity = (item.rarity || "common").toLowerCase() as keyof typeof RARITY_TIERS;
+        const tier_data = RARITY_TIERS[rarity] || RARITY_TIERS.common;
+        const iitScore = Math.round(tier_data.basePower + Math.random() * 500);
+
+        const nft = await storage.createNft({
+          name: item.title,
+          description: `${packName} — ${item.type} NFT minted from the ${tier.charAt(0).toUpperCase() + tier.slice(1)} Edition Pack`,
+          imageUrl: `/assets/sphinx-eye.png`,
+          rarity: rarity as any,
+          chain,
+          walletAddress,
+          iitScore,
+          openseaUrl: null,
+          openseaStatus: null,
+          openseaListingId: null,
+          thirdwebJobId: null,
+          txHash: null,
+        });
+
+        mintedNfts.push(nft);
+      }
+
+      console.log(`[PackMint] Minted ${mintedNfts.length} NFTs for pack "${packId}" → ${walletAddress}`);
+      res.json({
+        success: true,
+        packId,
+        packName,
+        nfts: mintedNfts,
+        count: mintedNfts.length,
+      });
+    } catch (error) {
+      console.error("[PackMint] Error:", error);
+      res.status(500).json({ message: "Failed to mint pack NFTs" });
+    }
+  });
+
   // Rarity Proof Engine
   app.post("/api/rarity-proof/generate", rateLimit(30000, 3), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });

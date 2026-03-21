@@ -1,12 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import {
   Rocket, Clock, MapPin, ChevronLeft, ChevronRight, Radio, Target,
   Flame, Shield, Star, Package, Trophy, AlertTriangle, CheckCircle2,
-  ExternalLink, Orbit, Zap, Info, Crown, Gem, Sparkles
+  ExternalLink, Orbit, Zap, Info, Crown, Gem, Sparkles, X, Loader2,
+  ChevronDown
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useAccount } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { apiRequest } from "@/lib/queryClient";
 
 interface StarshipLaunch {
   id: string;
@@ -252,7 +256,7 @@ const RARITY_STYLES: Record<string, { color: string; border: string; bg: string;
   common: { color: "text-neon-green", border: "border-neon-green/40", bg: "bg-neon-green/8", glow: "", icon: Sparkles },
 };
 
-function NftPackCard({ pack, linkedMission }: { pack: NftPack; linkedMission?: StarshipLaunch }) {
+function NftPackCard({ pack, linkedMission, onMint }: { pack: NftPack; linkedMission?: StarshipLaunch; onMint: (pack: NftPack) => void }) {
   const style = RARITY_STYLES[pack.tier] || RARITY_STYLES.rare;
   const TierIcon = style.icon;
   const remaining = pack.supply - pack.minted;
@@ -314,6 +318,7 @@ function NftPackCard({ pack, linkedMission }: { pack: NftPack; linkedMission?: S
           <button
             data-testid={`button-mint-pack-${pack.id}`}
             disabled={remaining <= 0}
+            onClick={() => remaining > 0 && onMint(pack)}
             className={cn(
               "px-5 py-2 rounded font-heading text-xs font-bold uppercase tracking-widest transition-all duration-300",
               remaining > 0
@@ -334,6 +339,187 @@ function NftPackCard({ pack, linkedMission }: { pack: NftPack; linkedMission?: S
             <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest">Last one remaining</span>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+const SUPPORTED_CHAINS = [
+  { id: "ethereum", label: "Ethereum" },
+  { id: "polygon", label: "Polygon" },
+  { id: "base", label: "Base" },
+  { id: "arbitrum", label: "Arbitrum" },
+  { id: "optimism", label: "Optimism" },
+];
+
+function PackMintModal({ pack, onClose }: { pack: NftPack; onClose: () => void }) {
+  const { address, isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
+  const queryClient = useQueryClient();
+  const style = RARITY_STYLES[pack.tier] || RARITY_STYLES.rare;
+  const TierIcon = style.icon;
+
+  const [chain, setChain] = useState("ethereum");
+  const [mintResult, setMintResult] = useState<{ count: number; nfts: any[] } | null>(null);
+
+  const mintMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", "/api/starship/mint-pack", {
+        packId: pack.id,
+        packName: pack.name,
+        tier: pack.tier,
+        items: pack.items,
+        chain,
+        walletAddress: address,
+      }),
+    onSuccess: async (res) => {
+      const data = await res.json();
+      setMintResult(data);
+      queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-testid="pack-mint-modal">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+
+      <div className={cn(
+        "relative w-full max-w-lg cosmic-card overflow-hidden",
+        style.border,
+        style.glow,
+      )}>
+        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-current to-transparent opacity-60" style={{ color: "inherit" }} />
+
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <TierIcon className={cn("w-5 h-5", style.color)} />
+              <span className={cn("font-heading text-sm font-bold uppercase tracking-widest", style.color)}>
+                {pack.tier} Edition
+              </span>
+            </div>
+            <button
+              data-testid="button-close-mint-modal"
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded text-muted-foreground hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <h3 className="font-heading text-xl font-bold text-white mb-1">{pack.name}</h3>
+          <p className="font-mono text-xs text-muted-foreground mb-5">{pack.description}</p>
+
+          {mintResult ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-neon-green/5 border border-neon-green/30">
+                <CheckCircle2 className="w-6 h-6 text-neon-green flex-shrink-0" style={{ filter: "drop-shadow(0 0 8px hsl(145 100% 50% / 0.5))" }} />
+                <div>
+                  <p className="font-heading text-sm font-bold text-neon-green">Pack Minted!</p>
+                  <p className="font-mono text-xs text-muted-foreground">{mintResult.count} NFTs added to your collection</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {mintResult.nfts.map((nft: any, i: number) => {
+                  const s = RARITY_STYLES[nft.rarity] || RARITY_STYLES.common;
+                  return (
+                    <div key={i} className="flex items-center gap-2.5 py-1.5 px-3 rounded bg-white/[0.03] border border-white/5">
+                      <div className={cn("w-1.5 h-1.5 rounded-full", s.color.replace("text-", "bg-"))} />
+                      <span className="font-mono text-xs text-white/80 flex-1">{nft.name}</span>
+                      <span className={cn("text-[9px] font-mono uppercase tracking-wider", s.color)}>{nft.rarity}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                data-testid="button-close-after-mint"
+                onClick={onClose}
+                className="w-full py-2.5 rounded font-heading text-xs font-bold uppercase tracking-widest bg-white/10 text-white hover:bg-white/15 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Pack Contents ({pack.items.length} NFTs)</span>
+                {pack.items.map((item, i) => {
+                  const s = RARITY_STYLES[item.rarity] || RARITY_STYLES.common;
+                  return (
+                    <div key={i} className="flex items-center gap-2.5 py-1.5 px-2.5 rounded bg-white/[0.02] border border-white/5">
+                      <div className={cn("w-1.5 h-1.5 rounded-full", s.color.replace("text-", "bg-"))} />
+                      <span className="font-mono text-xs text-white/80 flex-1">{item.title}</span>
+                      <span className={cn("text-[9px] font-mono uppercase tracking-wider", s.color)}>{item.rarity}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div>
+                <label className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest block mb-2">Chain</label>
+                <div className="relative">
+                  <select
+                    data-testid="select-mint-chain"
+                    value={chain}
+                    onChange={(e) => setChain(e.target.value)}
+                    className="w-full appearance-none bg-white/5 border border-white/10 rounded px-3 py-2 font-mono text-xs text-white focus:outline-none focus:border-neon-cyan/40"
+                  >
+                    {SUPPORTED_CHAINS.map((c) => (
+                      <option key={c.id} value={c.id} className="bg-[#0a0a0f]">{c.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                <div>
+                  <p className="font-mono text-[10px] text-muted-foreground">Total</p>
+                  <p className={cn("font-heading text-xl font-bold", style.color)}>{pack.price}</p>
+                </div>
+
+                {!isConnected ? (
+                  <button
+                    data-testid="button-connect-to-mint"
+                    onClick={openConnectModal}
+                    className="px-6 py-2.5 rounded font-heading text-xs font-bold uppercase tracking-widest bg-gradient-to-r from-neon-cyan to-neon-green text-black hover:scale-105 transition-all"
+                  >
+                    Connect Wallet
+                  </button>
+                ) : (
+                  <button
+                    data-testid="button-confirm-mint-pack"
+                    onClick={() => mintMutation.mutate()}
+                    disabled={mintMutation.isPending}
+                    className={cn(
+                      "px-6 py-2.5 rounded font-heading text-xs font-bold uppercase tracking-widest transition-all duration-300",
+                      mintMutation.isPending
+                        ? "bg-white/10 text-muted-foreground cursor-not-allowed"
+                        : cn("text-black hover:scale-105",
+                            pack.tier === "mythic"
+                              ? "bg-gradient-to-r from-neon-magenta to-neon-orange hover:shadow-[0_0_20px_hsl(300_100%_60%/0.4)]"
+                              : "bg-gradient-to-r from-neon-orange to-yellow-500 hover:shadow-[0_0_20px_hsl(30_100%_55%/0.4)]"
+                          )
+                    )}
+                  >
+                    {mintMutation.isPending ? (
+                      <span className="flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" />Minting…</span>
+                    ) : "Confirm Mint"}
+                  </button>
+                )}
+              </div>
+
+              {mintMutation.isError && (
+                <p className="font-mono text-xs text-red-400 flex items-center gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Mint failed — please try again
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -368,6 +554,7 @@ export default function StarshipLaunches() {
   });
 
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);
+  const [mintingPack, setMintingPack] = useState<NftPack | null>(null);
 
   useEffect(() => {
     if (data?.all?.length && !selectedMissionId) {
@@ -447,6 +634,7 @@ export default function StarshipLaunches() {
               key={pack.id}
               pack={pack}
               linkedMission={data.all.find((m) => m.id === pack.linkedMissionId)}
+              onMint={setMintingPack}
             />
           ))}
         </div>
@@ -545,6 +733,10 @@ export default function StarshipLaunches() {
           )}
         </div>
       </section>
+
+      {mintingPack && (
+        <PackMintModal pack={mintingPack} onClose={() => setMintingPack(null)} />
+      )}
     </div>
   );
 }
