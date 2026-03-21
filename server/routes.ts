@@ -1243,7 +1243,7 @@ STYLE:
 
       // Deduct minting cost from user wallet (derived from RARITY_TIERS)
       const rarity = parsed.data.rarity as string;
-      const tier = RARITY_TIERS[rarity as RarityTier];
+      const tier = RARITY_TIERS[rarity.toLowerCase() as RarityTier];
       if (!tier) return res.status(400).json({ message: "Invalid rarity tier" });
       const cost = parseFloat(tier.price);
       if (isNaN(cost)) return res.status(400).json({ message: "Invalid rarity pricing" });
@@ -3641,6 +3641,152 @@ STYLE:
   // Starship Flight NFT Showcase
   app.get("/api/starship-nft-showcase", (_req, res) => {
     res.json(STARSHIP_FLIGHT_SHOWCASES);
+  });
+
+  // Seed starship launches on first call if DB is empty
+  (async () => {
+    try {
+      const existing = await storage.getLaunches();
+      if (existing.length === 0) {
+        for (const flight of STARSHIP_FLIGHT_SHOWCASES) {
+          await storage.createLaunch({
+            title: flight.missionName,
+            description: flight.description,
+            price: "0.1 ETH",
+            supply: 100,
+            image: flight.vehicleImage,
+            status: "active",
+            type: "starship",
+            contractAddress: ENGINE_CONTRACT,
+            features: [...flight.objectives],
+            mintedByRarity: { mythic: 0, legendary: 0, rare: 0, common: 0 },
+          });
+        }
+        console.log("[StarshipSeed] Seeded", STARSHIP_FLIGHT_SHOWCASES.length, "starship launches");
+      }
+    } catch (e) {
+      console.error("[StarshipSeed] Failed to seed launches:", e);
+    }
+  })();
+
+  // Dedicated starship flight minting — no session auth required (wallet address in body)
+  app.post("/api/starship/mint-flight", rateLimit(15000, 5), async (req, res) => {
+    try {
+      const { flightId, rarity: rawRarity, chain: rawChain, walletAddress } = req.body as {
+        flightId: string;
+        rarity: string;
+        chain: string;
+        walletAddress: string;
+      };
+
+      if (!flightId || typeof flightId !== "string") {
+        return res.status(400).json({ message: "flightId is required" });
+      }
+      if (!walletAddress || typeof walletAddress !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        return res.status(400).json({ message: "walletAddress must be a valid Ethereum address" });
+      }
+
+      const flight = (STARSHIP_FLIGHT_SHOWCASES as readonly any[]).find((f: any) => f.flightId === flightId);
+      if (!flight) {
+        return res.status(404).json({ message: `Flight ${flightId} not found` });
+      }
+
+      const rarityKey = (rawRarity || "common").toLowerCase() as RarityTier;
+      const tier = RARITY_TIERS[rarityKey];
+      if (!tier) {
+        return res.status(400).json({ message: "Invalid rarity tier" });
+      }
+
+      const chainId = (rawChain || "ethereum") as ChainId;
+      const chainData = SUPPORTED_CHAINS[chainId];
+      if (!chainData) {
+        return res.status(400).json({ message: "Unsupported chain" });
+      }
+
+      const contractAddr = chainData.contractAddress || ENGINE_CONTRACT;
+      const tokenHex = Array.from({ length: 4 }, () =>
+        Math.floor(Math.random() * 0xffff).toString(16).padStart(4, "0").toUpperCase()
+      ).join("");
+      const tokenId = `0x${tokenHex.slice(0, 4)}...${tokenHex.slice(-4)}`;
+      const tokenIdClean = tokenHex;
+
+      let engineResult: { transactionId?: string; txHash?: string | null; status?: string } = {};
+      const useEngine =
+        isEngineConfigured() &&
+        ["zksync", "ethereum", "base", "arbitrum", "polygon"].includes(chainId);
+      if (useEngine) {
+        try {
+          const tokenIdNum = BigInt(parseInt(tokenIdClean.slice(0, 8), 16) % 1000);
+          engineResult = await mintNftViaEngine({
+            recipientAddress: walletAddress,
+            tokenId: tokenIdNum,
+            quantity: 1n,
+          });
+        } catch (engineErr) {
+          console.error("[StarshipMint] Engine enqueue failed (continuing):", engineErr);
+        }
+      }
+
+      const supported = isOpenSeaSupported(chainId);
+      const openseaUrl = supported ? getOpenSeaNftUrl(chainId, contractAddr, tokenIdClean) : null;
+
+      const nft = await storage.createNft({
+        title: `${flight.missionName} — ${tier.label}`,
+        image: flight.vehicleImage,
+        rarity: tier.label,
+        status: "minted",
+        mintDate: new Date().toISOString().split("T")[0],
+        tokenId,
+        owner: walletAddress,
+        price: tier.price,
+        chain: chainId,
+        launchId: null as any,
+        openseaUrl,
+        openseaStatus: supported ? "pending" : "unsupported",
+      });
+
+      if (supported) {
+        listNftOnOpenSea({
+          chain: chainId,
+          contractAddress: contractAddr,
+          tokenId: tokenIdClean,
+          price: tier.price,
+          sellerAddress: walletAddress,
+          title: nft.title,
+        }).then(async (result) => {
+          const status = result.success ? "listed" : "submitted";
+          await storage.updateNftOpenSea(nft.id, result.openseaUrl || openseaUrl, status, result.listingId);
+          if (result.success) await storage.updateNftStatus(nft.id, "listed");
+        }).catch(async (err) => {
+          console.error("[StarshipMint] Background OpenSea listing failed:", err);
+          await storage.updateNftOpenSea(nft.id, openseaUrl, "error", null);
+        });
+      }
+
+      res.json({
+        ...nft,
+        openseaUrl,
+        openseaSupported: supported,
+        flight: {
+          missionName: flight.missionName,
+          vehicleName: flight.vehicleName,
+          orbit: flight.orbit,
+          outcome: flight.outcome,
+        },
+        engineMint: engineResult.transactionId
+          ? {
+              transactionId: engineResult.transactionId,
+              txHash: engineResult.txHash || null,
+              status: engineResult.status || "enqueued",
+              contract: ENGINE_CONTRACT,
+              treasury: TREASURY_WALLET,
+            }
+          : null,
+      });
+    } catch (error) {
+      console.error("[StarshipMint] Error:", error);
+      res.status(500).json({ message: "Failed to mint starship NFT" });
+    }
   });
 
   // Rarity Proof Engine

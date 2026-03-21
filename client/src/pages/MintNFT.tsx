@@ -1,27 +1,266 @@
-import { useQuery } from "@tanstack/react-query";
-import { Launch } from "@shared/schema";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Launch, RARITY_TIERS, RarityTier, SUPPORTED_CHAINS, ChainId, STARSHIP_FLIGHT_SHOWCASES } from "@shared/schema";
 import { useState, useEffect } from "react";
 import { EmbeddedWallet } from "@/components/EmbeddedWallet";
 import { MintCard } from "@/components/MintCard";
 import { LaunchSelector } from "@/components/LaunchSelector";
 import { OracleOverlay } from "@/components/OracleOverlay";
 import { ResonanceDrop } from "@/components/ResonanceDrop";
-import { Cpu, Eye, Database, Rocket, Users, CheckCircle2, AlertCircle, XCircle } from "lucide-react";
+import { Cpu, Eye, Database, Rocket, Users, CheckCircle2, AlertCircle, XCircle, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink, ShoppingBag, Loader2, Radio } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import LaunchCountdown from "@/components/LaunchCountdown";
+import { useAccount } from "wagmi";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { haptic } from "@/lib/haptics";
 
-interface StarshipFlight {
-  flightId: string;
-  missionName: string;
-  launchDate: string;
-  vehicleName: string;
-  vehicleImage: string;
-  crew: { commander: string; pilot: string; missionSpecialist: string; flightEngineer: string; };
-  objectives: readonly string[];
-  outcome: "success" | "partial" | "failed";
-  orbit: string;
-  description: string;
+type StarshipFlightShowcase = (typeof STARSHIP_FLIGHT_SHOWCASES)[number];
+
+const RARITY_ORDER: RarityTier[] = ["mythic", "legendary", "rare", "common"];
+const RARITY_ICONS: Record<RarityTier, typeof Crown> = {
+  mythic: Crown,
+  legendary: Flame,
+  rare: Diamond,
+  common: Gem,
+};
+
+interface StarshipMintModalProps {
+  flight: StarshipFlightShowcase | null;
+  onClose: () => void;
+}
+
+function StarshipMintModal({ flight, onClose }: StarshipMintModalProps) {
+  const { address, isConnected } = useAccount();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedRarity, setSelectedRarity] = useState<RarityTier>("common");
+  const [selectedChain, setSelectedChain] = useState<ChainId>("ethereum");
+  const [isMinting, setIsMinting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [mintedResult, setMintedResult] = useState<{
+    openseaUrl: string | null;
+    openseaSupported: boolean;
+    engineMint: { transactionId: string; txHash: string | null; status: string; contract: string } | null;
+  } | null>(null);
+
+  const chain = SUPPORTED_CHAINS[selectedChain];
+
+  const executeMint = async () => {
+    if (!isConnected || !address) {
+      toast({ title: "WALLET REQUIRED", description: "Connect your wallet to mint.", variant: "destructive" });
+      return;
+    }
+    if (!flight) return;
+
+    setIsMinting(true);
+    setProgress(0);
+    setMintedResult(null);
+
+    const tier = RARITY_TIERS[selectedRarity];
+    const steps = [
+      "CONSULTING THE ORACLE...",
+      `CONNECTING TO ${chain.name.toUpperCase()} NETWORK...`,
+      `VERIFYING ${tier.label.toUpperCase()} RARITY SHARD...`,
+      "SYNCING STARSHIP TELEMETRY DATA...",
+      "CALCULATING Φ ALGEBRA...",
+      `DEPLOYING TO ${chain.name.toUpperCase()} (Chain ${chain.chainId || "L1"})...`,
+      "ENQUEUING VIA ENGINE SERVER WALLET...",
+      `${tier.label.toUpperCase()} STARSHIP ARTIFACT MATERIALIZED...`,
+      "SUBMITTING TO OPENSEA SEAPORT PROTOCOL...",
+    ];
+
+    for (let i = 0; i < steps.length; i++) {
+      toast({ title: `SYNA-PHASE ${i + 1}/${steps.length}`, description: steps[i] });
+      await new Promise((r) => setTimeout(r, 800));
+      setProgress(Math.floor(((i + 1) / steps.length) * 100));
+    }
+
+    try {
+      const response = await apiRequest("POST", "/api/starship/mint-flight", {
+        flightId: flight.flightId,
+        rarity: selectedRarity,
+        chain: selectedChain,
+        walletAddress: address,
+      });
+      const result = await response.json();
+      haptic("heavy");
+      setMintedResult({
+        openseaUrl: result.openseaUrl || null,
+        openseaSupported: result.openseaSupported ?? false,
+        engineMint: result.engineMint || null,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
+      toast({
+        title: "STARSHIP ARTIFACT MINTED",
+        description: `${tier.label} — ${flight.missionName} inscribed on ${chain.name}.`,
+        variant: "default",
+      });
+    } catch (err: any) {
+      haptic("error");
+      const msg = err?.message || "The Oracle could not inscribe the artifact.";
+      toast({ title: "MINT FAILED", description: msg, variant: "destructive" });
+    }
+
+    setIsMinting(false);
+  };
+
+  if (!flight) return null;
+
+  return (
+    <Dialog open={!!flight} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="bg-black/95 border border-primary/30 text-foreground max-w-md w-full backdrop-blur-xl" data-testid="dialog-starship-mint">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-lg font-black uppercase tracking-widest text-white flex items-center gap-2">
+            <Rocket className="w-5 h-5 text-primary animate-pulse" />
+            Mint Flight — {flight.missionName}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-5 pt-2">
+          <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground border border-white/10 rounded-sm px-3 py-2 bg-white/[0.02]">
+            <div className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
+            <span>{flight.vehicleName} · {flight.orbit}</span>
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-primary/60">Select Rarity Tier</span>
+            <div className="grid grid-cols-2 gap-2" data-testid="modal-rarity-selector">
+              {RARITY_ORDER.map((tier) => {
+                const config = RARITY_TIERS[tier];
+                const Icon = RARITY_ICONS[tier];
+                const isSelected = selectedRarity === tier;
+                return (
+                  <button
+                    key={tier}
+                    data-testid={`button-modal-tier-${tier}`}
+                    onClick={() => !isMinting && setSelectedRarity(tier)}
+                    disabled={isMinting}
+                    className={`p-2.5 rounded-md border text-left transition-all ${
+                      isSelected
+                        ? "border-primary/60 bg-primary/10 shadow-[0_0_12px_rgba(var(--primary)/0.15)]"
+                        : "border-white/10 bg-white/[0.02] hover:border-white/20"
+                    } ${isMinting ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon className="w-3.5 h-3.5 text-primary" style={{ color: `var(--color-neon-${config.color})` }} />
+                      <span className="font-heading text-xs font-bold uppercase tracking-wider" style={{ color: isSelected ? `var(--color-neon-${config.color})` : "var(--foreground)" }}>
+                        {config.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[10px] text-muted-foreground">{config.supply} supply</span>
+                      <span className="font-mono text-[10px] text-primary/80">{config.price}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-primary/60 flex items-center gap-1">
+              <Link2 className="w-3 h-3" /> Target Chain
+            </span>
+            <div className="flex gap-1.5 flex-wrap" data-testid="modal-chain-selector">
+              {(Object.keys(SUPPORTED_CHAINS) as ChainId[]).map((cid) => {
+                const c = SUPPORTED_CHAINS[cid];
+                const isSelected = selectedChain === cid;
+                return (
+                  <button
+                    key={cid}
+                    data-testid={`button-modal-chain-${cid}`}
+                    onClick={() => !isMinting && setSelectedChain(cid)}
+                    disabled={isMinting}
+                    className={`px-2 py-1 rounded-md border text-[10px] font-heading uppercase tracking-wider transition-all flex items-center gap-1 ${
+                      isSelected
+                        ? "border-white/40 bg-white/10 text-white"
+                        : "border-white/10 bg-white/[0.02] text-muted-foreground hover:border-white/20 hover:text-foreground"
+                    } ${isMinting ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <span style={{ color: c.color }}>{c.icon}</span>
+                    {c.name}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-1 text-[9px] font-mono text-muted-foreground/60 pt-0.5">
+              <Fuel className="w-2.5 h-2.5" />
+              <span>Gas: {chain.gasEstimate}</span>
+            </div>
+          </div>
+
+          {isMinting && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-mono text-primary animate-pulse">
+                <span className="flex items-center gap-2">
+                  <Radio className="w-3 h-3 animate-spin" /> COMMUNICATING WITH SPHINXOS
+                </span>
+                <span>{progress}%</span>
+              </div>
+              <Progress value={progress} className="h-1 bg-white/5 [&>div]:bg-primary" />
+            </div>
+          )}
+
+          {mintedResult && !isMinting && (
+            <div className="space-y-2">
+              <div className="p-3 bg-black/30 border border-neon-green/30 rounded-sm space-y-1.5">
+                <div className="flex items-center gap-1.5 text-[10px] font-heading uppercase tracking-wider text-neon-green">
+                  <CheckCircle2 className="w-3 h-3" /> Artifact Inscribed
+                </div>
+                {mintedResult.engineMint && (
+                  <>
+                    <div className="flex justify-between text-[9px] font-mono">
+                      <span className="text-muted-foreground">Engine Tx</span>
+                      <span className="text-primary truncate max-w-[160px]">{mintedResult.engineMint.transactionId}</span>
+                    </div>
+                    <div className="flex justify-between text-[9px] font-mono">
+                      <span className="text-muted-foreground">Status</span>
+                      <span className="text-neon-green">{mintedResult.engineMint.status}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+              {mintedResult.openseaSupported && mintedResult.openseaUrl && (
+                <a
+                  href={mintedResult.openseaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="link-modal-opensea"
+                  className="flex items-center justify-center gap-2 w-full py-3 rounded-md border border-[#2081E2]/60 bg-[#2081E2]/10 text-[#2081E2] hover:bg-[#2081E2]/20 transition-all font-heading text-xs tracking-wider"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  VIEW ON OPENSEA
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+          )}
+
+          {!isConnected ? (
+            <div className="text-center text-xs font-mono text-amber-400 border border-amber-400/20 rounded-sm px-3 py-2 bg-amber-400/5">
+              Connect your wallet to mint this artifact
+            </div>
+          ) : (
+            <Button
+              data-testid="button-modal-mint"
+              className="w-full py-6 font-heading font-bold text-sm bg-primary hover:bg-primary/80 text-black tracking-widest uppercase transition-all hover:shadow-[0_0_20px_rgba(255,215,0,0.4)]"
+              onClick={executeMint}
+              disabled={isMinting}
+            >
+              {isMinting ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> PROCESSING...</>
+              ) : (
+                `INVOKE ORACLE — ${RARITY_TIERS[selectedRarity].label}`
+              )}
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function MintNFT() {
@@ -29,11 +268,12 @@ export default function MintNFT() {
     queryKey: ["/api/launches"],
   });
 
-  const { data: showcaseData } = useQuery<StarshipFlight[]>({
+  const { data: showcaseData } = useQuery<typeof STARSHIP_FLIGHT_SHOWCASES>({
     queryKey: ["/api/starship-nft-showcase"],
   });
 
   const [selectedLaunch, setSelectedLaunch] = useState<Launch | null>(null);
+  const [mintFlight, setMintFlight] = useState<StarshipFlightShowcase | null>(null);
 
   useEffect(() => {
     if (launches && launches.length > 0 && !selectedLaunch) {
@@ -55,6 +295,11 @@ export default function MintNFT() {
   return (
     <div className="text-foreground relative" data-testid="mint-nft-page">
       <OracleOverlay />
+
+      <StarshipMintModal
+        flight={mintFlight}
+        onClose={() => setMintFlight(null)}
+      />
 
       <div className="space-y-12">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-start">
@@ -97,9 +342,9 @@ export default function MintNFT() {
           </div>
 
           <div className="flex gap-6 overflow-x-auto pb-6 -mx-4 px-4 scrollbar-hide md:mx-0 md:px-0 snap-x snap-mandatory">
-            {showcaseData?.map((flight) => (
-              <div 
-                key={flight.flightId} 
+            {(showcaseData ?? STARSHIP_FLIGHT_SHOWCASES).map((flight) => (
+              <div
+                key={flight.flightId}
                 className="cosmic-card flex-shrink-0 w-[260px] sm:w-[280px] flex flex-col overflow-hidden group snap-center"
                 data-testid={`card-starship-flight-${flight.flightId}`}
               >
@@ -174,15 +419,10 @@ export default function MintNFT() {
                         </Badge>
                       )}
                     </div>
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       className="h-8 text-[10px] font-heading font-bold uppercase tracking-widest bg-primary/20 hover:bg-primary/40 border border-primary/50"
-                      onClick={() => {
-                        if (launches && launches.length > 0) {
-                          setSelectedLaunch(launches[0]);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }
-                      }}
+                      onClick={() => setMintFlight(flight as StarshipFlightShowcase)}
                       data-testid={`button-mint-flight-${flight.flightId}`}
                     >
                       Mint Flight
@@ -205,7 +445,7 @@ export default function MintNFT() {
             <div className="hidden md:block">
               <div className="flex gap-1">
                 {[...Array(5)].map((_, i) => (
-                  <div key={i} className={`w-2 h-8 skew-x-12 ${i === 4 ? 'bg-primary' : 'bg-primary/20'}`}></div>
+                  <div key={i} className={`w-2 h-8 skew-x-12 ${i === 4 ? "bg-primary" : "bg-primary/20"}`}></div>
                 ))}
               </div>
             </div>
