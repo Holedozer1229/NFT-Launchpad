@@ -74,13 +74,13 @@ function StatCard({ label, value, change, icon, accent, loading, error, onRetry,
         data-testid={`stat-card-error-${label.toLowerCase().replace(/\s/g, "-")}`}
       >
         <div className="flex flex-col items-center justify-center space-y-3 h-full min-h-[100px]">
-          <AlertCircle className="w-8 h-8 text-destructive animate-pulse" />
-          <span className="text-xs font-mono text-destructive tracking-wider uppercase">Failed to load {label}</span>
+          <AlertCircle className="w-8 h-8 text-plasma-red animate-pulse" style={{ filter: "drop-shadow(0 0 6px hsl(0 100% 60% / 0.6))" }} />
+          <span className="text-xs font-mono text-plasma-red/80 tracking-wider uppercase">Failed to load {label}</span>
           <Button 
             variant="ghost" 
             size="sm" 
             onClick={onRetry}
-            className="h-7 text-[10px] hover:bg-destructive/10 text-destructive border border-destructive/20"
+            className="h-7 text-[10px] hover:bg-plasma-red/10 text-plasma-red border border-plasma-red/20 font-heading tracking-widest"
           >
             <RefreshCw className="w-3 h-3 mr-1" /> RETRY
           </Button>

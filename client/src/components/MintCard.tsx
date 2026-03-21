@@ -7,12 +7,12 @@ import { useAccount } from "wagmi";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { useWalletStore } from "@/lib/mock-web3";
 import { Launch, RARITY_TIERS, RarityTier, SUPPORTED_CHAINS, ChainId, SKYNT_CONTRACT_ADDRESS } from "@shared/schema";
-import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink, ShoppingBag, Server, Shield } from "lucide-react";
+import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink, ShoppingBag, Server, Shield, CheckCircle2 } from "lucide-react";
 import { TermsGate } from "./TermsGate";
 import { useToast } from "@/hooks/use-toast";
 import { haptic } from "@/lib/haptics";
 import { apiRequest } from "@/lib/queryClient";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import missionPatch from "../assets/mission-patch.png";
 import holoFrame from "../assets/holo-frame.png";
 import sphinxEye from "@/assets/sphinx-eye.png";
@@ -39,6 +39,7 @@ export function MintCard({ mission }: MintCardProps) {
   const [showTerms, setShowTerms] = useState(false);
   const [progress, setProgress] = useState(0);
   const [lastOpenseaUrl, setLastOpenseaUrl] = useState<string | null>(null);
+  const [mintSuccessFlash, setMintSuccessFlash] = useState(false);
   const [lastEngineResult, setLastEngineResult] = useState<{
     transactionId: string;
     txHash: string | null;
@@ -56,6 +57,11 @@ export function MintCard({ mission }: MintCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const chain = SUPPORTED_CHAINS[selectedChain];
+
+  const { data: iitStatus } = useQuery<{ phi: number; level: string; networkNodes: number }>({
+    queryKey: ["/api/iit/status"],
+    refetchInterval: 30000,
+  });
 
   const mintedByRarity = (mission.mintedByRarity || { mythic: 0, legendary: 0, rare: 0, common: 0 }) as Record<RarityTier, number>;
 
@@ -140,6 +146,8 @@ export function MintCard({ mission }: MintCardProps) {
       const openseaSupported = nftResult.openseaSupported;
 
       haptic("heavy");
+      setMintSuccessFlash(true);
+      setTimeout(() => setMintSuccessFlash(false), 4000);
       if (openseaSupported && openseaUrl) {
         toast({
           title: "ARTIFACT MINTED — SENT TO OPENSEA",
@@ -206,7 +214,7 @@ export function MintCard({ mission }: MintCardProps) {
 
             <div className="absolute bottom-4 left-4 z-20">
                <Badge variant="outline" className="bg-black/60 text-accent border-accent/50 font-mono text-[10px] backdrop-blur-md">
-                 <Brain className="w-3 h-3 mr-1" /> Φ: 0.982
+                 <Brain className="w-3 h-3 mr-1" /> Φ: {iitStatus?.phi?.toFixed(3) ?? "—"}
                </Badge>
             </div>
           </div>
@@ -370,9 +378,9 @@ export function MintCard({ mission }: MintCardProps) {
 
                 {lastEngineResult && !isMinting && (
                   <div className="space-y-3">
-                    <div className="p-3 bg-black/30 border border-neon-cyan/20 rounded-sm space-y-1.5" data-testid="engine-mint-result">
-                      <div className="flex items-center gap-1.5 text-[10px] font-heading uppercase tracking-wider text-neon-cyan">
-                        <Server className="w-3 h-3" /> Engine Mint — {lastEngineResult.status}
+                    <div className={`p-3 bg-black/30 border rounded-sm space-y-1.5 transition-all duration-500 ${mintSuccessFlash ? "mint-success-panel border-neon-green/50" : "border-neon-cyan/20"}`} data-testid="engine-mint-result">
+                      <div className={`flex items-center gap-1.5 text-[10px] font-heading uppercase tracking-wider ${mintSuccessFlash ? "text-neon-green" : "text-neon-cyan"}`}>
+                        {mintSuccessFlash ? <CheckCircle2 className="w-3 h-3" /> : <Server className="w-3 h-3" />} Engine Mint — {lastEngineResult.status}
                       </div>
                       <div className="flex justify-between text-[9px] font-mono">
                         <span className="text-muted-foreground">Contract</span>
