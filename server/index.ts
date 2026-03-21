@@ -131,6 +131,16 @@ app.get("/api/health", async (_req: Request, res: Response) => {
   }
 });
 
+const missingSecrets = ["JWT_SECRET", "SESSION_SECRET"].filter(k => !process.env[k]);
+if (missingSecrets.length > 0) {
+  if (process.env.NODE_ENV === "production") {
+    console.error(`[FATAL] Missing required secrets: ${missingSecrets.join(", ")}. Server will not start.`);
+    process.exit(1);
+  } else {
+    console.warn(`[Security Warning] Missing secrets: ${missingSecrets.join(", ")} — ephemeral values will be generated. Sessions will not persist across restarts. Set these as environment secrets for stable auth.`);
+  }
+}
+
 setupAuth(app);
 
 export function log(message: string, source = "express") {
@@ -200,13 +210,9 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  if (process.env.NODE_ENV === "production") {
-    const requiredSecrets = ["JWT_SECRET", "SESSION_SECRET", "ALCHEMY_API_KEY"];
-    const missing = requiredSecrets.filter(k => !process.env[k]);
-    if (missing.length > 0) {
-      console.error(`[FATAL] Missing required secrets for production: ${missing.join(", ")}`);
-      process.exit(1);
-    }
+  if (process.env.NODE_ENV === "production" && !process.env.ALCHEMY_API_KEY) {
+    console.error("[FATAL] Missing required secret for production: ALCHEMY_API_KEY");
+    process.exit(1);
   }
 
   const port = parseInt(process.env.PORT || "5000", 10);

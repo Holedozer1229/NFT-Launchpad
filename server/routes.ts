@@ -51,6 +51,13 @@ import {
 } from "./p2p-network";
 import { rosettaRouter } from "./rosetta/routes";
 
+function safeError(error: unknown, fallback: string): string {
+  if (process.env.NODE_ENV !== "production") {
+    return (error as any)?.message ?? fallback;
+  }
+  return fallback;
+}
+
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 export function rateLimit(windowMs: number, maxRequests: number) {
@@ -916,8 +923,7 @@ STYLE:
 
       res.json({ transaction, newBalance });
     } catch (error: any) {
-      const msg: string = error?.message ?? "Failed to send transaction";
-      res.status(500).json({ message: msg });
+      res.status(500).json({ message: safeError(error, "Failed to send transaction") });
     }
   });
 
@@ -1143,7 +1149,7 @@ STYLE:
         dailyActivity,
       });
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to fetch analytics" });
+      res.status(500).json({ message: safeError(error, "Failed to fetch analytics") });
     }
   });
 
@@ -1517,7 +1523,7 @@ STYLE:
       });
       res.status(201).json({ position, newBalance: (currentBalance - stakeAmount).toFixed(8), message: "Staked successfully" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to stake" });
+      res.status(500).json({ message: safeError(error, "Failed to stake") });
     }
   });
 
@@ -1550,7 +1556,7 @@ STYLE:
       }
       res.json({ totalRewards, totalReturn, message: "Unstaked successfully" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to unstake" });
+      res.status(500).json({ message: safeError(error, "Failed to unstake") });
     }
   });
 
@@ -1573,7 +1579,7 @@ STYLE:
       const updated = await storage.compoundYieldPosition(positionId);
       res.json({ position: updated, message: "Rewards compounded into stake" });
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to compound" });
+      res.status(500).json({ message: safeError(error, "Failed to compound") });
     }
   });
 
@@ -1873,7 +1879,7 @@ STYLE:
       const block = await liveChain.getLatestBlock(req.params.chain);
       res.json(block);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to fetch block" });
+      res.status(500).json({ message: safeError(error, "Failed to fetch block") });
     }
   });
 
@@ -1883,7 +1889,7 @@ STYLE:
       const blocks = await liveChain.getRecentBlocks(req.params.chain, count);
       res.json(blocks);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to fetch blocks" });
+      res.status(500).json({ message: safeError(error, "Failed to fetch blocks") });
     }
   });
 
@@ -1892,7 +1898,7 @@ STYLE:
       const gas = await liveChain.getGasData(req.params.chain);
       res.json(gas);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to fetch gas data" });
+      res.status(500).json({ message: safeError(error, "Failed to fetch gas data") });
     }
   });
 
@@ -1901,7 +1907,7 @@ STYLE:
       const balance = await liveChain.getWalletBalance(req.params.address, req.params.chain);
       res.json(balance);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to fetch balance" });
+      res.status(500).json({ message: safeError(error, "Failed to fetch balance") });
     }
   });
 
@@ -1911,7 +1917,7 @@ STYLE:
       const txs = await liveChain.getWalletTransactions(req.params.address, req.params.chain, limit);
       res.json(txs);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to fetch transactions" });
+      res.status(500).json({ message: safeError(error, "Failed to fetch transactions") });
     }
   });
 
@@ -1921,7 +1927,7 @@ STYLE:
       if (!receipt) return res.status(404).json({ message: "Transaction not found" });
       res.json(receipt);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to fetch transaction" });
+      res.status(500).json({ message: safeError(error, "Failed to fetch transaction") });
     }
   });
 
@@ -1930,7 +1936,7 @@ STYLE:
       const stats = await liveChain.getNetworkStats(req.params.chain);
       res.json(stats);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to fetch network stats" });
+      res.status(500).json({ message: safeError(error, "Failed to fetch network stats") });
     }
   });
 
@@ -2421,7 +2427,7 @@ STYLE:
       const node = registerNode({ name, address, publicKey, capabilities, region });
       res.json(node);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to register node" });
+      res.status(500).json({ message: safeError(error, "Failed to register node") });
     }
   });
 
@@ -2455,7 +2461,7 @@ STYLE:
       const snapshot = getChainDownload(fromHeight, maxBlocks);
       res.json(snapshot);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to download chain" });
+      res.status(500).json({ message: safeError(error, "Failed to download chain") });
     }
   });
 
@@ -2474,7 +2480,7 @@ STYLE:
       });
       res.json(syncResult);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to sync blocks" });
+      res.status(500).json({ message: safeError(error, "Failed to sync blocks") });
     }
   });
 
@@ -2487,7 +2493,7 @@ STYLE:
       const announcement = announceNewBlock(block, proposerNodeId);
       res.json(announcement);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to announce block" });
+      res.status(500).json({ message: safeError(error, "Failed to announce block") });
     }
   });
 
@@ -2499,7 +2505,7 @@ STYLE:
       const result = validateNetworkBlock(block);
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to validate block" });
+      res.status(500).json({ message: safeError(error, "Failed to validate block") });
     }
   });
 
@@ -3156,7 +3162,7 @@ STYLE:
       res.setHeader("Content-Disposition", `attachment; filename="skynt-wallet-${user.username}-${Date.now()}.json"`);
       res.json(walletJson);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to export wallet" });
+      res.status(500).json({ message: safeError(error, "Failed to export wallet") });
     }
   });
 
@@ -3213,29 +3219,7 @@ STYLE:
       }
       res.json({ success: true, record: result, message: `Swept ${result.ethAmount.toFixed(6)} ETH to treasury gas tank [${result.status}]` });
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Sweep failed" });
-    }
-  });
-
-  app.post("/api/treasury/wallet/set-key", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
-      return res.status(403).json({ message: "Admin only" });
-    }
-    try {
-      const { privateKey } = req.body;
-      if (!privateKey || typeof privateKey !== "string") {
-        return res.status(400).json({ message: "Private key is required" });
-      }
-      
-      // In a real app, we'd use a secret management service.
-      // For this environment, we'll simulate setting it if it's not already in process.env
-      // Note: process.env modifications at runtime don't persist across restarts usually,
-      // but the task asks for a POST to set it.
-      process.env.TREASURY_PRIVATE_KEY = privateKey;
-      
-      res.json({ message: "Treasury key configured for current session" });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to set treasury key" });
+      res.status(500).json({ message: safeError(error, "Sweep failed") });
     }
   });
 
@@ -3313,7 +3297,7 @@ STYLE:
       const result = startMergeMining(req.user!.id, chain as MergeMiningChainId);
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to start merge mining" });
+      res.status(500).json({ message: safeError(error, "Failed to start merge mining") });
     }
   });
 
@@ -3327,7 +3311,7 @@ STYLE:
       const result = stopMergeMining(req.user!.id, chain as MergeMiningChainId);
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to stop merge mining" });
+      res.status(500).json({ message: safeError(error, "Failed to stop merge mining") });
     }
   });
 
@@ -3372,7 +3356,7 @@ STYLE:
       const result = await stakeStxLending(req.user!.id, parseFloat(amount), tier as StxLendingTierId);
       res.json(result);
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Failed to stake" });
+      res.status(400).json({ message: safeError(error, "Failed to stake") });
     }
   });
 
@@ -3386,7 +3370,7 @@ STYLE:
       const result = await openWormhole(req.user!.id, sourceChain, destChain);
       res.json(result);
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Failed to open wormhole" });
+      res.status(400).json({ message: safeError(error, "Failed to open wormhole") });
     }
   });
 
@@ -3398,7 +3382,7 @@ STYLE:
       const result = await closeWormhole(req.user!.id, wormholeId);
       res.json(result);
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Failed to close wormhole" });
+      res.status(400).json({ message: safeError(error, "Failed to close wormhole") });
     }
   });
 
@@ -3412,7 +3396,7 @@ STYLE:
       const result = await initiateTransfer(req.user!.id, wormholeId, amount, token || "SKYNT", externalRecipient || undefined);
       res.json(result);
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Failed to initiate transfer" });
+      res.status(400).json({ message: safeError(error, "Failed to initiate transfer") });
     }
   });
 
@@ -3433,7 +3417,7 @@ STYLE:
       }));
       res.json(wormholes);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to get wormhole status" });
+      res.status(500).json({ message: safeError(error, "Failed to get wormhole status") });
     }
   });
 
@@ -3445,7 +3429,7 @@ STYLE:
       const transfers = await getWormholeTransfers(req.user!.id, wormholeId);
       res.json(transfers);
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Failed to get transfers" });
+      res.status(400).json({ message: safeError(error, "Failed to get transfers") });
     }
   });
 
@@ -3470,7 +3454,7 @@ STYLE:
       }));
       res.json(mapped);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to get transfers" });
+      res.status(500).json({ message: safeError(error, "Failed to get transfers") });
     }
   });
 
@@ -3479,7 +3463,7 @@ STYLE:
       const stats = await getNetworkWormholeStats();
       res.json(stats);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to get network stats" });
+      res.status(500).json({ message: safeError(error, "Failed to get network stats") });
     }
   });
 
@@ -3558,7 +3542,7 @@ STYLE:
       const result = await generateRarityCertificate(nftId, (req.user as any).id);
       res.json(result);
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Failed to generate certificate" });
+      res.status(400).json({ message: safeError(error, "Failed to generate certificate") });
     }
   });
 
@@ -3567,7 +3551,7 @@ STYLE:
       const result = await verifyRarityCertificate(req.params.certificateId);
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Verification failed" });
+      res.status(500).json({ message: safeError(error, "Verification failed") });
     }
   });
 
@@ -3577,7 +3561,7 @@ STYLE:
       const certs = await getUserCertificates((req.user as any).id);
       res.json(certs);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to fetch certificates" });
+      res.status(500).json({ message: safeError(error, "Failed to fetch certificates") });
     }
   });
 
@@ -3587,7 +3571,7 @@ STYLE:
       const cert = await downloadCertificate(req.params.certificateId, (req.user as any).id);
       res.json(cert);
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Failed to download certificate" });
+      res.status(400).json({ message: safeError(error, "Failed to download certificate") });
     }
   });
 
@@ -3739,7 +3723,7 @@ STYLE:
         txHash: engineResult.txHash || null,
       });
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to mint RocketBabe NFT" });
+      res.status(500).json({ message: safeError(error, "Failed to mint RocketBabe NFT") });
     }
   });
 
@@ -3748,7 +3732,7 @@ STYLE:
       const snapshot = computeQuantumBerryPhaseSnapshot();
       res.json(snapshot);
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to compute berry phase snapshot" });
+      res.status(500).json({ message: safeError(error, "Failed to compute berry phase snapshot") });
     }
   });
 
@@ -3765,7 +3749,7 @@ STYLE:
     try {
       res.json(dysonMiner.getState());
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
@@ -3776,7 +3760,7 @@ STYLE:
       const candidates = dysonMiner.generateValknutCandidates(seed, n);
       res.json(candidates);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
@@ -3787,24 +3771,24 @@ STYLE:
       const result = dysonMiner.mine(blockData, maxAttempts);
       res.json(result);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
   // ─── KYC Routes ───────────────────────────────────────────────────────────
 
   app.get("/api/kyc/status", async (req, res) => {
-    if (!req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const sub = await storage.getKycByUser(req.user.id);
+      const sub = await storage.getKycByUser(req.user!.id);
       res.json(sub ?? null);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
   app.post("/api/kyc/submit", rateLimit(60000, 3), async (req, res) => {
-    if (!req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const existing = await storage.getKycByUser(req.user.id);
       if (existing && existing.status !== "rejected") {
@@ -3831,22 +3815,24 @@ STYLE:
       const sub = await storage.createKycSubmission({ ...parsed.data, userId: req.user.id });
       res.status(201).json(sub);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
   app.get("/api/kyc/submissions", async (req, res) => {
-    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user!.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const subs = await storage.getAllKycSubmissions();
       res.json(subs);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
   app.patch("/api/kyc/:id/review", async (req, res) => {
-    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user!.isAdmin) return res.status(403).json({ message: "Admin only" });
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
     const { status, reviewNotes } = req.body;
@@ -3858,7 +3844,7 @@ STYLE:
       const updated = await storage.getKycById(id);
       res.json(updated);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
@@ -3884,7 +3870,7 @@ STYLE:
       }
       res.json(updated);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
@@ -3897,12 +3883,13 @@ STYLE:
       const claims = await storage.getAirdropClaims(id);
       res.json({ ...airdrop, claims });
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
   app.post("/api/airdrops", async (req, res) => {
-    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user!.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const parsed = z.object({
         title: z.string().min(1),
@@ -3926,12 +3913,13 @@ STYLE:
       });
       res.status(201).json(airdrop);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
   app.patch("/api/airdrops/:id/status", async (req, res) => {
-    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user!.isAdmin) return res.status(403).json({ message: "Admin only" });
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
     const { status } = req.body;
@@ -3940,12 +3928,12 @@ STYLE:
       await storage.updateAirdropStatus(id, status);
       res.json({ success: true });
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
   app.post("/api/airdrops/:id/claim", async (req, res) => {
-    if (!req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
     try {
@@ -3992,7 +3980,7 @@ STYLE:
       }
       res.json({ success: true, claim, txHash });
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
@@ -4005,7 +3993,7 @@ STYLE:
       const rows = await db.select().from(governanceProposals).orderBy(drizzleDesc(governanceProposals.createdAt));
       res.json(rows);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
@@ -4028,7 +4016,7 @@ STYLE:
       }).returning();
       res.json(proposal);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
@@ -4060,7 +4048,7 @@ STYLE:
       }
       res.json(vote);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
@@ -4075,7 +4063,7 @@ STYLE:
         .where(and(eq(governanceVotes.proposalId, proposalId), eq(governanceVotes.voterId, userId)));
       res.json(votes[0] || null);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
@@ -4088,7 +4076,7 @@ STYLE:
       const votes = await db.select().from(governanceVotes).where(eq(governanceVotes.voterId, userId));
       res.json(votes);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
@@ -4112,7 +4100,7 @@ STYLE:
         totalEndpoints: 17,
       });
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: safeError(e, "Internal server error") });
     }
   });
 
