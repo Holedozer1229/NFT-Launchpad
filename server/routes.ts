@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, ACCESS_TIERS, type ChainId, type RarityTier, governanceProposals, governanceVotes } from "@shared/schema";
 import { randomBytes, createHash } from "crypto";
-import { verifyMessage } from "viem";
+import { recoverMessageAddress } from "viem";
 import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, getTreasuryGasStatus, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./alchemy-engine";
 import { recordMintFee, getTreasuryYieldState, startTreasuryYieldEngine, getGasRefillPool, sweepGasToTreasury } from "./treasury-yield";
 import { z } from "zod";
@@ -778,7 +778,6 @@ export async function registerRoutes(
   }
 
   app.post("/api/oracle/chat", rateLimit(5000, 2), async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { messages } = req.body;
       if (!messages || !Array.isArray(messages)) {
@@ -3731,15 +3730,15 @@ STYLE:
 
       if (signature && message) {
         try {
-          const valid = await verifyMessage({
-            address: walletAddress as `0x${string}`,
+          const recovered = await recoverMessageAddress({
             message,
             signature: signature as `0x${string}`,
           });
-          if (!valid) {
+          if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
             return res.status(401).json({ message: "Wallet signature verification failed" });
           }
-        } catch {
+        } catch (err) {
+          console.error("[MintFlight] Signature recovery error:", err instanceof Error ? err.message : String(err));
           return res.status(401).json({ message: "Invalid wallet signature" });
         }
       }
@@ -3870,15 +3869,15 @@ STYLE:
 
       if (signature && message) {
         try {
-          const valid = await verifyMessage({
-            address: walletAddress as `0x${string}`,
+          const recovered = await recoverMessageAddress({
             message,
             signature: signature as `0x${string}`,
           });
-          if (!valid) {
+          if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
             return res.status(401).json({ message: "Wallet signature verification failed" });
           }
-        } catch {
+        } catch (err) {
+          console.error("[MintPack] Signature recovery error:", err instanceof Error ? err.message : String(err));
           return res.status(401).json({ message: "Invalid wallet signature" });
         }
       }
