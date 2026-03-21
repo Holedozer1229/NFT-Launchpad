@@ -1056,6 +1056,8 @@ export const btcZkEpochs = pgTable("btc_zk_epochs", {
   specCube: real("spec_cube"),
   qFib: real("q_fib"),
   xiPassed: boolean("xi_passed").default(false),
+  xiPassCount: integer("xi_pass_count").default(0),
+  bestXiEpoch: real("best_xi_epoch"),
   btcBlockHeight: integer("btc_block_height"),
   btcPrevHash: text("btc_prev_hash"),
   btcMerkleRoot: text("btc_merkle_root"),
@@ -1064,8 +1066,23 @@ export const btcZkEpochs = pgTable("btc_zk_epochs", {
   auxpowHash: text("auxpow_hash"),
   auxpowNonce: integer("auxpow_nonce"),
   difficulty: real("difficulty"),
+  networkDifficulty: real("network_difficulty"),
+  mempoolFeeRate: real("mempool_fee_rate"),
   stxYieldRouted: real("stx_yield_routed").default(0),
+  gasFundedEpoch: real("gas_funded_epoch").default(0),
   wormholeTransferId: text("wormhole_transfer_id"),
+  // Spectral PoW fields
+  spectralPeakBin: integer("spectral_peak_bin"),
+  spectralPeakMagnitude: real("spectral_peak_magnitude"),
+  spectralCurveScalar: text("spectral_curve_scalar"),
+  spectralIsValid: boolean("spectral_is_valid").default(false),
+  spectralEntropy: real("spectral_entropy"),
+  // ECRECOVER proof
+  ecrecoverMessageHash: text("ecrecover_message_hash"),
+  ecrecoverV: integer("ecrecover_v"),
+  ecrecoverR: text("ecrecover_r"),
+  ecrecoverS: text("ecrecover_s"),
+  ecrecoverAddress: text("ecrecover_address"),
   status: text("status").notNull().default("running"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -1076,6 +1093,63 @@ export const insertBtcZkEpochSchema = createInsertSchema(btcZkEpochs).omit({
 });
 export type BtcZkEpochRow = typeof btcZkEpochs.$inferSelect;
 export type InsertBtcZkEpoch = z.infer<typeof insertBtcZkEpochSchema>;
+
+// ─── Spectral PoW Proofs ──────────────────────────────────────────────────────
+
+export const spectralPowProofs = pgTable("spectral_pow_proofs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  epoch: integer("epoch").notNull(),
+  btcBlockHeight: integer("btc_block_height").notNull(),
+  peakBin: integer("peak_bin").notNull(),
+  peakMagnitude: real("peak_magnitude").notNull(),
+  peakPhase: real("peak_phase").notNull(),
+  spectralEntropy: real("spectral_entropy").notNull(),
+  curveScalar: text("curve_scalar").notNull(),
+  heightBinding: text("height_binding").notNull(),
+  isValid: boolean("is_valid").default(false),
+  entropySource: text("entropy_source").notNull(),
+  dftBins: text("dft_bins"),
+  ecrecoverMessageHash: text("ecrecover_message_hash"),
+  ecrecoverV: integer("ecrecover_v"),
+  ecrecoverR: text("ecrecover_r"),
+  ecrecoverS: text("ecrecover_s"),
+  ecrecoverAddress: text("ecrecover_address"),
+  soundnessVerified: boolean("soundness_verified").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSpectralPowProofSchema = createInsertSchema(spectralPowProofs).omit({
+  id: true,
+  createdAt: true,
+});
+export type SpectralPowProofRow = typeof spectralPowProofs.$inferSelect;
+export type InsertSpectralPowProof = z.infer<typeof insertSpectralPowProofSchema>;
+
+// ─── Gas Funding Events (OIYE Self-Fund Sentinel) ────────────────────────────
+
+export const gasFundingEvents = pgTable("gas_funding_events", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  epoch: integer("epoch"),
+  triggerReason: text("trigger_reason").notNull(),
+  fundingMethod: text("funding_method").notNull(),
+  ethFunded: real("eth_funded").default(0),
+  stxConverted: real("stx_converted").default(0),
+  gasBefore: real("gas_before"),
+  gasAfter: real("gas_after"),
+  reserveBalance: real("reserve_balance").default(0),
+  yieldAllocated: real("yield_allocated").default(0),
+  phase: text("phase").notNull().default("bootstrap"),
+  status: text("status").notNull().default("executed"),
+  txHash: text("tx_hash"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertGasFundingEventSchema = createInsertSchema(gasFundingEvents).omit({
+  id: true,
+  createdAt: true,
+});
+export type GasFundingEventRow = typeof gasFundingEvents.$inferSelect;
+export type InsertGasFundingEvent = z.infer<typeof insertGasFundingEventSchema>;
 
 export const yieldPositions = pgTable("yield_positions", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

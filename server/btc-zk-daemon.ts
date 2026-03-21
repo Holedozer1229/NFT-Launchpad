@@ -15,6 +15,7 @@
 
 import { createHash, randomBytes } from "crypto";
 import { computeQuantumBerryPhaseSnapshot } from "./berry-phase-engine";
+import { computeSpectralPoW, buildECRecoverProof } from "./spectral-pow";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -535,7 +536,20 @@ async function runEpoch() {
     const epochBestXi = bestXiThisEpoch;
     const epochXiPassed = xiPassCount > 0;
 
-    // 8. STX yield routing
+    // 8. Spectral PoW proof — DFT peak → curve scalar → height binding
+    const spectralProof = computeSpectralPoW(
+      prevHash, moneroSeedHash, zkSyncAnchor, btcBlockHeight
+    );
+    const spectralHash = createHash("sha3-256")
+      .update(moneroSeedHash)
+      .update(zkSyncAnchor)
+      .update(String(chainCorr))
+      .digest("hex");
+
+    // 8b. ECRECOVER proof — sign spectralHash with treasury key
+    const ecProof = buildECRecoverProof(spectralHash, process.env.TREASURY_WALLET_ADDRESS ?? "");
+
+    // 9. STX yield routing
     const stxYieldAmount = blockFound
       ? 25 + Math.random() * 10
       : epochXiPassed
@@ -548,14 +562,19 @@ async function runEpoch() {
       wormholeId = await routeStxYield(currentEpoch, stxYieldAmount);
     }
 
-    // 9. Build epoch record
+    // 10. Gas self-funding allocation (OIYE bootstrap sentinel)
+    let gasFundedThisEpoch = 0;
+    try {
+      const { allocateEpochYieldToGas } = await import("./self-fund-gas");
+      gasFundedThisEpoch = await allocateEpochYieldToGas(currentEpoch, stxYieldAmount);
+    } catch (gasErr: any) {
+      console.error("[BtcZkDaemon] Gas allocation error:", gasErr.message);
+    }
+
+    // 11. Build epoch record
     const epoch: BtcZkEpoch = {
       epoch: currentEpoch,
-      spectralHash: createHash("sha3-256")
-        .update(moneroSeedHash)
-        .update(zkSyncAnchor)
-        .update(String(chainCorr))
-        .digest("hex"),
+      spectralHash,
       quantumGaps: quantumGaps.slice(0, 10),
       chainCorr,
       latticeCorr,
@@ -582,35 +601,75 @@ async function runEpoch() {
     recentEpochs.push(epoch);
     if (recentEpochs.length > MAX_RECENT) recentEpochs.shift();
 
-    // 10. Persist to DB
+    // 12. Persist epoch to DB with all new fields
     try {
       const { pool } = await import("./db");
       await pool.query(
         `INSERT INTO btc_zk_epochs
           (epoch, spectral_hash, quantum_gaps, chain_corr, lattice_corr,
            valknut_xi, berry_phase, dyson_factor, spec_cube, q_fib, xi_passed,
+           xi_pass_count, best_xi_epoch,
            btc_block_height, btc_prev_hash, btc_merkle_root, monero_seed_hash,
            zk_sync_anchor, auxpow_hash, auxpow_nonce, difficulty,
-           stx_yield_routed, wormhole_transfer_id, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+           network_difficulty, mempool_fee_rate,
+           stx_yield_routed, gas_funded_epoch, wormhole_transfer_id,
+           spectral_peak_bin, spectral_peak_magnitude, spectral_curve_scalar,
+           spectral_is_valid, spectral_entropy,
+           ecrecover_message_hash, ecrecover_v, ecrecover_r, ecrecover_s, ecrecover_address,
+           status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37)`,
         [
           epoch.epoch, epoch.spectralHash, JSON.stringify(epoch.quantumGaps),
           epoch.chainCorr, epoch.latticeCorr, epoch.valknutXi,
           epoch.berryPhase, epoch.dysonFactor, epoch.specCube, epoch.qFib,
-          epoch.xiPassed, epoch.btcBlockHeight, epoch.btcPrevHash,
+          epoch.xiPassed, xiPassCount, epochBestXi,
+          epoch.btcBlockHeight, epoch.btcPrevHash,
           epoch.btcMerkleRoot, epoch.moneroSeedHash, epoch.zkSyncAnchor,
           epoch.auxpowHash, epoch.auxpowNonce, epoch.difficulty,
-          epoch.stxYieldRouted, wormholeId, epoch.status,
+          btcBlock.difficulty, feeRate,
+          epoch.stxYieldRouted, gasFundedThisEpoch, wormholeId,
+          spectralProof.peakBin, spectralProof.peakMagnitude,
+          spectralProof.curveScalar, spectralProof.isValid, spectralProof.spectralEntropy,
+          ecProof?.messageHash ?? null, ecProof?.v ?? null,
+          ecProof?.r ?? null, ecProof?.s ?? null, ecProof?.recoveredAddress ?? null,
+          epoch.status,
         ]
       );
     } catch (dbErr: any) {
       console.error("[BtcZkDaemon] DB persist error:", dbErr.message);
     }
 
+    // 13. Persist spectral PoW proof to dedicated table
+    try {
+      const { pool } = await import("./db");
+      await pool.query(
+        `INSERT INTO spectral_pow_proofs
+          (epoch, btc_block_height, peak_bin, peak_magnitude, peak_phase,
+           spectral_entropy, curve_scalar, height_binding, is_valid, entropy_source,
+           dft_bins, ecrecover_message_hash, ecrecover_v, ecrecover_r, ecrecover_s,
+           ecrecover_address, soundness_verified)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+        [
+          currentEpoch, btcBlockHeight,
+          spectralProof.peakBin, spectralProof.peakMagnitude, spectralProof.peakPhase,
+          spectralProof.spectralEntropy, spectralProof.curveScalar,
+          spectralProof.heightBinding.toString(), spectralProof.isValid,
+          spectralProof.entropySource,
+          JSON.stringify(spectralProof.dftBins.map(b => ({ bin: b.bin, mag: parseFloat(b.magnitude.toFixed(4)) }))),
+          ecProof?.messageHash ?? null, ecProof?.v ?? null,
+          ecProof?.r ?? null, ecProof?.s ?? null,
+          ecProof?.recoveredAddress ?? null, ecProof?.soundnessVerified ?? false,
+        ]
+      );
+    } catch (dbErr: any) {
+      console.error("[BtcZkDaemon] Spectral proof DB error:", dbErr.message);
+    }
+
     const xiStr = epochBestXi.toFixed(4);
     const passStr = epochXiPassed ? `✓ (${xiPassCount} passes)` : "✗";
+    const spectralStr = spectralProof.isValid ? "✓ spectral" : `bin=${spectralProof.peakBin}`;
     console.log(
-      `[BtcZkDaemon] Epoch ${currentEpoch} | bestXi=${xiStr} ${passStr} | ${hashes} hashes @ ${currentHashRate}H/s | stxYield=${stxYieldAmount.toFixed(3)} | fee=${feeRate}sat/vB`
+      `[BtcZkDaemon] Epoch ${currentEpoch} | bestXi=${xiStr} ${passStr} | ${spectralStr} | ${hashes}H @ ${currentHashRate}H/s | stxYield=${stxYieldAmount.toFixed(3)} | gas+${gasFundedThisEpoch.toFixed(8)}ETH`
     );
   } catch (err: any) {
     console.error(`[BtcZkDaemon] Epoch ${currentEpoch} error:`, err.message);

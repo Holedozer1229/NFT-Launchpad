@@ -3585,6 +3585,59 @@ STYLE:
     }
   });
 
+  // Self-funding gas sentinel (OIYE Bootstrap Engine)
+  app.get("/api/self-fund/status", async (_req, res) => {
+    try {
+      const { getSelfFundStatus } = await import("./self-fund-gas");
+      res.json(getSelfFundStatus());
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/self-fund/events", async (_req, res) => {
+    try {
+      const { pool } = await import("./db");
+      const result = await pool.query(
+        `SELECT * FROM gas_funding_events ORDER BY created_at DESC LIMIT 50`
+      );
+      res.json(result.rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Spectral PoW proofs
+  app.get("/api/spectral-pow/proofs", async (_req, res) => {
+    try {
+      const { pool } = await import("./db");
+      const result = await pool.query(
+        `SELECT id, epoch, btc_block_height, peak_bin, peak_magnitude, peak_phase,
+                spectral_entropy, curve_scalar, height_binding, is_valid,
+                entropy_source, ecrecover_message_hash, ecrecover_v,
+                ecrecover_address, soundness_verified, created_at
+         FROM spectral_pow_proofs ORDER BY created_at DESC LIMIT 30`
+      );
+      res.json(result.rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/spectral-pow/proofs/:epoch", async (req, res) => {
+    try {
+      const { pool } = await import("./db");
+      const result = await pool.query(
+        `SELECT * FROM spectral_pow_proofs WHERE epoch = $1`,
+        [parseInt(req.params.epoch)]
+      );
+      if (!result.rows.length) return res.status(404).json({ message: "Proof not found" });
+      res.json(result.rows[0]);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Starship Flight NFT Showcase
   app.get("/api/starship-nft-showcase", (_req, res) => {
     res.json(STARSHIP_FLIGHT_SHOWCASES);
