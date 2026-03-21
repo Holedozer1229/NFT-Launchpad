@@ -126,6 +126,7 @@ export default function CrossChain() {
   const { data: networkStats } = useQuery<WormholeNetworkStats>({ queryKey: ["/api/wormhole/network"] });
   const { data: wormholes = [], isLoading: statusLoading } = useQuery<WormholeStatus[]>({ queryKey: ["/api/wormhole/status"] });
   const { data: transfers = [], isLoading: transfersLoading } = useQuery<WormholeTransfer[]>({ queryKey: ["/api/wormhole/all-transfers"] });
+  const { data: chainConfig } = useQuery<{ chains: Record<string, { live: boolean; protocol: string; nativeToken: string; requires: string[] }> }>({ queryKey: ["/api/wormhole/chain-config"] });
 
   // Queries — Rosetta
   const { data: rosetta } = useQuery<RosettaStatus>({ queryKey: ["/api/rosetta/status"], refetchInterval: 60000 });
@@ -601,6 +602,41 @@ export default function CrossChain() {
       {/* ========== WORMHOLE TAB ========== */}
       {activeTab === "wormhole" && (
         <div className="space-y-8">
+
+          {/* Live Chain Transmit Status */}
+          {chainConfig && (
+            <section className="cosmic-card p-4 space-y-3" data-testid="chain-config-panel">
+              <div className="flex items-center justify-between">
+                <h3 className="font-heading text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Server className="w-3.5 h-3.5 text-neon-cyan" /> Live On-Chain Transmit Config
+                </h3>
+                <span className="text-[10px] font-mono text-muted-foreground/50">
+                  {Object.values(chainConfig.chains).filter(c => c.live).length} / {Object.values(chainConfig.chains).length} chains live
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-2">
+                {Object.entries(chainConfig.chains).map(([chainId, info]) => {
+                  const chain = [...BRIDGE_CHAINS, { id: "polygon_zkevm", name: "Polygon zkEVM", symbol: "ETH", icon: "⬡", color: "hsl(300 100% 60%)" }].find(c => c.id === chainId);
+                  return (
+                    <div key={chainId} className={`flex items-center gap-2 px-2.5 py-2 rounded-sm border text-[10px] font-mono ${
+                      info.live ? "border-neon-green/30 bg-neon-green/5" : "border-white/5 bg-white/2 opacity-60"
+                    }`} title={info.live ? "Live on-chain transmit ready" : `Needs: ${info.requires.join(", ")}`}
+                      data-testid={`chain-status-${chainId}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${info.live ? "bg-neon-green animate-pulse" : "bg-white/20"}`} />
+                      <span className="truncate">{chain?.name ?? chainId}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {Object.values(chainConfig.chains).some(c => !c.live) && (
+                <p className="text-[10px] font-mono text-muted-foreground/50 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 text-neon-orange" />
+                  Dimmed chains need treasury keys configured as secrets to enable live transmit.
+                </p>
+              )}
+            </section>
+          )}
+
           {/* Open Portal Panel */}
           <section className="cosmic-card cosmic-card-cyan p-6 md:p-8 space-y-8 relative overflow-hidden">
             <div className="flex items-center justify-between">
@@ -820,22 +856,60 @@ export default function CrossChain() {
                   <label className="text-xs font-heading text-muted-foreground uppercase px-1 flex items-center gap-2">
                     <ExternalLink className="w-3 h-3 text-neon-cyan" />
                     External Wallet Address
-                    <span className="text-[10px] text-neon-cyan/60 normal-case font-mono">(optional — receive on dest chain)</span>
+                    <span className="text-[10px] text-neon-cyan/60 normal-case font-mono">(optional — live on-chain transmit)</span>
                   </label>
-                  <input
-                    type="text"
-                    value={externalRecipient}
-                    onChange={e => setExternalRecipient(e.target.value)}
-                    placeholder="0x... or native address (e.g. SOL, DOGE)"
-                    className="w-full bg-black/40 border border-neon-cyan/20 rounded-sm p-3 font-mono text-xs focus:outline-none focus:border-neon-cyan transition-colors placeholder:text-white/20"
-                    data-testid="input-external-recipient"
-                  />
-                  {externalRecipient && (
-                    <p className="text-[10px] font-mono text-neon-cyan/70 px-1 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-neon-cyan animate-pulse inline-block" />
-                      Live on-chain transmit will fire on ZK proof completion
-                    </p>
-                  )}
+                  {(() => {
+                    const destChainId = selectedWormhole?.destChain;
+                    const destCfg = destChainId ? chainConfig?.chains[destChainId] : undefined;
+                    const isDestLive = destCfg?.live ?? false;
+                    const nativeToken = destCfg?.nativeToken ?? "";
+                    const placeholders: Record<string, string> = {
+                      solana: "Base58 Solana address (e.g. GkF4…)",
+                      dogecoin: "Dogecoin address (e.g. D5X…)",
+                      stacks: "Stacks address (e.g. SP3…)",
+                      monero: "Monero address (e.g. 4Ad…)",
+                      ethereum: "EVM hex address (0x…)",
+                      polygon: "EVM hex address (0x…)",
+                      arbitrum: "EVM hex address (0x…)",
+                      base: "EVM hex address (0x…)",
+                      zksync: "EVM hex address (0x…)",
+                      skynt: "SphinxSkynet address",
+                    };
+                    const placeholder = destChainId ? (placeholders[destChainId] ?? "Destination wallet address") : "Select a portal above first";
+                    return (
+                      <>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={externalRecipient}
+                            onChange={e => setExternalRecipient(e.target.value)}
+                            placeholder={placeholder}
+                            className={`w-full bg-black/40 border rounded-sm p-3 font-mono text-xs focus:outline-none transition-colors placeholder:text-white/20 ${
+                              externalRecipient ? "border-neon-cyan/50 focus:border-neon-cyan" : "border-neon-cyan/20 focus:border-neon-cyan/40"
+                            }`}
+                            data-testid="input-external-recipient"
+                          />
+                          {destChainId && (
+                            <div className={`absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-[9px] font-mono uppercase ${isDestLive ? "text-neon-green" : "text-neon-orange"}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isDestLive ? "bg-neon-green animate-pulse" : "bg-neon-orange"}`} />
+                              {isDestLive ? "LIVE" : "NEEDS KEY"}
+                            </div>
+                          )}
+                        </div>
+                        {externalRecipient && (
+                          <p className="text-[10px] font-mono px-1 flex items-center gap-1.5">
+                            {isDestLive ? (
+                              <><span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse inline-block" />
+                              <span className="text-neon-green">Live {nativeToken} transmit fires on ZK proof completion</span></>
+                            ) : (
+                              <><span className="w-1.5 h-1.5 rounded-full bg-neon-orange inline-block" />
+                              <span className="text-neon-orange">Transmit will be queued — configure {destCfg?.requires.join(", ")} to enable</span></>
+                            )}
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
                 <Button data-testid="button-initiate-transfer"
                   onClick={() => {
@@ -965,7 +1039,7 @@ export default function CrossChain() {
                                     <ExternalLink className="w-3 h-3" /> View on Explorer
                                   </a>
                                 ) : (
-                                  <span className="text-neon-cyan/50 text-[10px]">Simulated</span>
+                                  <span className="text-white/30 text-[10px]">ZK-only</span>
                                 )}
                               </div>
                             ) : tx.externalRecipient && tx.status !== "failed" ? (
