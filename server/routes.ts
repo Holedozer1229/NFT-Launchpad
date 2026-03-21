@@ -3351,7 +3351,8 @@ STYLE:
       const result = await stakeStxLending(req.user!.id, parseFloat(amount), tier as StxLendingTierId);
       res.json(result);
     } catch (error: any) {
-      res.status(400).json({ message: safeError(error, "Failed to stake") });
+      const msg = error instanceof Error ? error.message : "Failed to stake";
+      res.status(400).json({ message: msg });
     }
   });
 
@@ -3365,7 +3366,7 @@ STYLE:
       const result = await openWormhole(req.user!.id, sourceChain, destChain);
       res.json(result);
     } catch (error: any) {
-      res.status(400).json({ message: safeError(error, "Failed to open wormhole") });
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to open wormhole" });
     }
   });
 
@@ -3377,7 +3378,7 @@ STYLE:
       const result = await closeWormhole(req.user!.id, wormholeId);
       res.json(result);
     } catch (error: any) {
-      res.status(400).json({ message: safeError(error, "Failed to close wormhole") });
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to close wormhole" });
     }
   });
 
@@ -3391,7 +3392,7 @@ STYLE:
       const result = await initiateTransfer(req.user!.id, wormholeId, amount, token || "SKYNT", externalRecipient || undefined);
       res.json(result);
     } catch (error: any) {
-      res.status(400).json({ message: safeError(error, "Failed to initiate transfer") });
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to initiate transfer" });
     }
   });
 
@@ -3424,7 +3425,7 @@ STYLE:
       const transfers = await getWormholeTransfers(req.user!.id, wormholeId);
       res.json(transfers);
     } catch (error: any) {
-      res.status(400).json({ message: safeError(error, "Failed to get transfers") });
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to get transfers" });
     }
   });
 
@@ -3537,7 +3538,7 @@ STYLE:
       const result = await generateRarityCertificate(nftId, (req.user as any).id);
       res.json(result);
     } catch (error: any) {
-      res.status(400).json({ message: safeError(error, "Failed to generate certificate") });
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to generate certificate" });
     }
   });
 
@@ -3566,7 +3567,7 @@ STYLE:
       const cert = await downloadCertificate(req.params.certificateId, (req.user as any).id);
       res.json(cert);
     } catch (error: any) {
-      res.status(400).json({ message: safeError(error, "Failed to download certificate") });
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to download certificate" });
     }
   });
 
