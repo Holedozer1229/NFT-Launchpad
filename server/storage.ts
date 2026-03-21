@@ -36,6 +36,7 @@ export interface IStorage {
 
   getNfts(): Promise<Nft[]>;
   getNft(id: number): Promise<Nft | undefined>;
+  getNftsByUser(userId: number): Promise<Nft[]>;
   createNft(nft: InsertNft): Promise<Nft>;
   updateNftStatus(id: number, status: string): Promise<void>;
   updateNftOpenSea(id: number, openseaUrl: string | null, openseaStatus: string, openseaListingId: string | null): Promise<void>;
@@ -261,6 +262,10 @@ export class DatabaseStorage implements IStorage {
 
   async getNfts(): Promise<Nft[]> {
     return await db.select().from(nfts).orderBy(desc(nfts.id));
+  }
+
+  async getNftsByUser(userId: number): Promise<Nft[]> {
+    return await db.select().from(nfts).where(eq(nfts.mintedBy, userId)).orderBy(desc(nfts.id));
   }
 
   async getNft(id: number): Promise<Nft | undefined> {
