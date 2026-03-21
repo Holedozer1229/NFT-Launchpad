@@ -891,18 +891,19 @@ STYLE:
       let networkFee: string | null = null;
       let status = "completed";
 
-      if (token === "ETH") {
-        const result = await transmitEthereum(toAddress, amount);
-        txHash = result.txHash;
-        explorerUrl = result.explorerUrl;
-        networkFee = result.networkFee ?? null;
-        status = result.status;
-      } else if (token === "STX") {
-        const result = await transmitStacks(toAddress, amount);
-        txHash = result.txHash;
-        explorerUrl = result.explorerUrl;
-        networkFee = result.networkFee ?? null;
-        status = result.status;
+      if (token === "ETH" || token === "STX") {
+        try {
+          const result = token === "ETH"
+            ? await transmitEthereum(toAddress, amount)
+            : await transmitStacks(toAddress, amount);
+          txHash = result.txHash;
+          explorerUrl = result.explorerUrl;
+          networkFee = result.networkFee ?? null;
+          status = result.status;
+        } catch (transmitError: any) {
+          const msg = transmitError instanceof Error ? transmitError.message : "Chain transmit failed";
+          return res.status(400).json({ message: msg });
+        }
       }
 
       const newBalance = (currentBalance - sendAmount).toString();
