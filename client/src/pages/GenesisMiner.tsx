@@ -379,7 +379,7 @@ export default function GenesisMiner() {
     if (wasStarted && isActive === false) {
       setSessionLost(true);
       if (prevMiningActiveRef.current === true) {
-        addNotification("mining", "Mining session interrupted — server restarted", NEON_COLORS.orange);
+        addNotification("mining", "Mining session stopped unexpectedly", NEON_COLORS.orange);
       }
     } else if (isActive === true) {
       setSessionLost(false);
@@ -609,8 +609,8 @@ export default function GenesisMiner() {
         >
           <AlertTriangle className="w-5 h-5 shrink-0" style={{ color: NEON_COLORS.orange }} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-heading" style={{ color: NEON_COLORS.orange }}>Mining session interrupted</p>
-            <p className="text-xs font-mono text-muted-foreground">The server restarted and your session was cleared. Restart to resume earning SKYNT.</p>
+            <p className="text-sm font-heading" style={{ color: NEON_COLORS.orange }}>Mining session stopped</p>
+            <p className="text-xs font-mono text-muted-foreground">Your background mining session is no longer active. Restart to resume earning SKYNT.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Button
