@@ -412,7 +412,7 @@ async function runEpoch() {
     totalStxYield += stxYieldAmount;
 
     let wormholeId: string | null = null;
-    if (stxYieldAmount > 1) {
+    if (stxYieldAmount > 0.43) {
       wormholeId = await routeStxYield(currentEpoch, stxYieldAmount);
     }
 
