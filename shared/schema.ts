@@ -978,3 +978,61 @@ export const insertKycSubmissionSchema = createInsertSchema(kycSubmissions).omit
 });
 export type KycSubmission = typeof kycSubmissions.$inferSelect;
 export type InsertKycSubmission = z.infer<typeof insertKycSubmissionSchema>;
+
+// ==================== GOVERNANCE ====================
+
+export const PROPOSAL_STATUSES = ["active", "passed", "rejected", "executed", "cancelled"] as const;
+export type ProposalStatus = typeof PROPOSAL_STATUSES[number];
+
+export const PROPOSAL_CATEGORIES = ["protocol", "treasury", "parameter", "upgrade", "community"] as const;
+export type ProposalCategory = typeof PROPOSAL_CATEGORIES[number];
+
+export const governanceProposals = pgTable("governance_proposals", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull().default("protocol"),
+  status: text("status").notNull().default("active"),
+  proposerId: integer("proposer_id").notNull().references(() => users.id),
+  proposerAddress: text("proposer_address"),
+  votesFor: integer("votes_for").notNull().default(0),
+  votesAgainst: integer("votes_against").notNull().default(0),
+  votesAbstain: integer("votes_abstain").notNull().default(0),
+  quorumRequired: integer("quorum_required").notNull().default(100),
+  timelockHours: integer("timelock_hours").notNull().default(48),
+  executionHash: text("execution_hash"),
+  endsAt: timestamp("ends_at").notNull(),
+  executedAt: timestamp("executed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertGovernanceProposalSchema = createInsertSchema(governanceProposals).omit({
+  id: true,
+  votesFor: true,
+  votesAgainst: true,
+  votesAbstain: true,
+  executedAt: true,
+  createdAt: true,
+});
+export type GovernanceProposal = typeof governanceProposals.$inferSelect;
+export type InsertGovernanceProposal = z.infer<typeof insertGovernanceProposalSchema>;
+
+export const VOTE_CHOICES = ["for", "against", "abstain"] as const;
+export type VoteChoice = typeof VOTE_CHOICES[number];
+
+export const governanceVotes = pgTable("governance_votes", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  proposalId: integer("proposal_id").notNull().references(() => governanceProposals.id),
+  voterId: integer("voter_id").notNull().references(() => users.id),
+  choice: text("choice").notNull(),
+  weight: integer("weight").notNull().default(1),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertGovernanceVoteSchema = createInsertSchema(governanceVotes).omit({
+  id: true,
+  createdAt: true,
+});
+export type GovernanceVote = typeof governanceVotes.$inferSelect;
+export type InsertGovernanceVote = z.infer<typeof insertGovernanceVoteSchema>;

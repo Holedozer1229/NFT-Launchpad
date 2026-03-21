@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, ACCESS_TIERS, type ChainId, type RarityTier } from "@shared/schema";
+import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, ACCESS_TIERS, type ChainId, type RarityTier, governanceProposals, governanceVotes } from "@shared/schema";
 import { randomBytes, createHash } from "crypto";
 import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, getTreasuryGasStatus, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./alchemy-engine";
 import { recordMintFee, getTreasuryYieldState, startTreasuryYieldEngine, getGasRefillPool, sweepGasToTreasury } from "./treasury-yield";
@@ -3761,6 +3761,122 @@ STYLE:
         });
       }
       res.json({ success: true, claim, txHash });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ==================== GOVERNANCE ====================
+
+  app.get("/api/governance/proposals", async (_req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { desc: drizzleDesc } = await import("drizzle-orm");
+      const rows = await db.select().from(governanceProposals).orderBy(drizzleDesc(governanceProposals.createdAt));
+      res.json(rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/governance/proposals", requireAuth, async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { title, description, category, timelockHours, endsAt } = req.body;
+      if (!title || !description) return res.status(400).json({ message: "title and description required" });
+      const userId = (req as any).user.id;
+      const [proposal] = await db.insert(governanceProposals).values({
+        title: String(title),
+        description: String(description),
+        category: String(category || "protocol"),
+        status: "active",
+        proposerId: userId,
+        quorumRequired: 100,
+        timelockHours: Number(timelockHours || 48),
+        endsAt: endsAt ? new Date(endsAt) : new Date(Date.now() + 7 * 86400000),
+      }).returning();
+      res.json(proposal);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/governance/proposals/:id/vote", requireAuth, async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { eq, and, sql: drizzleSql } = await import("drizzle-orm");
+      const proposalId = parseInt(req.params.id);
+      const { choice, reason } = req.body;
+      if (!["for", "against", "abstain"].includes(choice)) return res.status(400).json({ message: "choice must be for/against/abstain" });
+      const userId = (req as any).user.id;
+      const existing = await db.select().from(governanceVotes)
+        .where(and(eq(governanceVotes.proposalId, proposalId), eq(governanceVotes.voterId, userId)));
+      if (existing.length > 0) return res.status(409).json({ message: "Already voted on this proposal" });
+      const [vote] = await db.insert(governanceVotes).values({
+        proposalId,
+        voterId: userId,
+        choice: String(choice),
+        weight: 1,
+        reason: reason ? String(reason) : null,
+      }).returning();
+      if (choice === "for") {
+        await db.update(governanceProposals).set({ votesFor: drizzleSql`votes_for + 1` }).where(eq(governanceProposals.id, proposalId));
+      } else if (choice === "against") {
+        await db.update(governanceProposals).set({ votesAgainst: drizzleSql`votes_against + 1` }).where(eq(governanceProposals.id, proposalId));
+      } else {
+        await db.update(governanceProposals).set({ votesAbstain: drizzleSql`votes_abstain + 1` }).where(eq(governanceProposals.id, proposalId));
+      }
+      res.json(vote);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/governance/proposals/:id/my-vote", requireAuth, async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
+      const proposalId = parseInt(req.params.id);
+      const userId = (req as any).user.id;
+      const votes = await db.select().from(governanceVotes)
+        .where(and(eq(governanceVotes.proposalId, proposalId), eq(governanceVotes.voterId, userId)));
+      res.json(votes[0] || null);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/governance/my-votes", requireAuth, async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      const userId = (req as any).user.id;
+      const votes = await db.select().from(governanceVotes).where(eq(governanceVotes.voterId, userId));
+      res.json(votes);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ==================== ROSETTA STATUS (public) ====================
+
+  app.get("/api/rosetta/status", async (_req, res) => {
+    try {
+      const chainInfo = await getChainInfo();
+      res.json({
+        blockchain: "SphinxSkynet",
+        network: "mainnet",
+        symbol: "SKYNT",
+        decimals: 8,
+        rosettaVersion: "1.4.13",
+        nodeVersion: "1.0.0",
+        blockHeight: chainInfo.blockHeight,
+        syncStatus: "synced",
+        supportedOperations: ["TRANSFER", "NFT_MINT", "COINBASE"],
+        constructionEndpoints: 8,
+        dataEndpoints: 9,
+        totalEndpoints: 17,
+      });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
