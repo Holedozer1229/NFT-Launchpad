@@ -180,11 +180,14 @@ export async function transmitStacks(
   }
 
   const txHash = (response as any).txid ?? (response as any).tx_id ?? String(response);
+  const STX_FEE_MICRO = 2000n;
+  const networkFee = (Number(STX_FEE_MICRO) / STX_MICRO).toFixed(6);
   return {
     txHash,
     status: "broadcast",
     explorerUrl: `https://explorer.stacks.co/txid/${txHash}?chain=mainnet`,
     chain: "stacks",
+    networkFee,
   };
 }
 

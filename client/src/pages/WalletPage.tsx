@@ -220,9 +220,14 @@ export default function WalletPage() {
     },
   });
 
-  const validateAddress = (value: string) => {
+  const validateAddress = (value: string, token?: string) => {
+    const tok = token ?? sendToken;
     if (!value) { setAddressError(""); return; }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(value)) { setAddressError("Invalid Ethereum address format (0x...)"); return; }
+    if (tok === "ETH") {
+      if (!/^0x[a-fA-F0-9]{40}$/.test(value)) { setAddressError("Invalid ETH address (must start with 0x, 42 chars)"); return; }
+    } else if (tok === "STX") {
+      if (!/^S[A-Z0-9]{38,41}$/.test(value)) { setAddressError("Invalid STX address (must start with SP, SM, etc.)"); return; }
+    }
     if (activeWallet && value.toLowerCase() === activeWallet.address.toLowerCase()) { setAddressError("Cannot send to your own wallet"); return; }
     setAddressError("");
   };
@@ -738,7 +743,7 @@ export default function WalletPage() {
                       <button
                         key={t.symbol}
                         data-testid={`send-token-${t.symbol}`}
-                        onClick={() => setSendToken(t.symbol)}
+                        onClick={() => { setSendToken(t.symbol); validateAddress(sendTo, t.symbol); }}
                         className={`flex-1 py-2 rounded-sm text-xs font-heading uppercase flex items-center justify-center gap-1.5 border transition-all ${
                           sendToken === t.symbol ? "bg-primary/20 text-primary border-primary/40" : "bg-black/20 text-muted-foreground border-border/30"
                         }`}
@@ -754,7 +759,7 @@ export default function WalletPage() {
                   <input
                     data-testid="input-send-to"
                     type="text"
-                    placeholder="0x..."
+                    placeholder={sendToken === "STX" ? "SP... or SM..." : "0x..."}
                     value={sendTo}
                     onChange={(e) => { setSendTo(e.target.value); validateAddress(e.target.value); }}
                     className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-sm focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40"

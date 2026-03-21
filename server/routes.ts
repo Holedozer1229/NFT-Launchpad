@@ -115,9 +115,19 @@ async function deployContractsForWallet(walletAddress: string, chain: string, wa
 }
 
 const sendTokenSchema = z.object({
-  toAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid address format"),
+  toAddress: z.string().min(1, "Recipient address is required"),
   amount: z.string().refine((v) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0; }, "Amount must be a positive number"),
   token: z.enum(["SKYNT", "STX", "ETH", "DOGE", "XMR"]).default("SKYNT"),
+}).superRefine((data, ctx) => {
+  if (data.token === "ETH" || data.token === "DOGE" || data.token === "XMR") {
+    if (!/^0x[a-fA-F0-9]{40}$/.test(data.toAddress) && data.token === "ETH") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "ETH address must be 0x-prefixed 40-character hex" });
+    }
+  } else if (data.token === "STX") {
+    if (!/^S[A-Z0-9]{38,41}$/.test(data.toAddress)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "STX address must start with S followed by 38-41 alphanumeric characters (e.g. SP...)" });
+    }
+  }
 });
 
 function getOpenAI(): OpenAI {
