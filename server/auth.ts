@@ -601,7 +601,7 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Invalid signature. Please disconnect your wallet and try again." });
       }
       if (!isValid) {
-        console.log(`[Auth] Link wallet signature mismatch. Expected: ${normalized}, Recovered: ${recoveredAddress}`);
+        console.log(`[Auth] Link wallet signature mismatch. Expected: ${normalized.slice(0, 10)}…, Recovered: ${recoveredAddress?.slice(0, 10)}…`);
         return res.status(401).json({ message: "Signature verification failed. You must sign with the wallet you are linking." });
       }
 

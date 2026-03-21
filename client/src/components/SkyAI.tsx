@@ -47,8 +47,9 @@ export function SkyAI() {
 
   useEffect(() => {
     if (open && messages.length === 0) {
-      const greeting = isConnected && address
-        ? `SKYNT AI online. Wallet detected: ${address.slice(0, 6)}…${address.slice(-4)}.${formattedBalance ? ` Your SKYNT balance: ${formattedBalance} SKYNT.` : ""} How can I help you today?`
+      const shortAddr = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : null;
+      const greeting = isConnected && shortAddr
+        ? `SKYNT AI online. Wallet detected: ${shortAddr}.${formattedBalance ? ` SKYNT balance: ${formattedBalance}.` : ""} How can I help you today?`
         : "SKYNT AI online. Connect your wallet for personalized balance and yield insights. How can I help?";
       setMessages([{ role: "assistant", content: greeting }]);
     }
@@ -58,8 +59,9 @@ export function SkyAI() {
     if (!text.trim() || streaming) return;
 
     const userMsg: Message = { role: "user", content: text.trim() };
-    const context = isConnected && address
-      ? `[User wallet: ${address}${formattedBalance ? `, SKYNT balance: ${formattedBalance} SKYNT` : ""}] `
+    const shortAddr = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : null;
+    const context = isConnected && shortAddr
+      ? `[Wallet: ${shortAddr}${formattedBalance ? `, SKYNT: ${formattedBalance}` : ""}] `
       : "";
 
     setMessages((prev) => [...prev, userMsg, { role: "assistant", content: "" }]);

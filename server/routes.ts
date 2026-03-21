@@ -742,12 +742,50 @@ export async function registerRoutes(
     }
   });
 
+  /**
+   * sanitizeForAI — strips sensitive data before forwarding to OpenAI.
+   *
+   * Permitted external data flow: OpenAI API (chat completions).
+   * Allowed: plain-text user questions, protocol-context information.
+   * Restricted: full Ethereum addresses, private keys, email addresses,
+   *             bearer tokens, passwords, or other personally-identifying data.
+   *
+   * All other external data flows are governed by:
+   *   Alchemy   — API key auth, enterprise DPA, GDPR-compliant (balance & NFT mint ops)
+   *   OpenSea   — API key auth, ToS/privacy policy (NFT listing ops)
+   *   hCaptcha  — server-side token verify only, no raw user data sent
+   *   Blockstream / mempool.space — public read-only endpoints, no user data sent
+   *   ThirdWeb Engine — API key auth, session-wallet-scoped (NFT engine calls)
+   */
+  function sanitizeForAI(messages: Array<{ role: string; content: string }>) {
+    const EVM_ADDRESS  = /\b0x[a-fA-F0-9]{40}\b/g;
+    const PRIVATE_KEY  = /\b[0-9a-fA-F]{64}\b/g;
+    const EMAIL_PATTERN = /\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b/g;
+    const BEARER_TOKEN = /\b(Bearer|sk-|ey[A-Za-z0-9_\-]{20,})\S*/g;
+
+    return messages
+      .slice(-10)
+      .filter((m) => m && typeof m.content === "string" && typeof m.role === "string")
+      .map((m) => ({
+        role: m.role as "user" | "assistant" | "system",
+        content: m.content
+          .slice(0, 2000)
+          .replace(EVM_ADDRESS,   (addr) => `${addr.slice(0, 6)}…${addr.slice(-4)}`)
+          .replace(PRIVATE_KEY,   "[REDACTED_KEY]")
+          .replace(EMAIL_PATTERN, "[REDACTED_EMAIL]")
+          .replace(BEARER_TOKEN,  "[REDACTED_TOKEN]"),
+      }));
+  }
+
   app.post("/api/oracle/chat", rateLimit(5000, 2), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { messages } = req.body;
       if (!messages || !Array.isArray(messages)) {
         return res.status(400).json({ message: "Messages array is required" });
       }
+
+      const safeMessages = sanitizeForAI(messages);
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -757,7 +795,7 @@ export async function registerRoutes(
         model: "gpt-5.2",
         messages: [
           { role: "system", content: SPHINX_SYSTEM_PROMPT },
-          ...messages,
+          ...safeMessages,
         ],
         stream: true,
         max_completion_tokens: 1024,
@@ -846,6 +884,8 @@ STYLE:
         return res.status(400).json({ message: "Messages array is required" });
       }
 
+      const safeMessages = sanitizeForAI(messages);
+
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
@@ -854,7 +894,7 @@ STYLE:
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: OPENCLAW_SYSTEM_PROMPT },
-          ...messages.slice(-20),
+          ...safeMessages,
         ],
         stream: true,
         max_completion_tokens: 1024,
@@ -3875,7 +3915,7 @@ STYLE:
         mintedNfts.push(nft);
       }
 
-      console.log(`[PackMint] Minted ${mintedNfts.length} NFTs for pack "${packId}" → ${walletAddress}`);
+      console.log(`[PackMint] Minted ${mintedNfts.length} NFTs for pack "${packId}" → ${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`);
       res.json({
         success: true,
         packId,

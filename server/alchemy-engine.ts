@@ -262,7 +262,7 @@ export async function transmitRewardToWallet(params: {
     const explorerUrl = getExplorerUrl(chain, receipt.transactionHash);
     _lastGasCheckTime = 0; // invalidate gas cache after tx
 
-    console.log(`[RewardTransmit] ${amount} ${token} → ${recipientAddress} on ${chain} | tx: ${receipt.transactionHash}`);
+    console.log(`[RewardTransmit] ${amount} ${token} → ${recipientAddress.slice(0, 6)}…${recipientAddress.slice(-4)} on ${chain} | tx: ${receipt.transactionHash}`);
     return {
       txHash: receipt.transactionHash,
       status: receipt.status === 1 ? "confirmed" : "reverted",
