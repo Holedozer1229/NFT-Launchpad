@@ -3318,6 +3318,26 @@ STYLE:
     }
   });
 
+  app.get("/api/wormhole/chain-config", (_req, res) => {
+    const hasKey = (name: string) => !!process.env[name];
+    const evmReady = hasKey("TREASURY_PRIVATE_KEY") && hasKey("ALCHEMY_API_KEY");
+    res.json({
+      chains: {
+        ethereum:    { live: evmReady, protocol: "EVM", nativeToken: "ETH",  requires: ["TREASURY_PRIVATE_KEY", "ALCHEMY_API_KEY"] },
+        polygon:     { live: evmReady, protocol: "EVM", nativeToken: "MATIC", requires: ["TREASURY_PRIVATE_KEY", "ALCHEMY_API_KEY"] },
+        polygon_zkevm:{ live: evmReady, protocol: "EVM", nativeToken: "ETH", requires: ["TREASURY_PRIVATE_KEY", "ALCHEMY_API_KEY"] },
+        arbitrum:    { live: evmReady, protocol: "EVM", nativeToken: "ETH",  requires: ["TREASURY_PRIVATE_KEY", "ALCHEMY_API_KEY"] },
+        base:        { live: evmReady, protocol: "EVM", nativeToken: "ETH",  requires: ["TREASURY_PRIVATE_KEY", "ALCHEMY_API_KEY"] },
+        zksync:      { live: evmReady, protocol: "EVM", nativeToken: "ETH",  requires: ["TREASURY_PRIVATE_KEY", "ALCHEMY_API_KEY"] },
+        solana:      { live: hasKey("SOLANA_TREASURY_KEY"), protocol: "SOL", nativeToken: "SOL", requires: ["SOLANA_TREASURY_KEY"] },
+        dogecoin:    { live: hasKey("DOGE_TREASURY_WIF") && hasKey("DOGE_TREASURY_ADDRESS"), protocol: "UTXO", nativeToken: "DOGE", requires: ["DOGE_TREASURY_WIF", "DOGE_TREASURY_ADDRESS"] },
+        stacks:      { live: hasKey("STACKS_TREASURY_KEY"), protocol: "STX", nativeToken: "STX", requires: ["STACKS_TREASURY_KEY"] },
+        monero:      { live: hasKey("XMR_WALLET_RPC_URL"), protocol: "XMR", nativeToken: "XMR", requires: ["XMR_WALLET_RPC_URL"] },
+        skynt:       { live: true, protocol: "SKYNT", nativeToken: "SKYNT", requires: [] },
+      },
+    });
+  });
+
   // Starship Flight NFT Showcase
   app.get("/api/starship-nft-showcase", (_req, res) => {
     res.json(STARSHIP_FLIGHT_SHOWCASES);
