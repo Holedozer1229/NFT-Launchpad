@@ -1,5 +1,4 @@
-import { Alchemy, Network, Wallet, Utils } from "alchemy-sdk";
-import { createHash } from "crypto";
+import { Alchemy, Network, Wallet } from "alchemy-sdk";
 
 const OPENSEA_API_BASE = "https://api.opensea.io";
 
@@ -105,6 +104,7 @@ export async function listNftOnOpenSea(params: OpenSeaListingParams): Promise<Op
     const orderParameters = {
       offerer: params.sellerAddress,
       zone: "0x0000000000000000000000000000000000000000",
+      zoneHash: "0x0000000000000000000000000000000000000000000000000000000000000000",
       offer: [
         {
           itemType: 2,
