@@ -141,7 +141,6 @@ export async function transmitStacks(
   }
 
   const txHash = (response as any).txid ?? (response as any).tx_id ?? String(response);
-  console.log(`[ChainTransmit] STX ${amount} → ${recipientAddress} | tx: ${txHash}`);
   return {
     txHash,
     status: "broadcast",
