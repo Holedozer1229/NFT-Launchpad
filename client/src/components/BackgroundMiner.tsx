@@ -362,6 +362,7 @@ export function BackgroundMiner() {
       return res.json();
     },
     onSuccess: (data: any) => {
+      localStorage.setItem("skynt_mining_started", "1");
       queryClient.invalidateQueries({ queryKey: ["/api/mining/status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/mining/network"] });
       toast({ title: "Mining Started", description: "Background PoW mining is now active. Earning SKYNT automatically." });
@@ -384,6 +385,7 @@ export function BackgroundMiner() {
       return res.json();
     },
     onSuccess: (data: any) => {
+      localStorage.removeItem("skynt_mining_started");
       queryClient.invalidateQueries({ queryKey: ["/api/mining/status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/mining/network"] });
       const earned = data.stats?.totalSkyntEarned?.toFixed(4) || "0";

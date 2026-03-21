@@ -255,7 +255,7 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
       .digest("hex");
 
     const hashPrefix = BigInt("0x" + blockHash.slice(0, 16));
-    const difficultyTarget = BigInt("0xffffffffffff") / BigInt(Math.max(1, Math.floor(stats.difficulty * 100)));
+    const difficultyTarget = BigInt("0xffffffffffffffff") / BigInt(Math.max(1, Math.floor(stats.difficulty * 20)));
     const blockFound = hashPrefix < difficultyTarget;
 
     const simulatedNonces = 500 + Math.floor(Math.random() * 1500);

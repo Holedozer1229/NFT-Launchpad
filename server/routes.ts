@@ -880,6 +880,127 @@ STYLE:
     }
   });
 
+  async function fetchLivePrices(): Promise<Record<string, number>> {
+    try {
+      const response = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,blockstack&vs_currencies=usd",
+        { signal: AbortSignal.timeout(5000) }
+      );
+      if (!response.ok) throw new Error("CoinGecko unavailable");
+      const raw = await response.json();
+      return {
+        ETH: raw.ethereum?.usd || 3200,
+        STX: raw.blockstack?.usd || 1.85,
+        SKYNT: 0.45,
+      };
+    } catch {
+      return { ETH: 3200, STX: 1.85, SKYNT: 0.45 };
+    }
+  }
+
+  app.get("/api/wallet/:id/swap/quote", rateLimit(3000, 30), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const wallet = await storage.getWallet(parseInt(req.params.id));
+      if (!wallet || wallet.userId !== req.user!.id) return res.status(404).json({ message: "Wallet not found" });
+
+      const fromToken = String(req.query.fromToken || "SKYNT");
+      const toToken = String(req.query.toToken || "ETH");
+      const amount = parseFloat(String(req.query.amount || "0"));
+
+      if (!["SKYNT", "ETH", "STX"].includes(fromToken) || !["SKYNT", "ETH", "STX"].includes(toToken)) {
+        return res.status(400).json({ message: "Invalid token pair" });
+      }
+      if (fromToken === toToken) return res.status(400).json({ message: "Cannot swap same token" });
+      if (isNaN(amount) || amount <= 0) return res.status(400).json({ message: "Invalid amount" });
+
+      const prices = await fetchLivePrices();
+      const fromUsd = prices[fromToken];
+      const toUsd = prices[toToken];
+      const grossOutput = (amount * fromUsd) / toUsd;
+      const fee = grossOutput * 0.003;
+      const netOutput = grossOutput - fee;
+      const rate = fromUsd / toUsd;
+
+      res.json({
+        fromToken,
+        toToken,
+        inputAmount: amount,
+        outputAmount: parseFloat(netOutput.toFixed(8)),
+        rate: parseFloat(rate.toFixed(8)),
+        feeAmount: parseFloat(fee.toFixed(8)),
+        priceImpact: "< 0.01%",
+        prices,
+        source: "CoinGecko Live",
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch swap quote" });
+    }
+  });
+
+  app.post("/api/wallet/:id/swap", rateLimit(10000, 5), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const wallet = await storage.getWallet(parseInt(req.params.id));
+      if (!wallet || wallet.userId !== req.user!.id) return res.status(404).json({ message: "Wallet not found" });
+
+      const { fromToken, toToken, amount } = req.body;
+      if (!fromToken || !toToken || !amount) return res.status(400).json({ message: "fromToken, toToken, and amount are required" });
+      if (!["SKYNT", "ETH", "STX"].includes(fromToken) || !["SKYNT", "ETH", "STX"].includes(toToken)) {
+        return res.status(400).json({ message: "Invalid token pair" });
+      }
+      if (fromToken === toToken) return res.status(400).json({ message: "Cannot swap same token" });
+
+      const inputAmount = parseFloat(amount);
+      if (isNaN(inputAmount) || inputAmount <= 0) return res.status(400).json({ message: "Invalid amount" });
+
+      const fromBalanceField = fromToken === "STX" ? "balanceStx" : fromToken === "ETH" ? "balanceEth" : "balanceSkynt";
+      const currentBalance = parseFloat(wallet[fromBalanceField as keyof typeof wallet] as string);
+      if (inputAmount > currentBalance) return res.status(400).json({ message: `Insufficient ${fromToken} balance` });
+
+      const prices = await fetchLivePrices();
+      const fromUsd = prices[fromToken];
+      const toUsd = prices[toToken];
+      const grossOutput = (inputAmount * fromUsd) / toUsd;
+      const fee = grossOutput * 0.003;
+      const netOutput = grossOutput - fee;
+
+      const toBalanceField = toToken === "STX" ? "balanceStx" : toToken === "ETH" ? "balanceEth" : "balanceSkynt";
+      const toCurrentBalance = parseFloat(wallet[toBalanceField as keyof typeof wallet] as string);
+
+      await storage.updateWalletBalance(wallet.id, fromToken, (currentBalance - inputAmount).toFixed(8));
+      await storage.updateWalletBalance(wallet.id, toToken, (toCurrentBalance + netOutput).toFixed(8));
+
+      const txHash = "0x" + randomBytes(32).toString("hex");
+      const transaction = await storage.createTransaction({
+        walletId: wallet.id,
+        type: "swap",
+        toAddress: null,
+        fromAddress: wallet.address,
+        amount: inputAmount.toFixed(8),
+        token: fromToken,
+        status: "completed",
+        txHash,
+      });
+
+      res.json({
+        transaction,
+        fromToken,
+        toToken,
+        inputAmount,
+        outputAmount: parseFloat(netOutput.toFixed(8)),
+        rate: parseFloat((fromUsd / toUsd).toFixed(8)),
+        feeAmount: parseFloat(fee.toFixed(8)),
+        newFromBalance: (currentBalance - inputAmount).toFixed(8),
+        newToBalance: (toCurrentBalance + netOutput).toFixed(8),
+        source: "CoinGecko Live",
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to execute swap" });
+    }
+  });
+
+
   // ========== ANALYTICS ROUTES ==========
 
   app.get("/api/analytics/stats", async (_req, res) => {

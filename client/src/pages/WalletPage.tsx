@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, ExternalLink, Coins, Clock, Shield, ChevronDown, Fingerprint, AlertTriangle, Smartphone, Lock, Globe, Zap, Download } from "lucide-react";
+import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, ExternalLink, Coins, Clock, Shield, ChevronDown, Fingerprint, AlertTriangle, Smartphone, Lock, Globe, Zap, Download, ArrowLeftRight, TrendingUp, Info } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, getJwtToken } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -79,7 +79,7 @@ export default function WalletPage() {
 
   const mobile = isMobileDevice();
   const [activeWalletId, setActiveWalletId] = useState<number | null>(null);
-  const [tab, setTab] = useState<"overview" | "send" | "receive">("overview");
+  const [tab, setTab] = useState<"overview" | "send" | "receive" | "swap">("overview");
   const [sendTo, setSendTo] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [sendToken, setSendToken] = useState("SKYNT");
@@ -89,6 +89,12 @@ export default function WalletPage() {
   const [copied, setCopied] = useState(false);
   const [addressError, setAddressError] = useState("");
   const [amountError, setAmountError] = useState("");
+  const [swapFromToken, setSwapFromToken] = useState("SKYNT");
+  const [swapToToken, setSwapToToken] = useState("ETH");
+  const [swapAmount, setSwapAmount] = useState("");
+  const [debouncedSwapAmount, setDebouncedSwapAmount] = useState("");
+  const [swapSuccess, setSwapSuccess] = useState(false);
+  const [swapError, setSwapError] = useState("");
 
   const { data: wallets = [], isLoading: loading } = useQuery<SphinxWallet[]>({
     queryKey: ["/api/wallet/list"],
@@ -159,6 +165,55 @@ export default function WalletPage() {
       const res = await fetch("/api/chain/ethereum/gas", { credentials: "include", headers: authHeaders() });
       if (!res.ok) throw new Error("Failed to fetch gas");
       return res.json();
+    },
+  });
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSwapAmount(swapAmount), 600);
+    return () => clearTimeout(t);
+  }, [swapAmount]);
+
+  const { data: swapQuote, isLoading: swapQuoteLoading } = useQuery<{
+    fromToken: string; toToken: string; inputAmount: number; outputAmount: number;
+    rate: number; feeAmount: number; priceImpact: string; source: string;
+  }>({
+    queryKey: ["/api/wallet", activeWallet?.id, "swap-quote", swapFromToken, swapToToken, debouncedSwapAmount],
+    enabled: !!activeWallet && !!debouncedSwapAmount && parseFloat(debouncedSwapAmount) > 0 && swapFromToken !== swapToToken,
+    queryFn: async () => {
+      if (!activeWallet) throw new Error("No wallet");
+      const params = new URLSearchParams({ fromToken: swapFromToken, toToken: swapToToken, amount: debouncedSwapAmount });
+      const res = await fetch(`/api/wallet/${activeWallet.id}/swap/quote?${params}`, { credentials: "include", headers: authHeaders() });
+      if (!res.ok) throw new Error("Quote failed");
+      return res.json();
+    },
+    staleTime: 15000,
+    refetchInterval: 20000,
+  });
+
+  const swapMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeWallet) throw new Error("No wallet");
+      const res = await fetch(`/api/wallet/${activeWallet.id}/swap`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        credentials: "include",
+        body: JSON.stringify({ fromToken: swapFromToken, toToken: swapToToken, amount: swapAmount }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Swap failed");
+      return data;
+    },
+    onSuccess: () => {
+      setSwapSuccess(true);
+      setSwapAmount("");
+      setDebouncedSwapAmount("");
+      setSwapError("");
+      queryClient.invalidateQueries({ queryKey: ["/api/wallet/list"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/wallet", activeWallet?.id, "transactions"] });
+      setTimeout(() => setSwapSuccess(false), 5000);
+    },
+    onError: (err: Error) => {
+      setSwapError(err.message || "Swap failed");
     },
   });
 
@@ -508,7 +563,7 @@ export default function WalletPage() {
           )}
 
           <div className="flex flex-col sm:flex-row gap-2">
-            {(["overview", "send", "receive"] as const).map((t) => (
+            {(["overview", "send", "receive", "swap"] as const).map((t) => (
               <button
                 key={t}
                 data-testid={`tab-${t}`}
@@ -520,6 +575,7 @@ export default function WalletPage() {
                 {t === "overview" && <Coins className="w-3.5 h-3.5" />}
                 {t === "send" && <Send className="w-3.5 h-3.5" />}
                 {t === "receive" && <ArrowDownLeft className="w-3.5 h-3.5" />}
+                {t === "swap" && <ArrowLeftRight className="w-3.5 h-3.5" />}
                 {t}
               </button>
             ))}
@@ -541,14 +597,14 @@ export default function WalletPage() {
                     <div key={tx.id} className="flex items-center justify-between p-3 bg-black/20 border border-border/30 rounded-sm" data-testid={`tx-${tx.id}`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          tx.type === "send" ? "bg-red-500/10 text-red-400" : "bg-neon-green/10 text-neon-green"
+                          tx.type === "send" ? "bg-red-500/10 text-red-400" : tx.type === "swap" ? "bg-purple-500/10 text-purple-400" : "bg-neon-green/10 text-neon-green"
                         }`}>
-                          {tx.type === "send" ? <Send className="w-3.5 h-3.5" /> : <ArrowDownLeft className="w-3.5 h-3.5" />}
+                          {tx.type === "send" ? <Send className="w-3.5 h-3.5" /> : tx.type === "swap" ? <ArrowLeftRight className="w-3.5 h-3.5" /> : <ArrowDownLeft className="w-3.5 h-3.5" />}
                         </div>
                         <div>
-                          <p className="font-heading text-xs uppercase">{tx.type === "send" ? "Sent" : tx.type === "reward" ? "Mining Reward" : "Received"} {tx.token}</p>
+                          <p className="font-heading text-xs uppercase">{tx.type === "send" ? "Sent" : tx.type === "reward" ? "Mining Reward" : tx.type === "swap" ? "Swap" : "Received"} {tx.token}</p>
                           <p className="font-mono text-[10px] text-muted-foreground truncate max-w-[100px] sm:max-w-[180px]">
-                            {tx.type === "send" ? `To: ${tx.toAddress?.slice(0, 10)}...` : tx.type === "reward" ? "Background Mining" : `From: ${tx.fromAddress?.slice(0, 10)}...`}
+                            {tx.type === "send" ? `To: ${tx.toAddress?.slice(0, 10)}...` : tx.type === "reward" ? "Background Mining" : tx.type === "swap" ? "Token Swap" : `From: ${tx.fromAddress?.slice(0, 10)}...`}
                           </p>
                         </div>
                       </div>
@@ -687,6 +743,173 @@ export default function WalletPage() {
                   </div>
                 )}
               </>
+            </div>
+          )}
+
+          {tab === "swap" && (
+            <div className="cosmic-card p-5 space-y-5 border border-purple-500/20" data-testid="swap-panel">
+              <h3 className="font-heading text-sm uppercase tracking-wider flex items-center gap-2">
+                <ArrowLeftRight className="w-4 h-4 text-purple-400" /> Swap Tokens
+                <span className="ml-auto flex items-center gap-1 text-[9px] font-mono text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> CoinGecko Live
+                </span>
+              </h3>
+
+              {swapSuccess && (
+                <div className="p-3 bg-neon-green/10 border border-neon-green/30 rounded-sm text-center space-y-1" data-testid="swap-success">
+                  <CheckCircle className="w-5 h-5 text-neon-green mx-auto" />
+                  <p className="text-xs font-heading text-neon-green">Swap Completed</p>
+                </div>
+              )}
+
+              {swapError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-sm text-center" data-testid="swap-error">
+                  <p className="text-xs text-red-400">{swapError}</p>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <label className="stat-label">From</label>
+                  <div className="flex gap-2">
+                    {TOKEN_OPTIONS.map((t) => (
+                      <button
+                        key={t.symbol}
+                        data-testid={`swap-from-${t.symbol}`}
+                        onClick={() => {
+                          if (t.symbol === swapToToken) setSwapToToken(swapFromToken);
+                          setSwapFromToken(t.symbol);
+                          setSwapError("");
+                        }}
+                        className={`flex-1 py-2 rounded-sm text-xs font-heading uppercase flex items-center justify-center gap-1.5 border transition-all ${
+                          swapFromToken === t.symbol ? "bg-purple-500/20 text-purple-300 border-purple-500/40" : "bg-black/20 text-muted-foreground border-border/30"
+                        }`}
+                      >
+                        <span>{t.icon}</span> {t.symbol}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="stat-label">Amount</label>
+                  <div className="relative">
+                    <input
+                      data-testid="input-swap-amount"
+                      type="number"
+                      placeholder="0.00"
+                      value={swapAmount}
+                      onChange={(e) => { setSwapAmount(e.target.value); setSwapError(""); }}
+                      className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-lg focus:outline-none focus:border-purple-500/60 transition-colors placeholder:text-muted-foreground/40"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-heading">{swapFromToken}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] font-mono text-muted-foreground px-1">
+                    <span>Balance: {activeWallet ? getBalance(activeWallet, swapFromToken).toLocaleString(undefined, { maximumFractionDigits: 6 }) : 0} {swapFromToken}</span>
+                    <button
+                      data-testid="button-swap-max"
+                      onClick={() => activeWallet && setSwapAmount(getBalance(activeWallet, swapFromToken).toString())}
+                      className="text-purple-400 hover:text-purple-300"
+                    >
+                      MAX
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-center">
+                  <button
+                    data-testid="button-swap-direction"
+                    onClick={() => {
+                      const tmp = swapFromToken;
+                      setSwapFromToken(swapToToken);
+                      setSwapToToken(tmp);
+                      setSwapAmount("");
+                      setSwapError("");
+                    }}
+                    className="w-9 h-9 rounded-full border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 flex items-center justify-center text-purple-400 transition-all"
+                  >
+                    <ArrowLeftRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="stat-label">To</label>
+                  <div className="flex gap-2">
+                    {TOKEN_OPTIONS.map((t) => (
+                      <button
+                        key={t.symbol}
+                        data-testid={`swap-to-${t.symbol}`}
+                        onClick={() => {
+                          if (t.symbol === swapFromToken) setSwapFromToken(swapToToken);
+                          setSwapToToken(t.symbol);
+                          setSwapError("");
+                        }}
+                        className={`flex-1 py-2 rounded-sm text-xs font-heading uppercase flex items-center justify-center gap-1.5 border transition-all ${
+                          swapToToken === t.symbol ? "bg-purple-500/20 text-purple-300 border-purple-500/40" : "bg-black/20 text-muted-foreground border-border/30"
+                        }`}
+                      >
+                        <span>{t.icon}</span> {t.symbol}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-sm border border-purple-500/20 bg-purple-500/5 space-y-3" data-testid="swap-quote-panel">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-heading uppercase text-muted-foreground">Live Quote</span>
+                  {swapQuoteLoading && <RefreshCw className="w-3 h-3 animate-spin text-purple-400" />}
+                </div>
+
+                {swapQuote && parseFloat(swapAmount) > 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono text-muted-foreground">You receive</span>
+                      <span className="font-heading text-sm text-purple-300" data-testid="text-swap-output">
+                        {swapQuote.outputAmount.toFixed(8)} {swapToToken}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono text-muted-foreground">Rate</span>
+                      <span className="font-mono text-[10px] text-foreground" data-testid="text-swap-rate">
+                        1 {swapFromToken} = {swapQuote.rate.toFixed(8)} {swapToToken}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono text-muted-foreground">Protocol fee (0.3%)</span>
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {swapQuote.feeAmount.toFixed(8)} {swapToToken}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono text-muted-foreground">Price impact</span>
+                      <span className="font-mono text-[10px] text-green-400">{swapQuote.priceImpact}</span>
+                    </div>
+                    <div className="pt-1 border-t border-white/5 flex items-center gap-1.5">
+                      <TrendingUp className="w-3 h-3 text-green-400" />
+                      <span className="text-[9px] font-mono text-green-400">Rates sourced live from CoinGecko market data</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[10px] font-mono text-muted-foreground/50">
+                    {parseFloat(swapAmount) > 0 ? "Fetching live rate..." : "Enter an amount to see a live quote"}
+                  </p>
+                )}
+              </div>
+
+              <button
+                data-testid="button-swap-submit"
+                onClick={() => { setSwapError(""); swapMutation.mutate(); }}
+                disabled={swapMutation.isPending || !swapAmount || parseFloat(swapAmount) <= 0 || !swapQuote || swapFromToken === swapToToken}
+                className="w-full py-4 rounded-sm font-heading uppercase tracking-widest flex items-center justify-center gap-2 transition-all mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.3), rgba(88,28,220,0.2))", border: "1px solid rgba(168,85,247,0.4)", color: "#c084fc" }}
+              >
+                {swapMutation.isPending ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <><ArrowLeftRight className="w-4 h-4" /> Swap {swapFromToken} → {swapToToken}</>
+                )}
+              </button>
             </div>
           )}
 

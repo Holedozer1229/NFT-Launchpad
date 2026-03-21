@@ -34,7 +34,8 @@ import {
   Wifi,
   AlertTriangle,
   Bell,
-  Download
+  Download,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -297,6 +298,9 @@ export default function GenesisMiner() {
   const prevBlockHeightRef = useRef<number | null>(null);
   const prevHashrateRef = useRef<number | null>(null);
 
+  const [sessionLost, setSessionLost] = useState(false);
+  const prevMiningActiveRef = useRef<boolean | null>(null);
+
   const addNotification = useCallback((type: LiveNotification["type"], message: string, color: string) => {
     const id = ++notifIdRef.current;
     setNotifications(prev => [{ id, type, message, timestamp: Date.now(), color }, ...prev].slice(0, 15));
@@ -366,6 +370,39 @@ export default function GenesisMiner() {
     queryKey: ["/api/chain/ethereum/block/latest"],
     refetchInterval: 12000,
     staleTime: 10000,
+  });
+
+  useEffect(() => {
+    const isActive = backgroundMiningStatus?.isActive ?? null;
+    if (isActive === null) return;
+    const wasStarted = localStorage.getItem("skynt_mining_started") === "1";
+    if (wasStarted && prevMiningActiveRef.current === true && isActive === false) {
+      setSessionLost(true);
+      addNotification("mining", "Mining session interrupted — server restarted", NEON_COLORS.orange);
+    }
+    if (isActive === true) {
+      setSessionLost(false);
+    }
+    prevMiningActiveRef.current = isActive;
+  }, [backgroundMiningStatus?.isActive, addNotification]);
+
+  const restartMiningMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/mining/start");
+      return res.json();
+    },
+    onSuccess: () => {
+      localStorage.setItem("skynt_mining_started", "1");
+      setSessionLost(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/mining/status"] });
+      addNotification("mining", "Mining session restarted", NEON_COLORS.green);
+      haptic("success");
+      toast({ title: "Mining Restarted", description: "Your SKYNT background mining session is active again." });
+    },
+    onError: (error: any) => {
+      const msg = error?.message || "Failed to restart mining";
+      toast({ title: "Restart Failed", description: msg, variant: "destructive" });
+    },
   });
 
   useEffect(() => {
@@ -562,6 +599,30 @@ export default function GenesisMiner() {
         <div className="absolute -top-10 -left-10 w-40 h-40 blur-[80px] rounded-full pointer-events-none"
           style={{ background: `${NEON_COLORS.magenta}08` }} />
       </div>
+
+      {sessionLost && (
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded-lg border animate-in slide-in-from-top-2 duration-300"
+          style={{ borderColor: `${NEON_COLORS.orange}50`, backgroundColor: `${NEON_COLORS.orange}0d` }}
+          data-testid="banner-session-lost"
+        >
+          <AlertTriangle className="w-5 h-5 shrink-0" style={{ color: NEON_COLORS.orange }} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-heading" style={{ color: NEON_COLORS.orange }}>Mining session interrupted</p>
+            <p className="text-xs font-mono text-muted-foreground">The server restarted and your session was cleared. Restart to resume earning SKYNT.</p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => restartMiningMutation.mutate()}
+            disabled={restartMiningMutation.isPending}
+            data-testid="button-restart-mining"
+            className="shrink-0 font-heading text-xs tracking-wider"
+            style={{ backgroundColor: `${NEON_COLORS.orange}25`, border: `1px solid ${NEON_COLORS.orange}50`, color: NEON_COLORS.orange }}
+          >
+            {restartMiningMutation.isPending ? <><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Restarting...</> : <><Power className="w-3.5 h-3.5 mr-1.5" /> Restart Mining</>}
+          </Button>
+        </div>
+      )}
 
       <LiveNotificationBanner notifications={notifications} />
 
