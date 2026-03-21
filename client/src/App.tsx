@@ -41,6 +41,7 @@ const KYCPage = lazy(() => import("@/pages/KYC"));
 const BtcZkDaemon = lazy(() => import("@/pages/BtcZkDaemon"));
 const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
 const QuantumMiner = lazy(() => import("@/components/QuantumMiner").then(m => ({ default: m.QuantumMiner })));
+const SkyAI = lazy(() => import("@/components/SkyAI").then(m => ({ default: m.SkyAI })));
 
 function AdminGuard() {
   const { user } = useAuth();
@@ -151,6 +152,9 @@ function AppRouter() {
       </Suspense>
       <Suspense fallback={null}>
         <QuantumMiner minimized={location !== "/"} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <SkyAI />
       </Suspense>
     </SidebarLayout>
   );
