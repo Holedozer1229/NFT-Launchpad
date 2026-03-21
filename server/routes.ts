@@ -119,13 +119,22 @@ const sendTokenSchema = z.object({
   amount: z.string().refine((v) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0; }, "Amount must be a positive number"),
   token: z.enum(["SKYNT", "STX", "ETH", "DOGE", "XMR"]).default("SKYNT"),
 }).superRefine((data, ctx) => {
-  if (data.token === "ETH" || data.token === "DOGE" || data.token === "XMR") {
-    if (!/^0x[a-fA-F0-9]{40}$/.test(data.toAddress) && data.token === "ETH") {
+  const addr = data.toAddress;
+  if (data.token === "ETH") {
+    if (!/^0x[a-fA-F0-9]{40}$/.test(addr)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "ETH address must be 0x-prefixed 40-character hex" });
     }
   } else if (data.token === "STX") {
-    if (!/^S[A-Z0-9]{38,41}$/.test(data.toAddress)) {
+    if (!/^S[A-Z0-9]{38,41}$/.test(addr)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "STX address must start with S followed by 38-41 alphanumeric characters (e.g. SP...)" });
+    }
+  } else if (data.token === "DOGE") {
+    if (!/^D[a-zA-Z0-9]{24,33}$/.test(addr)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "DOGE address must start with D and be 25-34 characters" });
+    }
+  } else if (data.token === "XMR") {
+    if (addr.length < 95 || addr.length > 106) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "XMR address must be 95-106 characters" });
     }
   }
 });
@@ -887,8 +896,6 @@ STYLE:
         explorerUrl = result.explorerUrl;
         networkFee = result.networkFee ?? null;
         status = result.status;
-      } else {
-        txHash = "0x" + randomBytes(32).toString("hex");
       }
 
       const newBalance = (currentBalance - sendAmount).toString();
