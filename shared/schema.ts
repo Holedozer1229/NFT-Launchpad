@@ -844,6 +844,10 @@ export const zkWormholeTransfers = pgTable("zk_wormhole_transfers", {
   zkProofHash: text("zk_proof_hash"),
   guardianSigs: integer("guardian_sigs").notNull().default(0),
   txHash: text("tx_hash"),
+  externalRecipient: text("external_recipient"),
+  onChainTxHash: text("on_chain_tx_hash"),
+  explorerUrl: text("explorer_url"),
+  transmitStatus: text("transmit_status"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -4,6 +4,69 @@ import { ZK_WORMHOLE_CHAINS, zkWormholes, zkWormholeTransfers, type ZkWormholeCh
 import { qgMiner } from "./qg-miner-v8";
 import { db } from "./db";
 import { sql, eq, inArray } from "drizzle-orm";
+import { transmitRewardToWallet } from "./alchemy-engine";
+
+const WORMHOLE_CHAIN_TO_ALCHEMY: Record<string, string | null> = {
+  ethereum: "ethereum",
+  polygon: "polygon",
+  polygon_zkevm: "polygon",
+  arbitrum: "arbitrum",
+  base: "base",
+  zksync: "zksync",
+  dogecoin: "doge",
+  solana: null,
+  stacks: null,
+  skynt: null,
+  monero: null,
+};
+
+const CHAIN_NATIVE_TOKEN: Record<string, string> = {
+  ethereum: "ETH",
+  polygon: "MATIC",
+  polygon_zkevm: "ETH",
+  arbitrum: "ETH",
+  base: "ETH",
+  zksync: "ETH",
+  dogecoin: "DOGE",
+  solana: "SOL",
+  stacks: "STX",
+  skynt: "SKYNT",
+  monero: "XMR",
+};
+
+async function transmitCrossChain(
+  transferId: number,
+  recipientAddress: string,
+  amount: string,
+  token: string,
+  destChain: string
+): Promise<void> {
+  const alchemyChain = WORMHOLE_CHAIN_TO_ALCHEMY[destChain] ?? null;
+  const resolvedToken = token === "NATIVE" ? (CHAIN_NATIVE_TOKEN[destChain] ?? token) : token;
+
+  if (!alchemyChain) {
+    const simHash = "0x" + randomBytes(32).toString("hex");
+    console.log(`[ZK-Wormhole] Simulated transmit ${amount} ${resolvedToken} → ${recipientAddress} on ${destChain}`);
+    await storage.updateZkWormholeTransferOnChain(transferId, simHash, null, "simulated");
+    return;
+  }
+
+  const result = await transmitRewardToWallet({
+    recipientAddress,
+    amount,
+    chain: alchemyChain,
+    token: resolvedToken,
+  });
+
+  await storage.updateZkWormholeTransferOnChain(
+    transferId,
+    result.txHash,
+    result.explorerUrl,
+    result.status
+  );
+
+  console.log(`[ZK-Wormhole] On-chain transmit ${amount} ${resolvedToken} → ${recipientAddress} | status: ${result.status} | tx: ${result.txHash}`);
+}
 
 function generateWormholeId(): string {
   return "0xWH" + randomBytes(14).toString("hex");
@@ -94,7 +157,8 @@ export async function initiateTransfer(
   userId: number,
   wormholeId: string,
   amount: string,
-  token: string
+  token: string,
+  externalRecipient?: string
 ) {
   const wormholes = await storage.getZkWormholesByUser(userId);
   const wormhole = wormholes.find(w => w.wormholeId === wormholeId);

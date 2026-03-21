@@ -89,6 +89,7 @@ export interface IStorage {
   getZkWormholeTransfers(wormholeId: number): Promise<ZkWormholeTransfer[]>;
   getZkWormholeTransfersByUser(userId: number): Promise<ZkWormholeTransfer[]>;
   updateZkWormholeTransferStatus(id: number, status: string, txHash?: string): Promise<void>;
+  updateZkWormholeTransferOnChain(id: number, onChainTxHash: string | null, explorerUrl: string | null, transmitStatus: string): Promise<void>;
 
   createRarityCertificate(cert: InsertRarityCertificate): Promise<RarityCertificate>;
   getRarityCertificatesByUser(userId: number): Promise<RarityCertificate[]>;
@@ -567,6 +568,10 @@ export class DatabaseStorage implements IStorage {
 
   async updateZkWormholeTransferStatus(id: number, status: string, txHash?: string): Promise<void> {
     await db.update(zkWormholeTransfers).set({ status, ...(txHash ? { txHash } : {}) }).where(eq(zkWormholeTransfers.id, id));
+  }
+
+  async updateZkWormholeTransferOnChain(id: number, onChainTxHash: string | null, explorerUrl: string | null, transmitStatus: string): Promise<void> {
+    await db.update(zkWormholeTransfers).set({ onChainTxHash, explorerUrl, transmitStatus }).where(eq(zkWormholeTransfers.id, id));
   }
 
   async createRarityCertificate(cert: InsertRarityCertificate): Promise<RarityCertificate> {
