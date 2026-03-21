@@ -74,11 +74,8 @@ export async function mintNftViaEngine(params: {
 }
 
 export async function getEngineTransactionStatus(transactionId: string) {
-  if (transactionId.startsWith("sim_") || transactionId.startsWith("err_")) {
-    return {
-      status: transactionId.startsWith("sim_") ? "simulated" : "failed",
-      transactionId,
-    };
+  if (transactionId.startsWith("err_")) {
+    return { status: "failed", transactionId };
   }
 
   try {

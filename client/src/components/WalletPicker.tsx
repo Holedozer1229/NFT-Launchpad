@@ -1,4 +1,4 @@
-import { useWalletStore } from "@/lib/mock-web3";
+import { useWalletStore } from "@/lib/wallet-store";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { X } from "lucide-react";
 

@@ -97,8 +97,8 @@ const BLOCK_DIFFICULTY = 2; // Starting difficulty
 const MAX_SUPPLY = 21_000_000;
 const TRANSACTION_FEE = 0.0; // Gasless
 const POW_ALGORITHM = "qg-v8-three-gate";
-const BLOCK_TIME_TARGET_MS = 30_000; // 30s for simulation
-const DIFFICULTY_ADJUSTMENT_INTERVAL = 10; // Every 10 blocks for simulation
+const BLOCK_TIME_TARGET_MS = 30_000; // 30s target block time
+const DIFFICULTY_ADJUSTMENT_INTERVAL = 10; // Difficulty recalculated every 10 blocks
 const BLOCK_VERSION = 4;
 
 // ==================== In-memory state ====================

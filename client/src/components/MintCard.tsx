@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useAccount } from "wagmi";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
-import { useWalletStore } from "@/lib/mock-web3";
+import { useWalletStore } from "@/lib/wallet-store";
 import { Launch, RARITY_TIERS, RarityTier, SUPPORTED_CHAINS, ChainId, SKYNT_CONTRACT_ADDRESS } from "@shared/schema";
 import { Loader2, Rocket, Radio, Eye, Brain, Zap, Crown, Flame, Diamond, Gem, Link2, Fuel, ExternalLink, ShoppingBag, Server, Shield, CheckCircle2 } from "lucide-react";
 import { TermsGate } from "./TermsGate";

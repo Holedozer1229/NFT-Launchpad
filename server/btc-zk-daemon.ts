@@ -259,16 +259,58 @@ function buildMoneroSeedHash(btcHeader: Buffer, epoch: number): string {
   return createHash("sha3-256").update(seed).digest("hex");
 }
 
+// ─── Real BTC block data from Blockstream API ────────────────────────────────
+
+let _cachedBtcHeight = 0;
+let _cachedBtcHash = "";
+let _btcCacheTime = 0;
+const BTC_CACHE_TTL = 60_000; // re-fetch at most every 60s
+
+async function fetchRealBtcBlock(): Promise<{ height: number; hash: string }> {
+  const now = Date.now();
+  if (_cachedBtcHash && now - _btcCacheTime < BTC_CACHE_TTL) {
+    return { height: _cachedBtcHeight, hash: _cachedBtcHash };
+  }
+  try {
+    const heightRes = await fetch("https://blockstream.info/api/blocks/tip/height", {
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!heightRes.ok) throw new Error(`blockstream height ${heightRes.status}`);
+    const height = parseInt(await heightRes.text(), 10);
+
+    const hashRes = await fetch(`https://blockstream.info/api/block-height/${height}`, {
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!hashRes.ok) throw new Error(`blockstream hash ${hashRes.status}`);
+    const hash = (await hashRes.text()).trim();
+
+    _cachedBtcHeight = height;
+    _cachedBtcHash = hash;
+    _btcCacheTime = now;
+    console.log(`[BtcZkDaemon] Live BTC block #${height} | ${hash.slice(0, 16)}...`);
+    return { height, hash };
+  } catch (err: any) {
+    console.warn(`[BtcZkDaemon] Blockstream fetch failed (${err.message}), using last known or fallback`);
+    if (_cachedBtcHash) return { height: _cachedBtcHeight, hash: _cachedBtcHash };
+    return { height: btcBlockHeight, hash: createHash("sha256").update(`btc-fallback-${btcBlockHeight}`).digest("hex") };
+  }
+}
+
 // ─── STX Yield routing via ZK-Wormhole ───────────────────────────────────────
 
 async function routeStxYield(epochId: number, amount: number): Promise<string | null> {
-  if (!process.env.STACKS_TREASURY_KEY) return null;
+  const recipient = process.env.STACKS_YIELD_RECIPIENT;
+  if (!process.env.STACKS_TREASURY_KEY || !recipient) {
+    if (!recipient) console.warn("[BtcZkDaemon] STACKS_YIELD_RECIPIENT not set — set env secret to enable live STX yield routing");
+    return null;
+  }
   try {
-    const transferId = `stx-yield-epoch-${epochId}-${Date.now()}`;
-    console.log(`[BtcZkDaemon] STX yield ${amount.toFixed(4)} STX queued | epoch ${epochId} | id: ${transferId}`);
-    return transferId;
-  } catch (err) {
-    console.error("[BtcZkDaemon] STX yield routing error:", err);
+    const { transmitStacks } = await import("./chain-transmit");
+    const result = await transmitStacks(recipient, amount.toFixed(6));
+    console.log(`[BtcZkDaemon] STX yield ${amount.toFixed(4)} STX → ${recipient} | epoch ${epochId} | tx: ${result.txHash}`);
+    return result.txHash;
+  } catch (err: any) {
+    console.error("[BtcZkDaemon] STX yield routing error:", err.message);
     return null;
   }
 }
@@ -314,9 +356,10 @@ async function runEpoch() {
       }
     } catch {}
 
-    // 3. Monero RandomX merged mining seed
-    btcBlockHeight++;
-    const prevHash = lastEpochData?.auxpowHash ?? randomBytes(32).toString("hex");
+    // 3. Monero RandomX merged mining seed — anchored to real Bitcoin network
+    const btcBlock = await fetchRealBtcBlock();
+    btcBlockHeight = btcBlock.height;
+    const prevHash = btcBlock.hash;
     const coinbase = buildBtcCoinbaseData(currentEpoch, zkSyncAnchor);
     const merkleRoot = createHash("sha256").update(coinbase).update(randomBytes(32)).digest("hex");
     const btcHeader = buildAuxPowBlockHeader(prevHash, merkleRoot, Date.now(), 1 << 18, 0);
