@@ -285,6 +285,8 @@ export const walletTransactions = pgTable("wallet_transactions", {
   token: text("token").notNull().default("SKYNT"),
   status: text("status").notNull().default("completed"),
   txHash: text("tx_hash"),
+  explorerUrl: text("explorer_url"),
+  networkFee: text("network_fee"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

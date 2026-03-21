@@ -9,6 +9,7 @@ import {
 } from "@solana/web3.js";
 import { secp256k1 } from "@noble/curves/secp256k1";
 import { base58check } from "@scure/base";
+import { Alchemy, Network, Wallet, Utils } from "alchemy-sdk";
 
 const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
 const BLOCKCYPHER_BASE = "https://api.blockcypher.com/v1/doge/main";
@@ -21,12 +22,53 @@ export interface ChainTransmitResult {
   status: string;
   explorerUrl: string | null;
   chain: string;
+  networkFee?: string;
 }
 
 function requireEnv(name: string): string {
   const val = process.env[name];
   if (!val) throw new Error(`${name} env var is not configured — add it to secrets to enable live ${name.split("_")[0]} transmits`);
   return val;
+}
+
+// ─── Ethereum ─────────────────────────────────────────────────────────────────
+
+export async function transmitEthereum(
+  recipientAddress: string,
+  amount: string
+): Promise<ChainTransmitResult> {
+  const privateKey = requireEnv("TREASURY_PRIVATE_KEY");
+  const apiKey = requireEnv("ALCHEMY_API_KEY");
+
+  const alchemy = new Alchemy({ apiKey, network: Network.ETH_MAINNET });
+  const provider = await alchemy.config.getProvider();
+  const wallet = new Wallet(privateKey, provider);
+
+  const weiAmount = Utils.parseEther(amount);
+  const gasPrice = await provider.getGasPrice();
+  const gasLimit = 21000;
+
+  const tx = await wallet.sendTransaction({
+    to: recipientAddress,
+    value: weiAmount,
+    gasLimit,
+    gasPrice,
+  });
+
+  const receipt = await tx.wait();
+  const txHash: string = receipt.transactionHash;
+  const gasUsed = receipt.gasUsed;
+  const effectiveGasPrice = receipt.effectiveGasPrice ?? gasPrice;
+  const feeBN = gasUsed.mul(effectiveGasPrice);
+  const networkFee = Utils.formatEther(feeBN);
+
+  return {
+    txHash,
+    status: receipt.status === 1 ? "confirmed" : "reverted",
+    explorerUrl: `https://etherscan.io/tx/${txHash}`,
+    chain: "ethereum",
+    networkFee,
+  };
 }
 
 function decodeDogeWif(wif: string): Uint8Array {

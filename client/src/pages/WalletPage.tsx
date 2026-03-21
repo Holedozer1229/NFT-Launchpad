@@ -57,6 +57,8 @@ interface WalletTx {
   token: string;
   status: string;
   txHash: string | null;
+  explorerUrl: string | null;
+  networkFee: string | null;
   createdAt: string;
 }
 
@@ -86,6 +88,7 @@ export default function WalletPage() {
   const [sending, setSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [lastSendReceipt, setLastSendReceipt] = useState<WalletTx | null>(null);
   const [copied, setCopied] = useState(false);
   const [addressError, setAddressError] = useState("");
   const [amountError, setAmountError] = useState("");
@@ -266,12 +269,12 @@ export default function WalletPage() {
       const data = await res.json();
       if (res.ok) {
         haptic("transaction");
+        setLastSendReceipt(data.transaction ?? null);
         setSendSuccess(true);
         setSendTo("");
         setSendAmount("");
         queryClient.invalidateQueries({ queryKey: ["/api/wallet/list"] });
         queryClient.invalidateQueries({ queryKey: ["/api/wallet", activeWallet.id, "transactions"] });
-        setTimeout(() => setSendSuccess(false), 4000);
       } else {
         haptic("error");
         setSendError(data.message || "Transaction failed");
@@ -596,25 +599,39 @@ export default function WalletPage() {
                   {transactions.map((tx) => (
                     <div key={tx.id} className="flex items-center justify-between p-3 bg-black/20 border border-border/30 rounded-sm" data-testid={`tx-${tx.id}`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
                           tx.type === "send" ? "bg-red-500/10 text-red-400" : tx.type === "swap" ? "bg-purple-500/10 text-purple-400" : "bg-neon-green/10 text-neon-green"
                         }`}>
                           {tx.type === "send" ? <Send className="w-3.5 h-3.5" /> : tx.type === "swap" ? <ArrowLeftRight className="w-3.5 h-3.5" /> : <ArrowDownLeft className="w-3.5 h-3.5" />}
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <p className="font-heading text-xs uppercase">{tx.type === "send" ? "Sent" : tx.type === "reward" ? "Mining Reward" : tx.type === "swap" ? "Swap" : "Received"} {tx.token}</p>
-                          <p className="font-mono text-[10px] text-muted-foreground truncate max-w-[100px] sm:max-w-[180px]">
+                          <p className="font-mono text-[10px] text-muted-foreground truncate max-w-[100px] sm:max-w-[160px]">
                             {tx.type === "send" ? `To: ${tx.toAddress?.slice(0, 10)}...` : tx.type === "reward" ? "Background Mining" : tx.type === "swap" ? "Token Swap" : `From: ${tx.fromAddress?.slice(0, 10)}...`}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className={`font-mono text-xs ${tx.type === "send" ? "text-red-400" : "text-neon-green"}`}>
-                          {tx.type === "send" ? "-" : "+"}{tx.amount} {tx.token}
-                        </p>
-                        <p className="text-[9px] text-muted-foreground">
-                          {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : ""}
-                        </p>
+                      <div className="text-right flex items-center gap-2">
+                        <div>
+                          <p className={`font-mono text-xs ${tx.type === "send" ? "text-red-400" : "text-neon-green"}`}>
+                            {tx.type === "send" ? "-" : "+"}{tx.amount} {tx.token}
+                          </p>
+                          <p className="text-[9px] text-muted-foreground">
+                            {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : ""}
+                          </p>
+                        </div>
+                        {tx.explorerUrl && (
+                          <a
+                            data-testid={`link-explorer-${tx.id}`}
+                            href={tx.explorerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 rounded-sm text-muted-foreground hover:text-neon-green transition-colors"
+                            title="View on explorer"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -639,10 +656,67 @@ export default function WalletPage() {
                   </div>
                 )}
 
-                {sendSuccess && (
-                  <div className="p-3 bg-neon-green/10 border border-neon-green/30 rounded-sm text-center space-y-1">
-                    <CheckCircle className="w-5 h-5 text-neon-green mx-auto" />
-                    <p className="text-xs font-heading text-neon-green">Transaction Sent</p>
+                {sendSuccess && lastSendReceipt && (
+                  <div className="p-4 bg-neon-green/5 border border-neon-green/30 rounded-sm space-y-3" data-testid="send-receipt">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-neon-green shrink-0" />
+                      <p className="text-xs font-heading text-neon-green uppercase tracking-wider">Transaction Broadcast</p>
+                    </div>
+                    <div className="space-y-2 text-[11px] font-mono">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground">Amount</span>
+                        <span className="text-foreground">{lastSendReceipt.amount} {lastSendReceipt.token}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground">To</span>
+                        <span className="text-foreground truncate max-w-[160px]">{lastSendReceipt.toAddress}</span>
+                      </div>
+                      {lastSendReceipt.networkFee && (
+                        <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground">Network Fee</span>
+                          <span className="text-neon-orange">{parseFloat(lastSendReceipt.networkFee).toFixed(8)} {lastSendReceipt.token === "ETH" ? "ETH" : lastSendReceipt.token === "STX" ? "STX" : ""}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground">Status</span>
+                        <span className={lastSendReceipt.status === "confirmed" ? "text-neon-green" : "text-neon-orange"}>{lastSendReceipt.status}</span>
+                      </div>
+                    </div>
+                    {lastSendReceipt.txHash && (
+                      <div className="pt-2 border-t border-border/20 space-y-2">
+                        <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Tx Hash</p>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 font-mono text-[10px] text-muted-foreground break-all" data-testid="text-send-txhash">{lastSendReceipt.txHash}</code>
+                          <button
+                            data-testid="button-copy-txhash"
+                            onClick={() => navigator.clipboard.writeText(lastSendReceipt!.txHash!)}
+                            className="shrink-0 p-1.5 rounded-sm bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+                            title="Copy hash"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                          {lastSendReceipt.explorerUrl && (
+                            <a
+                              data-testid="link-send-explorer"
+                              href={lastSendReceipt.explorerUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 p-1.5 rounded-sm bg-neon-green/10 hover:bg-neon-green/20 text-neon-green transition-colors"
+                              title="View on explorer"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      data-testid="button-close-receipt"
+                      onClick={() => { setSendSuccess(false); setLastSendReceipt(null); }}
+                      className="w-full py-1.5 text-[10px] font-heading uppercase tracking-wider text-muted-foreground hover:text-foreground border border-border/20 rounded-sm transition-colors"
+                    >
+                      Dismiss
+                    </button>
                   </div>
                 )}
 
