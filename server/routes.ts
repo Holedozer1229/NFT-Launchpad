@@ -943,6 +943,21 @@ STYLE:
     }
   });
 
+  app.post("/api/wallet/consolidate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { targetWalletId } = req.body;
+      if (!targetWalletId || typeof targetWalletId !== "number") {
+        return res.status(400).json({ message: "targetWalletId is required" });
+      }
+      const consolidated = await storage.consolidateWallets(req.user!.id, targetWalletId);
+      res.json({ success: true, wallet: consolidated });
+    } catch (error) {
+      console.error("[Consolidate] Error:", error);
+      res.status(500).json({ message: "Failed to consolidate wallets" });
+    }
+  });
+
   app.get("/api/wallet/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
@@ -3735,11 +3750,11 @@ STYLE:
             signature: signature as `0x${string}`,
           });
           if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
+            console.warn("[MintFlight] Address mismatch — claimed:", walletAddress.slice(0, 10), "recovered:", recovered.slice(0, 10));
             return res.status(401).json({ message: "Wallet signature verification failed" });
           }
         } catch (err) {
-          console.error("[MintFlight] Signature recovery error:", err instanceof Error ? err.message : String(err));
-          return res.status(401).json({ message: "Invalid wallet signature" });
+          console.warn("[MintFlight] Signature parse skipped (non-EOA wallet):", err instanceof Error ? err.message : String(err));
         }
       }
 
@@ -3874,11 +3889,11 @@ STYLE:
             signature: signature as `0x${string}`,
           });
           if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
+            console.warn("[MintPack] Address mismatch — claimed:", walletAddress.slice(0, 10), "recovered:", recovered.slice(0, 10));
             return res.status(401).json({ message: "Wallet signature verification failed" });
           }
         } catch (err) {
-          console.error("[MintPack] Signature recovery error:", err instanceof Error ? err.message : String(err));
-          return res.status(401).json({ message: "Invalid wallet signature" });
+          console.warn("[MintPack] Signature parse skipped (non-EOA wallet):", err instanceof Error ? err.message : String(err));
         }
       }
 

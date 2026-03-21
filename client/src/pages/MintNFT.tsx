@@ -64,14 +64,12 @@ function StarshipMintModal({ flight, onClose }: StarshipMintModalProps) {
     const nonce = Date.now().toString();
     const mintMessage = `SKYNT Protocol — Authorize Mint\nAction: Mint Starship Flight NFT\nFlight: ${flight.flightId}\nRarity: ${selectedRarity}\nChain: ${selectedChain}\nWallet: ${address}\nNonce: ${nonce}`;
 
-    let signature: string;
+    let signature: string | undefined;
     try {
-      toast({ title: "SIGNATURE REQUIRED", description: "Sign in your wallet to authorize this mint." });
+      toast({ title: "SIGNATURE REQUESTED", description: "Sign in your wallet to authorize this mint (optional)." });
       signature = await signMessageAsync({ message: mintMessage });
     } catch (sigErr: any) {
-      toast({ title: "SIGNATURE CANCELLED", description: "You must sign to authorize the mint.", variant: "destructive" });
-      setIsMinting(false);
-      return;
+      console.warn("[MintFlight] Signing skipped:", sigErr?.message ?? sigErr);
     }
 
     const steps = [

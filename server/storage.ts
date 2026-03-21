@@ -30,6 +30,7 @@ export interface IStorage {
   getWalletsByUser(userId: number): Promise<Wallet[]>;
   getWallet(id: number): Promise<Wallet | undefined>;
   updateWalletBalance(id: number, token: string, amount: string): Promise<void>;
+  consolidateWallets(userId: number, targetWalletId: number): Promise<Wallet>;
   createTransaction(tx: InsertWalletTransaction): Promise<WalletTransaction>;
   getTransactionsByWallet(walletId: number): Promise<WalletTransaction[]>;
 
@@ -223,6 +224,30 @@ export class DatabaseStorage implements IStorage {
   async updateWalletBalance(id: number, token: string, amount: string): Promise<void> {
     const field = token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
     await db.update(wallets).set({ [field]: amount }).where(eq(wallets.id, id));
+  }
+
+  async consolidateWallets(userId: number, targetWalletId: number): Promise<Wallet> {
+    const allWallets = await this.getWalletsByUser(userId);
+    const target = allWallets.find(w => w.id === targetWalletId);
+    if (!target) throw new Error("Target wallet not found");
+
+    let totalStx = parseFloat(target.balanceStx);
+    let totalSkynt = parseFloat(target.balanceSkynt);
+    let totalEth = parseFloat(target.balanceEth);
+
+    for (const w of allWallets) {
+      if (w.id === targetWalletId) continue;
+      totalStx   += parseFloat(w.balanceStx);
+      totalSkynt += parseFloat(w.balanceSkynt);
+      totalEth   += parseFloat(w.balanceEth);
+      await db.update(wallets).set({ balanceStx: "0", balanceSkynt: "0", balanceEth: "0" }).where(eq(wallets.id, w.id));
+    }
+
+    const [updated] = await db.update(wallets)
+      .set({ balanceStx: totalStx.toString(), balanceSkynt: totalSkynt.toString(), balanceEth: totalEth.toString() })
+      .where(eq(wallets.id, targetWalletId))
+      .returning();
+    return updated;
   }
 
   async createTransaction(tx: InsertWalletTransaction): Promise<WalletTransaction> {

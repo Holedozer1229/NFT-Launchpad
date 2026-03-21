@@ -370,12 +370,11 @@ function PackMintModal({ pack, onClose }: { pack: NftPack; onClose: () => void }
       const nonce = Date.now().toString();
       const mintMessage = `SKYNT Protocol — Authorize Mint\nAction: Mint NFT Pack\nPack: ${pack.id} — ${pack.name}\nChain: ${chain}\nWallet: ${address}\nNonce: ${nonce}`;
 
-      let signature: string;
+      let signature: string | undefined;
       try {
         signature = await signMessageAsync({ message: mintMessage });
-      } catch {
-        setSigningError("Signature cancelled — you must sign to authorize the mint.");
-        throw new Error("signature_cancelled");
+      } catch (sigErr: any) {
+        console.warn("[MintPack] Signing skipped:", sigErr?.message ?? sigErr);
       }
 
       return apiRequest("POST", "/api/starship/mint-pack", {

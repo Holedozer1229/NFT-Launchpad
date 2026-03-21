@@ -259,6 +259,17 @@ export default function WalletPage() {
     },
   });
 
+  const consolidateMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeWallet) throw new Error("No active wallet");
+      const res = await apiRequest("POST", "/api/wallet/consolidate", { targetWalletId: activeWallet.id });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/wallet/list"] });
+    },
+  });
+
   const handleSend = async () => {
     if (!activeWallet || !sendTo || !sendAmount || parseFloat(sendAmount) <= 0) return;
     setSending(true);
@@ -337,6 +348,22 @@ export default function WalletPage() {
           >
             <Download className="w-3.5 h-3.5" /> wallet.json
           </a>
+          {wallets.length > 1 && (
+            <button
+              data-testid="button-consolidate-wallets"
+              onClick={() => {
+                if (window.confirm(`Consolidate all wallet balances into "${activeWallet?.name}"? Other wallets will be zeroed out.`)) {
+                  consolidateMutation.mutate();
+                }
+              }}
+              disabled={consolidateMutation.isPending}
+              className="connect-wallet-btn px-4 py-2 rounded-sm font-heading text-[10px] sm:text-xs tracking-wider flex items-center justify-center sm:justify-start gap-2 w-full sm:w-auto"
+              style={{ background: "rgba(255,165,0,0.1)", borderColor: "rgba(255,165,0,0.3)", color: "#ffa500" }}
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              {consolidateMutation.isPending ? "Consolidating..." : "Consolidate"}
+            </button>
+          )}
           <button
             data-testid="button-create-wallet"
             onClick={() => createWalletMutation.mutate()}
