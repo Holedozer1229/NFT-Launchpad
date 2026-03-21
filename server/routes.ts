@@ -3912,18 +3912,18 @@ STYLE:
         const iitScore = Math.round(tier_data.basePower + Math.random() * 500);
 
         const nft = await storage.createNft({
-          name: item.title,
-          description: `${packName} — ${item.type} NFT minted from the ${tier.charAt(0).toUpperCase() + tier.slice(1)} Edition Pack`,
-          imageUrl: `/assets/sphinx-eye.png`,
-          rarity: rarity as any,
+          title: item.title || `${packName} NFT`,
+          image: `/assets/sphinx-eye.png`,
+          rarity: rarity.charAt(0).toUpperCase() + rarity.slice(1),
+          status: "minted",
+          mintDate: new Date().toISOString().split("T")[0],
+          tokenId: `0x${Math.random().toString(16).slice(2, 10).toUpperCase()}...${Math.random().toString(16).slice(2, 6).toUpperCase()}`,
+          owner: walletAddress,
+          price: "0.1 ETH",
           chain,
-          walletAddress,
-          iitScore,
           openseaUrl: null,
-          openseaStatus: null,
+          openseaStatus: "pending",
           openseaListingId: null,
-          thirdwebJobId: null,
-          txHash: null,
         });
 
         mintedNfts.push(nft);
