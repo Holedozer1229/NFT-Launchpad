@@ -52,8 +52,8 @@ import {
 import { rosettaRouter } from "./rosetta/routes";
 
 function safeError(error: unknown, fallback: string): string {
-  if (process.env.NODE_ENV !== "production") {
-    return (error as any)?.message ?? fallback;
+  if (process.env.NODE_ENV !== "production" && error instanceof Error) {
+    return error.message;
   }
   return fallback;
 }
@@ -2212,7 +2212,8 @@ STYLE:
   // ========== SEED DATA ROUTE (admin only) ==========
 
   app.post("/api/admin/seed", async (req, res) => {
-    if (!req.isAuthenticated() || !req.user!.isAdmin) return res.status(403).json({ message: "Forbidden" });
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Forbidden" });
     try {
       const existingNfts = await storage.getNfts();
       if (existingNfts.length === 0) {
@@ -2432,9 +2433,8 @@ STYLE:
   });
 
   app.delete("/api/network/node/:nodeId", (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
-      return res.status(403).json({ message: "Admin only" });
-    }
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const removed = removeNode(req.params.nodeId);
       if (!removed) return res.status(404).json({ message: "Node not found or is a seed node" });
@@ -2772,9 +2772,8 @@ STYLE:
    * If difficultyTarget is omitted the default (u128::MAX / 1_000_000) is used.
    */
   app.post("/api/pow/challenge", async (req, res) => {
-    if (!req.isAuthenticated() || !req.user!.isAdmin) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Forbidden" });
     try {
       const bodySchema = z.object({
         seed: z.string().regex(/^[0-9a-fA-F]{64}$/, "seed must be 64 hex chars").optional(),
@@ -2911,7 +2910,8 @@ STYLE:
    * Updates a submission's solanaTxHash and marks it confirmed.
    */
   app.patch("/api/pow/submissions/:id/confirm", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any).isAdmin) return res.status(403).json({ message: "Admin only" });
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const id = parseInt(req.params.id);
       if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid submission id" });
@@ -3169,9 +3169,8 @@ STYLE:
   // ========== TREASURY WALLET ROUTES (ADMIN-ONLY) ==========
 
   app.get("/api/treasury/wallet", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
-      return res.status(403).json({ message: "Admin only" });
-    }
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const isConfigured = !!process.env.TREASURY_PRIVATE_KEY;
       const gasStatus = await getTreasuryGasStatus();
@@ -3190,9 +3189,8 @@ STYLE:
   });
 
   app.get("/api/treasury/gas-status", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
-      return res.status(403).json({ message: "Admin only" });
-    }
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const status = await getTreasuryGasStatus();
       const pool = getGasRefillPool();
@@ -3203,9 +3201,8 @@ STYLE:
   });
 
   app.post("/api/treasury/sweep-gas", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
-      return res.status(403).json({ message: "Admin only" });
-    }
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const force = req.body?.force === true;
       const result = await sweepGasToTreasury(force);
@@ -3224,9 +3221,8 @@ STYLE:
   });
 
   app.get("/api/treasury/wallet/status", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
-      return res.status(403).json({ message: "Admin only" });
-    }
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       res.json({
         isConfigured: !!process.env.TREASURY_PRIVATE_KEY,
@@ -3239,9 +3235,8 @@ STYLE:
   });
 
   app.get("/api/treasury/wallet/transactions", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any).isAdmin) {
-      return res.status(403).json({ message: "Admin only" });
-    }
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const alchemyApiKey = process.env.ALCHEMY_API_KEY;
       if (!alchemyApiKey) {
@@ -3821,7 +3816,7 @@ STYLE:
 
   app.get("/api/kyc/submissions", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
-    if (!req.user!.isAdmin) return res.status(403).json({ message: "Admin only" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const subs = await storage.getAllKycSubmissions();
       res.json(subs);
@@ -3832,7 +3827,7 @@ STYLE:
 
   app.patch("/api/kyc/:id/review", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
-    if (!req.user!.isAdmin) return res.status(403).json({ message: "Admin only" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
     const { status, reviewNotes } = req.body;
@@ -3889,7 +3884,7 @@ STYLE:
 
   app.post("/api/airdrops", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
-    if (!req.user!.isAdmin) return res.status(403).json({ message: "Admin only" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const parsed = z.object({
         title: z.string().min(1),
@@ -3919,7 +3914,7 @@ STYLE:
 
   app.patch("/api/airdrops/:id/status", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
-    if (!req.user!.isAdmin) return res.status(403).json({ message: "Admin only" });
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Admin only" });
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
     const { status } = req.body;
