@@ -1,4 +1,4 @@
-import { pgTable, text, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, jsonb, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -1040,3 +1040,37 @@ export const insertGovernanceVoteSchema = createInsertSchema(governanceVotes).om
 });
 export type GovernanceVote = typeof governanceVotes.$inferSelect;
 export type InsertGovernanceVote = z.infer<typeof insertGovernanceVoteSchema>;
+
+export const btcZkEpochs = pgTable("btc_zk_epochs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  epoch: integer("epoch").notNull(),
+  spectralHash: text("spectral_hash").notNull(),
+  quantumGaps: text("quantum_gaps").notNull(),
+  chainCorr: real("chain_corr").notNull().default(0),
+  latticeCorr: real("lattice_corr").notNull().default(0),
+  valknutXi: real("valknut_xi"),
+  berryPhase: real("berry_phase"),
+  dysonFactor: real("dyson_factor"),
+  specCube: real("spec_cube"),
+  qFib: real("q_fib"),
+  xiPassed: boolean("xi_passed").default(false),
+  btcBlockHeight: integer("btc_block_height"),
+  btcPrevHash: text("btc_prev_hash"),
+  btcMerkleRoot: text("btc_merkle_root"),
+  moneroSeedHash: text("monero_seed_hash"),
+  zkSyncAnchor: text("zk_sync_anchor"),
+  auxpowHash: text("auxpow_hash"),
+  auxpowNonce: integer("auxpow_nonce"),
+  difficulty: real("difficulty"),
+  stxYieldRouted: real("stx_yield_routed").default(0),
+  wormholeTransferId: text("wormhole_transfer_id"),
+  status: text("status").notNull().default("running"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertBtcZkEpochSchema = createInsertSchema(btcZkEpochs).omit({
+  id: true,
+  createdAt: true,
+});
+export type BtcZkEpochRow = typeof btcZkEpochs.$inferSelect;
+export type InsertBtcZkEpoch = z.infer<typeof insertBtcZkEpochSchema>;

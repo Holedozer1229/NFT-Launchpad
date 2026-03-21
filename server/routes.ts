@@ -3338,6 +3338,47 @@ STYLE:
     });
   });
 
+  // BTC AuxPoW ZK Miner Daemon
+  app.get("/api/btc-zk-daemon/status", async (_req, res) => {
+    try {
+      const { getBtcZkDaemonStatus } = await import("./btc-zk-daemon");
+      res.json(getBtcZkDaemonStatus());
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/btc-zk-daemon/epochs", async (_req, res) => {
+    try {
+      const { getRecentBtcZkEpochs } = await import("./btc-zk-daemon");
+      res.json(getRecentBtcZkEpochs(30));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/btc-zk-daemon/start", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { startBtcZkDaemon } = await import("./btc-zk-daemon");
+      startBtcZkDaemon();
+      res.json({ success: true, message: "BTC AuxPoW ZK Miner Daemon started" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/btc-zk-daemon/stop", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { stopBtcZkDaemon } = await import("./btc-zk-daemon");
+      stopBtcZkDaemon();
+      res.json({ success: true, message: "BTC AuxPoW ZK Miner Daemon stopped" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Starship Flight NFT Showcase
   app.get("/api/starship-nft-showcase", (_req, res) => {
     res.json(STARSHIP_FLIGHT_SHOWCASES);

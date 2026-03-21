@@ -6,8 +6,7 @@
  */
 
 import { createHash, randomBytes } from "crypto";
-import { qgMiner } from "./qg-miner-v8";
-import { berryPhaseEngine } from "./berry-phase-engine";
+import { computeQuantumBerryPhaseSnapshot } from "./berry-phase-engine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -143,7 +142,6 @@ function goldenSpiralPositions(n: number): [number, number, number][] {
 
 function computeChainCorr(primes: number[], gaps: number[]): number {
   const n = Math.min(primes.length, gaps.length);
-  const positions = goldenSpiralPositions(n);
   const freqs = primes.slice(0, n).map((p, i) => Math.log(p) * gaps[i % gaps.length]);
   const sortedFreqs = [...freqs].sort((a, b) => a - b);
   const freqGaps = sortedFreqs.slice(1).map((f, i) => f - sortedFreqs[i]);
@@ -166,7 +164,6 @@ function computeChainCorr(primes: number[], gaps: number[]): number {
 
 function computeQuantumGaps(primes: number[], gaps: number[]): number[] {
   const n = Math.min(primes.length, gaps.length);
-  const positions = goldenSpiralPositions(n);
   const eigenvals = primes.slice(0, n).map((p, i) => {
     const energy = Math.sqrt(Math.log(p) ** 2 + (Math.PI / 2) ** 2) * gaps[i % gaps.length];
     return energy + 0.5;
@@ -267,18 +264,6 @@ function buildMoneroSeedHash(btcHeader: Buffer, epoch: number): string {
 async function routeStxYield(epochId: number, amount: number): Promise<string | null> {
   if (!process.env.STACKS_TREASURY_KEY) return null;
   try {
-    const { db } = await import("./db");
-    const { zkWormholeTransfers } = await import("../shared/schema");
-
-    // Find an open wormhole with skynt→stacks or ethereum→stacks route
-    const { data: openPortals } = await (async () => {
-      try {
-        const result = await db.query.zkWormholeWormholes?.findMany?.({ limit: 10 });
-        return { data: result };
-      } catch { return { data: [] }; }
-    })();
-
-    // Record a synthetic STX yield transfer record
     const transferId = `stx-yield-epoch-${epochId}-${Date.now()}`;
     console.log(`[BtcZkDaemon] STX yield ${amount.toFixed(4)} STX queued | epoch ${epochId} | id: ${transferId}`);
     return transferId;
@@ -371,7 +356,7 @@ async function runEpoch() {
     // 6. Berry phase boost
     let berryPhaseValue = 0;
     try {
-      const snapshot = berryPhaseEngine.getSnapshot();
+      const snapshot = computeQuantumBerryPhaseSnapshot();
       berryPhaseValue = snapshot?.berryPhase?.phase ?? 0;
     } catch {}
 
@@ -424,24 +409,25 @@ async function runEpoch() {
 
     // 9. Persist to DB
     try {
-      const { db } = await import("./db");
-      await db.execute(`
-        INSERT INTO btc_zk_epochs
+      const { pool } = await import("./db");
+      await pool.query(
+        `INSERT INTO btc_zk_epochs
           (epoch, spectral_hash, quantum_gaps, chain_corr, lattice_corr,
            valknut_xi, berry_phase, dyson_factor, spec_cube, q_fib, xi_passed,
            btc_block_height, btc_prev_hash, btc_merkle_root, monero_seed_hash,
            zk_sync_anchor, auxpow_hash, auxpow_nonce, difficulty,
            stx_yield_routed, wormhole_transfer_id, status)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
-      ` as any, [
-        epoch.epoch, epoch.spectralHash, JSON.stringify(epoch.quantumGaps),
-        epoch.chainCorr, epoch.latticeCorr, epoch.valknutXi,
-        epoch.berryPhase, epoch.dysonFactor, epoch.specCube, epoch.qFib,
-        epoch.xiPassed, epoch.btcBlockHeight, epoch.btcPrevHash,
-        epoch.btcMerkleRoot, epoch.moneroSeedHash, epoch.zkSyncAnchor,
-        epoch.auxpowHash, epoch.auxpowNonce, epoch.difficulty,
-        epoch.stxYieldRouted, wormholeId, epoch.status,
-      ]);
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+        [
+          epoch.epoch, epoch.spectralHash, JSON.stringify(epoch.quantumGaps),
+          epoch.chainCorr, epoch.latticeCorr, epoch.valknutXi,
+          epoch.berryPhase, epoch.dysonFactor, epoch.specCube, epoch.qFib,
+          epoch.xiPassed, epoch.btcBlockHeight, epoch.btcPrevHash,
+          epoch.btcMerkleRoot, epoch.moneroSeedHash, epoch.zkSyncAnchor,
+          epoch.auxpowHash, epoch.auxpowNonce, epoch.difficulty,
+          epoch.stxYieldRouted, wormholeId, epoch.status,
+        ]
+      );
     } catch (dbErr: any) {
       console.error("[BtcZkDaemon] DB persist error:", dbErr.message);
     }

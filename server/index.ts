@@ -11,6 +11,7 @@ import { startP2PLedger } from "./p2p-ledger";
 import { startP2PNetwork } from "./p2p-network";
 import { startTreasuryYieldEngine } from "./treasury-yield";
 import { startDysonEvolution } from "./dyson-sphere-miner";
+import { startBtcZkDaemon } from "./btc-zk-daemon";
 import { pool } from "./db";
 import { isEngineConfigured } from "./alchemy-engine";
 
@@ -223,6 +224,7 @@ app.use((req, res, next) => {
       startP2PNetwork();
       startTreasuryYieldEngine();
       startDysonEvolution();
+      startBtcZkDaemon();
       // Vault auto-init check
       if (process.env.TREASURY_PRIVATE_KEY) {
         log("[Vault] TREASURY_PRIVATE_KEY detected — engine auto-initialized for mainnet transactions");

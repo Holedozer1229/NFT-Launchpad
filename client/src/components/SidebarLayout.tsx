@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Atom, Gift, UserCheck, Share2, Vote } from "lucide-react";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Atom, Gift, UserCheck, Share2, Vote, Cpu } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -28,6 +28,7 @@ const navGroups = [
     items: [
       { path: "/airdrop", label: "Airdrop", icon: Gift, adminOnly: false },
       { path: "/genesis-miner", label: "Genesis Miner", icon: Pickaxe, adminOnly: false },
+      { path: "/btc-zk-daemon", label: "BTC ZK Miner", icon: Cpu, adminOnly: false },
       { path: "/dyson-sphere", label: "Dyson Sphere", icon: Atom, adminOnly: false },
       { path: "/yield", label: "Yield", icon: TrendingUp, adminOnly: false },
       { path: "/serpent", label: "Omega Serpent", icon: Gamepad2, adminOnly: false },
