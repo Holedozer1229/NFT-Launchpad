@@ -1,12 +1,34 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Wallet, ChevronDown, Copy, ExternalLink, LogOut, Check, Loader2, AlertTriangle } from "lucide-react";
+import { Wallet, ChevronDown, Copy, ExternalLink, LogOut, Check, Loader2, AlertTriangle, Coins } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useBalance } from "wagmi";
+import { SKYNT_CONTRACT_ADDRESS } from "@shared/schema";
 
 interface ConnectWalletButtonProps {
   label?: string;
   showBalance?: boolean;
   chainStatus?: "icon" | "name" | "none";
   accountStatus?: "avatar" | "address" | "full";
+}
+
+function SkyntBalance({ address }: { address: string }) {
+  const { data } = useBalance({
+    address: address as `0x${string}`,
+    token: SKYNT_CONTRACT_ADDRESS as `0x${string}`,
+  });
+
+  if (!data || data.value === 0n) return null;
+
+  const formatted = parseFloat(data.formatted).toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  });
+
+  return (
+    <div className="flex items-center gap-1.5 px-3 py-1.5 mt-1 rounded bg-neon-cyan/5 border border-neon-cyan/20" data-testid="text-skynt-balance">
+      <Coins className="w-3 h-3 text-neon-cyan" style={{ filter: "drop-shadow(0 0 4px hsl(185 100% 50% / 0.6))" }} />
+      <span className="font-mono text-[11px] text-neon-cyan font-bold">{formatted} SKYNT</span>
+    </div>
+  );
 }
 
 export function ConnectWalletButton({
@@ -166,6 +188,7 @@ export function ConnectWalletButton({
                     {account.displayBalance && (
                       <div className="font-mono text-[10px] text-primary mt-0.5">{account.displayBalance}</div>
                     )}
+                    <SkyntBalance address={account.address} />
                   </div>
 
                   <button
