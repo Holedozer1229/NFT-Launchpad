@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import LaunchCountdown from "@/components/LaunchCountdown";
-import { useAccount } from "wagmi";
+import { useAccount, useSignMessage } from "wagmi";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { haptic } from "@/lib/haptics";
@@ -34,6 +34,7 @@ interface StarshipMintModalProps {
 
 function StarshipMintModal({ flight, onClose }: StarshipMintModalProps) {
   const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedRarity, setSelectedRarity] = useState<RarityTier>("common");
@@ -60,8 +61,21 @@ function StarshipMintModal({ flight, onClose }: StarshipMintModalProps) {
     setMintedResult(null);
 
     const tier = RARITY_TIERS[selectedRarity];
+    const nonce = Date.now().toString();
+    const mintMessage = `SKYNT Protocol — Authorize Mint\nAction: Mint Starship Flight NFT\nFlight: ${flight.flightId}\nRarity: ${selectedRarity}\nChain: ${selectedChain}\nWallet: ${address}\nNonce: ${nonce}`;
+
+    let signature: string;
+    try {
+      toast({ title: "SIGNATURE REQUIRED", description: "Sign in your wallet to authorize this mint." });
+      signature = await signMessageAsync({ message: mintMessage });
+    } catch (sigErr: any) {
+      toast({ title: "SIGNATURE CANCELLED", description: "You must sign to authorize the mint.", variant: "destructive" });
+      setIsMinting(false);
+      return;
+    }
+
     const steps = [
-      "CONSULTING THE ORACLE...",
+      "SIGNATURE VERIFIED — IDENTITY CONFIRMED...",
       `CONNECTING TO ${chain.name.toUpperCase()} NETWORK...`,
       `VERIFYING ${tier.label.toUpperCase()} RARITY SHARD...`,
       "SYNCING STARSHIP TELEMETRY DATA...",
@@ -84,6 +98,8 @@ function StarshipMintModal({ flight, onClose }: StarshipMintModalProps) {
         rarity: selectedRarity,
         chain: selectedChain,
         walletAddress: address,
+        signature,
+        message: mintMessage,
       });
       const result = await response.json();
       haptic("heavy");

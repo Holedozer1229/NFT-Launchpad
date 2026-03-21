@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { useAccount } from "wagmi";
+import { useAccount, useSignMessage } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -355,23 +355,40 @@ const SUPPORTED_CHAINS = [
 function PackMintModal({ pack, onClose }: { pack: NftPack; onClose: () => void }) {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
+  const { signMessageAsync } = useSignMessage();
   const queryClient = useQueryClient();
   const style = RARITY_STYLES[pack.tier] || RARITY_STYLES.rare;
   const TierIcon = style.icon;
 
   const [chain, setChain] = useState("ethereum");
   const [mintResult, setMintResult] = useState<{ count: number; nfts: any[] } | null>(null);
+  const [signingError, setSigningError] = useState<string | null>(null);
 
   const mintMutation = useMutation({
-    mutationFn: () =>
-      apiRequest("POST", "/api/starship/mint-pack", {
+    mutationFn: async () => {
+      setSigningError(null);
+      const nonce = Date.now().toString();
+      const mintMessage = `SKYNT Protocol — Authorize Mint\nAction: Mint NFT Pack\nPack: ${pack.id} — ${pack.name}\nChain: ${chain}\nWallet: ${address}\nNonce: ${nonce}`;
+
+      let signature: string;
+      try {
+        signature = await signMessageAsync({ message: mintMessage });
+      } catch {
+        setSigningError("Signature cancelled — you must sign to authorize the mint.");
+        throw new Error("signature_cancelled");
+      }
+
+      return apiRequest("POST", "/api/starship/mint-pack", {
         packId: pack.id,
         packName: pack.name,
         tier: pack.tier,
         items: pack.items,
         chain,
         walletAddress: address,
-      }),
+        signature,
+        message: mintMessage,
+      });
+    },
     onSuccess: async (res) => {
       const data = await res.json();
       setMintResult(data);
@@ -511,10 +528,10 @@ function PackMintModal({ pack, onClose }: { pack: NftPack; onClose: () => void }
                 )}
               </div>
 
-              {mintMutation.isError && (
+              {(mintMutation.isError || signingError) && (
                 <p className="font-mono text-xs text-red-400 flex items-center gap-2">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  Mint failed — please try again
+                  {signingError || "Mint failed — please try again"}
                 </p>
               )}
             </div>

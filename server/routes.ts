@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, ACCESS_TIERS, type ChainId, type RarityTier, governanceProposals, governanceVotes } from "@shared/schema";
 import { randomBytes, createHash } from "crypto";
+import { verifyMessage } from "viem";
 import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, getTreasuryGasStatus, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./alchemy-engine";
 import { recordMintFee, getTreasuryYieldState, startTreasuryYieldEngine, getGasRefillPool, sweepGasToTreasury } from "./treasury-yield";
 import { z } from "zod";
@@ -3672,11 +3673,13 @@ STYLE:
   // Dedicated starship flight minting — no session auth required (wallet address in body)
   app.post("/api/starship/mint-flight", rateLimit(15000, 5), async (req, res) => {
     try {
-      const { flightId, rarity: rawRarity, chain: rawChain, walletAddress } = req.body as {
+      const { flightId, rarity: rawRarity, chain: rawChain, walletAddress, signature, message } = req.body as {
         flightId: string;
         rarity: string;
         chain: string;
         walletAddress: string;
+        signature?: string;
+        message?: string;
       };
 
       if (!flightId || typeof flightId !== "string") {
@@ -3684,6 +3687,21 @@ STYLE:
       }
       if (!walletAddress || typeof walletAddress !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
         return res.status(400).json({ message: "walletAddress must be a valid Ethereum address" });
+      }
+
+      if (signature && message) {
+        try {
+          const valid = await verifyMessage({
+            address: walletAddress as `0x${string}`,
+            message,
+            signature: signature as `0x${string}`,
+          });
+          if (!valid) {
+            return res.status(401).json({ message: "Wallet signature verification failed" });
+          }
+        } catch {
+          return res.status(401).json({ message: "Invalid wallet signature" });
+        }
       }
 
       const flight = (STARSHIP_FLIGHT_SHOWCASES as readonly any[]).find((f: any) => f.flightId === flightId);
@@ -3792,13 +3810,15 @@ STYLE:
   // Starship NFT Pack Mint — mints one NFT per item in the pack
   app.post("/api/starship/mint-pack", rateLimit(30000, 3), async (req, res) => {
     try {
-      const { packId, packName, tier, items, chain, walletAddress } = req.body as {
+      const { packId, packName, tier, items, chain, walletAddress, signature, message } = req.body as {
         packId: string;
         packName: string;
         tier: string;
         items: Array<{ rarity: string; title: string; type: string }>;
         chain: string;
         walletAddress: string;
+        signature?: string;
+        message?: string;
       };
 
       if (!packId || !packName || !tier || !items?.length || !chain || !walletAddress) {
@@ -3806,6 +3826,21 @@ STYLE:
       }
       if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
         return res.status(400).json({ message: "Invalid wallet address" });
+      }
+
+      if (signature && message) {
+        try {
+          const valid = await verifyMessage({
+            address: walletAddress as `0x${string}`,
+            message,
+            signature: signature as `0x${string}`,
+          });
+          if (!valid) {
+            return res.status(401).json({ message: "Wallet signature verification failed" });
+          }
+        } catch {
+          return res.status(401).json({ message: "Invalid wallet signature" });
+        }
       }
 
       const RARITY_TIERS: Record<string, { multiplier: number; basePower: number }> = {
