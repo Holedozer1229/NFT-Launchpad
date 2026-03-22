@@ -460,6 +460,7 @@ async function runEpoch(): Promise<void> {
       reason: "Swap execution failed",
     };
     _state.buybackHistory.unshift(failedEv);
+    saveBuybackEvent(failedEv).catch((e: Error) => console.warn("[PriceDriver] Failed to persist failed buyback event:", e.message?.slice(0, 80)));
     await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     wsHub.broadcast("price_driver:buyback", { ...failedEv });
     wsHub.broadcast("price_driver:epoch", {
