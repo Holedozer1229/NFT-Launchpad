@@ -4,6 +4,26 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
+- **Mar 2026**: **Production Polish — WebSocket Engine Broadcasting & Build Optimization**
+  - `server/ws-hub.ts`: Upgraded from simple Set to per-client Map with metadata; 30s ping/pong heartbeat auto-evicts dead connections; `message` handler supports `ping`, `subscribe` (event filtering), `subscribe_all`; selective delivery skips unsubscribed clients; `getStats()` method
+  - Added WebSocket broadcasts to 4 previously-silent engines: IIT Engine (`iit:tick`, every 30s — phi/level/blockHeight/consensus/epoch), P2P Ledger (`p2p_ledger:sync`, every 15s — blockHeight/peers/consensusStatus), Self-Fund Sentinel (`gas_sentinel:tick` — phase/reserve/triggers/lastCheck), Dyson Sphere (`dyson:evolution`, every 60s — epoch/chainCorrelation/hashRateBoost/dysonEquilibrium)
+  - Full real-time event catalog: `iit:tick`, `p2p_ledger:sync`, `gas_sentinel:tick`, `dyson:evolution`, `btc_zk:epoch_result`, `price_driver:epoch/buyback/burn_completed/target_updated`, `treasury:compound`, `miner:hashrate_update/block_found`, `p2p:peer_joined/peer_left/block_announced`
+  - `vite.config.ts`: Added `target: "es2020"` and `rollupOptions.manualChunks` — vendor splits for react, router, tanstack query, recharts, radix UI, wagmi/viem; significantly reduces initial load chunks
+  - Error instrumentation completed across all engines: treasury-yield `setInterval` wrapped with try/catch; dyson-sphere evolution try/catch; all errors route to engine-error-counter
+
+- **Mar 2026**: **Task #6 — Admin Engine Console & Price Target Control**
+  - `client/src/pages/AdminEngines.tsx`: Full engine management console at `/admin/engines` (admin-only) — live status cards for all 8 engines (IIT, P2P Ledger, P2P Network, Treasury Yield, Dyson Sphere, BTC ZK Daemon, Self-Fund Sentinel, Price Driver); stop/restart controls; price target input with DB hot-reload; protocol settings form; P2P Ledger state panel; admin activity log table; error counter per engine
+  - `migrations/0003_admin_engine_console.sql`: `protocol_settings` table (user_id int, updated_by text, target_price_usd, burn_ratio, max_eth_per_epoch, epoch_interval_ms), `admin_action_log` table (action, username, details, created_at)
+  - `server/routes.ts`: `GET/PUT /api/admin/settings` (auth-guarded, price driver hot-reload on PUT), `GET/POST /api/admin/engines/:engine/stop|restart`, `GET /api/admin/engines/status`, `GET /api/admin/activity-log`
+  - `server/engine-error-counter.ts`: Per-engine error tracking module with `recordEngineError`, `getEngineErrorCount`, `getLastEngineError`, `resetEngineErrors`; wired to IIT, BTC ZK, Price Driver, Treasury Yield, Dyson Sphere
+  - `server/iit-engine.ts`: `_epochCount` and `_lastActivityMs` tracking; exports `getEngineEpochCount()`, `getEngineLastActivity()`; status endpoint surfaces real IIT epoch count
+
+- **Mar 2026**: **Task #5 — Real-Time WebSocket Engine Hub**
+  - `server/ws-hub.ts`: Singleton `WSHub` class with `WebSocketServer` (Node `ws` package), attached to HTTP server at `/ws`; `broadcast(event, data)` fan-out to all connected clients; client count getter
+  - `client/src/hooks/use-engine-stream.ts`: `EngineStreamProvider` with exponential-backoff reconnect (1s→30s), event ring buffer (100 events), `on(event, cb)` pub/sub listener API, `connected` state
+  - `client/src/App.tsx`: Wrapped root in `EngineStreamProvider` for global WS access
+  - Initial engine integrations: Background Miner (`miner:hashrate_update`, `miner:block_found`), P2P Network (`p2p:peer_joined/left/block_announced`), Price Driver (`price_driver:epoch/buyback/burn_completed/target_updated`), Treasury Yield (`treasury:compound`), BTC ZK Daemon (`btc_zk:epoch_result`)
+
 - **Mar 2026**: **Task #4 — SKYNT Price Chart, History DB & Token Analytics**
   - `shared/schema.ts`: Added `skynt_price_snapshots` table — `id`, `price_eth`, `price_usd`, `eth_price_usd`, `pool_fee`, `treasury_eth_balance`, `epoch_number`, `created_at`
   - `server/skynt-price-driver.ts`: `savePriceSnapshot()` helper persists a row after each epoch's live price read; called immediately after fetching treasury balance so every 5-min epoch snapshot is stored
