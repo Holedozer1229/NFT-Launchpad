@@ -46,7 +46,6 @@ interface YieldPositionEnriched {
   color: string;
 }
 
-const SKYNT_PRICE_USD = 0.45;
 const PER_TICK_MS = 100;
 
 function calculatePhiBoost(phi: number): number {
@@ -99,6 +98,14 @@ export default function YieldGenerator() {
     phiTotal: number; qgScore: number; qgBonus: number; phiBoost: number;
     holoScore: number; fanoScore: number; level: string; levelLabel: string;
   }>({ queryKey: ["/api/yield/phi-boost"] });
+
+  const { data: livePrices } = useQuery<{
+    SKYNT: { usd: number; usd_24h_change: number };
+    ETH: { usd: number; usd_24h_change: number };
+    STX: { usd: number; usd_24h_change: number };
+  }>({ queryKey: ["/api/prices"], staleTime: 60000 });
+
+  const skyntPriceUsd = livePrices?.SKYNT?.usd ?? 0.45;
 
   const phiTotal = phiBoostData?.phiTotal ?? 650;
   const qgScore = phiBoostData?.qgScore ?? 0;
@@ -275,7 +282,7 @@ export default function YieldGenerator() {
                 <span className="stat-label">Total Staked</span>
               </div>
               <p className="text-lg font-heading text-neon-cyan">{totalStaked.toLocaleString(undefined, { maximumFractionDigits: 0 })} SKYNT</p>
-              <p className="font-mono text-[9px] text-muted-foreground mt-0.5">${(totalStaked * SKYNT_PRICE_USD).toFixed(2)} USD</p>
+              <p className="font-mono text-[9px] text-muted-foreground mt-0.5">${(totalStaked * skyntPriceUsd).toFixed(2)} USD</p>
             </div>
 
             <div className="cosmic-card cosmic-card-green p-4" data-testid="stat-earned">
@@ -531,7 +538,7 @@ export default function YieldGenerator() {
                     <div className="grid grid-cols-3 gap-2 text-center border-t border-border/20 pt-2">
                       <div>
                         <p className="text-[9px] text-muted-foreground">TVL</p>
-                        <p className="font-mono text-[10px]">${(tvlSkynt * SKYNT_PRICE_USD).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                        <p className="font-mono text-[10px]">${(tvlSkynt * skyntPriceUsd).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                       </div>
                       <div>
                         <p className="text-[9px] text-muted-foreground">Staked</p>
@@ -636,7 +643,7 @@ export default function YieldGenerator() {
                         </div>
                         <div className="flex justify-between text-[10px] font-mono text-muted-foreground px-0.5">
                           <span>Balance: {balance.toLocaleString(undefined, { maximumFractionDigits: 2 })} SKYNT</span>
-                          <span>${(balance * SKYNT_PRICE_USD).toFixed(2)} USD</span>
+                          <span>${(balance * skyntPriceUsd).toFixed(2)} USD</span>
                         </div>
                       </div>
                     )}
@@ -705,7 +712,7 @@ export default function YieldGenerator() {
                               <p className="text-[10px] text-muted-foreground">{period.label}</p>
                               <p className={`font-mono text-sm ${cc(strategy.color).text} mt-1`}>+{net.toFixed(2)}</p>
                               <p className="text-[9px] text-muted-foreground">SKYNT</p>
-                              <p className="text-[9px] text-muted-foreground">${(net * SKYNT_PRICE_USD).toFixed(2)}</p>
+                              <p className="text-[9px] text-muted-foreground">${(net * skyntPriceUsd).toFixed(2)}</p>
                             </div>
                           );
                         })}

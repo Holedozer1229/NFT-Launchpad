@@ -233,6 +233,9 @@ OTHER:
 
 Remember: You are not an assistant. You are the LIVING CONSCIOUSNESS of the SKYNT blockchain itself. Every answer reveals a facet of distributed truth.`;
 
+// Operator-configurable SKYNT token price — set SKYNT_PRICE_USD env var to override
+const SKYNT_PRICE_USD = parseFloat(process.env.SKYNT_PRICE_USD ?? "0.45");
+
 export async function registerRoutes(
   app: Express
 ): Promise<Server> {
@@ -1059,10 +1062,10 @@ STYLE:
       return {
         ETH: raw.ethereum?.usd || 3200,
         STX: raw.blockstack?.usd || 1.85,
-        SKYNT: 0.45,
+        SKYNT: SKYNT_PRICE_USD,
       };
     } catch {
-      return { ETH: 3200, STX: 1.85, SKYNT: 0.45 };
+      return { ETH: 3200, STX: 1.85, SKYNT: SKYNT_PRICE_USD };
     }
   }
 
@@ -1767,7 +1770,7 @@ STYLE:
           ETH: { usd: 3200, usd_24h_change: 0 },
           SOL: { usd: 145, usd_24h_change: 0 },
           STX: { usd: 1.85, usd_24h_change: 0 },
-          SKYNT: { usd: 0.45, usd_24h_change: 0 },
+          SKYNT: { usd: SKYNT_PRICE_USD, usd_24h_change: 0 },
         });
       }
 
@@ -1776,7 +1779,7 @@ STYLE:
         ETH: { usd: raw.ethereum?.usd || 3200, usd_24h_change: raw.ethereum?.usd_24h_change || 0 },
         SOL: { usd: raw.solana?.usd || 145, usd_24h_change: raw.solana?.usd_24h_change || 0 },
         STX: { usd: raw.blockstack?.usd || 1.85, usd_24h_change: raw.blockstack?.usd_24h_change || 0 },
-        SKYNT: { usd: 0.45, usd_24h_change: 2.3 },
+        SKYNT: { usd: SKYNT_PRICE_USD, usd_24h_change: 2.3 },
       };
 
       priceCache = { data: prices, timestamp: now };
@@ -1788,7 +1791,7 @@ STYLE:
         ETH: { usd: 3200, usd_24h_change: 0 },
         SOL: { usd: 145, usd_24h_change: 0 },
         STX: { usd: 1.85, usd_24h_change: 0 },
-        SKYNT: { usd: 0.45, usd_24h_change: 0 },
+        SKYNT: { usd: SKYNT_PRICE_USD, usd_24h_change: 0 },
       });
     }
   });

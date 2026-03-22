@@ -549,12 +549,14 @@ async function runEpoch() {
     // 8b. ECRECOVER proof — sign spectralHash with treasury key
     const ecProof = buildECRecoverProof(spectralHash, process.env.TREASURY_WALLET_ADDRESS ?? "");
 
-    // 9. STX yield routing
+    // 9. STX yield routing — deterministic from real work (no randomness)
+    // Tied to: bestXiThisEpoch (Valknut quality on live BTC data), xiPassCount,
+    // actual hashes computed, and chain correlation from live mempool
     const stxYieldAmount = blockFound
-      ? 25 + Math.random() * 10
+      ? parseFloat((25 + (bestXiThisEpoch - 1.0) * 10 + xiPassCount * 0.05 + Math.abs(chainCorr) * 2).toFixed(4))
       : epochXiPassed
-        ? 2.5 + Math.random() * 2
-        : 0.1 + Math.random() * 0.5;
+        ? parseFloat((2.5 + (bestXiThisEpoch - 1.0) * 2 + hashes / 200000).toFixed(4))
+        : parseFloat(Math.max(0.05, hashes / 500000 * bestXiThisEpoch).toFixed(4));
     totalStxYield += stxYieldAmount;
 
     let wormholeId: string | null = null;

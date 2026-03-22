@@ -50,7 +50,7 @@ function getPhiBoost(): number {
       return Math.min(Math.exp(Number(result.phiTotal) || 0), 2.0);
     }
   } catch {}
-  return Math.min(Math.exp(0.3 + Math.random() * 0.7), 2.0);
+  return 1.0; // neutral boost — IIT engine not yet ready
 }
 
 export async function generateRarityCertificate(nftId: number, userId: number) {
