@@ -27,7 +27,7 @@ const WalletPage = lazy(() => import("@/pages/WalletPage"));
 const StarshipLaunches = lazy(() => import("@/pages/StarshipLaunches"));
 const PublicLab = lazy(() => import("@/pages/PublicLab"));
 const NotFound = lazy(() => import("@/pages/not-found"));
-const GenesisMiner = lazy(() => import("@/pages/GenesisMiner"));
+// GenesisMiner, BtcZkDaemon, DysonSphereMiner are now unified under UnifiedMiner
 const ZkWormhole = lazy(() => import("@/pages/ZkWormhole"));
 const RarityProofEngine = lazy(() => import("@/pages/RarityProofEngine"));
 const P2PNetworkPage = lazy(() => import("@/pages/P2PNetwork"));
@@ -36,10 +36,9 @@ const ContractDeployment = lazy(() => import("@/pages/ContractDeployment"));
 const TreasuryVault = lazy(() => import("@/pages/TreasuryVault"));
 const QuantumBerryPhase = lazy(() => import("@/pages/QuantumBerryPhase"));
 const OpenClawTerminal = lazy(() => import("@/pages/OpenClawTerminal"));
-const DysonSphereMiner = lazy(() => import("@/pages/DysonSphereMiner"));
 const AirdropPage = lazy(() => import("@/pages/Airdrop"));
 const KYCPage = lazy(() => import("@/pages/KYC"));
-const BtcZkDaemon = lazy(() => import("@/pages/BtcZkDaemon"));
+const UnifiedMiner = lazy(() => import("@/pages/UnifiedMiner"));
 const PriceDriver = lazy(() => import("@/pages/PriceDriver"));
 const QuantumMiner = lazy(() => import("@/components/QuantumMiner").then(m => ({ default: m.QuantumMiner })));
 const UnifiedAIWidget = lazy(() => import("@/components/UnifiedAIWidget").then(m => ({ default: m.UnifiedAIWidget })));
@@ -145,16 +144,17 @@ function AppRouter() {
             <Route path="/berry-phase" component={QuantumBerryPhase} />
             <Route path="/serpent" component={OmegaSerpent} />
             <Route path="/starship" component={StarshipLaunches} />
-            <Route path="/genesis-miner" component={GenesisMiner} />
+            <Route path="/mining" component={UnifiedMiner} />
+            <Route path="/genesis-miner" component={UnifiedMiner} />
+            <Route path="/btc-zk-daemon" component={UnifiedMiner} />
+            <Route path="/dyson-sphere" component={UnifiedMiner} />
             <Route path="/wormhole" component={ZkWormhole} />
             <Route path="/rarity-proof" component={RarityProofEngine} />
             <Route path="/p2p-network" component={P2PNetworkPage} />
             <Route path="/rocket-babes" component={RocketBabesNFT} />
             <Route path="/openclaw" component={OpenClawTerminal} />
-            <Route path="/dyson-sphere" component={DysonSphereMiner} />
             <Route path="/airdrop" component={AirdropPage} />
             <Route path="/kyc" component={KYCPage} />
-            <Route path="/btc-zk-daemon" component={BtcZkDaemon} />
             <Route path="/contracts" component={ContractDeployment} />
             <Route path="/treasury" component={TreasuryVaultGuard} />
             <Route path="/wallet" component={WalletPage} />
