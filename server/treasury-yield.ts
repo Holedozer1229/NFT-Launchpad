@@ -314,3 +314,7 @@ export function stopTreasuryYieldEngine(): void {
     console.log("[Treasury Yield] Auto-compound engine stopped");
   }
 }
+
+export function isTreasuryYieldRunning(): boolean {
+  return compoundInterval !== null;
+}

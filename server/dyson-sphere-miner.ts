@@ -591,4 +591,8 @@ export function stopDysonEvolution(): void {
   }
 }
 
+export function isDysonEvolutionRunning(): boolean {
+  return _evolutionHandle !== null;
+}
+
 export { xiValknutV9, dysonFactor, spectralGaps, generatePrimes, pearson };

@@ -4812,12 +4812,13 @@ STYLE:
       const [
         { isEngineRunning: iitRunning, getNetworkPerception },
         { getNetwork },
-        { getTreasuryYieldState },
+        { getTreasuryYieldState, isTreasuryYieldRunning },
         { getBtcZkDaemonStatus },
         { getSelfFundStatus },
         { getPriceDriverState },
         { getLedgerState },
         { getEngineErrorCount, getLastEngineError },
+        { isDysonEvolutionRunning },
       ] = await Promise.all([
         import("./iit-engine"),
         import("./p2p-network"),
@@ -4827,6 +4828,7 @@ STYLE:
         import("./skynt-price-driver"),
         import("./p2p-ledger"),
         import("./engine-error-counter"),
+        import("./dyson-sphere-miner"),
       ]);
 
       const btcZk      = getBtcZkDaemonStatus();
@@ -4868,7 +4870,7 @@ STYLE:
           ),
           mkEngine(
             "treasury-yield", "Treasury Yield",
-            treasury.autoCompoundEnabled,
+            isTreasuryYieldRunning(),
             treasury.compoundCount,
             treasury.lastCompoundTimestamp,
             `pool: ${treasury.currentPoolBalance.toFixed(4)} | yield: ${treasury.totalYieldGenerated.toFixed(4)} | φ-boost: ${treasury.phiBoostMultiplier.toFixed(3)}`,
@@ -4896,7 +4898,7 @@ STYLE:
           ),
           mkEngine(
             "dyson-sphere", "Dyson Sphere",
-            dysonState !== null,
+            isDysonEvolutionRunning(),
             dysonState?.epoch ?? 0,
             dysonState?.lastUpdate ?? null,
             dysonState ? `epoch ${dysonState.epoch} | corr: ${dysonState.chainCorrelation?.toFixed(4) ?? "?"} | boost: ${dysonState.hashRateBoost?.toFixed(2) ?? "?"}x` : "idle",
