@@ -35,17 +35,17 @@ interface PortfolioData {
   };
   recentNfts: {
     id: number;
-    name: string;
-    rarity: string | null;
-    imageUrl: string | null;
-    mintedAt: string | null;
+    title: string;
+    rarity: string;
+    image: string;
+    mintDate: string;
   }[];
   wallets: {
     id: number;
-    name: string | null;
+    name: string;
     address: string;
-    skyntBalance: string | null;
-    ethBalance: string | null;
+    balanceSkynt: string;
+    balanceEth: string;
   }[];
 }
 
@@ -208,8 +208,8 @@ export default function Portfolio() {
                     <div className="text-[9px] text-muted-foreground">{w.name ?? "Wallet"}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-mono text-[11px]">{fmt(parseFloat(w.skyntBalance ?? "0"), 2)} SKYNT</div>
-                    <div className="font-mono text-[9px] text-muted-foreground">{fmt(parseFloat(w.ethBalance ?? "0"), 5)} ETH</div>
+                    <div className="font-mono text-[11px]">{fmt(parseFloat(w.balanceSkynt ?? "0"), 2)} SKYNT</div>
+                    <div className="font-mono text-[9px] text-muted-foreground">{fmt(parseFloat(w.balanceEth ?? "0"), 5)} ETH</div>
                   </div>
                 </div>
               ))}
@@ -266,10 +266,10 @@ export default function Portfolio() {
             {(data?.recentNfts ?? []).map((nft) => (
               <div key={nft.id} className="relative rounded border border-border bg-black/30 overflow-hidden group" data-testid={`nft-card-${nft.id}`}>
                 <div className="aspect-square bg-black/50 flex items-center justify-center">
-                  {nft.imageUrl ? (
+                  {nft.image ? (
                     <img
-                      src={nft.imageUrl}
-                      alt={nft.name}
+                      src={nft.image}
+                      alt={nft.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : (
@@ -277,7 +277,7 @@ export default function Portfolio() {
                   )}
                 </div>
                 <div className="p-2">
-                  <div className="text-[10px] font-mono truncate">{nft.name}</div>
+                  <div className="text-[10px] font-mono truncate">{nft.title}</div>
                   <div className={`text-[8px] font-bold uppercase ${RARITY_COLORS[nft.rarity ?? "common"]?.split(" ")[0] ?? "text-muted-foreground"}`}>
                     {nft.rarity ?? "common"}
                   </div>

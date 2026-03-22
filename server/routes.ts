@@ -5164,9 +5164,9 @@ STYLE:
       const { getTreasuryYieldState } = await import("./treasury-yield");
       const yieldState = getTreasuryYieldState();
 
-      // Aggregate wallet balances from stored rows
-      const storedSkynt = wallets.reduce((sum, w) => sum + (parseFloat(w.skyntBalance ?? "0") || 0), 0);
-      const storedEth = wallets.reduce((sum, w) => sum + (parseFloat(w.ethBalance ?? "0") || 0), 0);
+      // Aggregate wallet balances from stored rows (actual schema fields: balanceSkynt, balanceEth)
+      const storedSkynt = wallets.reduce((sum, w) => sum + (parseFloat(w.balanceSkynt ?? "0") || 0), 0);
+      const storedEth = wallets.reduce((sum, w) => sum + (parseFloat(w.balanceEth ?? "0") || 0), 0);
 
       // Fetch live on-chain SKYNT balance for linked wallet addresses via shared Alchemy helper
       let liveSkyntBalance = 0;
@@ -5229,8 +5229,8 @@ STYLE:
         nftsByRarity,
         totalYieldEarned,
         yieldPositionCount,
-        yieldApr: yieldState.aprPercent ?? 0,
-        yieldRunning: yieldState.running,
+        yieldApr: yieldState.projectedAnnualYield ?? 0,
+        yieldRunning: yieldState.autoCompoundEnabled,
         governance: {
           proposalsCreated,
           votesCast,
@@ -5243,10 +5243,10 @@ STYLE:
           governanceActions: proposalsCreated + votesCast,
         },
         recentNfts: nfts.slice(0, 6).map(n => ({
-          id: n.id, name: n.name, rarity: n.rarity, imageUrl: n.imageUrl, mintedAt: n.mintedAt,
+          id: n.id, title: n.title, rarity: n.rarity, image: n.image, mintDate: n.mintDate,
         })),
         wallets: wallets.map(w => ({
-          id: w.id, name: w.name, address: w.address, skyntBalance: w.skyntBalance, ethBalance: w.ethBalance,
+          id: w.id, name: w.name, address: w.address, balanceSkynt: w.balanceSkynt, balanceEth: w.balanceEth,
         })),
       });
     } catch (err: any) {
