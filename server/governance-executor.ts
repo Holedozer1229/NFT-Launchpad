@@ -28,9 +28,10 @@ async function executePriceDriverProposal(proposal: {
   id: number;
   title: string;
   category: string;
-  executionPayload: any;
+  executionPayload: { parameter: string; newValue: string; currentValue?: string } | null;
+  existingExecutionHash: string | null;
 }): Promise<ExecutionResult | null> {
-  const payload = proposal.executionPayload as { parameter: string; newValue: string; currentValue?: string } | null;
+  const payload = proposal.executionPayload;
   if (!payload || !payload.parameter || payload.newValue === undefined) {
     console.warn(`[GovernanceExecutor] GIP-${proposal.id}: missing executionPayload — skipping`);
     return null;
@@ -80,14 +81,14 @@ async function executePriceDriverProposal(proposal: {
     console.warn("[GovernanceExecutor] reloadSettingsFromDb failed:", err?.message?.slice(0, 60));
   }
 
-  const executionHash = `0x${Buffer.from(`gip-${proposal.id}-${Date.now()}`).toString("hex").slice(0, 64).padEnd(64, "0")}`;
+  // Preserve the immutable execution hash from proposal creation — do NOT overwrite
+  const executionHash = proposal.existingExecutionHash;
 
   await db
     .update(governanceProposals)
     .set({
       status: "executed",
       executedAt: new Date(),
-      executionHash,
     })
     .where(eq(governanceProposals.id, proposal.id));
 
@@ -122,8 +123,8 @@ async function runExecutionCycle(): Promise<void> {
   try {
     const now = new Date();
 
-    // Only select price_driver_params proposals that are active and ended
-    const expired = await db
+    // Select price_driver_params proposals that are active and voting period has ended
+    const ended = await db
       .select()
       .from(governanceProposals)
       .where(
@@ -134,22 +135,29 @@ async function runExecutionCycle(): Promise<void> {
         )
       );
 
-    for (const proposal of expired) {
+    for (const proposal of ended) {
       const votesFor = proposal.votesFor ?? 0;
-      const votesAgainst = proposal.votesAgainst ?? 0;
-      const votesAbstain = proposal.votesAbstain ?? 0;
-      const total = votesFor + votesAgainst + votesAbstain;
-      const quorumMet = total >= (proposal.quorumRequired ?? 100);
-      const forWins = votesFor > votesAgainst;
+      const quorumRequired = proposal.quorumRequired ?? 100;
+      const timelockHours = proposal.timelockHours ?? 48;
 
-      if (quorumMet && forWins) {
+      // Timelock expiry: proposal must have ended + timelockHours before execution
+      const endsAt = proposal.endsAt instanceof Date ? proposal.endsAt : new Date(proposal.endsAt!);
+      const timelockExpiry = new Date(endsAt.getTime() + timelockHours * 3600000);
+      const timelockExpired = now >= timelockExpiry;
+
+      // Governance criteria: votes_for >= quorum_required AND timelock expired
+      const passedQuorum = votesFor >= quorumRequired;
+
+      if (passedQuorum && timelockExpired) {
         await executePriceDriverProposal({
           id: proposal.id,
           title: proposal.title,
           category: proposal.category,
-          executionPayload: proposal.executionPayload,
+          executionPayload: proposal.executionPayload as { parameter: string; newValue: string; currentValue?: string } | null,
+          existingExecutionHash: proposal.executionHash,
         });
-      } else {
+      } else if (!passedQuorum && now >= timelockExpiry) {
+        // Voting ended and timelock passed but quorum not met — mark rejected
         await db
           .update(governanceProposals)
           .set({ status: "rejected" })
@@ -158,11 +166,12 @@ async function runExecutionCycle(): Promise<void> {
         wsHub.broadcast("governance:rejected", {
           proposalId: proposal.id,
           title: proposal.title,
-          reason: quorumMet ? "for_votes_insufficient" : "quorum_not_met",
+          reason: "votes_for_below_quorum",
         });
 
-        console.log(`[GovernanceExecutor] GIP-${String(proposal.id).padStart(3, "0")} rejected (quorum: ${quorumMet}, forWins: ${forWins})`);
+        console.log(`[GovernanceExecutor] GIP-${String(proposal.id).padStart(3, "0")} rejected — votes_for=${votesFor} < quorum=${quorumRequired}`);
       }
+      // If timelock has not yet expired, leave as active and check again next cycle
     }
   } catch (err: any) {
     console.error("[GovernanceExecutor] cycle error:", err?.message?.slice(0, 120));
@@ -197,12 +206,25 @@ export async function adminExecuteProposal(proposalId: number): Promise<{ succes
   if (!proposal) return { success: false, message: "Proposal not found" };
   if (proposal.category !== "price_driver_params") return { success: false, message: "Only price_driver_params proposals can be executed" };
   if (proposal.status === "executed") return { success: false, message: "Already executed" };
+  if (proposal.status !== "active") return { success: false, message: `Proposal status is '${proposal.status}' — only active proposals can be executed` };
+
+  const now = new Date();
+  const votesFor = proposal.votesFor ?? 0;
+  const quorumRequired = proposal.quorumRequired ?? 100;
+  const timelockHours = proposal.timelockHours ?? 48;
+  const endsAt = proposal.endsAt instanceof Date ? proposal.endsAt : new Date(proposal.endsAt!);
+  const timelockExpiry = new Date(endsAt.getTime() + timelockHours * 3600000);
+
+  if (now < endsAt) return { success: false, message: `Voting period has not ended yet (ends ${endsAt.toISOString()})` };
+  if (now < timelockExpiry) return { success: false, message: `Timelock has not expired yet (expires ${timelockExpiry.toISOString()})` };
+  if (votesFor < quorumRequired) return { success: false, message: `votes_for=${votesFor} is below quorum=${quorumRequired}` };
 
   const result = await executePriceDriverProposal({
     id: proposal.id,
     title: proposal.title,
     category: proposal.category,
-    executionPayload: proposal.executionPayload,
+    executionPayload: proposal.executionPayload as { parameter: string; newValue: string; currentValue?: string } | null,
+    existingExecutionHash: proposal.executionHash,
   });
 
   if (!result) return { success: false, message: "Execution failed — check executionPayload" };

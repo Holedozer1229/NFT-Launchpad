@@ -60,6 +60,37 @@ function safeError(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
+function normalizeEthAddress(raw: string): { valid: true; address: string; corrected: boolean } | { valid: false; error: string } {
+  const stripped = raw.trim().replace(/\s/g, "");
+  const hexBody = stripped.startsWith("0x") || stripped.startsWith("0X")
+    ? stripped.slice(2)
+    : stripped;
+
+  if (!/^[0-9a-fA-F]{40}$/.test(hexBody)) {
+    if (hexBody.length !== 40) {
+      return { valid: false, error: `Address must be 40 hex characters (got ${hexBody.length}) — check for missing or extra digits` };
+    }
+    return { valid: false, error: "Address contains invalid characters — only 0-9 and a-f are allowed" };
+  }
+
+  const lower = "0x" + hexBody.toLowerCase();
+  const checksummed = eip55Checksum(lower);
+  const original = stripped.startsWith("0x") || stripped.startsWith("0X") ? stripped : "0x" + stripped;
+  const corrected = checksummed !== original;
+
+  return { valid: true, address: checksummed, corrected };
+}
+
+function eip55Checksum(address: string): string {
+  const addr = address.slice(2).toLowerCase();
+  try {
+    const { ethers } = require("ethers");
+    return ethers.getAddress("0x" + addr);
+  } catch {
+    return "0x" + addr;
+  }
+}
+
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 export function rateLimit(windowMs: number, maxRequests: number) {
@@ -1569,11 +1600,23 @@ STYLE:
   app.post("/api/opensea/list", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const { nftId } = req.body;
+      const { nftId, sellerAddress: rawSellerAddress } = req.body;
       if (!nftId) return res.status(400).json({ message: "NFT ID required" });
 
       const nft = await storage.getNft(nftId);
       if (!nft) return res.status(404).json({ message: "NFT not found" });
+
+      // Resolve and EIP-55 correct the seller address
+      let sellerAddress = nft.owner;
+      let correctedAddress: string | null = null;
+      if (rawSellerAddress && typeof rawSellerAddress === "string") {
+        const normalized = normalizeEthAddress(rawSellerAddress);
+        if (!normalized.valid) {
+          return res.status(400).json({ message: normalized.error, field: "sellerAddress" });
+        }
+        if (normalized.corrected) correctedAddress = normalized.address;
+        sellerAddress = normalized.address;
+      }
 
       const chainId = (nft.chain || "ethereum") as ChainId;
       const chainData = SUPPORTED_CHAINS[chainId];
@@ -1585,7 +1628,7 @@ STYLE:
         contractAddress: contractAddr,
         tokenId: tokenIdClean,
         price: nft.price,
-        sellerAddress: nft.owner,
+        sellerAddress,
         title: nft.title,
       });
 
@@ -1595,7 +1638,7 @@ STYLE:
         await storage.updateNftStatus(nft.id, "listed");
       }
 
-      res.json(result);
+      res.json({ ...result, sellerAddress, correctedAddress });
     } catch (error) {
       res.status(500).json({ message: safeError(error, "Failed to list on OpenSea") });
     }
@@ -1630,9 +1673,19 @@ STYLE:
   app.post("/api/opensea/bulk-list", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const { nftIds } = req.body;
+      const { nftIds, sellerAddress: rawSellerAddress } = req.body;
       if (!Array.isArray(nftIds) || nftIds.length === 0) {
         return res.status(400).json({ message: "Provide an array of NFT IDs" });
+      }
+
+      // Validate and EIP-55 correct the shared seller address if provided
+      let overrideSellerAddress: string | null = null;
+      if (rawSellerAddress && typeof rawSellerAddress === "string") {
+        const normalized = normalizeEthAddress(rawSellerAddress);
+        if (!normalized.valid) {
+          return res.status(400).json({ message: normalized.error, field: "sellerAddress" });
+        }
+        overrideSellerAddress = normalized.address;
       }
 
       const results: Array<{ nftId: number; success: boolean; openseaUrl: string | null; error: string | null }> = [];
@@ -1652,13 +1705,14 @@ STYLE:
         const chainData = SUPPORTED_CHAINS[chainId];
         const contractAddr = chainData?.contractAddress || "0x0000000000000000000000000000000000000000";
         const tokenIdClean = nft.tokenId.replace(/\.\.\./g, "").replace("0x", "");
+        const sellerAddress = overrideSellerAddress ?? nft.owner;
 
         const result = await listNftOnOpenSea({
           chain: chainId,
           contractAddress: contractAddr,
           tokenId: tokenIdClean,
           price: nft.price,
-          sellerAddress: nft.owner,
+          sellerAddress,
           title: nft.title,
         });
 
@@ -4769,7 +4823,7 @@ STYLE:
         executionHash = createHash("sha256").update(payloadStr).digest("hex").slice(0, 16);
       }
 
-      const [proposal] = await db.insert(governanceProposals).values({
+      const insertValues: typeof governanceProposals.$inferInsert = {
         title: String(title),
         description: String(description),
         category: String(category || "protocol"),
@@ -4780,7 +4834,8 @@ STYLE:
         endsAt: endsAt ? new Date(endsAt) : new Date(Date.now() + 7 * 86400000),
         ...(validatedPayload ? { executionPayload: validatedPayload } : {}),
         ...(executionHash ? { executionHash } : {}),
-      } as any).returning();
+      };
+      const [proposal] = await db.insert(governanceProposals).values(insertValues).returning();
       res.json(proposal);
     } catch (e: any) {
       res.status(500).json({ message: safeError(e, "Internal server error") });

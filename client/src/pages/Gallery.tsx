@@ -1,12 +1,47 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2, Search, Upload, CheckCircle2, AlertCircle, ArrowRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2, Search, Upload, CheckCircle2, AlertCircle, ArrowRight, Wallet } from "lucide-react";
 import { SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import NFTPreview3D from "@/components/NFTPreview3D";
+
+type AddressValidation =
+  | { status: "empty" }
+  | { status: "invalid"; error: string }
+  | { status: "corrected"; address: string; original: string }
+  | { status: "valid"; address: string };
+
+function validateEthAddress(raw: string): AddressValidation {
+  if (!raw.trim()) return { status: "empty" };
+  const stripped = raw.trim();
+  const hasPrefix = stripped.startsWith("0x") || stripped.startsWith("0X");
+  const hexBody = hasPrefix ? stripped.slice(2) : stripped;
+
+  if (!/^[0-9a-fA-F]*$/.test(hexBody)) {
+    return { status: "invalid", error: "Contains invalid characters — only 0–9 and a–f are allowed" };
+  }
+  if (hexBody.length !== 40) {
+    return { status: "invalid", error: `Must be 40 hex characters — got ${hexBody.length}` };
+  }
+
+  const normalized = "0x" + hexBody.toLowerCase();
+  const isMixedCase = hexBody !== hexBody.toLowerCase() && hexBody !== hexBody.toUpperCase();
+  const allLower = hexBody === hexBody.toLowerCase();
+
+  if (!hasPrefix || (allLower && hasPrefix)) {
+    // Auto-corrected: added 0x prefix or will be checksummed by server
+    return { status: "corrected", address: normalized, original: stripped };
+  }
+  if (isMixedCase) {
+    // Already appears to be EIP-55 checksummed — accept as-is
+    return { status: "valid", address: (hasPrefix ? stripped : "0x" + stripped) };
+  }
+  return { status: "valid", address: normalized };
+}
 
 type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic";
 
@@ -64,17 +99,29 @@ export default function Gallery() {
   const [listingNftId, setListingNftId] = useState<number | null>(null);
   const [previewNft, setPreviewNft] = useState<NFTItem | null>(null);
   const [selectedForBulk, setSelectedForBulk] = useState<Set<number>>(new Set());
+  const [sellerAddressInput, setSellerAddressInput] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const addressValidation = useMemo(() => validateEthAddress(sellerAddressInput), [sellerAddressInput]);
+
+  const resolvedSellerAddress =
+    addressValidation.status === "valid" || addressValidation.status === "corrected"
+      ? addressValidation.address
+      : undefined;
+
   const handleListOnOpenSea = async (nftId: number) => {
+    if (sellerAddressInput && !resolvedSellerAddress) return;
     setListingNftId(nftId);
     try {
-      const res = await apiRequest("POST", "/api/opensea/list", { nftId });
+      const body: Record<string, unknown> = { nftId };
+      if (resolvedSellerAddress) body.sellerAddress = resolvedSellerAddress;
+      const res = await apiRequest("POST", "/api/opensea/list", body);
       const result = await res.json();
       queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
       if (result.success) {
-        toast({ title: "LISTED ON OPENSEA", description: "NFT successfully listed on OpenSea marketplace." });
+        const addrDesc = resolvedSellerAddress ? ` → ${result.sellerAddress || resolvedSellerAddress}` : "";
+        toast({ title: "LISTED ON OPENSEA", description: `NFT successfully listed on OpenSea marketplace.${addrDesc}` });
       } else {
         toast({ title: "OPENSEA LISTING SENT", description: result.error || "Listing submitted to OpenSea Seaport protocol." });
       }
@@ -87,7 +134,9 @@ export default function Gallery() {
 
   const bulkListMutation = useMutation({
     mutationFn: async (nftIds: number[]) => {
-      const res = await apiRequest("POST", "/api/opensea/bulk-list", { nftIds });
+      const body: Record<string, unknown> = { nftIds };
+      if (resolvedSellerAddress) body.sellerAddress = resolvedSellerAddress;
+      const res = await apiRequest("POST", "/api/opensea/bulk-list", body);
       return res.json();
     },
     onSuccess: (data) => {
@@ -166,21 +215,79 @@ export default function Gallery() {
 
       {(listableNfts.length > 0 || listedNfts.length > 0) && (
         <div className="rounded-sm border border-[#2081E2]/30 bg-gradient-to-r from-[#2081E2]/5 via-[#2081E2]/10 to-[#2081E2]/5 p-5" data-testid="opensea-push-panel">
-          <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <div className="flex items-center gap-3 flex-1">
-              <div className="w-12 h-12 rounded-sm bg-[#2081E2]/20 border border-[#2081E2]/30 flex items-center justify-center shrink-0">
-                <ShoppingBag className="w-6 h-6 text-[#2081E2]" />
-              </div>
-              <div>
-                <h2 className="font-heading text-sm font-bold text-[#2081E2] uppercase tracking-wider">
-                  Push to OpenSea Marketplace
-                </h2>
-                <p className="text-xs font-mono text-muted-foreground mt-0.5">
-                  Seaport v1.6 Protocol  |  {listableNfts.length} ready to list  |  {listedNfts.length} already listed
-                </p>
+          <div className="flex flex-col gap-4">
+            {/* Header row */}
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              <div className="flex items-center gap-3 flex-1">
+                <div className="w-12 h-12 rounded-sm bg-[#2081E2]/20 border border-[#2081E2]/30 flex items-center justify-center shrink-0">
+                  <ShoppingBag className="w-6 h-6 text-[#2081E2]" />
+                </div>
+                <div>
+                  <h2 className="font-heading text-sm font-bold text-[#2081E2] uppercase tracking-wider">
+                    Push to OpenSea Marketplace
+                  </h2>
+                  <p className="text-xs font-mono text-muted-foreground mt-0.5">
+                    Seaport v1.6 Protocol  |  {listableNfts.length} ready to list  |  {listedNfts.length} already listed
+                  </p>
+                </div>
               </div>
             </div>
 
+            {/* Seller address input */}
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-[10px] font-heading uppercase tracking-wider text-[#2081E2]/80" htmlFor="opensea-seller-address">
+                <Wallet className="w-3 h-3" />
+                Recipient / Seller Address
+              </label>
+              <div className="relative">
+                <Input
+                  id="opensea-seller-address"
+                  data-testid="input-opensea-seller-address"
+                  value={sellerAddressInput}
+                  onChange={(e) => setSellerAddressInput(e.target.value)}
+                  placeholder="0x... (leave blank to use NFT owner address)"
+                  className={`font-mono text-xs h-9 pr-8 bg-background/40 border-[#2081E2]/20 focus:border-[#2081E2]/60 placeholder:text-muted-foreground/40 ${
+                    addressValidation.status === "invalid"
+                      ? "border-red-500/60 focus:border-red-500"
+                      : addressValidation.status === "corrected"
+                      ? "border-yellow-500/60 focus:border-yellow-500"
+                      : addressValidation.status === "valid"
+                      ? "border-neon-green/40 focus:border-neon-green/60"
+                      : ""
+                  }`}
+                  spellCheck={false}
+                />
+                {addressValidation.status === "valid" && (
+                  <CheckCircle2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-neon-green pointer-events-none" />
+                )}
+                {addressValidation.status === "corrected" && (
+                  <AlertCircle className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-yellow-400 pointer-events-none" />
+                )}
+                {addressValidation.status === "invalid" && (
+                  <AlertCircle className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400 pointer-events-none" />
+                )}
+              </div>
+              {addressValidation.status === "invalid" && (
+                <p className="text-[10px] font-mono text-red-400 flex items-center gap-1" data-testid="text-address-error">
+                  <AlertCircle className="w-3 h-3 shrink-0" />
+                  {addressValidation.error}
+                </p>
+              )}
+              {addressValidation.status === "corrected" && (
+                <p className="text-[10px] font-mono text-yellow-400 flex items-center gap-1" data-testid="text-address-corrected">
+                  <ArrowRight className="w-3 h-3 shrink-0" />
+                  Auto-corrected → {addressValidation.address} (checksum applied server-side)
+                </p>
+              )}
+              {addressValidation.status === "valid" && (
+                <p className="text-[10px] font-mono text-neon-green/70 flex items-center gap-1" data-testid="text-address-valid">
+                  <CheckCircle2 className="w-3 h-3 shrink-0" />
+                  Valid address — will be used as seller / recipient
+                </p>
+              )}
+            </div>
+
+            {/* Action buttons */}
             <div className="flex items-center gap-2 flex-wrap">
               {listableNfts.length > 0 && (
                 <>
@@ -198,7 +305,7 @@ export default function Gallery() {
                   <Button
                     size="sm"
                     onClick={() => bulkListMutation.mutate(Array.from(selectedForBulk))}
-                    disabled={selectedForBulk.size === 0 || bulkListMutation.isPending}
+                    disabled={selectedForBulk.size === 0 || bulkListMutation.isPending || addressValidation.status === "invalid"}
                     className="text-[10px] font-heading uppercase tracking-wider bg-[#2081E2] hover:bg-[#2081E2]/80 text-white"
                     data-testid="button-bulk-list-opensea"
                   >

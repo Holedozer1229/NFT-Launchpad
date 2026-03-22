@@ -165,7 +165,8 @@ function compoundYield(): void {
   );
   state.projectedAnnualYield = state.totalReinvested * (weightedAPR / 100) * state.phiBoostMultiplier;
 
-  // Aave v3 auto-deposit: if treasury ETH above reserve, deposit 30% of excess
+  // Aave v3 auto-deposit: deposit 30% of ETH excess above 0.5 reserve each cycle
+  triggerAaveDeposit().catch(() => {});
   syncAaveStateFromModule();
 }
 

@@ -141,15 +141,21 @@ function ProposalCard({ proposal, myVote, onVote, isPending }: {
       </div>
 
       {/* Price driver param change indicator */}
-      {proposal.category === "price_driver_params" && (proposal as any).executionPayload && (
+      {proposal.category === "price_driver_params" && proposal.executionPayload && (
         <div className="flex items-center gap-2 text-[10px] font-mono p-2.5 bg-neon-orange/5 border border-neon-orange/20 rounded-sm">
           <Settings className="w-3 h-3 text-neon-orange shrink-0" />
           <span className="text-neon-orange font-bold">WILL CHANGE:</span>
-          <span className="text-muted-foreground truncate max-w-[120px]">{(proposal as any).executionPayload?.parameter}</span>
+          <span className="text-muted-foreground truncate max-w-[120px]">
+            {(proposal.executionPayload as { parameter: string; newValue: string; currentValue?: string }).parameter}
+          </span>
           <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
-          <span className="text-neon-green font-bold">{(proposal as any).executionPayload?.newValue}</span>
-          {(proposal as any).executionPayload?.currentValue && (
-            <span className="text-muted-foreground">(was: {(proposal as any).executionPayload.currentValue})</span>
+          <span className="text-neon-green font-bold">
+            {(proposal.executionPayload as { parameter: string; newValue: string; currentValue?: string }).newValue}
+          </span>
+          {(proposal.executionPayload as { parameter: string; newValue: string; currentValue?: string }).currentValue && (
+            <span className="text-muted-foreground">
+              (was: {(proposal.executionPayload as { parameter: string; newValue: string; currentValue?: string }).currentValue})
+            </span>
           )}
         </div>
       )}
