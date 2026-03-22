@@ -162,7 +162,6 @@ function AppRouter() {
             <Route path="/treasury" component={TreasuryVaultGuard} />
             <Route path="/wallet" component={WalletPage} />
             <Route path="/portfolio" component={Portfolio} />
-            <Route path="/buybacks" component={BuybackFeed} />
             <Route path="/price-driver" component={PriceDriver} />
             <Route path="/admin/engines" component={AdminEnginesGuard} />
             <Route path="/admin" component={AdminGuard} />

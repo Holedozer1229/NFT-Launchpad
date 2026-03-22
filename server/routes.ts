@@ -5168,25 +5168,18 @@ STYLE:
       const storedSkynt = wallets.reduce((sum, w) => sum + (parseFloat(w.skyntBalance ?? "0") || 0), 0);
       const storedEth = wallets.reduce((sum, w) => sum + (parseFloat(w.ethBalance ?? "0") || 0), 0);
 
-      // Fetch live on-chain SKYNT balance for linked wallet addresses via Alchemy
+      // Fetch live on-chain SKYNT balance for linked wallet addresses via shared Alchemy helper
       let liveSkyntBalance = 0;
+      let liveBalanceUnavailable = false;
       try {
-        const { SKYNT_CONTRACT_ADDRESS: SKYNT_ADDR } = await import("./alchemy-engine");
-        const { Alchemy, Network, Utils, Contract } = await import("alchemy-sdk");
-        if (process.env.ALCHEMY_API_KEY && wallets.length > 0) {
-          const alchemy = new Alchemy({ apiKey: process.env.ALCHEMY_API_KEY, network: Network.ETH_MAINNET });
-          const ERC20_ABI = ["function balanceOf(address account) external view returns (uint256)"];
-          const contract = new Contract(SKYNT_ADDR, ERC20_ABI, await (alchemy.config.getProvider() as any));
-          const balancePromises = wallets.map(async (w) => {
-            try {
-              const raw = await contract.balanceOf(w.address);
-              return parseFloat(Utils.formatEther(raw));
-            } catch { return 0; }
-          });
-          const balances = await Promise.all(balancePromises);
-          liveSkyntBalance = balances.reduce((s, b) => s + b, 0);
-        }
-      } catch { /* fallback to stored */ }
+        const { getSkyntErc20Balance } = await import("./alchemy-engine");
+        const balanceResults = await Promise.all(wallets.map(w => getSkyntErc20Balance(w.address)));
+        const anyLive = balanceResults.some(r => r.live);
+        liveSkyntBalance = balanceResults.reduce((s, r) => s + r.balance, 0);
+        liveBalanceUnavailable = !anyLive && wallets.length > 0;
+      } catch {
+        liveBalanceUnavailable = wallets.length > 0;
+      }
 
       const totalSkynt = liveSkyntBalance > 0 ? liveSkyntBalance : storedSkynt;
       const totalEth = storedEth;
@@ -5229,6 +5222,7 @@ STYLE:
         walletCount: wallets.length,
         totalSkynt,
         totalSkyntLive: liveSkyntBalance,
+        liveBalanceUnavailable,
         totalEth,
         nftCount: nfts.length,
         nftsByRarity,

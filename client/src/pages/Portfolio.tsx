@@ -21,6 +21,7 @@ interface PortfolioData {
   yieldApr: number;
   yieldRunning: boolean;
   totalSkyntLive: number;
+  liveBalanceUnavailable?: boolean;
   governance: {
     proposalsCreated: number;
     votesCast: number;
@@ -129,7 +130,7 @@ export default function Portfolio() {
           {
             label: "SKYNT Balance",
             value: isLoading ? null : `${fmt(data?.totalSkynt ?? 0, 2)}`,
-            sub: data?.totalSkyntLive ? "live on-chain" : `across ${data?.walletCount ?? 0} wallets`,
+            sub: data?.liveBalanceUnavailable ? "stored (live unavailable)" : data?.totalSkyntLive ? "live on-chain" : `across ${data?.walletCount ?? 0} wallets`,
             icon: Coins,
             color: "text-neon-cyan",
             card: "cosmic-card-cyan",

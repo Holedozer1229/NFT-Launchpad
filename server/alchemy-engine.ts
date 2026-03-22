@@ -303,6 +303,20 @@ export async function getOnChainBalance(address: string, chain: string = "ethere
   }
 }
 
+export async function getSkyntErc20Balance(walletAddress: string): Promise<{ balance: number; live: boolean }> {
+  if (!process.env.ALCHEMY_API_KEY) return { balance: 0, live: false };
+  try {
+    const alchemy = new Alchemy({ apiKey: process.env.ALCHEMY_API_KEY, network: Network.ETH_MAINNET });
+    const ERC20_ABI = ["function balanceOf(address account) external view returns (uint256)"];
+    const provider = await (alchemy.config.getProvider() as any);
+    const contract = new Contract(SKYNT_CONTRACT_ADDRESS, ERC20_ABI, provider);
+    const raw = await contract.balanceOf(walletAddress);
+    return { balance: parseFloat(Utils.formatEther(raw)), live: true };
+  } catch {
+    return { balance: 0, live: false };
+  }
+}
+
 export function isEngineConfigured(): boolean {
   return !!process.env.ALCHEMY_API_KEY;
 }
