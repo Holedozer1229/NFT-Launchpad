@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { haptic } from "@/lib/haptics";
-import { Coins, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Gamepad2, Crown, Gift, Skull, X, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
+import { Coins, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Gamepad2, Crown, Gift, Skull, X, Trophy, Zap, Volume2, VolumeX, Bot, Send } from "lucide-react";
 
 const GRID_W = 50;
 const GRID_H = 35;
@@ -257,6 +257,17 @@ export default function OmegaSerpent() {
   const lastCollectTickRef = useRef(-999);
   const starsRef = useRef<Star[]>(createStars(120));
 
+  // ── Inline AI chat state (merged with D-pad) ──────────────────────────────
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiMessages, setAiMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [aiInput, setAiInput] = useState("");
+  const [aiStreaming, setAiStreaming] = useState(false);
+  const aiScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (aiScrollRef.current) aiScrollRef.current.scrollTop = aiScrollRef.current.scrollHeight;
+  }, [aiMessages, aiStreaming]);
+
   const stateRef = useRef({ player, aiSnakes, treasures, score, ergotropy, berryPhase, treasuresCollected, milestones, superMilestones, survivalTicks, lives, tick, phi, wormholesActive });
   useEffect(() => {
     stateRef.current = { player, aiSnakes, treasures, score, ergotropy, berryPhase, treasuresCollected, milestones, superMilestones, survivalTicks, lives, tick, phi, wormholesActive };
@@ -412,6 +423,47 @@ export default function OmegaSerpent() {
     if (d.dx !== 0 && d.dx !== -cur.dx) dirRef.current = d;
     if (d.dy !== 0 && d.dy !== -cur.dy) dirRef.current = d;
   }, []);
+
+  const sendAiMessage = useCallback(async () => {
+    const text = aiInput.trim();
+    if (!text || aiStreaming) return;
+    setAiMessages(prev => [...prev, { role: "user", content: text }, { role: "assistant", content: "" }]);
+    setAiInput("");
+    setAiStreaming(true);
+    try {
+      const res = await fetch("/api/oracle/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [{ role: "user", content: `[In-game Omega Serpent context] ${text}` }] }),
+        credentials: "include",
+      });
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data:")) continue;
+          try {
+            const json = JSON.parse(line.slice(5).trim());
+            if (json.done) break;
+            if (json.content) {
+              setAiMessages(prev => {
+                const msgs = [...prev];
+                msgs[msgs.length - 1] = { role: "assistant", content: (msgs[msgs.length - 1]?.content ?? "") + json.content };
+                return msgs;
+              });
+            }
+          } catch { /* ignore parse errors */ }
+        }
+      }
+    } catch { /* ignore errors */ }
+    finally { setAiStreaming(false); }
+  }, [aiInput, aiStreaming]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1010,10 +1062,67 @@ export default function OmegaSerpent() {
           </div>
         )}
 
-        {/* D-PAD — anchored bottom-right during gameplay */}
+        {/* D-PAD + AI PANEL — merged bottom-right control hub */}
         {gameState === "playing" && (
-          <div className="absolute bottom-4 right-4 z-20 opacity-80 hover:opacity-100 transition-opacity" data-testid="dpad-container">
-            <DPad onDir={handleDpadDir} />
+          <div className="absolute bottom-4 right-4 z-[60]" data-testid="dpad-ai-panel">
+            {/* Compact AI chat overlay — slides up above the panel */}
+            {aiOpen && (
+              <div className="mb-2 w-[290px] max-h-[280px] flex flex-col rounded-xl overflow-hidden border border-neon-magenta/40 shadow-[0_0_24px_hsl(270_100%_50%/0.3)]" style={{ background: "rgba(5,5,15,0.97)" }}>
+                <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 flex-shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <Bot className="w-4 h-4 text-neon-magenta" />
+                    <span className="font-heading text-[11px] font-bold text-neon-magenta tracking-widest">SKYNT AI</span>
+                  </div>
+                  <button type="button" onClick={() => setAiOpen(false)} className="text-white/40 hover:text-white/80 transition-colors" data-testid="dpad-ai-close"><X className="w-3.5 h-3.5" /></button>
+                </div>
+                <div ref={aiScrollRef} className="flex-1 overflow-y-auto p-2.5 space-y-2 min-h-0">
+                  {aiMessages.length === 0 && (
+                    <p className="font-mono text-[10px] text-white/30 text-center pt-2">Ask about strategies, rewards, or SKYNT…</p>
+                  )}
+                  {aiMessages.map((m, i) => (
+                    <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                      <span className={`inline-block px-2 py-1 rounded-lg font-mono text-[10px] max-w-[85%] leading-relaxed ${m.role === "user" ? "bg-neon-magenta/25 text-white" : "bg-white/8 text-white/80"}`}>
+                        {m.content || (aiStreaming && i === aiMessages.length - 1 ? <span className="animate-pulse text-neon-magenta/60">▊</span> : "")}
+                      </span>
+                    </div>
+                  ))}
+                  {aiStreaming && aiMessages.length === 0 && <p className="font-mono text-[10px] text-neon-magenta/60 animate-pulse text-center">▊</p>}
+                </div>
+                <div className="flex gap-1.5 p-2 border-t border-white/10 flex-shrink-0">
+                  <input
+                    className="flex-1 bg-white/10 rounded-lg px-2 py-1.5 font-mono text-[11px] text-white placeholder-white/30 outline-none focus:bg-white/15 transition-colors"
+                    placeholder="Ask anything…"
+                    value={aiInput}
+                    onChange={e => setAiInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") sendAiMessage(); }}
+                    data-testid="dpad-ai-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={sendAiMessage}
+                    disabled={aiStreaming || !aiInput.trim()}
+                    className="w-8 h-8 rounded-lg bg-neon-magenta/30 hover:bg-neon-magenta/50 border border-neon-magenta/40 flex items-center justify-center transition-colors disabled:opacity-40"
+                    data-testid="dpad-ai-send"
+                  >
+                    <Send className="w-3.5 h-3.5 text-neon-magenta" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* D-pad + AI toggle row */}
+            <div className="flex items-end gap-2 opacity-85 hover:opacity-100 transition-opacity">
+              <DPad onDir={handleDpadDir} />
+              <button
+                type="button"
+                onClick={() => setAiOpen(v => !v)}
+                className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-colors select-none ${aiOpen ? "bg-neon-magenta/30 border-neon-magenta/70" : "bg-white/10 border-white/20 hover:bg-neon-magenta/20 hover:border-neon-magenta/40"}`}
+                data-testid="dpad-ai-toggle"
+                title="SKYNT AI"
+              >
+                <Bot className={`w-5 h-5 ${aiOpen ? "text-neon-magenta" : "text-white/70"}`} />
+              </button>
+            </div>
           </div>
         )}
 

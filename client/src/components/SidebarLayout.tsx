@@ -32,6 +32,7 @@ const navGroups = [
       { path: "/dyson-sphere", label: "Dyson Sphere", icon: Atom, adminOnly: false },
       { path: "/yield", label: "Yield", icon: TrendingUp, adminOnly: false },
       { path: "/serpent", label: "Omega Serpent", icon: Gamepad2, adminOnly: false },
+      { path: "/openclaw", label: "ClawdBot", icon: Hash, adminOnly: false },
     ]
   },
   {
@@ -47,7 +48,6 @@ const navGroups = [
   {
     label: "TOOLS",
     items: [
-      { path: "/openclaw", label: "OpenClaw", icon: Hash, adminOnly: false },
       { path: "/analytics", label: "Analytics", icon: BarChart3, adminOnly: false },
       { path: "/rarity-proof", label: "Rarity Proof", icon: ShieldCheck, adminOnly: false },
       { path: "/starship", label: "Starship", icon: Flame, adminOnly: false },

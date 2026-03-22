@@ -4,6 +4,7 @@ import { useAccount } from "wagmi";
 import { useBalance } from "wagmi";
 import { cn } from "@/lib/utils";
 import { SKYNT_CONTRACT_ADDRESS } from "@shared/schema";
+import { useLocation } from "wouter";
 
 interface Message {
   role: "user" | "assistant";
@@ -26,6 +27,7 @@ function useSkyntBalance(address?: string) {
 }
 
 export function SkyAI() {
+  const [location] = useLocation();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -144,6 +146,9 @@ export function SkyAI() {
     abortRef.current?.abort();
     setOpen(false);
   };
+
+  // Hide on Omega Serpent page — AI is merged into the game's D-pad panel there
+  if (location === "/serpent") return null;
 
   if (!open) {
     return (
