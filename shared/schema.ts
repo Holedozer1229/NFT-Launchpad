@@ -990,8 +990,16 @@ export type InsertKycSubmission = z.infer<typeof insertKycSubmissionSchema>;
 export const PROPOSAL_STATUSES = ["active", "passed", "rejected", "executed", "cancelled"] as const;
 export type ProposalStatus = typeof PROPOSAL_STATUSES[number];
 
-export const PROPOSAL_CATEGORIES = ["protocol", "treasury", "parameter", "upgrade", "community"] as const;
+export const PROPOSAL_CATEGORIES = ["protocol", "treasury", "parameter", "upgrade", "community", "price_driver_params"] as const;
 export type ProposalCategory = typeof PROPOSAL_CATEGORIES[number];
+
+export const PRICE_DRIVER_PARAMS = {
+  "price_driver.target_price_usd": { label: "Price Target (USD)", unit: "$", min: 0.01, max: 100 },
+  "price_driver.burn_ratio": { label: "Burn Ratio", unit: "", min: 0, max: 1 },
+  "price_driver.max_eth_per_epoch": { label: "Max ETH per Epoch", unit: "ETH", min: 0.0001, max: 1 },
+  "price_driver.epoch_interval_ms": { label: "Epoch Interval (ms)", unit: "ms", min: 60000, max: 3600000 },
+} as const;
+export type PriceDriverParamKey = keyof typeof PRICE_DRIVER_PARAMS;
 
 export const governanceProposals = pgTable("governance_proposals", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -1007,6 +1015,7 @@ export const governanceProposals = pgTable("governance_proposals", {
   quorumRequired: integer("quorum_required").notNull().default(100),
   timelockHours: integer("timelock_hours").notNull().default(48),
   executionHash: text("execution_hash"),
+  executionPayload: jsonb("execution_payload"),
   endsAt: timestamp("ends_at").notNull(),
   executedAt: timestamp("executed_at"),
   createdAt: timestamp("created_at").defaultNow(),

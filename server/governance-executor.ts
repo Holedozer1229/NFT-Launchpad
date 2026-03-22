@@ -1,116 +1,83 @@
 import { db } from "./db";
 import { governanceProposals, protocolSettings } from "@shared/schema";
-import { eq, and, lte, sql as drizzleSql } from "drizzle-orm";
+import { eq, and, lte } from "drizzle-orm";
 import { wsHub } from "./ws-hub";
 
 interface ExecutionResult {
   proposalId: number;
   title: string;
   category: string;
-  settingsWritten: string[];
+  parameter: string;
+  oldValue: string;
+  newValue: string;
   executedAt: string;
 }
+
+const ALLOWED_PD_KEYS = new Set([
+  "price_driver.target_price_usd",
+  "price_driver.burn_ratio",
+  "price_driver.max_eth_per_epoch",
+  "price_driver.epoch_interval_ms",
+]);
 
 const EXECUTION_LOG_MAX = 50;
 let executionLog: ExecutionResult[] = [];
 let executorInterval: ReturnType<typeof setInterval> | null = null;
 
-function parsePayload(description: string, category: string): Record<string, string> | null {
-  const params: Record<string, string> = {};
-
-  if (category === "parameter") {
-    const patterns: [RegExp, string][] = [
-      [/mining[_\s]reward[s]?\s*[=:]\s*([\d.]+)/i, "mining_reward"],
-      [/halving[_\s]interval\s*[=:]\s*([\d,]+)/i, "halving_interval"],
-      [/reinvestment[_\s]rate\s*[=:]\s*([\d.]+%?)/i, "reinvestment_rate"],
-      [/gas[_\s]refill[_\s]threshold\s*[=:]\s*([\d.]+)/i, "gas_refill_threshold"],
-      [/bridge[_\s]fee[_\s]bps\s*[=:]\s*([\d]+)/i, "bridge_fee_bps"],
-      [/quorum[_\s]required\s*[=:]\s*([\d]+)/i, "quorum_required"],
-      [/timelock[_\s]hours\s*[=:]\s*([\d]+)/i, "timelock_hours"],
-      [/max[_\s]supply\s*[=:]\s*([\d,_]+)/i, "max_supply"],
-    ];
-    for (const [re, key] of patterns) {
-      const m = description.match(re);
-      if (m) params[key] = m[1].replace(/,|_/g, "");
-    }
-    if (Object.keys(params).length === 0) {
-      params["parameter_update"] = `proposal_executed_${Date.now()}`;
-    }
-    return params;
-  }
-
-  if (category === "treasury") {
-    const patterns: [RegExp, string][] = [
-      [/allocate\s+([\d.]+)\s*%?\s*(?:of\s+treasury\s+)?to\s+([\w\s]+)/i, "treasury_allocation"],
-      [/buyback[_\s]budget\s*[=:]\s*([\d.]+)/i, "buyback_budget_eth"],
-      [/aave[_\s]deposit\s*[=:]\s*([\d.]+)/i, "aave_deposit_eth"],
-    ];
-    for (const [re, key] of patterns) {
-      const m = description.match(re);
-      if (m) params[key] = m[1];
-    }
-    if (Object.keys(params).length === 0) {
-      params["treasury_decision"] = `executed_${Date.now()}`;
-    }
-    return params;
-  }
-
-  if (category === "protocol") {
-    params["protocol_update"] = `gip_executed_${Date.now()}`;
-    return params;
-  }
-
-  if (category === "upgrade") {
-    params["upgrade_executed"] = `${Date.now()}`;
-    return params;
-  }
-
-  if (category === "community") {
-    params["community_decision"] = `executed_${Date.now()}`;
-    return params;
-  }
-
-  return { generic_execution: `${Date.now()}` };
-}
-
-async function executeProposal(proposal: {
+async function executePriceDriverProposal(proposal: {
   id: number;
   title: string;
   category: string;
-  description: string;
-  votesFor: number;
-  quorumRequired: number;
-  endsAt: Date | string;
+  executionPayload: any;
 }): Promise<ExecutionResult | null> {
-  const params = parsePayload(proposal.description, proposal.category);
-  if (!params) return null;
+  const payload = proposal.executionPayload as { parameter: string; newValue: string; currentValue?: string } | null;
+  if (!payload || !payload.parameter || payload.newValue === undefined) {
+    console.warn(`[GovernanceExecutor] GIP-${proposal.id}: missing executionPayload — skipping`);
+    return null;
+  }
 
-  const settingsWritten: string[] = [];
+  const key = payload.parameter;
+  if (!ALLOWED_PD_KEYS.has(key)) {
+    console.warn(`[GovernanceExecutor] GIP-${proposal.id}: disallowed parameter key "${key}" — skipping`);
+    return null;
+  }
 
-  for (const [key, value] of Object.entries(params)) {
-    const existing = await db
-      .select()
-      .from(protocolSettings)
-      .where(eq(protocolSettings.key, key))
-      .limit(1);
+  const newValue = String(payload.newValue);
 
-    if (existing.length > 0) {
-      await db
-        .update(protocolSettings)
-        .set({
-          value,
-          updatedBy: `governance:gip-${proposal.id}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(protocolSettings.key, key));
-    } else {
-      await db.insert(protocolSettings).values({
-        key,
-        value,
+  // Read old value
+  const existing = await db
+    .select()
+    .from(protocolSettings)
+    .where(eq(protocolSettings.key, key))
+    .limit(1);
+
+  const oldValue = existing.length > 0 ? existing[0].value : "(not set)";
+
+  // Write the exact price_driver.* key
+  if (existing.length > 0) {
+    await db
+      .update(protocolSettings)
+      .set({
+        value: newValue,
         updatedBy: `governance:gip-${proposal.id}`,
-      });
-    }
-    settingsWritten.push(`${key}=${value}`);
+        updatedAt: new Date(),
+      })
+      .where(eq(protocolSettings.key, key));
+  } else {
+    await db.insert(protocolSettings).values({
+      key,
+      value: newValue,
+      updatedBy: `governance:gip-${proposal.id}`,
+    });
+  }
+
+  // Reload price driver settings from DB
+  try {
+    const { reloadSettingsFromDb } = await import("./skynt-price-driver");
+    await reloadSettingsFromDb();
+    console.log(`[GovernanceExecutor] Price driver settings reloaded after GIP-${proposal.id}`);
+  } catch (err: any) {
+    console.warn("[GovernanceExecutor] reloadSettingsFromDb failed:", err?.message?.slice(0, 60));
   }
 
   const executionHash = `0x${Buffer.from(`gip-${proposal.id}-${Date.now()}`).toString("hex").slice(0, 64).padEnd(64, "0")}`;
@@ -128,7 +95,9 @@ async function executeProposal(proposal: {
     proposalId: proposal.id,
     title: proposal.title,
     category: proposal.category,
-    settingsWritten,
+    parameter: key,
+    oldValue,
+    newValue,
     executedAt: new Date().toISOString(),
   };
 
@@ -138,11 +107,13 @@ async function executeProposal(proposal: {
   wsHub.broadcast("governance:executed", {
     proposalId: proposal.id,
     title: proposal.title,
-    settingsWritten,
+    parameter: key,
+    oldValue,
+    newValue,
     executionHash,
   });
 
-  console.log(`[GovernanceExecutor] GIP-${String(proposal.id).padStart(3, "0")} executed — settings: [${settingsWritten.join(", ")}]`);
+  console.log(`[GovernanceExecutor] GIP-${String(proposal.id).padStart(3, "0")} executed — ${key}: ${oldValue} → ${newValue}`);
 
   return result;
 }
@@ -151,30 +122,32 @@ async function runExecutionCycle(): Promise<void> {
   try {
     const now = new Date();
 
+    // Only select price_driver_params proposals that are active and ended
     const expired = await db
       .select()
       .from(governanceProposals)
       .where(
         and(
           eq(governanceProposals.status, "active"),
+          eq(governanceProposals.category, "price_driver_params"),
           lte(governanceProposals.endsAt, now)
         )
       );
 
     for (const proposal of expired) {
-      const total = (proposal.votesFor ?? 0) + (proposal.votesAgainst ?? 0) + (proposal.votesAbstain ?? 0);
+      const votesFor = proposal.votesFor ?? 0;
+      const votesAgainst = proposal.votesAgainst ?? 0;
+      const votesAbstain = proposal.votesAbstain ?? 0;
+      const total = votesFor + votesAgainst + votesAbstain;
       const quorumMet = total >= (proposal.quorumRequired ?? 100);
-      const forWins = (proposal.votesFor ?? 0) > (proposal.votesAgainst ?? 0);
+      const forWins = votesFor > votesAgainst;
 
       if (quorumMet && forWins) {
-        await executeProposal({
+        await executePriceDriverProposal({
           id: proposal.id,
           title: proposal.title,
           category: proposal.category,
-          description: proposal.description,
-          votesFor: proposal.votesFor ?? 0,
-          quorumRequired: proposal.quorumRequired ?? 100,
-          endsAt: proposal.endsAt!,
+          executionPayload: proposal.executionPayload,
         });
       } else {
         await db
@@ -200,8 +173,8 @@ export function getExecutionLog(): ExecutionResult[] {
   return [...executionLog];
 }
 
-export function getProtocolSettingsList(): Promise<{ key: string; value: string; updatedBy: string; updatedAt: Date | null }[]> {
-  return db
+export async function getProtocolSettingsList(): Promise<{ key: string; value: string; updatedBy: string; updatedAt: Date | null }[]> {
+  const rows = await db
     .select({
       key: protocolSettings.key,
       value: protocolSettings.value,
@@ -210,11 +183,35 @@ export function getProtocolSettingsList(): Promise<{ key: string; value: string;
     })
     .from(protocolSettings)
     .orderBy(protocolSettings.updatedAt);
+  // Return only price_driver.* settings
+  return rows.filter(r => r.key.startsWith("price_driver."));
+}
+
+export async function adminExecuteProposal(proposalId: number): Promise<{ success: boolean; message: string; result?: ExecutionResult }> {
+  const [proposal] = await db
+    .select()
+    .from(governanceProposals)
+    .where(eq(governanceProposals.id, proposalId))
+    .limit(1);
+
+  if (!proposal) return { success: false, message: "Proposal not found" };
+  if (proposal.category !== "price_driver_params") return { success: false, message: "Only price_driver_params proposals can be executed" };
+  if (proposal.status === "executed") return { success: false, message: "Already executed" };
+
+  const result = await executePriceDriverProposal({
+    id: proposal.id,
+    title: proposal.title,
+    category: proposal.category,
+    executionPayload: proposal.executionPayload,
+  });
+
+  if (!result) return { success: false, message: "Execution failed — check executionPayload" };
+  return { success: true, message: `Executed: ${result.parameter} = ${result.newValue}`, result };
 }
 
 export function startGovernanceExecutor(): void {
   if (executorInterval) return;
-  console.log("[GovernanceExecutor] Starting (poll every 5min)");
+  console.log("[GovernanceExecutor] Starting — price_driver_params executor (poll every 5min)");
 
   runExecutionCycle().catch(() => {});
 

@@ -3574,6 +3574,45 @@ STYLE:
     }
   });
 
+  app.get("/api/treasury/aave-position", async (_req, res) => {
+    try {
+      const { getAaveYieldState } = await import("./aave-yield");
+      const aaveState = getAaveYieldState();
+      const yieldState = getTreasuryYieldState();
+      res.json({
+        depositedEth: aaveState.depositedEth,
+        aTokenBalance: aaveState.aTokenBalance,
+        yieldEarned: aaveState.yieldEarned,
+        currentApr: aaveState.currentApr,
+        isActive: aaveState.isActive,
+        lastUpdated: aaveState.lastUpdated,
+        depositHistory: aaveState.depositHistory,
+        aaveDepositedEth: yieldState.aaveDepositedEth,
+        aaveATokenBalance: yieldState.aaveATokenBalance,
+        aaveYieldEarned: yieldState.aaveYieldEarned,
+        aaveCurrentApr: yieldState.aaveCurrentApr,
+        poolAddress: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
+        reserveThresholdEth: 0.5,
+        depositRatio: 0.30,
+      });
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Failed to fetch Aave position") });
+    }
+  });
+
+  app.post("/api/treasury/aave-deposit", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+      const user = (req as any).user;
+      if (!user.isAdmin) return res.status(403).json({ message: "Admin only" });
+      const { triggerAaveDeposit } = await import("./treasury-yield");
+      const result = await triggerAaveDeposit();
+      res.json({ ...result, message: result.deposited > 0 ? `Deposited ${result.deposited.toFixed(4)} ETH to Aave` : "No excess ETH above reserve threshold" });
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Aave deposit failed") });
+    }
+  });
+
   // ========== MERGE MINING ROUTES ==========
 
   app.get("/api/merge-mine/chains", (_req, res) => {
@@ -4699,9 +4738,37 @@ STYLE:
     try {
       if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
       const { db } = await import("./db");
-      const { title, description, category, timelockHours, endsAt } = req.body;
+      const { title, description, category, timelockHours, endsAt, executionPayload } = req.body;
       if (!title || !description) return res.status(400).json({ message: "title and description required" });
       const userId = (req as any).user.id;
+
+      // Validate price_driver_params proposals
+      const ALLOWED_PD_KEYS = [
+        "price_driver.target_price_usd",
+        "price_driver.burn_ratio",
+        "price_driver.max_eth_per_epoch",
+        "price_driver.epoch_interval_ms",
+      ];
+      let validatedPayload: { parameter: string; newValue: string; currentValue?: string } | null = null;
+      let executionHash: string | null = null;
+
+      if (category === "price_driver_params") {
+        if (!executionPayload || !executionPayload.parameter || executionPayload.newValue === undefined) {
+          return res.status(400).json({ message: "price_driver_params proposals require executionPayload.parameter and executionPayload.newValue" });
+        }
+        if (!ALLOWED_PD_KEYS.includes(executionPayload.parameter)) {
+          return res.status(400).json({ message: `parameter must be one of: ${ALLOWED_PD_KEYS.join(", ")}` });
+        }
+        validatedPayload = {
+          parameter: executionPayload.parameter,
+          newValue: String(executionPayload.newValue),
+          currentValue: executionPayload.currentValue ? String(executionPayload.currentValue) : undefined,
+        };
+        const payloadStr = JSON.stringify(validatedPayload);
+        const { createHash } = await import("crypto");
+        executionHash = createHash("sha256").update(payloadStr).digest("hex").slice(0, 16);
+      }
+
       const [proposal] = await db.insert(governanceProposals).values({
         title: String(title),
         description: String(description),
@@ -4711,7 +4778,9 @@ STYLE:
         quorumRequired: 100,
         timelockHours: Number(timelockHours || 48),
         endsAt: endsAt ? new Date(endsAt) : new Date(Date.now() + 7 * 86400000),
-      }).returning();
+        ...(validatedPayload ? { executionPayload: validatedPayload } : {}),
+        ...(executionHash ? { executionHash } : {}),
+      } as any).returning();
       res.json(proposal);
     } catch (e: any) {
       res.status(500).json({ message: safeError(e, "Internal server error") });
@@ -4804,40 +4873,12 @@ STYLE:
       if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
       const user = (req as any).user;
       if (!user.isAdmin) return res.status(403).json({ message: "Admin only" });
-      const { db } = await import("./db");
-      const { eq } = await import("drizzle-orm");
       const proposalId = parseInt(req.params.id);
-      const [proposal] = await db.select().from(governanceProposals).where(eq(governanceProposals.id, proposalId));
-      if (!proposal) return res.status(404).json({ message: "Proposal not found" });
-      if (proposal.status === "executed") return res.status(409).json({ message: "Already executed" });
-
-      const { getExecutionLog } = await import("./governance-executor");
-      const { protocolSettings } = await import("@shared/schema");
-      const { db: dbInstance } = await import("./db");
-
-      const params: Record<string, string> = {};
-      if (proposal.category === "parameter") {
-        params["parameter_update"] = `manual_gip_${proposalId}_${Date.now()}`;
-      } else {
-        params[`${proposal.category}_decision`] = `manual_gip_${proposalId}_${Date.now()}`;
-      }
-
-      const settingsWritten: string[] = [];
-      for (const [key, value] of Object.entries(params)) {
-        const { eq: eqInner } = await import("drizzle-orm");
-        const existing = await dbInstance.select().from(protocolSettings).where(eqInner(protocolSettings.key, key)).limit(1);
-        if (existing.length > 0) {
-          await dbInstance.update(protocolSettings).set({ value, updatedBy: `admin:gip-${proposalId}`, updatedAt: new Date() }).where(eqInner(protocolSettings.key, key));
-        } else {
-          await dbInstance.insert(protocolSettings).values({ key, value, updatedBy: `admin:gip-${proposalId}` });
-        }
-        settingsWritten.push(`${key}=${value}`);
-      }
-
-      const hash = `0x${Buffer.from(`manual-gip-${proposalId}-${Date.now()}`).toString("hex").slice(0, 64).padEnd(64, "0")}`;
-      await dbInstance.update(governanceProposals).set({ status: "executed", executedAt: new Date(), executionHash: hash }).where(eq(governanceProposals.id, proposalId));
-
-      res.json({ success: true, proposalId, settingsWritten, executionHash: hash });
+      if (isNaN(proposalId)) return res.status(400).json({ message: "Invalid proposal ID" });
+      const { adminExecuteProposal } = await import("./governance-executor");
+      const result = await adminExecuteProposal(proposalId);
+      if (!result.success) return res.status(400).json({ message: result.message });
+      res.json(result);
     } catch (e: any) {
       res.status(500).json({ message: safeError(e, "Internal server error") });
     }

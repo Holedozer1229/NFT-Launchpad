@@ -35,6 +35,11 @@ export interface TreasuryYieldState {
   gasRefillHistory: GasRefillRecord[];
   autoGasRefillEnabled: boolean;
   gasRefillThreshold: number;
+  // Aave v3 DeFi yield
+  aaveDepositedEth: number;
+  aaveATokenBalance: number;
+  aaveYieldEarned: number;
+  aaveCurrentApr: number;
 }
 
 export interface StrategyAllocation {
@@ -77,6 +82,9 @@ const GAS_ETH_RATIO = 0.000035; // ~0.035 gwei-equivalent per SKYNT fee
 const GAS_SWEEP_THRESHOLD = 0.002; // auto-sweep when pool hits 0.002 ETH
 const GAS_REFILL_MAX_HISTORY = 50;
 
+const AAVE_RESERVE_THRESHOLD = 0.5; // ETH — only deposit above this reserve
+const AAVE_DEPOSIT_RATIO = 0.30;    // 30% of excess ETH per compound cycle
+
 let state: TreasuryYieldState = {
   totalMintFeesCollected: 0,
   totalReinvested: 0,
@@ -103,6 +111,10 @@ let state: TreasuryYieldState = {
   gasRefillHistory: [],
   autoGasRefillEnabled: true,
   gasRefillThreshold: GAS_SWEEP_THRESHOLD,
+  aaveDepositedEth: 0,
+  aaveATokenBalance: 0,
+  aaveYieldEarned: 0,
+  aaveCurrentApr: 0,
 };
 
 let compoundInterval: ReturnType<typeof setInterval> | null = null;
@@ -152,6 +164,55 @@ function compoundYield(): void {
     (sum, a) => sum + a.apr * a.weight, 0
   );
   state.projectedAnnualYield = state.totalReinvested * (weightedAPR / 100) * state.phiBoostMultiplier;
+
+  // Aave v3 auto-deposit: if treasury ETH above reserve, deposit 30% of excess
+  syncAaveStateFromModule();
+}
+
+function syncAaveStateFromModule(): void {
+  import("./aave-yield").then(({ getAaveYieldState }) => {
+    const aaveState = getAaveYieldState();
+    state.aaveDepositedEth = aaveState.depositedEth;
+    state.aaveATokenBalance = aaveState.aTokenBalance;
+    state.aaveYieldEarned = aaveState.yieldEarned;
+    state.aaveCurrentApr = aaveState.currentApr;
+  }).catch(() => {});
+}
+
+export async function triggerAaveDeposit(): Promise<{ deposited: number; txHash: string | null }> {
+  const treasuryAddr = process.env.TREASURY_WALLET_ADDRESS;
+  if (!treasuryAddr) return { deposited: 0, txHash: null };
+
+  try {
+    const { createPublicClient, http, getAddress } = await import("viem");
+    const { mainnet } = await import("viem/chains");
+    const rpcUrl = process.env.ALCHEMY_API_KEY
+      ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+      : null;
+    if (!rpcUrl) return { deposited: 0, txHash: null };
+
+    const pub = createPublicClient({ chain: mainnet, transport: http(rpcUrl) });
+    const ethBal = await pub.getBalance({ address: getAddress(treasuryAddr as `0x${string}`) });
+    const ethBalFloat = Number(ethBal) / 1e18;
+
+    const excess = ethBalFloat - AAVE_RESERVE_THRESHOLD;
+    if (excess <= 0) return { deposited: 0, txHash: null };
+
+    const depositAmt = excess * AAVE_DEPOSIT_RATIO;
+    if (depositAmt < 0.001) return { deposited: 0, txHash: null };
+
+    const { depositToAave, updateAaveStateFromTreasury } = await import("./aave-yield");
+    const result = await depositToAave(depositAmt);
+    if (result.success) {
+      updateAaveStateFromTreasury(state.aaveDepositedEth + depositAmt);
+      syncAaveStateFromModule();
+      console.log(`[TreasuryYield] Auto-deposited ${depositAmt.toFixed(4)} ETH to Aave v3`);
+    }
+    return { deposited: result.success ? depositAmt : 0, txHash: result.txHash };
+  } catch (err: any) {
+    console.warn("[TreasuryYield] triggerAaveDeposit error:", err?.message?.slice(0, 80));
+    return { deposited: 0, txHash: null };
+  }
 }
 
 async function onCompoundError(err: any) {
@@ -306,6 +367,9 @@ export function startTreasuryYieldEngine(): void {
     (sum, a) => sum + a.apr * a.weight, 0
   );
   state.projectedAnnualYield = state.totalReinvested * (weightedAPR / 100) * state.phiBoostMultiplier;
+
+  // Sync Aave state on startup
+  syncAaveStateFromModule();
 
   compoundInterval = setInterval(() => {
     try { compoundYield(); } catch (e: any) { onCompoundError(e); }

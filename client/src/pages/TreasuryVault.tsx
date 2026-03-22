@@ -123,7 +123,7 @@ export default function TreasuryVault() {
   });
 
   const { data: aaveState } = useQuery<AaveState>({
-    queryKey: ["/api/aave/state"],
+    queryKey: ["/api/treasury/aave-position"],
     refetchInterval: 60000,
   });
 
@@ -134,7 +134,7 @@ export default function TreasuryVault() {
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/aave/state"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/treasury/aave-position"] });
       toast({ title: data.success ? "Aave Deposit Initiated" : "Deposit Queued", description: data.message });
       setAaveDepositAmt("");
     },
@@ -148,11 +148,24 @@ export default function TreasuryVault() {
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/aave/state"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/treasury/aave-position"] });
       toast({ title: data.success ? "Aave Withdrawal Initiated" : "Withdrawal Queued", description: data.message });
       setAaveWithdrawAmt("");
     },
     onError: (err: Error) => toast({ title: "Withdrawal Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const aaveAutoDepositMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/treasury/aave-deposit", {});
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/treasury/aave-position"] });
+      toast({ title: "Auto-Deposit", description: data.message });
+    },
+    onError: (err: Error) => toast({ title: "Auto-Deposit Failed", description: err.message, variant: "destructive" }),
   });
 
   const form = useForm<z.infer<typeof keyFormSchema>>({
@@ -762,6 +775,16 @@ export default function TreasuryVault() {
               {user?.isAdmin && (
                 <div className="space-y-2 pt-1">
                   <p className="font-mono text-[9px] text-muted-foreground uppercase">Admin Controls</p>
+                  <Button
+                    data-testid="button-aave-auto-deposit"
+                    size="sm"
+                    className="w-full bg-neon-green/10 hover:bg-neon-green/20 text-neon-green border border-neon-green/30 font-mono text-[9px] h-8"
+                    disabled={aaveAutoDepositMutation.isPending}
+                    onClick={() => aaveAutoDepositMutation.mutate()}
+                  >
+                    {aaveAutoDepositMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Zap className="w-3 h-3 mr-1" />}
+                    Auto-Deposit (30% excess above 0.5 ETH reserve)
+                  </Button>
                   <div className="flex gap-2">
                     <Input
                       data-testid="input-aave-deposit-amount"
@@ -810,6 +833,9 @@ export default function TreasuryVault() {
                       {aaveWithdrawMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
                       Withdraw
                     </Button>
+                  </div>
+                  <div className="text-[8px] font-mono text-muted-foreground">
+                    Pool: 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2 — aWETH: 0x4d5F47FA6A74756f5Bc1Ce69C2A86E93B74bB12F
                   </div>
                 </div>
               )}

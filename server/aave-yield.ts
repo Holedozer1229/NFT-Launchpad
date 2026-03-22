@@ -17,9 +17,29 @@ export interface AaveDepositRecord {
   type: "deposit" | "withdraw" | "compound";
 }
 
-const AAVE_V3_POOL = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2" as `0x${string}`;
-const WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" as `0x${string}`;
-const AWETH_ADDRESS = "0x4d5F47FA6A74756f5Bc1Ce69C2A86E93B74bB12F" as `0x${string}`;
+const AAVE_V3_POOL = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
+const WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
+const AWETH_ADDRESS = "0x4d5F47FA6A74756f5Bc1Ce69C2A86E93B74bB12F";
+
+const WETH_ABI = [
+  {
+    name: "deposit",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    name: "approve",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
 
 const AAVE_POOL_ABI = [
   {
@@ -76,7 +96,7 @@ const AAVE_POOL_ABI = [
   },
 ] as const;
 
-const ERC20_BALANCE_ABI = [
+const ERC20_ABI = [
   {
     name: "balanceOf",
     type: "function",
@@ -101,16 +121,15 @@ let state: AaveYieldState = {
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
 async function getViemClients() {
-  const { createPublicClient, createWalletClient, http } = await import("viem");
+  const { createPublicClient, createWalletClient, http, getAddress } = await import("viem");
   const { mainnet } = await import("viem/chains");
   const { privateKeyToAccount } = await import("viem/accounts");
 
-  const transport = http(
-    process.env.ALCHEMY_API_KEY
-      ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
-      : "https://eth-mainnet.g.alchemy.com/v2/demo"
-  );
+  const rpcUrl = process.env.ALCHEMY_API_KEY
+    ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+    : "https://eth-mainnet.g.alchemy.com/v2/demo";
 
+  const transport = http(rpcUrl);
   const publicClient = createPublicClient({ chain: mainnet, transport });
 
   const pk = process.env.TREASURY_PRIVATE_KEY;
@@ -121,13 +140,12 @@ async function getViemClients() {
     walletClient = createWalletClient({ account, chain: mainnet, transport });
   }
 
-  return { publicClient, walletClient };
+  return { publicClient, walletClient, getAddress };
 }
 
 export async function fetchAaveApr(): Promise<number> {
   try {
-    const { publicClient } = await getViemClients();
-    const { getAddress } = await import("viem");
+    const { publicClient, getAddress } = await getViemClients();
     const reserveData = await publicClient.readContract({
       address: getAddress(AAVE_V3_POOL),
       abi: AAVE_POOL_ABI,
@@ -135,8 +153,7 @@ export async function fetchAaveApr(): Promise<number> {
       args: [getAddress(WETH_ADDRESS)],
     });
     const liquidityRate = (reserveData as any).currentLiquidityRate as bigint;
-    const aprRay = liquidityRate;
-    const aprFloat = Number(aprRay * 10000n / RAY) / 100;
+    const aprFloat = Number(liquidityRate * 10000n / RAY) / 100;
     return Math.max(0, aprFloat);
   } catch (err: any) {
     console.warn("[Aave] fetchAaveApr failed:", err?.message?.slice(0, 80));
@@ -144,66 +161,88 @@ export async function fetchAaveApr(): Promise<number> {
   }
 }
 
-export async function fetchATokenBalance(treasuryAddress: string): Promise<number> {
+export async function getAavePosition(treasuryAddress: string): Promise<{ aTokenBalance: number; depositedEth: number; yieldEarned: number; currentApr: number }> {
   try {
-    const { publicClient } = await getViemClients();
-    const { getAddress } = await import("viem");
+    const { publicClient, getAddress } = await getViemClients();
     const raw = await publicClient.readContract({
       address: getAddress(AWETH_ADDRESS),
-      abi: ERC20_BALANCE_ABI,
+      abi: ERC20_ABI,
       functionName: "balanceOf",
       args: [getAddress(treasuryAddress as `0x${string}`)],
     });
-    const balance = Number(raw as bigint) / 1e18;
-    return balance;
+    const aTokenBalance = Number(raw as bigint) / 1e18;
+    const apr = await fetchAaveApr();
+    const yieldEarned = aTokenBalance > state.depositedEth ? aTokenBalance - state.depositedEth : state.yieldEarned;
+    return { aTokenBalance, depositedEth: state.depositedEth, yieldEarned, currentApr: apr };
   } catch (err: any) {
-    console.warn("[Aave] fetchATokenBalance failed:", err?.message?.slice(0, 80));
-    return state.aTokenBalance;
+    console.warn("[Aave] getAavePosition failed:", err?.message?.slice(0, 80));
+    return { aTokenBalance: state.aTokenBalance, depositedEth: state.depositedEth, yieldEarned: state.yieldEarned, currentApr: state.currentApr };
   }
 }
 
 export async function depositToAave(amountEth: number): Promise<{ success: boolean; txHash: string | null; message: string }> {
   if (!process.env.TREASURY_PRIVATE_KEY || !process.env.ALCHEMY_API_KEY) {
-    return { success: false, txHash: null, message: "Treasury wallet not configured" };
+    const record: AaveDepositRecord = { timestamp: Date.now(), amountEth, txHash: null, type: "deposit" };
+    state.depositedEth += amountEth;
+    state.depositHistory.unshift(record);
+    if (state.depositHistory.length > 50) state.depositHistory.pop();
+    state.isActive = true;
+    state.lastUpdated = Date.now();
+    return { success: false, txHash: null, message: "Treasury wallet not configured — deposit recorded as pending" };
   }
-  if (amountEth <= 0) {
-    return { success: false, txHash: null, message: "Amount must be > 0" };
-  }
+  if (amountEth <= 0) return { success: false, txHash: null, message: "Amount must be > 0" };
 
   try {
-    const { publicClient, walletClient } = await getViemClients();
+    const { publicClient, walletClient, getAddress } = await getViemClients();
     if (!walletClient) throw new Error("Wallet client unavailable");
 
     const { parseEther } = await import("viem");
     const amountWei = parseEther(amountEth.toString());
+    const account = walletClient.account!;
 
-    const hash = await walletClient.writeContract({
-      address: AAVE_V3_POOL as `0x${string}`,
+    // Step 1: Wrap ETH → WETH
+    const wrapHash = await walletClient.writeContract({
+      address: getAddress(WETH_ADDRESS),
+      abi: WETH_ABI,
+      functionName: "deposit",
+      value: amountWei,
+      account,
+    });
+    await publicClient.waitForTransactionReceipt({ hash: wrapHash });
+
+    // Step 2: Approve Aave Pool to spend WETH
+    const approveHash = await walletClient.writeContract({
+      address: getAddress(WETH_ADDRESS),
+      abi: WETH_ABI,
+      functionName: "approve",
+      args: [getAddress(AAVE_V3_POOL), amountWei],
+      account,
+    });
+    await publicClient.waitForTransactionReceipt({ hash: approveHash });
+
+    // Step 3: Supply WETH to Aave v3
+    const supplyHash = await walletClient.writeContract({
+      address: getAddress(AAVE_V3_POOL),
       abi: AAVE_POOL_ABI,
       functionName: "supply",
-      args: [WETH_ADDRESS as `0x${string}`, amountWei, walletClient.account!.address, 0],
+      args: [getAddress(WETH_ADDRESS), amountWei, account.address, 0],
+      account,
     });
-
-    await publicClient.waitForTransactionReceipt({ hash });
+    await publicClient.waitForTransactionReceipt({ hash: supplyHash });
 
     state.depositedEth += amountEth;
-    const record: AaveDepositRecord = {
-      timestamp: Date.now(),
-      amountEth,
-      txHash: hash,
-      type: "deposit",
-    };
+    const record: AaveDepositRecord = { timestamp: Date.now(), amountEth, txHash: supplyHash, type: "deposit" };
     state.depositHistory.unshift(record);
     if (state.depositHistory.length > 50) state.depositHistory.pop();
     state.isActive = true;
     state.lastUpdated = Date.now();
 
-    wsHub.broadcast("aave:deposit", { amountEth, txHash: hash, depositedEth: state.depositedEth });
-    console.log(`[Aave] Deposited ${amountEth} ETH | tx: ${hash}`);
+    wsHub.broadcast("aave:deposit", { amountEth, txHash: supplyHash, depositedEth: state.depositedEth });
+    console.log(`[Aave] Deposited ${amountEth} ETH (wrap→approve→supply) | tx: ${supplyHash}`);
 
-    return { success: true, txHash: hash, message: `Deposited ${amountEth} ETH to Aave v3` };
+    return { success: true, txHash: supplyHash, message: `Deposited ${amountEth} ETH to Aave v3` };
   } catch (err: any) {
-    console.error("[Aave] deposit failed:", err?.message);
+    console.error("[Aave] depositToAave failed:", err?.message);
     return { success: false, txHash: null, message: err?.message ?? "Deposit failed" };
   }
 }
@@ -214,38 +253,34 @@ export async function withdrawFromAave(amountEth: number): Promise<{ success: bo
   }
 
   try {
-    const { publicClient, walletClient } = await getViemClients();
+    const { publicClient, walletClient, getAddress } = await getViemClients();
     if (!walletClient) throw new Error("Wallet client unavailable");
 
     const { parseEther } = await import("viem");
     const amountWei = parseEther(amountEth.toString());
+    const account = walletClient.account!;
 
     const hash = await walletClient.writeContract({
-      address: AAVE_V3_POOL as `0x${string}`,
+      address: getAddress(AAVE_V3_POOL),
       abi: AAVE_POOL_ABI,
       functionName: "withdraw",
-      args: [WETH_ADDRESS as `0x${string}`, amountWei, walletClient.account!.address],
+      args: [getAddress(WETH_ADDRESS), amountWei, account.address],
+      account,
     });
-
     await publicClient.waitForTransactionReceipt({ hash });
 
     state.depositedEth = Math.max(0, state.depositedEth - amountEth);
-    const record: AaveDepositRecord = {
-      timestamp: Date.now(),
-      amountEth,
-      txHash: hash,
-      type: "withdraw",
-    };
+    const record: AaveDepositRecord = { timestamp: Date.now(), amountEth, txHash: hash, type: "withdraw" };
     state.depositHistory.unshift(record);
     if (state.depositHistory.length > 50) state.depositHistory.pop();
     state.lastUpdated = Date.now();
 
     wsHub.broadcast("aave:withdraw", { amountEth, txHash: hash, depositedEth: state.depositedEth });
-    console.log(`[Aave] Withdrew ${amountEth} ETH | tx: ${hash}`);
+    console.log(`[Aave] Withdrew ${amountEth} ETH from Aave | tx: ${hash}`);
 
     return { success: true, txHash: hash, message: `Withdrew ${amountEth} ETH from Aave v3` };
   } catch (err: any) {
-    console.error("[Aave] withdraw failed:", err?.message);
+    console.error("[Aave] withdrawFromAave failed:", err?.message);
     return { success: false, txHash: null, message: err?.message ?? "Withdraw failed" };
   }
 }
@@ -256,18 +291,13 @@ async function pollAaveState(): Promise<void> {
     state.currentApr = apr;
 
     const treasuryAddr = process.env.TREASURY_WALLET_ADDRESS;
-    if (treasuryAddr) {
-      const aTokenBal = await fetchATokenBalance(treasuryAddr);
-      const prev = state.aTokenBalance;
-      state.aTokenBalance = aTokenBal;
-
-      if (prev > 0 && aTokenBal > state.depositedEth) {
-        const newYield = aTokenBal - state.depositedEth;
-        if (newYield > state.yieldEarned) {
-          state.yieldEarned = newYield;
-        }
+    if (treasuryAddr && state.depositedEth > 0) {
+      const pos = await getAavePosition(treasuryAddr);
+      state.aTokenBalance = pos.aTokenBalance;
+      if (pos.aTokenBalance > state.depositedEth) {
+        state.yieldEarned = pos.aTokenBalance - state.depositedEth;
       }
-      state.isActive = aTokenBal > 0;
+      state.isActive = pos.aTokenBalance > 0;
     }
 
     state.lastUpdated = Date.now();
@@ -284,25 +314,18 @@ async function pollAaveState(): Promise<void> {
 }
 
 export function getAaveYieldState(): AaveYieldState {
-  return {
-    ...state,
-    depositHistory: [...state.depositHistory],
-  };
+  return { ...state, depositHistory: [...state.depositHistory] };
+}
+
+export function updateAaveStateFromTreasury(depositedEth: number): void {
+  state.depositedEth = depositedEth;
+  if (depositedEth > 0) state.isActive = true;
+  state.lastUpdated = Date.now();
 }
 
 export function startAaveYieldEngine(): void {
   if (pollInterval) return;
   console.log("[Aave] Starting Aave v3 yield engine (poll every 5min)");
-
-  state.currentApr = 3.5;
-  state.depositedEth = 0.5;
-  state.aTokenBalance = 0.5042;
-  state.yieldEarned = 0.0042;
-  state.isActive = true;
-  state.lastUpdated = Date.now();
-  state.depositHistory = [
-    { timestamp: Date.now() - 86400000 * 14, amountEth: 0.5, txHash: "0x" + "a".repeat(64), type: "deposit" },
-  ];
 
   pollAaveState().catch(() => {});
 

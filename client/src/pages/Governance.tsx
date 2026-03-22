@@ -3,7 +3,7 @@ import {
   Vote, Shield, Zap, Clock, CheckCircle, XCircle, Minus, Loader2,
   TrendingUp, Lock, Coins, Server, Globe, Cpu, Activity, Hash,
   ChevronDown, ChevronUp, Plus, AlertTriangle, ExternalLink, Users,
-  Settings, Play, Database
+  Settings, Play, Database, ArrowRight
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/use-auth";
 import type { GovernanceProposal } from "@shared/schema";
+import { PRICE_DRIVER_PARAMS } from "@shared/schema";
 
 const CATEGORY_COLORS: Record<string, string> = {
   protocol: "text-neon-cyan border-neon-cyan/30 bg-neon-cyan/5",
@@ -20,6 +21,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   parameter: "text-neon-orange border-neon-orange/30 bg-neon-orange/5",
   upgrade: "text-neon-magenta border-neon-magenta/30 bg-neon-magenta/5",
   community: "text-primary border-primary/30 bg-primary/5",
+  price_driver_params: "text-neon-orange border-neon-orange/40 bg-neon-orange/10",
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -38,7 +40,9 @@ interface ExecutionRecord {
   proposalId: number;
   title: string;
   category: string;
-  settingsWritten: string[];
+  parameter: string;
+  oldValue: string;
+  newValue: string;
   executedAt: string;
 }
 
@@ -136,6 +140,20 @@ function ProposalCard({ proposal, myVote, onVote, isPending }: {
         <span className={quorumPct >= 100 ? "text-neon-green" : "text-neon-orange"}>{total}/{proposal.quorumRequired}</span>
       </div>
 
+      {/* Price driver param change indicator */}
+      {proposal.category === "price_driver_params" && (proposal as any).executionPayload && (
+        <div className="flex items-center gap-2 text-[10px] font-mono p-2.5 bg-neon-orange/5 border border-neon-orange/20 rounded-sm">
+          <Settings className="w-3 h-3 text-neon-orange shrink-0" />
+          <span className="text-neon-orange font-bold">WILL CHANGE:</span>
+          <span className="text-muted-foreground truncate max-w-[120px]">{(proposal as any).executionPayload?.parameter}</span>
+          <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
+          <span className="text-neon-green font-bold">{(proposal as any).executionPayload?.newValue}</span>
+          {(proposal as any).executionPayload?.currentValue && (
+            <span className="text-muted-foreground">(was: {(proposal as any).executionPayload.currentValue})</span>
+          )}
+        </div>
+      )}
+
       {/* Description toggle */}
       <button
         onClick={() => setExpanded(!expanded)}
@@ -195,6 +213,8 @@ export default function Governance() {
   const [newDesc, setNewDesc] = useState("");
   const [newCategory, setNewCategory] = useState("protocol");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [pdParam, setPdParam] = useState(Object.keys(PRICE_DRIVER_PARAMS)[0]);
+  const [pdNewValue, setPdNewValue] = useState("");
 
   const { data: proposals = [], isLoading: proposalsLoading } = useQuery<GovernanceProposal[]>({
     queryKey: ["/api/governance/proposals"],
@@ -252,8 +272,12 @@ export default function Governance() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: { title: string; description: string; category: string }) => {
+    mutationFn: async (data: { title: string; description: string; category: string; executionPayload?: any }) => {
       const res = await apiRequest("POST", "/api/governance/proposals", { ...data, timelockHours: 48 });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Unknown error" }));
+        throw new Error(err.message || "Submission failed");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -261,6 +285,7 @@ export default function Governance() {
       toast({ title: "Proposal Submitted", description: "Your governance proposal is now live for voting." });
       setShowNewForm(false);
       setNewTitle(""); setNewDesc(""); setNewCategory("protocol");
+      setPdParam(Object.keys(PRICE_DRIVER_PARAMS)[0]); setPdNewValue("");
     },
     onError: (error: any) => {
       toast({ title: "Failed", description: error.message, variant: "destructive" });
@@ -448,7 +473,7 @@ export default function Governance() {
                 <select
                   data-testid="select-proposal-category"
                   value={newCategory}
-                  onChange={e => setNewCategory(e.target.value)}
+                  onChange={e => { setNewCategory(e.target.value); }}
                   className="w-full p-3 bg-black/40 border border-border rounded-sm font-heading text-sm appearance-none focus:outline-none focus:border-neon-green/60 transition-colors"
                 >
                   <option value="protocol">Protocol</option>
@@ -456,8 +481,50 @@ export default function Governance() {
                   <option value="parameter">Parameter</option>
                   <option value="upgrade">Upgrade</option>
                   <option value="community">Community</option>
+                  <option value="price_driver_params">Price Driver Parameter</option>
                 </select>
               </div>
+
+              {/* Price driver param fields */}
+              {newCategory === "price_driver_params" && (
+                <div className="p-3 bg-neon-orange/5 border border-neon-orange/20 rounded-sm space-y-3">
+                  <div className="text-[10px] font-heading text-neon-orange uppercase tracking-wider flex items-center gap-2">
+                    <Settings className="w-3 h-3" /> Price Driver Parameter Change
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-heading text-muted-foreground uppercase">Parameter</label>
+                    <select
+                      data-testid="select-pd-param"
+                      value={pdParam}
+                      onChange={e => setPdParam(e.target.value)}
+                      className="w-full p-2.5 bg-black/40 border border-border rounded-sm font-mono text-xs appearance-none focus:outline-none focus:border-neon-orange/60 transition-colors"
+                    >
+                      {Object.entries(PRICE_DRIVER_PARAMS).map(([key, meta]) => (
+                        <option key={key} value={key}>{meta.label} ({key})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-heading text-muted-foreground uppercase">
+                      New Value {pdParam && (PRICE_DRIVER_PARAMS as any)[pdParam]?.unit ? `(${(PRICE_DRIVER_PARAMS as any)[pdParam].unit})` : ""}
+                    </label>
+                    <input
+                      data-testid="input-pd-new-value"
+                      type="number"
+                      value={pdNewValue}
+                      onChange={e => setPdNewValue(e.target.value)}
+                      placeholder={`e.g. ${(PRICE_DRIVER_PARAMS as any)[pdParam]?.min ?? ""}`}
+                      className="w-full p-2.5 bg-black/40 border border-border rounded-sm font-mono text-xs focus:outline-none focus:border-neon-orange/60 transition-colors placeholder:text-muted-foreground/40"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground bg-black/20 p-2 rounded-sm">
+                    <span className="text-neon-orange font-bold">WILL CHANGE:</span>
+                    <span className="text-muted-foreground">{pdParam}</span>
+                    <ArrowRight className="w-3 h-3" />
+                    <span className="text-neon-green font-bold">{pdNewValue || "?"}</span>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <Button
@@ -467,7 +534,18 @@ export default function Governance() {
                     toast({ title: "Validation Error", description: "Title and description are required.", variant: "destructive" });
                     return;
                   }
-                  createMutation.mutate({ title: newTitle.trim(), description: newDesc.trim(), category: newCategory });
+                  if (newCategory === "price_driver_params" && !pdNewValue.trim()) {
+                    toast({ title: "Validation Error", description: "New value is required for price driver parameter proposals.", variant: "destructive" });
+                    return;
+                  }
+                  createMutation.mutate({
+                    title: newTitle.trim(),
+                    description: newDesc.trim(),
+                    category: newCategory,
+                    ...(newCategory === "price_driver_params" ? {
+                      executionPayload: { parameter: pdParam, newValue: pdNewValue.trim() }
+                    } : {}),
+                  });
                 }}
                 disabled={createMutation.isPending || !newTitle.trim() || !newDesc.trim()}
                 className="bg-neon-green/20 hover:bg-neon-green/30 text-neon-green border border-neon-green/40 font-heading tracking-wider"
@@ -532,13 +610,16 @@ export default function Governance() {
                       <span className="text-[9px] font-mono text-muted-foreground">{new Date(rec.executedAt).toLocaleString()}</span>
                     </div>
                     <p className="text-[10px] font-mono text-foreground truncate">{rec.title}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {rec.settingsWritten.map((s, j) => (
-                        <span key={j} className="text-[8px] font-mono bg-neon-orange/10 text-neon-orange border border-neon-orange/20 px-1.5 py-0.5 rounded-sm">
-                          {s.length > 30 ? s.slice(0, 30) + "…" : s}
-                        </span>
-                      ))}
-                    </div>
+                    {rec.parameter && (
+                      <div className="flex items-center gap-2 text-[9px] font-mono">
+                        <span className="text-muted-foreground truncate max-w-[140px]">{rec.parameter}</span>
+                        <ArrowRight className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
+                        <span className="text-neon-green font-bold">{rec.newValue}</span>
+                        {rec.oldValue && rec.oldValue !== "(not set)" && (
+                          <span className="text-muted-foreground">(was: {rec.oldValue})</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
