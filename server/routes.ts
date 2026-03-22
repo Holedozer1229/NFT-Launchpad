@@ -4818,7 +4818,6 @@ STYLE:
         { getPriceDriverState },
         { getLedgerState },
         { getEngineErrorCount, getLastEngineError },
-        { isDysonEvolutionRunning },
       ] = await Promise.all([
         import("./iit-engine"),
         import("./p2p-network"),
@@ -4828,8 +4827,9 @@ STYLE:
         import("./skynt-price-driver"),
         import("./p2p-ledger"),
         import("./engine-error-counter"),
-        import("./dyson-sphere-miner"),
       ]);
+
+      const { isDysonEvolutionRunning } = await import("./dyson-sphere-miner");
 
       const btcZk      = getBtcZkDaemonStatus();
       const selfFund   = getSelfFundStatus();
@@ -4843,7 +4843,7 @@ STYLE:
       const p2pNodes   = getNetworkNodes();
       const p2pActive  = p2pNodes.filter((n: any) => n.status === "online" || n.status === "syncing").length;
 
-      const dysonState = (dysonMiner as any).getState?.() ?? null;
+      const dysonState = dysonMiner?.getState?.() ?? null;
 
       const mkEngine = (id: string, label: string, running: boolean, epochCount: number | null, lastActivity: number | null, detail: string) => ({
         id, label, running, epochCount, lastActivity, detail,
