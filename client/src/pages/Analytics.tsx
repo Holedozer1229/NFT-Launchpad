@@ -244,12 +244,14 @@ export default function Analytics() {
             testId: "text-treasury-skynt",
           },
           {
-            label: "NFT Holders",
-            value: statsLoading ? null : `${(tokenStats?.nftHolderCount ?? 0).toLocaleString()}`,
-            sub: tokenStats?.engineRunning ? "Engine live" : "Engine paused",
+            label: "ETH Price",
+            value: statsLoading ? null : `$${(tokenStats?.ethPriceUsd ?? 3200).toLocaleString()}`,
+            sub: tokenStats?.engineRunning
+              ? `${(tokenStats?.nftHolderCount ?? 0).toLocaleString()} NFT holders`
+              : "Engine paused",
             icon: Zap,
-            color: tokenStats?.engineRunning ? "text-neon-cyan" : "text-muted-foreground",
-            testId: "text-nft-holders",
+            color: tokenStats?.engineRunning ? "text-neon-green" : "text-muted-foreground",
+            testId: "text-eth-price",
           },
         ].map((stat) => (
           <div key={stat.label} className="cosmic-card p-3">

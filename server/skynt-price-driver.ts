@@ -382,6 +382,9 @@ async function runEpoch(): Promise<void> {
   if (!quote) {
     console.log(`[PriceDriver] Epoch ${epoch} — no SKYNT/WETH pool found on Uniswap v3. Skipping.`);
     _state.pricePressureMode = "idle";
+    // Persist snapshot with zeroed price/fee so history is uninterrupted
+    const ethBalFallback = await getTreasuryEthBalance().catch(() => _state.treasuryEthBalance);
+    savePriceSnapshot(0, 0, ethPriceUsd, 0, ethBalFallback, epoch, 0, 0);
     return;
   }
 
@@ -414,6 +417,8 @@ async function runEpoch(): Promise<void> {
   const exactQuote = await getOnChainPrice(parseEther(ethToSpend.toFixed(6)));
   if (!exactQuote) {
     console.warn("[PriceDriver] Could not get exact quote — aborting epoch");
+    // Still persist snapshot (no buyback executed)
+    savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     return;
   }
 
@@ -441,8 +446,8 @@ async function runEpoch(): Promise<void> {
       status: "failed",
       reason: "Swap execution failed",
     });
-    // Persist snapshot with intended eth spend but 0 bought (failed)
-    savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, ethToSpend, 0);
+    // Persist snapshot: eth_spent=0 because swap was not executed (only counts executed volume)
+    savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     return;
   }
 
