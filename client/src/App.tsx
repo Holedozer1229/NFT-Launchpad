@@ -41,9 +41,8 @@ const AirdropPage = lazy(() => import("@/pages/Airdrop"));
 const KYCPage = lazy(() => import("@/pages/KYC"));
 const BtcZkDaemon = lazy(() => import("@/pages/BtcZkDaemon"));
 const PriceDriver = lazy(() => import("@/pages/PriceDriver"));
-const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
 const QuantumMiner = lazy(() => import("@/components/QuantumMiner").then(m => ({ default: m.QuantumMiner })));
-const SkyAI = lazy(() => import("@/components/SkyAI").then(m => ({ default: m.SkyAI })));
+const UnifiedAIWidget = lazy(() => import("@/components/UnifiedAIWidget").then(m => ({ default: m.UnifiedAIWidget })));
 
 function AdminGuard() {
   const { user } = useAuth();
@@ -151,13 +150,10 @@ function AppRouter() {
         </Suspense>
       </PageTransition>
       <Suspense fallback={null}>
-        <SphinxOracle />
-      </Suspense>
-      <Suspense fallback={null}>
         <QuantumMiner minimized={location !== "/"} />
       </Suspense>
       <Suspense fallback={null}>
-        <SkyAI />
+        <UnifiedAIWidget />
       </Suspense>
     </SidebarLayout>
   );
