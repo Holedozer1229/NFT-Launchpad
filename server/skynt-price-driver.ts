@@ -41,10 +41,10 @@ const SKYNT_ADDRESS: Address = (
 
 // ── Engine Config ──────────────────────────────────────────────────────────
 const POOL_FEES            = [3000, 10000, 500] as const;  // 0.3%, 1%, 0.05%
-const BURN_RATIO           = 0.30;       // 30% of each buyback gets burned
+let _burnRatio             = 0.30;       // 30% of each buyback gets burned (hot-reloadable)
 const MIN_TREASURY_RESERVE = 0.01;       // ETH — never spend below this
-const MAX_ETH_PER_EPOCH    = 0.005;      // max ETH per buyback cycle
-const EPOCH_INTERVAL_MS    = 5 * 60_000; // 5 minutes between cycles
+let _maxEthPerEpoch        = 0.005;      // max ETH per buyback cycle (hot-reloadable)
+let _epochIntervalMs       = 5 * 60_000; // 5 minutes between cycles (hot-reloadable)
 const SLIPPAGE_BPS         = 200;        // 2% max slippage
 let _targetPriceUsd        = parseFloat(process.env.SKYNT_PRICE_TARGET_USD ?? "0.65");
 
@@ -286,13 +286,13 @@ function calcBuyPressure(currentUsd: number, targetUsd: number, ethBalance: numb
   let mode: PriceDriverState["pricePressureMode"];
   if (pctBelow > 0.30) {
     mode = "aggressive";
-    ethToSpend = MAX_ETH_PER_EPOCH;
+    ethToSpend = _maxEthPerEpoch;
   } else if (pctBelow > 0.10) {
     mode = "moderate";
-    ethToSpend = MAX_ETH_PER_EPOCH * 0.5;
+    ethToSpend = _maxEthPerEpoch * 0.5;
   } else {
     mode = "idle";
-    ethToSpend = MAX_ETH_PER_EPOCH * 0.2;
+    ethToSpend = _maxEthPerEpoch * 0.2;
   }
 
   // Never spend more than what's above the safety reserve
@@ -468,7 +468,7 @@ async function runEpoch(): Promise<void> {
 
   // 6. Calculate how much SKYNT to burn (BURN_RATIO of purchased)
   const skyntReceived = exactQuote.skyntOut; // use expected for burn calc
-  const burnAmount = BigInt(Math.floor(Number(skyntReceived) * BURN_RATIO));
+  const burnAmount = BigInt(Math.floor(Number(skyntReceived) * _burnRatio));
   const keepAmount = skyntReceived - burnAmount;
 
   let burnHash: string | null = null;
@@ -479,7 +479,7 @@ async function runEpoch(): Promise<void> {
       console.log(`[PriceDriver] Burned ${burnFloat.toFixed(6)} SKYNT → 0x000dead`);
       wsHub.broadcast("price_driver:burn_completed", {
         epoch, txHash: burnHash, skyntBurned: burnFloat,
-        burnRatio: BURN_RATIO, priceUsd,
+        burnRatio: _burnRatio, priceUsd,
       });
     }
   }
@@ -558,13 +558,13 @@ async function savePriceSnapshot(
 // ── Scheduler ─────────────────────────────────────────────────────────────
 async function scheduleNext(): Promise<void> {
   if (!_state.running) return;
-  _state.nextBuybackAt = Date.now() + EPOCH_INTERVAL_MS;
+  _state.nextBuybackAt = Date.now() + _epochIntervalMs;
   _timer = setTimeout(async () => {
     try { await runEpoch(); } catch (e: any) {
       console.error("[PriceDriver] Epoch error:", e.message);
     }
     scheduleNext();
-  }, EPOCH_INTERVAL_MS);
+  }, _epochIntervalMs);
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────
@@ -607,4 +607,35 @@ export function setTargetPrice(newTarget: number): void {
   _state.targetPriceUsd = newTarget;
   console.log(`[PriceDriver] Target price updated → $${newTarget.toFixed(4)}`);
   wsHub.broadcast("price_driver:target_updated", { targetPriceUsd: newTarget });
+}
+
+export async function reloadSettingsFromDb(): Promise<void> {
+  try {
+    const { pool } = await import("./db");
+    const result = await pool.query(
+      `SELECT key, value FROM protocol_settings WHERE key LIKE 'price_driver.%'`
+    );
+    for (const row of result.rows) {
+      const v = parseFloat(row.value);
+      if (!isFinite(v)) continue;
+      switch (row.key) {
+        case "price_driver.target_price_usd":
+          _targetPriceUsd = v;
+          _state.targetPriceUsd = v;
+          break;
+        case "price_driver.burn_ratio":
+          _burnRatio = Math.max(0, Math.min(1, v));
+          break;
+        case "price_driver.max_eth_per_epoch":
+          _maxEthPerEpoch = Math.max(0.0001, v);
+          break;
+        case "price_driver.epoch_interval_ms":
+          _epochIntervalMs = Math.max(60_000, v);
+          break;
+      }
+    }
+    console.log(`[PriceDriver] Settings hot-reloaded from DB — target=$${_targetPriceUsd} burn=${_burnRatio} maxEth=${_maxEthPerEpoch} interval=${_epochIntervalMs}ms`);
+  } catch (err: any) {
+    console.error("[PriceDriver] reloadSettingsFromDb error:", err.message);
+  }
 }

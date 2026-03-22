@@ -4802,6 +4802,135 @@ STYLE:
     }
   });
 
+  // ==================== PROTOCOL SETTINGS (Admin) ====================
+
+  app.get("/api/admin/settings", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const { pool } = await import("./db");
+      const result = await pool.query(
+        `SELECT key, value, updated_by, updated_at FROM protocol_settings ORDER BY key`
+      );
+      const settings: Record<string, string> = {};
+      for (const row of result.rows) {
+        settings[row.key] = row.value;
+      }
+      res.json({ settings, rows: result.rows });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.put("/api/admin/settings", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    const { key, value } = req.body;
+    if (!key || value === undefined || value === null) {
+      return res.status(400).json({ message: "key and value required" });
+    }
+    const updatedBy = (req.user as any)?.username || "admin";
+    try {
+      const { pool } = await import("./db");
+      await pool.query(
+        `INSERT INTO protocol_settings (key, value, updated_by, updated_at)
+         VALUES ($1, $2, $3, now())
+         ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = now()`,
+        [key, String(value), updatedBy]
+      );
+
+      // Hot-reload price driver settings if relevant key
+      if (key.startsWith("price_driver.")) {
+        try {
+          const { reloadSettingsFromDb } = await import("./skynt-price-driver");
+          await reloadSettingsFromDb();
+        } catch {}
+      }
+
+      res.json({ success: true, key, value });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ==================== ENGINE RESTART (Admin) ====================
+
+  app.post("/api/admin/engines/:name/restart", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    const { name } = req.params;
+
+    const engineMap: Record<string, () => Promise<{ stopped: boolean; started: boolean }>> = {
+      "iit-engine": async () => {
+        const { stopEngine, startEngine } = await import("./iit-engine");
+        stopEngine();
+        startEngine();
+        return { stopped: true, started: true };
+      },
+      "p2p-network": async () => {
+        const { stopP2PNetwork, startP2PNetwork } = await import("./p2p-network");
+        stopP2PNetwork();
+        startP2PNetwork();
+        return { stopped: true, started: true };
+      },
+      "treasury-yield": async () => {
+        const { stopTreasuryYieldEngine, startTreasuryYieldEngine } = await import("./treasury-yield");
+        stopTreasuryYieldEngine();
+        startTreasuryYieldEngine();
+        return { stopped: true, started: true };
+      },
+      "btc-zk-daemon": async () => {
+        const { stopBtcZkDaemon, startBtcZkDaemon } = await import("./btc-zk-daemon");
+        stopBtcZkDaemon();
+        startBtcZkDaemon();
+        return { stopped: true, started: true };
+      },
+      "self-fund-sentinel": async () => {
+        const { stopSelfFundSentinel, startSelfFundSentinel } = await import("./self-fund-gas");
+        stopSelfFundSentinel();
+        startSelfFundSentinel();
+        return { stopped: true, started: true };
+      },
+      "price-driver": async () => {
+        const { stopPriceDriver, startPriceDriver, reloadSettingsFromDb } = await import("./skynt-price-driver");
+        stopPriceDriver();
+        await reloadSettingsFromDb();
+        startPriceDriver();
+        return { stopped: true, started: true };
+      },
+      "background-miner": async () => {
+        const { stopAllMining } = await import("./background-miner");
+        stopAllMining();
+        return { stopped: true, started: false };
+      },
+      "dyson-sphere": async () => {
+        const { stopDysonEvolution, startDysonEvolution } = await import("./dyson-sphere-miner");
+        stopDysonEvolution();
+        startDysonEvolution();
+        return { stopped: true, started: true };
+      },
+    };
+
+    const handler = engineMap[name];
+    if (!handler) {
+      return res.status(404).json({
+        message: `Unknown engine: ${name}`,
+        validEngines: Object.keys(engineMap),
+      });
+    }
+
+    try {
+      const result = await handler();
+      console.log(`[Admin] Engine restart: ${name} | stopped=${result.stopped} started=${result.started}`);
+      res.json({ success: true, engine: name, ...result, restartedAt: new Date().toISOString() });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.use((err: any, _req: any, res: any, _next: any) => {
     console.error("[Global Error Handler]", err?.message || err);
     if (!res.headersSent) {

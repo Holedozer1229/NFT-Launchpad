@@ -65,6 +65,7 @@ const navGroups = [
       { path: "/price-driver", label: "Price Driver", icon: Zap, adminOnly: true },
       { path: "/treasury", label: "Treasury", icon: Vault, adminOnly: true },
       { path: "/wallet", label: "Wallet", icon: WalletCards, adminOnly: false },
+      { path: "/admin/engines", label: "Engine Console", icon: Cpu, adminOnly: true },
       { path: "/admin", label: "Admin", icon: Shield, adminOnly: true },
     ]
   },
@@ -99,6 +100,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/treasury": "Treasury Vault | SKYNT Protocol",
   "/wallet": "Wallet | SKYNT Protocol",
   "/price-driver": "Price Driver | SKYNT Protocol",
+  "/admin/engines": "Engine Console | SKYNT Protocol",
   "/admin": "Admin Console | SKYNT Protocol",
 };
 

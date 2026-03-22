@@ -1192,3 +1192,20 @@ export const insertYieldPositionSchema = createInsertSchema(yieldPositions).omit
 } as any);
 export type YieldPosition = typeof yieldPositions.$inferSelect;
 export type InsertYieldPosition = z.infer<typeof insertYieldPositionSchema>;
+
+// ==================== Protocol Settings ====================
+
+export const protocolSettings = pgTable("protocol_settings", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+  updatedBy: text("updated_by").notNull().default("system"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertProtocolSettingSchema = createInsertSchema(protocolSettings).omit({
+  id: true,
+  updatedAt: true,
+} as any);
+export type ProtocolSetting = typeof protocolSettings.$inferSelect;
+export type InsertProtocolSetting = z.infer<typeof insertProtocolSettingSchema>;

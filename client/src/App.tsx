@@ -43,6 +43,7 @@ const BtcZkDaemon = lazy(() => import("@/pages/BtcZkDaemon"));
 const PriceDriver = lazy(() => import("@/pages/PriceDriver"));
 const QuantumMiner = lazy(() => import("@/components/QuantumMiner").then(m => ({ default: m.QuantumMiner })));
 const UnifiedAIWidget = lazy(() => import("@/components/UnifiedAIWidget").then(m => ({ default: m.UnifiedAIWidget })));
+const AdminEngines = lazy(() => import("@/pages/AdminEngines"));
 
 function AdminGuard() {
   const { user } = useAuth();
@@ -56,6 +57,20 @@ function AdminGuard() {
     );
   }
   return <Admin />;
+}
+
+function AdminEnginesGuard() {
+  const { user } = useAuth();
+  if (!user?.isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4" data-testid="engines-denied">
+        <ShieldAlert className="w-12 h-12 text-red-400" />
+        <h2 className="font-heading text-xl font-bold text-foreground">Access Restricted</h2>
+        <p className="font-mono text-xs text-muted-foreground">Admin clearance required to access Engine Console.</p>
+      </div>
+    );
+  }
+  return <AdminEngines />;
 }
 
 function TreasuryVaultGuard() {
@@ -144,6 +159,7 @@ function AppRouter() {
             <Route path="/treasury" component={TreasuryVaultGuard} />
             <Route path="/wallet" component={WalletPage} />
             <Route path="/price-driver" component={PriceDriver} />
+            <Route path="/admin/engines" component={AdminEnginesGuard} />
             <Route path="/admin" component={AdminGuard} />
             <Route component={NotFound} />
           </Switch>
