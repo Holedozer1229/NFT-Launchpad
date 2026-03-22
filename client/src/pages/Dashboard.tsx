@@ -207,7 +207,7 @@ export default function Dashboard() {
     refetchInterval: 60000,
   });
 
-  const { data: healthScore } = useQuery<{ score: number; breakdown: Record<string, number>; label: string }>({
+  const { data: healthScore } = useQuery<{ score: number; grade: string; breakdown: Record<string, number>; label: string }>({
     queryKey: ["/api/treasury/health-score"],
     refetchInterval: 60_000,
   });
@@ -658,14 +658,22 @@ export default function Dashboard() {
             <h3 className="stat-label">Treasury Health Score</h3>
           </div>
           {healthScore && (
-            <span className={`text-xs font-heading px-2 py-0.5 rounded-full border ${
-              healthScore.score >= 80 ? "text-neon-green border-neon-green/30 bg-neon-green/10"
-              : healthScore.score >= 60 ? "text-neon-cyan border-neon-cyan/30 bg-neon-cyan/10"
-              : healthScore.score >= 40 ? "text-neon-orange border-neon-orange/30 bg-neon-orange/10"
-              : "text-plasma-red border-plasma-red/30 bg-plasma-red/10"
-            }`} data-testid="text-health-label">
-              {healthScore.label}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`font-mono text-lg font-bold ${
+                healthScore.score >= 80 ? "text-neon-green"
+                : healthScore.score >= 60 ? "text-neon-cyan"
+                : healthScore.score >= 40 ? "text-neon-orange"
+                : "text-plasma-red"
+              }`} data-testid="text-health-grade">{healthScore.grade}</span>
+              <span className={`text-xs font-heading px-2 py-0.5 rounded-full border ${
+                healthScore.score >= 80 ? "text-neon-green border-neon-green/30 bg-neon-green/10"
+                : healthScore.score >= 60 ? "text-neon-cyan border-neon-cyan/30 bg-neon-cyan/10"
+                : healthScore.score >= 40 ? "text-neon-orange border-neon-orange/30 bg-neon-orange/10"
+                : "text-plasma-red border-plasma-red/30 bg-plasma-red/10"
+              }`} data-testid="text-health-label">
+                {healthScore.label}
+              </span>
+            </div>
           )}
         </div>
         <div className="flex items-center gap-4 mb-3">
@@ -695,10 +703,10 @@ export default function Dashboard() {
           <div className="grid grid-cols-5 gap-2">
             {[
               { key: "ethRunway", label: "ETH Runway" },
-              { key: "buybackActivity", label: "Buybacks" },
-              { key: "burnPressure", label: "Burn Rate" },
-              { key: "p2pHealth", label: "P2P Peers" },
-              { key: "yieldHealth", label: "Yield Engine" },
+              { key: "buybackCapacity", label: "Buybacks" },
+              { key: "burnRateTrend", label: "Burn Rate" },
+              { key: "p2pNetwork", label: "P2P" },
+              { key: "yieldEngine", label: "Yield Engine" },
             ].map(({ key, label }) => {
               const val = healthScore.breakdown[key] ?? 0;
               const pct = Math.round((val / 20) * 100);

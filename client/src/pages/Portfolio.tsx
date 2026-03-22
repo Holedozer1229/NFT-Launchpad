@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  Wallet, Layers, TrendingUp, Coins, User, ArrowUpRight, Loader2, Image as ImageIcon
+  Wallet, Layers, TrendingUp, Coins, User, ArrowUpRight, Loader2, Image as ImageIcon, Vote, FileText
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
+import { useAccount } from "wagmi";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 
 interface PortfolioData {
   userId: number;
@@ -13,9 +16,14 @@ interface PortfolioData {
   totalEth: number;
   nftCount: number;
   nftsByRarity: Record<string, number>;
-  yieldShare: number;
+  totalYieldEarned: number;
+  yieldPositionCount: number;
   yieldApr: number;
   yieldRunning: boolean;
+  governance: {
+    proposalsCreated: number;
+    votesCast: number;
+  };
   recentNfts: {
     id: number;
     name: string;
@@ -45,17 +53,34 @@ function fmt(n: number, decimals = 4) {
 }
 
 export default function Portfolio() {
+  const { user } = useAuth();
+  const { isConnected, address } = useAccount();
+
   const { data, isLoading, isError } = useQuery<PortfolioData>({
     queryKey: ["/api/portfolio/me"],
     refetchInterval: 60_000,
+    enabled: !!user,
   });
+
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6" data-testid="portfolio-page">
+        <User className="w-12 h-12 text-muted-foreground opacity-30" />
+        <div className="text-center space-y-2">
+          <h2 className="font-heading text-lg">Sign in to view your portfolio</h2>
+          <p className="text-xs text-muted-foreground font-mono">Log in to see your wallets, NFTs, yield, and governance activity</p>
+        </div>
+        <Link href="/auth" className="text-neon-cyan text-sm hover:underline" data-testid="link-login">Go to Login</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6" data-testid="portfolio-page">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-heading neon-glow-cyan" data-testid="text-portfolio-title">Portfolio</h1>
-          <p className="text-sm text-muted-foreground mt-1">Your SKYNT holdings, NFTs, and yield position</p>
+          <p className="text-sm text-muted-foreground mt-1">Your SKYNT holdings, NFTs, yield positions and governance activity</p>
         </div>
         {data && (
           <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground" data-testid="text-portfolio-user">
@@ -65,9 +90,28 @@ export default function Portfolio() {
         )}
       </div>
 
+      {/* ── Wallet Connection Banner ──────────────────────────────────────── */}
+      {!isConnected && (
+        <div className="cosmic-card p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 border-dashed" data-testid="wallet-connect-banner">
+          <div className="flex-1">
+            <p className="text-sm font-heading text-neon-cyan">Connect your wallet</p>
+            <p className="text-[11px] text-muted-foreground font-mono mt-0.5">Connect to see live on-chain balances from your linked address</p>
+          </div>
+          <ConnectWalletButton showBalance={false} chainStatus="icon" accountStatus="address" label="Connect Wallet" />
+        </div>
+      )}
+
+      {isConnected && address && (
+        <div className="cosmic-card cosmic-card-cyan p-3 flex items-center gap-3" data-testid="wallet-connected-banner">
+          <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
+          <span className="font-mono text-xs text-neon-cyan">Wallet: {address.slice(0, 8)}…{address.slice(-6)}</span>
+          <span className="text-[9px] text-muted-foreground ml-auto">On-chain</span>
+        </div>
+      )}
+
       {isError && (
-        <div className="cosmic-card p-6 text-center text-plasma-red font-mono text-xs" data-testid="portfolio-error">
-          Failed to load portfolio — please log in to continue.
+        <div className="cosmic-card p-4 text-center text-plasma-red font-mono text-xs" data-testid="portfolio-error">
+          Failed to load portfolio data
         </div>
       )}
 
@@ -77,7 +121,7 @@ export default function Portfolio() {
           {
             label: "SKYNT Balance",
             value: isLoading ? null : `${fmt(data?.totalSkynt ?? 0, 2)}`,
-            sub: "across all wallets",
+            sub: `across ${data?.walletCount ?? 0} wallets`,
             icon: Coins,
             color: "text-neon-cyan",
             card: "cosmic-card-cyan",
@@ -86,7 +130,7 @@ export default function Portfolio() {
           {
             label: "ETH Holdings",
             value: isLoading ? null : `${fmt(data?.totalEth ?? 0, 5)} ETH`,
-            sub: `${data?.walletCount ?? 0} wallets`,
+            sub: "stored balances",
             icon: Wallet,
             color: "text-neon-magenta",
             card: "cosmic-card-magenta",
@@ -102,9 +146,9 @@ export default function Portfolio() {
             testId: "text-portfolio-nfts",
           },
           {
-            label: "Yield Share",
-            value: isLoading ? null : `${fmt(data?.yieldShare ?? 0, 4)} SKYNT`,
-            sub: `${data?.yieldApr ?? 0}% APR ${data?.yieldRunning ? "↑" : "(paused)"}`,
+            label: "Yield Earned",
+            value: isLoading ? null : `${fmt(data?.totalYieldEarned ?? 0, 4)} SKYNT`,
+            sub: `${data?.yieldPositionCount ?? 0} active positions`,
             icon: TrendingUp,
             color: "text-neon-green",
             card: "cosmic-card-green",
@@ -139,7 +183,13 @@ export default function Portfolio() {
               {[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
           ) : (data?.wallets ?? []).length === 0 ? (
-            <p className="text-xs text-muted-foreground font-mono text-center py-4">No wallets yet</p>
+            <div className="flex flex-col items-center gap-3 py-6 text-muted-foreground">
+              <Wallet className="w-8 h-8 opacity-20" />
+              <p className="text-xs font-mono">No wallets yet</p>
+              <Link href="/wallet" className="text-[10px] text-neon-cyan hover:underline flex items-center gap-1" data-testid="link-create-wallet">
+                <ArrowUpRight className="w-3 h-3" /> Create a wallet
+              </Link>
+            </div>
           ) : (
             <div className="space-y-2">
               {(data?.wallets ?? []).map((w) => (
@@ -229,31 +279,65 @@ export default function Portfolio() {
         </div>
       )}
 
-      {/* ── Yield Info ─────────────────────────────────────────────────────── */}
-      <div className="cosmic-card cosmic-card-green p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="w-4 h-4 text-neon-green" />
-          <h3 className="font-heading text-sm uppercase tracking-wider">Yield Position</h3>
-          <span className={`ml-auto text-[9px] font-heading px-2 py-0.5 rounded-full border ${data?.yieldRunning ? "text-neon-green border-neon-green/30 bg-neon-green/10" : "text-muted-foreground border-border"}`}>
-            {data?.yieldRunning ? "ACTIVE" : "PAUSED"}
-          </span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* ── Yield Position ─────────────────────────────────────────────── */}
+        <div className="cosmic-card cosmic-card-green p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp className="w-4 h-4 text-neon-green" />
+            <h3 className="font-heading text-sm uppercase tracking-wider">Yield Position</h3>
+            <span className={`ml-auto text-[9px] font-heading px-2 py-0.5 rounded-full border ${data?.yieldRunning ? "text-neon-green border-neon-green/30 bg-neon-green/10" : "text-muted-foreground border-border"}`}>
+              {data?.yieldRunning ? "ACTIVE" : "PAUSED"}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "Total Earned", value: isLoading ? "—" : `${fmt(data?.totalYieldEarned ?? 0, 4)} SKYNT`, testId: "text-yield-earned" },
+              { label: "Active Positions", value: isLoading ? "—" : (data?.yieldPositionCount ?? 0).toString(), testId: "text-yield-positions" },
+              { label: "Current APR", value: isLoading ? "—" : `${data?.yieldApr ?? 0}%`, testId: "text-yield-apr" },
+              { label: "Status", value: data?.yieldRunning ? "Compounding" : "Engine offline", testId: "text-yield-status" },
+            ].map(({ label, value, testId }) => (
+              <div key={label} className="bg-black/30 rounded p-3">
+                <div className="text-[9px] font-heading text-muted-foreground uppercase tracking-widest mb-1">{label}</div>
+                <div className="font-mono text-sm text-neon-green" data-testid={testId}>{value}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            <Link href="/yield" className="text-[10px] text-neon-cyan hover:underline flex items-center gap-1" data-testid="link-yield-page">
+              <ArrowUpRight className="w-3 h-3" /> Open Yield Generator
+            </Link>
+          </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {[
-            { label: "Yield Share Estimate", value: isLoading ? "—" : `${fmt(data?.yieldShare ?? 0, 4)} SKYNT` },
-            { label: "APR", value: isLoading ? "—" : `${data?.yieldApr ?? 0}%` },
-            { label: "Status", value: data?.yieldRunning ? "Compounding" : "Engine offline" },
-          ].map(({ label, value }) => (
-            <div key={label} className="bg-black/30 rounded p-3">
-              <div className="text-[9px] font-heading text-muted-foreground uppercase tracking-widest mb-1">{label}</div>
-              <div className="font-mono text-sm text-neon-green">{value}</div>
+
+        {/* ── Governance Activity ────────────────────────────────────────── */}
+        <div className="cosmic-card cosmic-card-magenta p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Vote className="w-4 h-4 text-neon-magenta" />
+            <h3 className="font-heading text-sm uppercase tracking-wider">Governance Activity</h3>
+          </div>
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2].map(i => <Skeleton key={i} className="h-16 w-full" />)}
             </div>
-          ))}
-        </div>
-        <div className="mt-3">
-          <Link href="/yield" className="text-[10px] text-neon-cyan hover:underline flex items-center gap-1" data-testid="link-yield-page">
-            <ArrowUpRight className="w-3 h-3" /> Open Yield Generator
-          </Link>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-black/30 rounded p-4 text-center" data-testid="text-governance-votes">
+                <Vote className="w-5 h-5 text-neon-magenta mx-auto mb-1" />
+                <div className="font-mono text-2xl font-bold text-neon-magenta">{data?.governance?.votesCast ?? 0}</div>
+                <div className="text-[9px] font-heading text-muted-foreground uppercase tracking-wider mt-1">Votes Cast</div>
+              </div>
+              <div className="bg-black/30 rounded p-4 text-center" data-testid="text-governance-proposals">
+                <FileText className="w-5 h-5 text-neon-cyan mx-auto mb-1" />
+                <div className="font-mono text-2xl font-bold text-neon-cyan">{data?.governance?.proposalsCreated ?? 0}</div>
+                <div className="text-[9px] font-heading text-muted-foreground uppercase tracking-wider mt-1">Proposals Created</div>
+              </div>
+            </div>
+          )}
+          <div className="mt-3">
+            <Link href="/governance" className="text-[10px] text-neon-cyan hover:underline flex items-center gap-1" data-testid="link-governance-page">
+              <ArrowUpRight className="w-3 h-3" /> Open Governance
+            </Link>
+          </div>
         </div>
       </div>
     </div>

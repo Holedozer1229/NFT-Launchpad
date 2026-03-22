@@ -5094,7 +5094,7 @@ STYLE:
   });
 
   // ── Treasury Health Score ──────────────────────────────────────────────────
-  let _healthScoreCache: { score: number; breakdown: Record<string, number>; label: string; cachedAt: number } | null = null;
+  let _healthScoreCache: { score: number; grade: string; breakdown: Record<string, number>; label: string; cachedAt: number } | null = null;
   const HEALTH_SCORE_TTL_MS = 60_000;
 
   app.get("/api/treasury/health-score", async (_req, res) => {
@@ -5124,11 +5124,19 @@ STYLE:
       const yieldScore = ty.running ? Math.min(20, Math.round((ty.compoundIntervalMs > 0 ? 15 : 5) + (ty.totalYieldAccrued > 0 ? 5 : 0))) : 0;
 
       const total = ethRunwayScore + buybackScore + burnScore + p2pScore + yieldScore;
+      const grade = total >= 90 ? "A+" : total >= 80 ? "A" : total >= 70 ? "B+" : total >= 60 ? "B" : total >= 50 ? "C+" : total >= 40 ? "C" : total >= 30 ? "D" : "F";
       const label = total >= 80 ? "Excellent" : total >= 60 ? "Good" : total >= 40 ? "Fair" : total >= 20 ? "Weak" : "Critical";
 
       _healthScoreCache = {
         score: total,
-        breakdown: { ethRunway: ethRunwayScore, buybackActivity: buybackScore, burnPressure: burnScore, p2pHealth: p2pScore, yieldHealth: yieldScore },
+        grade,
+        breakdown: {
+          ethRunway: ethRunwayScore,
+          buybackCapacity: buybackScore,
+          burnRateTrend: burnScore,
+          p2pNetwork: p2pScore,
+          yieldEngine: yieldScore,
+        },
         label,
         cachedAt: Date.now(),
       };
@@ -5140,9 +5148,9 @@ STYLE:
 
   // ── Portfolio (auth required) ─────────────────────────────────────────────
   app.get("/api/portfolio/me", async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const userId = req.session.userId as number;
+      const userId = (req.user as any).id as number;
       const [wallets, nfts, user] = await Promise.all([
         storage.getWalletsByUser(userId),
         storage.getNftsByUser(userId),
@@ -5152,7 +5160,7 @@ STYLE:
       const { getTreasuryYieldState } = await import("./treasury-yield");
       const yieldState = getTreasuryYieldState();
 
-      // Aggregate wallet balances
+      // Aggregate wallet balances from stored rows
       const totalSkynt = wallets.reduce((sum, w) => sum + (parseFloat(w.skyntBalance ?? "0") || 0), 0);
       const totalEth = wallets.reduce((sum, w) => sum + (parseFloat(w.ethBalance ?? "0") || 0), 0);
 
@@ -5163,9 +5171,27 @@ STYLE:
         nftsByRarity[r] = (nftsByRarity[r] ?? 0) + 1;
       }
 
-      // Yield share estimate
-      const totalPoolSkynt = yieldState.skyntPoolBalance;
-      const yieldShare = totalPoolSkynt > 0 ? (totalSkynt / totalPoolSkynt) * yieldState.totalYieldAccrued : 0;
+      // Yield: sum accrued rewards from yield positions table
+      const { pool: dbPool } = await import("./db");
+      const [yieldPositionsResult, proposalsResult, votesResult] = await Promise.all([
+        dbPool.query(
+          `SELECT COALESCE(SUM(accrued_rewards), 0) AS total_earned, COUNT(*) AS position_count FROM yield_positions WHERE user_id = $1`,
+          [userId]
+        ).catch(() => ({ rows: [{ total_earned: 0, position_count: 0 }] })),
+        dbPool.query(
+          `SELECT COUNT(*) AS count FROM governance_proposals WHERE proposer_id = $1`,
+          [userId]
+        ).catch(() => ({ rows: [{ count: 0 }] })),
+        dbPool.query(
+          `SELECT COUNT(*) AS count FROM governance_votes WHERE voter_id = $1`,
+          [userId]
+        ).catch(() => ({ rows: [{ count: 0 }] })),
+      ]);
+
+      const totalYieldEarned = parseFloat(yieldPositionsResult.rows[0]?.total_earned ?? "0");
+      const yieldPositionCount = parseInt(yieldPositionsResult.rows[0]?.position_count ?? "0");
+      const proposalsCreated = parseInt(proposalsResult.rows[0]?.count ?? "0");
+      const votesCast = parseInt(votesResult.rows[0]?.count ?? "0");
 
       res.json({
         userId,
@@ -5175,9 +5201,14 @@ STYLE:
         totalEth,
         nftCount: nfts.length,
         nftsByRarity,
-        yieldShare,
+        totalYieldEarned,
+        yieldPositionCount,
         yieldApr: yieldState.aprPercent ?? 0,
         yieldRunning: yieldState.running,
+        governance: {
+          proposalsCreated,
+          votesCast,
+        },
         recentNfts: nfts.slice(0, 6).map(n => ({
           id: n.id, name: n.name, rarity: n.rarity, imageUrl: n.imageUrl, mintedAt: n.mintedAt,
         })),

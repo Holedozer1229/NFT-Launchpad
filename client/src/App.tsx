@@ -111,12 +111,13 @@ function AppRouter() {
     );
   }
 
-  if (location === "/lab") {
+  if (location === "/lab" || location === "/buybacks") {
+    const PublicPage = location === "/lab" ? PublicLab : BuybackFeed;
     return (
       <SidebarLayout>
         <PageTransition key={location}>
           <Suspense fallback={<PageLoader />}>
-            <PublicLab />
+            <PublicPage />
           </Suspense>
         </PageTransition>
       </SidebarLayout>
