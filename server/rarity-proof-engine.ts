@@ -45,7 +45,7 @@ function getRarityPercentile(rarity: string): string {
 
 function getPhiBoost(): number {
   try {
-    const result = qgMiner.getLastResult?.() ?? null;
+    const result = (qgMiner as any).getLastResult?.() ?? null;
     if (result && typeof result === "object" && "phiTotal" in result) {
       return Math.min(Math.exp(Number(result.phiTotal) || 0), 2.0);
     }

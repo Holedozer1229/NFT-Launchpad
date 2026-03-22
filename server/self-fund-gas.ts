@@ -42,7 +42,7 @@ export interface GasFundingEvent {
   reserveBalance: number;
   yieldAllocated: number;
   phase: FundingPhase;
-  status: "executed" | "pending" | "failed";
+  status: "executed" | "pending" | "failed" | "covered";
   txHash: string | null;
   createdAt: Date;
 }
@@ -195,7 +195,8 @@ async function sentinelTick() {
 
       // Attempt real sweep if treasury key available
       try {
-        const { sweepGasFromYield } = await import("./alchemy-engine");
+        const alch = await import("./alchemy-engine") as any;
+        const sweepGasFromYield = alch.sweepGasFromYield;
         if (typeof sweepGasFromYield === "function") {
           const result = await sweepGasFromYield(fundAmount);
           if (result?.txHash) {
@@ -309,4 +310,59 @@ export function getSelfFundStatus(): SentinelStatus {
 
 export function getRecentGasFundingEvents(limit = 20): GasFundingEvent[] {
   return _fundingEvents.slice(-limit).reverse();
+}
+
+// ─── OIYE Gas Coverage for all transactions ───────────────────────────────────
+//
+// Estimated gas costs by operation type (ETH at ~30 gwei):
+export const OIYE_GAS_ESTIMATES: Record<string, number> = {
+  nft_mint:       0.000_180,  // ~180k gas
+  bridge:         0.000_220,  // ~220k gas (cross-chain)
+  send:           0.000_042,  // ~42k gas  (simple transfer)
+  swap:           0.000_120,  // ~120k gas (DEX swap)
+  marketplace:    0.000_080,  // ~80k gas  (list/buy)
+  stake:          0.000_060,  // ~60k gas  (staking op)
+  claim:          0.000_040,  // ~40k gas  (reward claim)
+  default:        0.000_042,  // ~42k gas  (fallback)
+};
+
+/**
+ * Request OIYE to cover gas for a transaction.
+ * Deducts from the gas reserve if available.
+ * Always call this before submitting any transaction.
+ */
+export function requestGasCoverage(
+  opType: keyof typeof OIYE_GAS_ESTIMATES | string = "default",
+  customEth?: number
+): { covered: boolean; ethUsed: number; reserve: number } {
+  const estimatedEth = customEth ?? (OIYE_GAS_ESTIMATES[opType] ?? OIYE_GAS_ESTIMATES.default);
+
+  if (_gasReserveEth < estimatedEth) {
+    // Reserve insufficient — let transaction proceed but mark uncovered
+    return { covered: false, ethUsed: 0, reserve: _gasReserveEth };
+  }
+
+  const before = _gasReserveEth;
+  _gasReserveEth -= estimatedEth;
+  _totalEthFunded += estimatedEth;
+
+  const event = makeEvent({
+    epoch: 0,
+    triggerReason: `oiye_coverage:${opType}`,
+    fundingMethod: "oiye_reserve",
+    ethFunded: estimatedEth,
+    stxConverted: 0,
+    gasBefore: before,
+    gasAfter: before,
+    reserveBalance: _gasReserveEth,
+    yieldAllocated: 0,
+    phase: _phase,
+    status: "covered",
+    txHash: null,
+  });
+  pushEvent(event);
+  updatePhase(0, _gasReserveEth);
+
+  console.log(`[OIYE] Gas covered: ${estimatedEth.toFixed(8)} ETH for ${opType} | reserve=${_gasReserveEth.toFixed(8)} ETH`);
+  return { covered: true, ethUsed: estimatedEth, reserve: _gasReserveEth };
 }

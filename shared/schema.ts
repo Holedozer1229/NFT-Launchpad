@@ -19,7 +19,7 @@ export const users = pgTable("users", {
   mfaBackupCodes: text("mfa_backup_codes"),
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({ id: true });
+export const insertUserSchema = createInsertSchema(users).omit({ id: true } as any);
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
@@ -255,7 +255,7 @@ export const launches = pgTable("launches", {
 export const insertLaunchSchema = createInsertSchema(launches).omit({ 
   id: true,
   minted: true 
-});
+} as any);
 
 export type Launch = typeof launches.$inferSelect;
 export type InsertLaunch = z.infer<typeof insertLaunchSchema>;
@@ -271,7 +271,7 @@ export const wallets = pgTable("wallets", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertWalletSchema = createInsertSchema(wallets).omit({ id: true, createdAt: true });
+export const insertWalletSchema = createInsertSchema(wallets).omit({ id: true, createdAt: true } as any);
 export type Wallet = typeof wallets.$inferSelect;
 export type InsertWallet = z.infer<typeof insertWalletSchema>;
 
@@ -290,7 +290,7 @@ export const walletTransactions = pgTable("wallet_transactions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertWalletTransactionSchema = createInsertSchema(walletTransactions).omit({ id: true, createdAt: true });
+export const insertWalletTransactionSchema = createInsertSchema(walletTransactions).omit({ id: true, createdAt: true } as any);
 export type WalletTransaction = typeof walletTransactions.$inferSelect;
 export type InsertWalletTransaction = z.infer<typeof insertWalletTransactionSchema>;
 
@@ -304,7 +304,7 @@ export const miners = pgTable("miners", {
 
 export const insertMinerSchema = createInsertSchema(miners).omit({ 
   id: true 
-});
+} as any);
 
 export type Miner = typeof miners.$inferSelect;
 export type InsertMiner = z.infer<typeof insertMinerSchema>;
@@ -327,7 +327,7 @@ export const nfts = pgTable("nfts", {
   openseaListingId: text("opensea_listing_id"),
 });
 
-export const insertNftSchema = createInsertSchema(nfts).omit({ id: true });
+export const insertNftSchema = createInsertSchema(nfts).omit({ id: true } as any);
 export type Nft = typeof nfts.$inferSelect;
 export type InsertNft = z.infer<typeof insertNftSchema>;
 
@@ -345,7 +345,7 @@ export const bridgeTransactions = pgTable("bridge_transactions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertBridgeTransactionSchema = createInsertSchema(bridgeTransactions).omit({ id: true, createdAt: true });
+export const insertBridgeTransactionSchema = createInsertSchema(bridgeTransactions).omit({ id: true, createdAt: true } as any);
 export type BridgeTransaction = typeof bridgeTransactions.$inferSelect;
 export type InsertBridgeTransaction = z.infer<typeof insertBridgeTransactionSchema>;
 
@@ -357,7 +357,7 @@ export const guardians = pgTable("guardians", {
   publicKey: text("public_key"),
 });
 
-export const insertGuardianSchema = createInsertSchema(guardians).omit({ id: true });
+export const insertGuardianSchema = createInsertSchema(guardians).omit({ id: true } as any);
 export type Guardian = typeof guardians.$inferSelect;
 export type InsertGuardian = z.infer<typeof insertGuardianSchema>;
 
@@ -375,7 +375,7 @@ export const yieldStrategies = pgTable("yield_strategies", {
   description: text("description").notNull(),
 });
 
-export const insertYieldStrategySchema = createInsertSchema(yieldStrategies).omit({ id: true });
+export const insertYieldStrategySchema = createInsertSchema(yieldStrategies).omit({ id: true } as any);
 export type YieldStrategy = typeof yieldStrategies.$inferSelect;
 export type InsertYieldStrategy = z.infer<typeof insertYieldStrategySchema>;
 
@@ -697,7 +697,7 @@ export const contractDeployments = pgTable("contract_deployments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertContractDeploymentSchema = createInsertSchema(contractDeployments).omit({ id: true, createdAt: true });
+export const insertContractDeploymentSchema = createInsertSchema(contractDeployments).omit({ id: true, createdAt: true } as any);
 export type ContractDeployment = typeof contractDeployments.$inferSelect;
 export type InsertContractDeployment = z.infer<typeof insertContractDeploymentSchema>;
 
@@ -718,7 +718,7 @@ export const gameScores = pgTable("game_scores", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertGameScoreSchema = createInsertSchema(gameScores).omit({ id: true, createdAt: true, claimed: true });
+export const insertGameScoreSchema = createInsertSchema(gameScores).omit({ id: true, createdAt: true, claimed: true } as any);
 export type GameScore = typeof gameScores.$inferSelect;
 export type InsertGameScore = z.infer<typeof insertGameScoreSchema>;
 
@@ -743,7 +743,7 @@ export const marketplaceListings = pgTable("marketplace_listings", {
   soldAt: timestamp("sold_at"),
 });
 
-export const insertMarketplaceListingSchema = createInsertSchema(marketplaceListings).omit({ id: true, createdAt: true, soldAt: true });
+export const insertMarketplaceListingSchema = createInsertSchema(marketplaceListings).omit({ id: true, createdAt: true, soldAt: true } as any);
 export type MarketplaceListing = typeof marketplaceListings.$inferSelect;
 export type InsertMarketplaceListing = z.infer<typeof insertMarketplaceListingSchema>;
 
@@ -780,7 +780,7 @@ export const insertPowChallengeSchema = createInsertSchema(powChallenges).omit({
   id: true,
   createdAt: true,
   solutionsCount: true,
-});
+} as any);
 export type PowChallenge = typeof powChallenges.$inferSelect;
 export type InsertPowChallenge = z.infer<typeof insertPowChallengeSchema>;
 
@@ -811,7 +811,7 @@ export const powSubmissions = pgTable("pow_submissions", {
 export const insertPowSubmissionSchema = createInsertSchema(powSubmissions).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 export type PowSubmission = typeof powSubmissions.$inferSelect;
 export type InsertPowSubmission = z.infer<typeof insertPowSubmissionSchema>;
 
@@ -830,7 +830,7 @@ export const zkWormholes = pgTable("zk_wormholes", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertZkWormholeSchema = createInsertSchema(zkWormholes).omit({ id: true, createdAt: true });
+export const insertZkWormholeSchema = createInsertSchema(zkWormholes).omit({ id: true, createdAt: true } as any);
 export type ZkWormhole = typeof zkWormholes.$inferSelect;
 export type InsertZkWormhole = z.infer<typeof insertZkWormholeSchema>;
 
@@ -853,7 +853,7 @@ export const zkWormholeTransfers = pgTable("zk_wormhole_transfers", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertZkWormholeTransferSchema = createInsertSchema(zkWormholeTransfers).omit({ id: true, createdAt: true });
+export const insertZkWormholeTransferSchema = createInsertSchema(zkWormholeTransfers).omit({ id: true, createdAt: true } as any);
 export type ZkWormholeTransfer = typeof zkWormholeTransfers.$inferSelect;
 export type InsertZkWormholeTransfer = z.infer<typeof insertZkWormholeTransferSchema>;
 
@@ -872,7 +872,7 @@ export const rarityCertificates = pgTable("rarity_certificates", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertRarityCertificateSchema = createInsertSchema(rarityCertificates).omit({ id: true, createdAt: true });
+export const insertRarityCertificateSchema = createInsertSchema(rarityCertificates).omit({ id: true, createdAt: true } as any);
 export type RarityCertificate = typeof rarityCertificates.$inferSelect;
 export type InsertRarityCertificate = z.infer<typeof insertRarityCertificateSchema>;
 
@@ -893,7 +893,7 @@ export const rocketBabeModels = pgTable("rocket_babe_models", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertRocketBabeModelSchema = createInsertSchema(rocketBabeModels).omit({ id: true, createdAt: true });
+export const insertRocketBabeModelSchema = createInsertSchema(rocketBabeModels).omit({ id: true, createdAt: true } as any);
 export type RocketBabeModel = typeof rocketBabeModels.$inferSelect;
 export type InsertRocketBabeModel = z.infer<typeof insertRocketBabeModelSchema>;
 
@@ -926,7 +926,7 @@ export const airdrops = pgTable("airdrops", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertAirdropSchema = createInsertSchema(airdrops).omit({ id: true, claimedCount: true, createdAt: true });
+export const insertAirdropSchema = createInsertSchema(airdrops).omit({ id: true, claimedCount: true, createdAt: true } as any);
 export type Airdrop = typeof airdrops.$inferSelect;
 export type InsertAirdrop = z.infer<typeof insertAirdropSchema>;
 
@@ -940,7 +940,7 @@ export const airdropClaims = pgTable("airdrop_claims", {
   claimedAt: timestamp("claimed_at").defaultNow(),
 });
 
-export const insertAirdropClaimSchema = createInsertSchema(airdropClaims).omit({ id: true, claimedAt: true });
+export const insertAirdropClaimSchema = createInsertSchema(airdropClaims).omit({ id: true, claimedAt: true } as any);
 export type AirdropClaim = typeof airdropClaims.$inferSelect;
 export type InsertAirdropClaim = z.infer<typeof insertAirdropClaimSchema>;
 
@@ -981,7 +981,7 @@ export const insertKycSubmissionSchema = createInsertSchema(kycSubmissions).omit
   reviewedAt: true,
   submittedAt: true,
   updatedAt: true,
-});
+} as any);
 export type KycSubmission = typeof kycSubmissions.$inferSelect;
 export type InsertKycSubmission = z.infer<typeof insertKycSubmissionSchema>;
 
@@ -1019,7 +1019,7 @@ export const insertGovernanceProposalSchema = createInsertSchema(governancePropo
   votesAbstain: true,
   executedAt: true,
   createdAt: true,
-});
+} as any);
 export type GovernanceProposal = typeof governanceProposals.$inferSelect;
 export type InsertGovernanceProposal = z.infer<typeof insertGovernanceProposalSchema>;
 
@@ -1039,7 +1039,7 @@ export const governanceVotes = pgTable("governance_votes", {
 export const insertGovernanceVoteSchema = createInsertSchema(governanceVotes).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 export type GovernanceVote = typeof governanceVotes.$inferSelect;
 export type InsertGovernanceVote = z.infer<typeof insertGovernanceVoteSchema>;
 
@@ -1090,7 +1090,7 @@ export const btcZkEpochs = pgTable("btc_zk_epochs", {
 export const insertBtcZkEpochSchema = createInsertSchema(btcZkEpochs).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 export type BtcZkEpochRow = typeof btcZkEpochs.$inferSelect;
 export type InsertBtcZkEpoch = z.infer<typeof insertBtcZkEpochSchema>;
 
@@ -1121,7 +1121,7 @@ export const spectralPowProofs = pgTable("spectral_pow_proofs", {
 export const insertSpectralPowProofSchema = createInsertSchema(spectralPowProofs).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 export type SpectralPowProofRow = typeof spectralPowProofs.$inferSelect;
 export type InsertSpectralPowProof = z.infer<typeof insertSpectralPowProofSchema>;
 
@@ -1147,7 +1147,7 @@ export const gasFundingEvents = pgTable("gas_funding_events", {
 export const insertGasFundingEventSchema = createInsertSchema(gasFundingEvents).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 export type GasFundingEventRow = typeof gasFundingEvents.$inferSelect;
 export type InsertGasFundingEvent = z.infer<typeof insertGasFundingEventSchema>;
 
@@ -1167,6 +1167,6 @@ export const insertYieldPositionSchema = createInsertSchema(yieldPositions).omit
   id: true,
   stakedAt: true,
   lastRewardAt: true,
-});
+} as any);
 export type YieldPosition = typeof yieldPositions.$inferSelect;
 export type InsertYieldPosition = z.infer<typeof insertYieldPositionSchema>;

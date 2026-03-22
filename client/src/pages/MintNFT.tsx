@@ -107,9 +107,12 @@ function StarshipMintModal({ flight, onClose }: StarshipMintModalProps) {
         engineMint: result.engineMint || null,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
+      const gasNote = result.oiyeGasCovered
+        ? ` ⛽ Gas covered by OIYE (${(result.oiyeGasEth ?? 0).toFixed(6)} ETH).`
+        : "";
       toast({
         title: "STARSHIP ARTIFACT MINTED",
-        description: `${tier.label} — ${flight.missionName} inscribed on ${chain.name}.`,
+        description: `${tier.label} — ${flight.missionName} inscribed on ${chain.name}.${gasNote}`,
         variant: "default",
       });
     } catch (err: any) {

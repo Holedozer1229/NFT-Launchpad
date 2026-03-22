@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, ACCESS_TIERS, type ChainId, type RarityTier, governanceProposals, governanceVotes } from "@shared/schema";
+import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, ACCESS_TIERS, type ChainId, type RarityTier, type InsertNft, type InsertBridgeTransaction, governanceProposals, governanceVotes } from "@shared/schema";
 import { randomBytes, createHash } from "crypto";
 import { recoverMessageAddress } from "viem";
 import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, getTreasuryGasStatus, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./alchemy-engine";
@@ -21,6 +21,7 @@ import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaN
 import * as liveChain from "./live-chain";
 import { dysonMiner } from "./dyson-sphere-miner";
 import { transmitEthereum, transmitStacks } from "./chain-transmit";
+import { requestGasCoverage, OIYE_GAS_ESTIMATES } from "./self-fund-gas";
 
 // Toy Hamiltonian constant
 const DEFAULT_COUPLING = 1.0;
@@ -1006,6 +1007,12 @@ STYLE:
       let networkFee: string | null = null;
       let status = "completed";
 
+      // OIYE covers gas for this transaction
+      const gasCoverage = requestGasCoverage("send");
+      if (gasCoverage.covered) {
+        networkFee = `${gasCoverage.ethUsed.toFixed(8)} ETH (OIYE)`;
+      }
+
       if (token === "ETH" || token === "STX") {
         try {
           const result = token === "ETH"
@@ -1013,7 +1020,9 @@ STYLE:
             : await transmitStacks(toAddress, amount);
           txHash = result.txHash;
           explorerUrl = result.explorerUrl;
-          networkFee = result.networkFee ?? null;
+          networkFee = gasCoverage.covered
+            ? `${gasCoverage.ethUsed.toFixed(8)} ETH (OIYE)`
+            : (result.networkFee ?? networkFee);
           status = result.status;
         } catch (transmitError: any) {
           const msg = transmitError instanceof Error ? transmitError.message : "Chain transmit failed";
@@ -1037,7 +1046,7 @@ STYLE:
         networkFee,
       });
 
-      res.json({ transaction, newBalance });
+      res.json({ transaction, newBalance, oiyeGasCovered: gasCoverage.covered, oiyeReserve: gasCoverage.reserve });
     } catch (error: any) {
       res.status(500).json({ message: safeError(error, "Failed to send transaction") });
     }
@@ -1295,9 +1304,10 @@ STYLE:
     try {
       const parsed = insertNftSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json(parsed.error);
+      const nftData_ = parsed.data as any;
 
       // Deduct minting cost from user wallet (derived from RARITY_TIERS)
-      const rarity = parsed.data.rarity as string;
+      const rarity = nftData_.rarity as string;
       const tier = RARITY_TIERS[rarity.toLowerCase() as RarityTier];
       if (!tier) return res.status(400).json({ message: "Invalid rarity tier" });
       const cost = parseFloat(tier.price);
@@ -1310,6 +1320,10 @@ STYLE:
       const currentEth = parseFloat(wallet.balanceEth);
       if (currentEth < cost) return res.status(400).json({ message: `Insufficient ETH balance. Minting a ${rarity} NFT costs ${cost} ETH.` });
 
+      // OIYE covers gas for this mint
+      const mintGas = requestGasCoverage("nft_mint");
+      const mintGasNote = mintGas.covered ? `${mintGas.ethUsed.toFixed(8)} ETH (OIYE)` : null;
+
       await storage.updateWalletBalance(wallet.id, "ETH", (currentEth - cost).toString());
       await storage.createTransaction({
         walletId: wallet.id,
@@ -1318,12 +1332,13 @@ STYLE:
         token: "ETH",
         status: "completed",
         txHash: "0x" + randomBytes(32).toString("hex"),
+        networkFee: mintGasNote,
       });
 
-      const chainId = (parsed.data.chain || "ethereum") as ChainId;
+      const chainId = (nftData_.chain || "ethereum") as ChainId;
       const chainData = SUPPORTED_CHAINS[chainId];
       const contractAddr = chainData?.contractAddress || "0x0000000000000000000000000000000000000000";
-      const tokenIdClean = parsed.data.tokenId.replace(/\.\.\./g, "").replace("0x", "");
+      const tokenIdClean = nftData_.tokenId.replace(/\.\.\./g, "").replace("0x", "");
 
       let engineResult: { transactionId?: string; txHash?: string | null; status?: string } = {};
       const useEngine = isEngineConfigured() && (chainId === "zksync" || chainId === "ethereum" || chainId === "base" || chainId === "arbitrum" || chainId === "polygon");
@@ -1331,7 +1346,7 @@ STYLE:
         try {
           const tokenIdNum = BigInt(parseInt(tokenIdClean.slice(0, 8), 16) % 1000);
           engineResult = await mintNftViaEngine({
-            recipientAddress: parsed.data.owner.startsWith("0x") ? parsed.data.owner : TREASURY_WALLET,
+            recipientAddress: nftData_.owner.startsWith("0x") ? nftData_.owner : TREASURY_WALLET,
             tokenId: tokenIdNum,
             quantity: 1n,
           });
@@ -1343,7 +1358,7 @@ STYLE:
       const supported = isOpenSeaSupported(chainId);
       const openseaUrl = supported ? getOpenSeaNftUrl(chainId, contractAddr, tokenIdClean) : null;
       const nftData = {
-        ...parsed.data,
+        ...nftData_,
         openseaUrl,
         openseaStatus: supported ? "pending" : "unsupported",
       };
@@ -1355,9 +1370,9 @@ STYLE:
           chain: chainId,
           contractAddress: contractAddr,
           tokenId: tokenIdClean,
-          price: parsed.data.price,
-          sellerAddress: parsed.data.owner,
-          title: parsed.data.title,
+          price: nftData_.price,
+          sellerAddress: nftData_.owner,
+          title: nftData_.title,
         }).then(async (result) => {
           const status = result.success ? "listed" : "submitted";
           await storage.updateNftOpenSea(nft.id, result.openseaUrl || openseaUrl, status, result.listingId);
@@ -1381,6 +1396,9 @@ STYLE:
           contract: ENGINE_CONTRACT,
           treasury: TREASURY_WALLET,
         } : null,
+        oiyeGasCovered: mintGas.covered,
+        oiyeGasEth: mintGas.covered ? mintGas.ethUsed : 0,
+        oiyeReserve: mintGas.reserve,
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to create NFT" });
@@ -1538,12 +1556,13 @@ STYLE:
         txHash: "0x" + randomBytes(32).toString("hex"),
       });
       if (!parsed.success) return res.status(400).json(parsed.error);
+      const bridgeData_ = parsed.data as any;
 
       // Apply bridge fee and deduct from wallet
-      const bridgeAmount = parseFloat(parsed.data.amount);
+      const bridgeAmount = parseFloat(bridgeData_.amount);
       const fee = bridgeAmount * BRIDGE_FEE_BPS / 10000;
       const totalDeduction = bridgeAmount + fee;
-      const token = (parsed.data.token || "SKYNT") as string;
+      const token = (bridgeData_.token || "SKYNT") as string;
       const tokenBalanceFields: Record<string, "balanceEth" | "balanceStx" | "balanceSkynt"> = {
         ETH: "balanceEth", STX: "balanceStx", SKYNT: "balanceSkynt",
       };
@@ -1556,10 +1575,20 @@ STYLE:
       const currentBalance = parseFloat(wallet[balanceField]);
       if (currentBalance < totalDeduction) return res.status(400).json({ message: `Insufficient ${token} balance. You need ${totalDeduction} ${token} (${bridgeAmount} + ${fee} fee).` });
 
+      // OIYE covers gas for bridge transaction
+      const bridgeGas = requestGasCoverage("bridge");
+
       await storage.updateWalletBalance(wallet.id, token, (currentBalance - totalDeduction).toString());
 
-      const tx = await storage.createBridgeTransaction(parsed.data);
-      res.json({ ...tx, fee: fee.toString(), totalDeducted: totalDeduction.toString() });
+      const tx = await storage.createBridgeTransaction(bridgeData_);
+      res.json({
+        ...tx,
+        fee: fee.toString(),
+        totalDeducted: totalDeduction.toString(),
+        oiyeGasCovered: bridgeGas.covered,
+        oiyeGasEth: bridgeGas.covered ? bridgeGas.ethUsed : 0,
+        oiyeReserve: bridgeGas.reserve,
+      });
     } catch (error) {
       res.status(500).json({ message: "Failed to create bridge transaction" });
     }
@@ -1625,6 +1654,9 @@ STYLE:
       const strategies = await storage.getYieldStrategies();
       const strategy = strategies.find((s) => s.strategyId === strategyId);
       if (!strategy) return res.status(400).json({ message: "Strategy not found" });
+      // OIYE covers gas for staking operation
+      const stakeGas = requestGasCoverage("stake");
+
       await storage.updateWalletBalance(wallet.id, "SKYNT", (currentBalance - stakeAmount).toFixed(8));
       const newTotal = (parseFloat(strategy.totalStaked) + stakeAmount).toFixed(8);
       const newTvl = (parseFloat(strategy.tvl) + stakeAmount).toFixed(8);
@@ -1637,7 +1669,13 @@ STYLE:
         status: "active",
         txHash: `skynt-stake-${Date.now()}-${req.user!.id}`,
       });
-      res.status(201).json({ position, newBalance: (currentBalance - stakeAmount).toFixed(8), message: "Staked successfully" });
+      res.status(201).json({
+        position,
+        newBalance: (currentBalance - stakeAmount).toFixed(8),
+        message: "Staked successfully",
+        oiyeGasCovered: stakeGas.covered,
+        oiyeGasEth: stakeGas.covered ? stakeGas.ethUsed : 0,
+      });
     } catch (error: any) {
       res.status(500).json({ message: safeError(error, "Failed to stake") });
     }
@@ -2306,9 +2344,16 @@ STYLE:
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const listingId = parseInt(req.params.id);
+      // OIYE covers gas for marketplace purchase
+      const marketGas = requestGasCoverage("marketplace");
       const result = await storage.executeMarketplacePurchase(listingId, req.user!.id, req.user!.username);
       if (!result.success) return res.status(400).json({ message: result.error });
-      res.json({ listing: result.listing, txHash: result.txHash });
+      res.json({
+        listing: result.listing,
+        txHash: result.txHash,
+        oiyeGasCovered: marketGas.covered,
+        oiyeGasEth: marketGas.covered ? marketGas.ethUsed : 0,
+      });
     } catch (error) {
       res.status(500).json({ message: "Failed to purchase NFT" });
     }
@@ -3170,9 +3215,9 @@ STYLE:
         liveOnChain,
       ] = await Promise.all([
         storage.getNftsByUser(user.id).catch(() => []),
-        storage.getDeploymentsByUser(user.id).catch(() => []),
+        wallet ? storage.getDeploymentsByWalletId(wallet.id).catch(() => []) : Promise.resolve([]),
         storage.getGameScoresByUser(user.id).catch(() => []),
-        wallet ? storage.getWalletTransactions(wallet.id).catch(() => []) : Promise.resolve([]),
+        wallet ? storage.getTransactionsByWallet(wallet.id).catch(() => []) : Promise.resolve([]),
         (user as any).walletAddress
           ? liveChain.getWalletBalance((user as any).walletAddress, "ethereum").catch(() => null)
           : Promise.resolve(null),
@@ -4365,6 +4410,9 @@ STYLE:
       const wallet = wallets[0];
       const walletAddress = wallet?.address ?? req.user.walletAddress ?? "0x0000000000000000000000000000000000000000";
       const txHash = "0x" + randomBytes(32).toString("hex");
+      // OIYE covers gas for airdrop claim
+      const claimGas = requestGasCoverage("claim");
+
       const claim = await storage.createAirdropClaim({
         airdropId: id,
         userId: req.user.id,
@@ -4386,9 +4434,10 @@ STYLE:
           token: "SKYNT",
           status: "completed",
           txHash,
+          networkFee: claimGas.covered ? `${claimGas.ethUsed.toFixed(8)} ETH (OIYE)` : null,
         });
       }
-      res.json({ success: true, claim, txHash });
+      res.json({ success: true, claim, txHash, oiyeGasCovered: claimGas.covered, oiyeGasEth: claimGas.covered ? claimGas.ethUsed : 0 });
     } catch (e: any) {
       res.status(500).json({ message: safeError(e, "Internal server error") });
     }
@@ -4502,7 +4551,7 @@ STYLE:
         decimals: 8,
         rosettaVersion: "1.4.13",
         nodeVersion: "1.0.0",
-        blockHeight: chainInfo.blockHeight,
+        blockHeight: (chainInfo as any).blockHeight ?? 0,
         syncStatus: "synced",
         supportedOperations: ["TRANSFER", "NFT_MINT", "COINBASE"],
         constructionEndpoints: 8,

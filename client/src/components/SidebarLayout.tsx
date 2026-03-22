@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Atom, Gift, UserCheck, Share2, Vote, Cpu } from "lucide-react";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Atom, Gift, UserCheck, Share2, Vote, Cpu, Fuel } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -186,6 +186,8 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
+        <OIYEGasIndicator collapsed={collapsed} />
+
         <PersistentMiner collapsed={collapsed} />
 
         <div className={`p-3 border-t border-[hsl(var(--sidebar-border))] ${collapsed ? "flex justify-center" : ""}`}>
@@ -261,6 +263,64 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
       </main>
 
       <OnboardingTour />
+    </div>
+  );
+}
+
+function OIYEGasIndicator({ collapsed }: { collapsed: boolean }) {
+  const { data } = useQuery<{
+    running: boolean;
+    gasReserveEth: number;
+    totalEthFunded: number;
+    sentinelTriggers: number;
+    isHealthy: boolean;
+    isCritical: boolean;
+  }>({
+    queryKey: ["/api/self-fund/status"],
+    refetchInterval: 30000,
+  });
+
+  const reserveEth = data?.gasReserveEth ?? 0;
+  const running = data?.running ?? true;
+  const healthy = data?.isHealthy ?? true;
+  const critical = data?.isCritical ?? false;
+  const pct = Math.min(100, Math.round((reserveEth / 0.05) * 100));
+  const color = critical ? "text-red-400" : healthy ? "text-neon-green" : "text-amber-400";
+  const barColor = critical ? "bg-red-400" : healthy ? "bg-neon-green" : "bg-amber-400";
+
+  if (collapsed) {
+    return (
+      <div
+        className="flex justify-center py-1.5 border-t border-[hsl(var(--sidebar-border))]"
+        title={`OIYE Gas: ${reserveEth.toFixed(4)} ETH reserve`}
+        data-testid="oiye-gas-indicator-collapsed"
+      >
+        <Fuel className={`w-3.5 h-3.5 ${color}`} />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="px-3 py-2 border-t border-[hsl(var(--sidebar-border))]"
+      data-testid="oiye-gas-indicator"
+    >
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-1">
+          <Fuel className={`w-3 h-3 ${color}`} />
+          <span className="text-[9px] font-heading tracking-widest text-muted-foreground uppercase">OIYE Gas</span>
+        </div>
+        <span className={`text-[9px] font-mono ${color}`}>
+          {running ? (critical ? "LOW" : "ACTIVE") : "PAUSED"}
+        </span>
+      </div>
+      <div className="h-1 w-full bg-[hsl(var(--sidebar-border))] rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+      </div>
+      <div className="flex justify-between mt-0.5">
+        <span className="text-[8px] font-mono text-muted-foreground">{reserveEth.toFixed(4)} ETH</span>
+        <span className="text-[8px] font-mono text-muted-foreground">{data?.sentinelTriggers ?? 0} ops</span>
+      </div>
     </div>
   );
 }

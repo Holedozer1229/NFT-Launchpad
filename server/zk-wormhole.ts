@@ -92,7 +92,7 @@ function generateTxHash(): string {
 
 function getPhiBoost(): number {
   try {
-    const mineResult = qgMiner.getLastResult?.() ?? null;
+    const mineResult = (qgMiner as any).getLastResult?.() ?? null;
     if (mineResult && typeof mineResult === "object" && "phiTotal" in mineResult) {
       return Math.min(Math.exp(Number(mineResult.phiTotal) || 0), 2.0);
     }

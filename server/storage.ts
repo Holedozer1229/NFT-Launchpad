@@ -157,7 +157,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
+    const [user] = await db.insert(users).values(insertUser as any).returning();
     return user;
   }
 
@@ -171,7 +171,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createLaunch(insertLaunch: InsertLaunch): Promise<Launch> {
-    const [launch] = await db.insert(launches).values(insertLaunch).returning();
+    const [launch] = await db.insert(launches).values(insertLaunch as any).returning();
     return launch;
   }
 
@@ -188,8 +188,8 @@ export class DatabaseStorage implements IStorage {
 
   async upsertMiner(insertMiner: InsertMiner): Promise<Miner> {
     const [miner] = await db.insert(miners)
-      .values(insertMiner)
-      .onConflictDoUpdate({ target: miners.walletAddress, set: insertMiner })
+      .values(insertMiner as any)
+      .onConflictDoUpdate({ target: miners.walletAddress, set: insertMiner as any })
       .returning();
     return miner;
   }
@@ -209,7 +209,7 @@ export class DatabaseStorage implements IStorage {
       balanceStx: "100",
       balanceSkynt: "1000",
       balanceEth: "0",
-    }).returning();
+    } as any).returning();
     return wallet;
   }
 
@@ -252,7 +252,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTransaction(tx: InsertWalletTransaction): Promise<WalletTransaction> {
-    const [transaction] = await db.insert(walletTransactions).values(tx).returning();
+    const [transaction] = await db.insert(walletTransactions).values(tx as any).returning();
     return transaction;
   }
 
@@ -274,7 +274,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createNft(insertNft: InsertNft): Promise<Nft> {
-    const [nft] = await db.insert(nfts).values(insertNft).returning();
+    const [nft] = await db.insert(nfts).values(insertNft as any).returning();
     return nft;
   }
 
@@ -291,7 +291,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createBridgeTransaction(tx: InsertBridgeTransaction): Promise<BridgeTransaction> {
-    const [btx] = await db.insert(bridgeTransactions).values(tx).returning();
+    const [btx] = await db.insert(bridgeTransactions).values(tx as any).returning();
     return btx;
   }
 
@@ -304,7 +304,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createGuardian(guardian: InsertGuardian): Promise<Guardian> {
-    const [g] = await db.insert(guardians).values(guardian).returning();
+    const [g] = await db.insert(guardians).values(guardian as any).returning();
     return g;
   }
 
@@ -317,7 +317,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createYieldStrategy(strategy: InsertYieldStrategy): Promise<YieldStrategy> {
-    const [s] = await db.insert(yieldStrategies).values(strategy).returning();
+    const [s] = await db.insert(yieldStrategies).values(strategy as any).returning();
     return s;
   }
 
@@ -334,12 +334,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createDeployment(deployment: InsertContractDeployment): Promise<ContractDeployment> {
-    const [d] = await db.insert(contractDeployments).values(deployment).returning();
+    const [d] = await db.insert(contractDeployments).values(deployment as any).returning();
     return d;
   }
 
   async createGameScore(score: InsertGameScore): Promise<GameScore> {
-    const [s] = await db.insert(gameScores).values(score).returning();
+    const [s] = await db.insert(gameScores).values(score as any).returning();
     return s;
   }
 
@@ -397,7 +397,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createMarketplaceListing(listing: InsertMarketplaceListing): Promise<MarketplaceListing> {
-    const [created] = await db.insert(marketplaceListings).values(listing).returning();
+    const [created] = await db.insert(marketplaceListings).values(listing as any).returning();
     return created;
   }
 
@@ -463,7 +463,7 @@ export class DatabaseStorage implements IStorage {
         token: currency,
         status: "completed",
         txHash,
-      });
+      } as any);
 
       const [updated] = await tx.update(marketplaceListings)
         .set({ status: "sold", buyerId, buyerUsername, soldAt: new Date() })
@@ -499,7 +499,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPowChallenge(challenge: InsertPowChallenge): Promise<PowChallenge> {
-    const [created] = await db.insert(powChallenges).values(challenge).returning();
+    const [created] = await db.insert(powChallenges).values(challenge as any).returning();
     return created;
   }
 
@@ -524,7 +524,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPowSubmission(submission: InsertPowSubmission): Promise<PowSubmission> {
-    const [created] = await db.insert(powSubmissions).values(submission).returning();
+    const [created] = await db.insert(powSubmissions).values(submission as any).returning();
     return created;
   }
 
@@ -557,7 +557,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createZkWormhole(wormhole: InsertZkWormhole): Promise<ZkWormhole> {
-    const [created] = await db.insert(zkWormholes).values(wormhole).returning();
+    const [created] = await db.insert(zkWormholes).values(wormhole as any).returning();
     return created;
   }
 
@@ -584,7 +584,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createZkWormholeTransfer(transfer: InsertZkWormholeTransfer): Promise<ZkWormholeTransfer> {
-    const [created] = await db.insert(zkWormholeTransfers).values(transfer).returning();
+    const [created] = await db.insert(zkWormholeTransfers).values(transfer as any).returning();
     return created;
   }
 
@@ -605,7 +605,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRarityCertificate(cert: InsertRarityCertificate): Promise<RarityCertificate> {
-    const [created] = await db.insert(rarityCertificates).values(cert).returning();
+    const [created] = await db.insert(rarityCertificates).values(cert as any).returning();
     return created;
   }
 
@@ -638,7 +638,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createModel(model: InsertRocketBabeModel): Promise<RocketBabeModel> {
-    const [created] = await db.insert(rocketBabeModels).values(model).returning();
+    const [created] = await db.insert(rocketBabeModels).values(model as any).returning();
     return created;
   }
 
@@ -668,7 +668,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAirdrop(airdrop: InsertAirdrop): Promise<Airdrop> {
-    const [created] = await db.insert(airdrops).values(airdrop).returning();
+    const [created] = await db.insert(airdrops).values(airdrop as any).returning();
     return created;
   }
 
@@ -690,7 +690,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAirdropClaim(claim: InsertAirdropClaim): Promise<AirdropClaim> {
-    const [created] = await db.insert(airdropClaims).values(claim).returning();
+    const [created] = await db.insert(airdropClaims).values(claim as any).returning();
     return created;
   }
 
@@ -715,7 +715,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createKycSubmission(sub: InsertKycSubmission): Promise<KycSubmission> {
-    const [created] = await db.insert(kycSubmissions).values(sub).returning();
+    const [created] = await db.insert(kycSubmissions).values(sub as any).returning();
     return created;
   }
 
@@ -726,7 +726,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createYieldPosition(pos: InsertYieldPosition): Promise<YieldPosition> {
-    const [row] = await db.insert(yieldPositions).values(pos).returning();
+    const [row] = await db.insert(yieldPositions).values(pos as any).returning();
     return row;
   }
 

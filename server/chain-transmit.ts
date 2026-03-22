@@ -9,6 +9,7 @@ import {
 } from "@solana/web3.js";
 import { secp256k1 } from "@noble/curves/secp256k1";
 import { base58check } from "@scure/base";
+import { sha256 } from "@noble/hashes/sha256";
 import { Alchemy, Network, Wallet, Utils } from "alchemy-sdk";
 
 const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
@@ -69,7 +70,7 @@ export async function transmitEthereum(
 }
 
 function decodeDogeWif(wif: string): Uint8Array {
-  const decoded = base58check.decode(wif);
+  const decoded = base58check(sha256).decode(wif);
   const raw = decoded.slice(1);
   return raw.length === 33 && raw[32] === 0x01 ? raw.slice(0, 32) : raw.slice(0, 32);
 }
@@ -168,7 +169,6 @@ export async function transmitStacks(
     amount: microSTX,
     senderKey: privateKey,
     network: STACKS_MAINNET,
-    anchorMode: AnchorMode.Any,
     memo: "SKYNT cross-chain transfer",
     fee: BigInt(2000),
   });
