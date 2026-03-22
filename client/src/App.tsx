@@ -43,6 +43,8 @@ const PriceDriver = lazy(() => import("@/pages/PriceDriver"));
 const QuantumMiner = lazy(() => import("@/components/QuantumMiner").then(m => ({ default: m.QuantumMiner })));
 const UnifiedAIWidget = lazy(() => import("@/components/UnifiedAIWidget").then(m => ({ default: m.UnifiedAIWidget })));
 const AdminEngines = lazy(() => import("@/pages/AdminEngines"));
+const Portfolio = lazy(() => import("@/pages/Portfolio"));
+const BuybackFeed = lazy(() => import("@/pages/BuybackFeed"));
 
 function AdminGuard() {
   const { user } = useAuth();
@@ -158,6 +160,8 @@ function AppRouter() {
             <Route path="/contracts" component={ContractDeployment} />
             <Route path="/treasury" component={TreasuryVaultGuard} />
             <Route path="/wallet" component={WalletPage} />
+            <Route path="/portfolio" component={Portfolio} />
+            <Route path="/buybacks" component={BuybackFeed} />
             <Route path="/price-driver" component={PriceDriver} />
             <Route path="/admin/engines" component={AdminEnginesGuard} />
             <Route path="/admin" component={AdminGuard} />

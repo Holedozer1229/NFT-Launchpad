@@ -5093,6 +5093,172 @@ STYLE:
     }
   });
 
+  // ── Treasury Health Score ──────────────────────────────────────────────────
+  let _healthScoreCache: { score: number; breakdown: Record<string, number>; label: string; cachedAt: number } | null = null;
+  const HEALTH_SCORE_TTL_MS = 60_000;
+
+  app.get("/api/treasury/health-score", async (_req, res) => {
+    try {
+      if (_healthScoreCache && Date.now() - _healthScoreCache.cachedAt < HEALTH_SCORE_TTL_MS) {
+        return res.json(_healthScoreCache);
+      }
+      const { getPriceDriverState } = await import("./skynt-price-driver");
+      const { getTreasuryYieldState } = await import("./treasury-yield");
+      const { getP2PPeers } = await import("./p2p-ledger");
+
+      const pd = getPriceDriverState();
+      const ty = getTreasuryYieldState();
+      const peers = getP2PPeers();
+
+      // 0-100 scoring across 5 dimensions
+      // 1. ETH runway (20pts) — based on treasury ETH balance vs reasonable floor
+      const ethRunwayScore = Math.min(20, Math.round((pd.treasuryEthBalance / 1.0) * 20));
+      // 2. Buyback activity (20pts) — more recent epochs = higher score
+      const buybackScore = Math.min(20, Math.round((pd.epochCount / 50) * 20));
+      // 3. Burn pressure (20pts) — ratio of burned to bought
+      const burnRatio = pd.totalSkyntBought > 0 ? pd.totalSkyntBurned / pd.totalSkyntBought : 0;
+      const burnScore = Math.min(20, Math.round(burnRatio * 20));
+      // 4. P2P network health (20pts) — connected peers
+      const p2pScore = Math.min(20, Math.round((peers.length / 10) * 20));
+      // 5. Yield engine health (20pts) — compound rate and running state
+      const yieldScore = ty.running ? Math.min(20, Math.round((ty.compoundIntervalMs > 0 ? 15 : 5) + (ty.totalYieldAccrued > 0 ? 5 : 0))) : 0;
+
+      const total = ethRunwayScore + buybackScore + burnScore + p2pScore + yieldScore;
+      const label = total >= 80 ? "Excellent" : total >= 60 ? "Good" : total >= 40 ? "Fair" : total >= 20 ? "Weak" : "Critical";
+
+      _healthScoreCache = {
+        score: total,
+        breakdown: { ethRunway: ethRunwayScore, buybackActivity: buybackScore, burnPressure: burnScore, p2pHealth: p2pScore, yieldHealth: yieldScore },
+        label,
+        cachedAt: Date.now(),
+      };
+      res.json(_healthScoreCache);
+    } catch (err: any) {
+      res.status(500).json({ message: safeError(err, "Failed to compute health score") });
+    }
+  });
+
+  // ── Portfolio (auth required) ─────────────────────────────────────────────
+  app.get("/api/portfolio/me", async (req: any, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = req.session.userId as number;
+      const [wallets, nfts, user] = await Promise.all([
+        storage.getWalletsByUser(userId),
+        storage.getNftsByUser(userId),
+        storage.getUser(userId),
+      ]);
+
+      const { getTreasuryYieldState } = await import("./treasury-yield");
+      const yieldState = getTreasuryYieldState();
+
+      // Aggregate wallet balances
+      const totalSkynt = wallets.reduce((sum, w) => sum + (parseFloat(w.skyntBalance ?? "0") || 0), 0);
+      const totalEth = wallets.reduce((sum, w) => sum + (parseFloat(w.ethBalance ?? "0") || 0), 0);
+
+      // NFT breakdown by rarity
+      const nftsByRarity: Record<string, number> = {};
+      for (const nft of nfts) {
+        const r = nft.rarity ?? "common";
+        nftsByRarity[r] = (nftsByRarity[r] ?? 0) + 1;
+      }
+
+      // Yield share estimate
+      const totalPoolSkynt = yieldState.skyntPoolBalance;
+      const yieldShare = totalPoolSkynt > 0 ? (totalSkynt / totalPoolSkynt) * yieldState.totalYieldAccrued : 0;
+
+      res.json({
+        userId,
+        username: user?.username ?? "unknown",
+        walletCount: wallets.length,
+        totalSkynt,
+        totalEth,
+        nftCount: nfts.length,
+        nftsByRarity,
+        yieldShare,
+        yieldApr: yieldState.aprPercent ?? 0,
+        yieldRunning: yieldState.running,
+        recentNfts: nfts.slice(0, 6).map(n => ({
+          id: n.id, name: n.name, rarity: n.rarity, imageUrl: n.imageUrl, mintedAt: n.mintedAt,
+        })),
+        wallets: wallets.map(w => ({
+          id: w.id, name: w.name, address: w.address, skyntBalance: w.skyntBalance, ethBalance: w.ethBalance,
+        })),
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: safeError(err, "Failed to load portfolio") });
+    }
+  });
+
+  // ── Public Buyback Feed ────────────────────────────────────────────────────
+  app.get("/api/buybacks/public", async (req, res) => {
+    try {
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 25));
+      const offset = (page - 1) * limit;
+
+      const { pool: dbPool } = await import("./db");
+      const [rowsResult, countResult] = await Promise.all([
+        dbPool.query(
+          `SELECT id, eth_spent, skynt_bought, skynt_burned, price_before_usd, price_after_usd,
+                  impact_bps, tx_hash_swap, tx_hash_burn, pool_fee, status, created_at
+           FROM skynt_buyback_events
+           ORDER BY created_at DESC
+           LIMIT $1 OFFSET $2`,
+          [limit, offset]
+        ),
+        dbPool.query(`SELECT COUNT(*) FROM skynt_buyback_events`),
+      ]);
+
+      const total = parseInt(countResult.rows[0]?.count ?? "0");
+      const events = rowsResult.rows.map((r: any) => ({
+        id: r.id,
+        ethSpent: parseFloat(r.eth_spent),
+        skyntBought: parseFloat(r.skynt_bought),
+        skyntBurned: parseFloat(r.skynt_burned),
+        priceBeforeUsd: parseFloat(r.price_before_usd),
+        priceAfterUsd: parseFloat(r.price_after_usd),
+        impactBps: r.impact_bps,
+        txHashSwap: r.tx_hash_swap,
+        txHashBurn: r.tx_hash_burn,
+        poolFee: r.pool_fee,
+        status: r.status,
+        createdAt: r.created_at,
+      }));
+
+      // Fall back to in-memory history if DB is empty
+      if (events.length === 0 && offset === 0) {
+        const { getPriceDriverState } = await import("./skynt-price-driver");
+        const { buybackHistory } = getPriceDriverState();
+        return res.json({
+          events: buybackHistory.slice(0, limit).map(ev => ({
+            id: ev.id,
+            ethSpent: ev.ethSpent,
+            skyntBought: ev.skyntBought,
+            skyntBurned: ev.skyntBurned,
+            priceBeforeUsd: ev.priceBeforeUsd,
+            priceAfterUsd: ev.priceAfterUsd,
+            impactBps: ev.priceImpactBps,
+            txHashSwap: ev.txHashSwap ?? null,
+            txHashBurn: ev.txHashBurn ?? null,
+            poolFee: ev.poolFee ?? null,
+            status: ev.status,
+            createdAt: new Date(ev.timestamp).toISOString(),
+          })),
+          total: buybackHistory.length,
+          page: 1,
+          limit,
+          totalPages: 1,
+          source: "memory",
+        });
+      }
+
+      res.json({ events, total, page, limit, totalPages: Math.ceil(total / limit), source: "db" });
+    } catch (err: any) {
+      res.status(500).json({ message: safeError(err, "Failed to load buyback feed") });
+    }
+  });
+
   app.use((err: any, _req: any, res: any, _next: any) => {
     console.error("[Global Error Handler]", err?.message || err);
     if (!res.headersSent) {

@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Atom, Gift, UserCheck, Share2, Vote, Cpu, Fuel, Zap, Layers, Radio } from "lucide-react";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Atom, Gift, UserCheck, Share2, Vote, Cpu, Fuel, Zap, Layers, Radio, LineChart } from "lucide-react";
 import { useEngineStream } from "@/hooks/use-engine-stream";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -56,13 +56,20 @@ const navGroups = [
     ]
   },
   {
+    label: "PROFILE",
+    items: [
+      { path: "/portfolio", label: "Portfolio", icon: User, adminOnly: false },
+      { path: "/buybacks", label: "Buyback Feed", icon: Flame, adminOnly: false },
+      { path: "/wallet", label: "Wallet", icon: WalletCards, adminOnly: false },
+      { path: "/kyc", label: "KYC / ID Verify", icon: UserCheck, adminOnly: false },
+    ]
+  },
+  {
     label: "SYSTEM",
     items: [
-      { path: "/kyc", label: "KYC / ID Verify", icon: UserCheck, adminOnly: false },
       { path: "/contracts", label: "Contracts", icon: FileCode2, adminOnly: false },
-      { path: "/price-driver", label: "Price Driver", icon: Zap, adminOnly: true },
+      { path: "/price-driver", label: "Price Driver", icon: Zap, adminOnly: false },
       { path: "/treasury", label: "Treasury", icon: Vault, adminOnly: true },
-      { path: "/wallet", label: "Wallet", icon: WalletCards, adminOnly: false },
       { path: "/admin/engines", label: "Engine Console", icon: Cpu, adminOnly: true },
       { path: "/admin", label: "Admin", icon: Shield, adminOnly: true },
     ]
@@ -94,6 +101,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/rarity-proof": "Rarity Proof Engine | SKYNT Protocol",
   "/starship": "Starship Launches | SKYNT Protocol",
   "/lab": "Public Lab | SKYNT Protocol",
+  "/portfolio": "Portfolio | SKYNT Protocol",
+  "/buybacks": "Buyback Feed | SKYNT Protocol",
   "/kyc": "KYC Verification | SKYNT Protocol",
   "/contracts": "Contract Deployment | SKYNT Protocol",
   "/treasury": "Treasury Vault | SKYNT Protocol",

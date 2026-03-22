@@ -1193,6 +1193,30 @@ export const insertYieldPositionSchema = createInsertSchema(yieldPositions).omit
 export type YieldPosition = typeof yieldPositions.$inferSelect;
 export type InsertYieldPosition = z.infer<typeof insertYieldPositionSchema>;
 
+// ==================== SKYNT Buyback Events ====================
+
+export const skyntBuybackEvents = pgTable("skynt_buyback_events", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  ethSpent: real("eth_spent").notNull(),
+  skyntBought: real("skynt_bought").notNull(),
+  skyntBurned: real("skynt_burned").notNull().default(0),
+  priceBeforeUsd: real("price_before_usd").notNull(),
+  priceAfterUsd: real("price_after_usd").notNull(),
+  impactBps: integer("impact_bps").notNull().default(0),
+  txHashSwap: text("tx_hash_swap"),
+  txHashBurn: text("tx_hash_burn"),
+  poolFee: integer("pool_fee"),
+  status: text("status").notNull().default("success"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSkyntBuybackEventSchema = createInsertSchema(skyntBuybackEvents).omit({
+  id: true,
+  createdAt: true,
+} as any);
+export type SkyntBuybackEvent = typeof skyntBuybackEvents.$inferSelect;
+export type InsertSkyntBuybackEvent = z.infer<typeof insertSkyntBuybackEventSchema>;
+
 // ==================== Protocol Settings ====================
 
 export const protocolSettings = pgTable("protocol_settings", {

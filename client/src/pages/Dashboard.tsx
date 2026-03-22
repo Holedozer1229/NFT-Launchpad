@@ -6,7 +6,7 @@ import {
 import {
   Activity, Cpu, Box, DollarSign, Clock,
   ChevronUp, ChevronDown, Loader2, Zap, Brain, Pickaxe, Shield, TrendingUp, AlertCircle, RefreshCw,
-  Wallet, Coins, ArrowUpRight, Radio, Flame
+  Wallet, Coins, ArrowUpRight, Radio, Flame, ShieldCheck
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useBalance } from "wagmi";
@@ -205,6 +205,11 @@ export default function Dashboard() {
   const { data: treasuryData } = useQuery<{ totalFees: number; totalYieldGenerated: number; currentApr: number; strategies: any[] }>({
     queryKey: ["/api/treasury/yield"],
     refetchInterval: 60000,
+  });
+
+  const { data: healthScore } = useQuery<{ score: number; breakdown: Record<string, number>; label: string }>({
+    queryKey: ["/api/treasury/health-score"],
+    refetchInterval: 60_000,
   });
 
   const { data: miningNetwork } = useQuery<{ activeMiners: number }>({
@@ -643,6 +648,72 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── Treasury Health Score Widget ────────────────────────────────── */}
+      <div className="cosmic-card cosmic-card-cyan p-4 page-enter" style={{ animationDelay: "950ms" }} data-testid="panel-treasury-health">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-neon-cyan" />
+            <h3 className="stat-label">Treasury Health Score</h3>
+          </div>
+          {healthScore && (
+            <span className={`text-xs font-heading px-2 py-0.5 rounded-full border ${
+              healthScore.score >= 80 ? "text-neon-green border-neon-green/30 bg-neon-green/10"
+              : healthScore.score >= 60 ? "text-neon-cyan border-neon-cyan/30 bg-neon-cyan/10"
+              : healthScore.score >= 40 ? "text-neon-orange border-neon-orange/30 bg-neon-orange/10"
+              : "text-plasma-red border-plasma-red/30 bg-plasma-red/10"
+            }`} data-testid="text-health-label">
+              {healthScore.label}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-4 mb-3">
+          <div className="text-4xl font-mono font-bold text-neon-cyan" data-testid="text-health-score">
+            {healthScore ? healthScore.score : "—"}
+          </div>
+          <div className="flex-1">
+            <div className="h-2 bg-black/40 rounded-full overflow-hidden border border-border">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${
+                  (healthScore?.score ?? 0) >= 80 ? "bg-neon-green"
+                  : (healthScore?.score ?? 0) >= 60 ? "bg-neon-cyan"
+                  : (healthScore?.score ?? 0) >= 40 ? "bg-neon-orange"
+                  : "bg-plasma-red"
+                }`}
+                style={{ width: `${healthScore?.score ?? 0}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-0.5">
+              <span className="text-[8px] font-mono text-muted-foreground">0</span>
+              <span className="text-[8px] font-mono text-muted-foreground">50</span>
+              <span className="text-[8px] font-mono text-muted-foreground">100</span>
+            </div>
+          </div>
+        </div>
+        {healthScore?.breakdown && (
+          <div className="grid grid-cols-5 gap-2">
+            {[
+              { key: "ethRunway", label: "ETH Runway" },
+              { key: "buybackActivity", label: "Buybacks" },
+              { key: "burnPressure", label: "Burn Rate" },
+              { key: "p2pHealth", label: "P2P Peers" },
+              { key: "yieldHealth", label: "Yield Engine" },
+            ].map(({ key, label }) => {
+              const val = healthScore.breakdown[key] ?? 0;
+              const pct = Math.round((val / 20) * 100);
+              return (
+                <div key={key} className="text-center" data-testid={`health-breakdown-${key}`}>
+                  <div className="text-[9px] text-muted-foreground font-heading uppercase tracking-wider mb-1">{label}</div>
+                  <div className="h-1 bg-black/40 rounded-full overflow-hidden mb-0.5">
+                    <div className="h-full bg-neon-cyan/60 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="font-mono text-[10px] text-neon-cyan">{val}/20</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="cosmic-card p-4" data-testid="panel-live-feed">

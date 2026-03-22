@@ -518,6 +518,9 @@ async function runEpoch(): Promise<void> {
   _state.buybackHistory.unshift(ev);
   if (_state.buybackHistory.length > 50) _state.buybackHistory.pop();
 
+  // Persist buyback event to DB
+  saveBuybackEvent(ev).catch((e: Error) => console.warn("[PriceDriver] Failed to persist buyback event:", e.message?.slice(0, 80)));
+
   console.log(
     `[PriceDriver] ✓ Bought ${skyntBoughtFloat.toFixed(2)} SKYNT | Burned ${skyntBurnedFloat.toFixed(2)} | ` +
     `Impact: +${impactBps}bps | $${priceUsd.toFixed(4)} → $${priceAfterUsd.toFixed(4)}`
@@ -532,6 +535,21 @@ async function runEpoch(): Promise<void> {
 
   // Persist snapshot with actual buyback amounts
   await savePriceSnapshot(priceAfterUsd / ethPriceUsd, priceAfterUsd, ethPriceUsd, exactQuote.fee, ethBalance, epoch, ethToSpend, skyntBoughtFloat);
+}
+
+// ── Persist buyback event to DB ────────────────────────────────────────────
+async function saveBuybackEvent(ev: BuybackEvent): Promise<void> {
+  try {
+    const { pool: dbPool } = await import("./db");
+    await dbPool.query(
+      `INSERT INTO skynt_buyback_events
+         (eth_spent, skynt_bought, skynt_burned, price_before_usd, price_after_usd, impact_bps, tx_hash_swap, tx_hash_burn, pool_fee, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [ev.ethSpent, ev.skyntBought, ev.skyntBurned, ev.priceBeforeUsd, ev.priceAfterUsd, ev.priceImpactBps, ev.txHashSwap ?? null, ev.txHashBurn ?? null, ev.poolFee ?? null, ev.status]
+    );
+  } catch (err: any) {
+    console.warn("[PriceDriver] Failed to save buyback event:", err.message?.slice(0, 80));
+  }
 }
 
 // ── Persist price snapshot to DB ──────────────────────────────────────────
