@@ -4862,9 +4862,9 @@ STYLE:
           mkEngine(
             "p2p-ledger", "P2P Ledger",
             ledger !== null,
-            (ledger as any)?.guardians?.length ?? null,
-            null,
-            ledger ? `guardians: ${(ledger as any).guardians?.length ?? 0}` : "stopped",
+            ledger?.peers?.length ?? null,
+            ledger?.lastBlockTime ?? null,
+            ledger ? `peers: ${ledger.peers?.length ?? 0} | h:${ledger.blockHeight} | ${ledger.consensusStatus}` : "stopped",
           ),
           mkEngine(
             "treasury-yield", "Treasury Yield",

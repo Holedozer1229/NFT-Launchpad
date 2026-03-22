@@ -682,6 +682,7 @@ async function runEpoch() {
     });
   } catch (err: any) {
     console.error(`[BtcZkDaemon] Epoch ${currentEpoch} error:`, err.message);
+    import("./engine-error-counter").then(({ recordEngineError }) => recordEngineError("btc-zk-daemon", err.message)).catch(() => {});
   }
 }
 

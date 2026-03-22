@@ -285,7 +285,8 @@ export function startEngine(): void {
   const runTick = async () => {
     try {
       lastBlockHeight = await fetchBlockHeight();
-    } catch {
+    } catch (e: any) {
+      import("./engine-error-counter").then(({ recordEngineError }) => recordEngineError("iit-engine", e?.message ?? "tick error")).catch(() => {});
     }
     tick(lastBlockHeight);
   };

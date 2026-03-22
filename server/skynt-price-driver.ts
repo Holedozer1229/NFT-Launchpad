@@ -41,10 +41,10 @@ const SKYNT_ADDRESS: Address = (
 
 // ── Engine Config ──────────────────────────────────────────────────────────
 const POOL_FEES            = [3000, 10000, 500] as const;  // 0.3%, 1%, 0.05%
-let _burnRatio             = 0.30;       // 30% of each buyback gets burned (hot-reloadable)
+let _burnRatio             = parseFloat(process.env.PRICE_DRIVER_BURN_RATIO        ?? "0.30");   // 30% burn — env fallback, hot-reloadable from DB
 const MIN_TREASURY_RESERVE = 0.01;       // ETH — never spend below this
-let _maxEthPerEpoch        = 0.005;      // max ETH per buyback cycle (hot-reloadable)
-let _epochIntervalMs       = 5 * 60_000; // 5 minutes between cycles (hot-reloadable)
+let _maxEthPerEpoch        = parseFloat(process.env.PRICE_DRIVER_MAX_ETH_PER_EPOCH ?? "0.005");  // max ETH per buyback — env fallback, hot-reloadable from DB
+let _epochIntervalMs       = parseFloat(process.env.PRICE_DRIVER_EPOCH_INTERVAL_MS ?? "300000"); // ms between cycles — env fallback, hot-reloadable from DB
 const SLIPPAGE_BPS         = 200;        // 2% max slippage
 let _targetPriceUsd        = parseFloat(process.env.SKYNT_PRICE_TARGET_USD ?? "0.65");
 
@@ -565,6 +565,7 @@ async function scheduleNext(): Promise<void> {
   _timer = setTimeout(async () => {
     try { await runEpoch(); } catch (e: any) {
       console.error("[PriceDriver] Epoch error:", e.message);
+      import("./engine-error-counter").then(({ recordEngineError }) => recordEngineError("price-driver", e.message)).catch(() => {});
     }
     scheduleNext();
   }, _epochIntervalMs);

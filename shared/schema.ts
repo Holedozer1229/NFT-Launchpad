@@ -1199,8 +1199,8 @@ export const protocolSettings = pgTable("protocol_settings", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   key: text("key").notNull().unique(),
   value: text("value").notNull(),
-  updatedBy: text("updated_by").notNull().default("system"),
   userId: integer("user_id"),
+  updatedBy: text("updated_by").notNull().default("system"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
