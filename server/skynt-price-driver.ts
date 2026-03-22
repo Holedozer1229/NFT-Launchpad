@@ -383,9 +383,12 @@ async function runEpoch(): Promise<void> {
   if (!quote) {
     console.log(`[PriceDriver] Epoch ${epoch} — no SKYNT/WETH pool found on Uniswap v3. Skipping.`);
     _state.pricePressureMode = "idle";
-    // Persist snapshot with zeroed price/fee so history is uninterrupted
     const ethBalFallback = await getTreasuryEthBalance().catch(() => _state.treasuryEthBalance);
     await savePriceSnapshot(0, 0, ethPriceUsd, 0, ethBalFallback, epoch, 0, 0);
+    wsHub.broadcast("price_driver:epoch", {
+      epoch, mode: "idle", priceUsd: 0, targetPriceUsd: PRICE_TARGET_USD,
+      treasuryEthBalance: ethBalFallback, ethSpent: 0, skyntBought: 0, status: "no_pool",
+    });
     return;
   }
 
@@ -410,7 +413,7 @@ async function runEpoch(): Promise<void> {
     await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     wsHub.broadcast("price_driver:epoch", {
       epoch, mode, priceUsd, targetPriceUsd: PRICE_TARGET_USD,
-      treasuryEthBalance: ethBalance, ethSpent: 0, skyntBought: 0,
+      treasuryEthBalance: ethBalance, ethSpent: 0, skyntBought: 0, status: "no_action",
     });
     return;
   }
@@ -421,8 +424,11 @@ async function runEpoch(): Promise<void> {
   const exactQuote = await getOnChainPrice(parseEther(ethToSpend.toFixed(6)));
   if (!exactQuote) {
     console.warn("[PriceDriver] Could not get exact quote — aborting epoch");
-    // Still persist snapshot (no buyback executed)
     await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
+    wsHub.broadcast("price_driver:epoch", {
+      epoch, mode, priceUsd, targetPriceUsd: PRICE_TARGET_USD,
+      treasuryEthBalance: ethBalance, ethSpent: 0, skyntBought: 0, status: "quote_failed",
+    });
     return;
   }
 
@@ -453,6 +459,10 @@ async function runEpoch(): Promise<void> {
     _state.buybackHistory.unshift(failedEv);
     await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     wsHub.broadcast("price_driver:buyback", { ...failedEv });
+    wsHub.broadcast("price_driver:epoch", {
+      epoch, mode, priceUsd, targetPriceUsd: PRICE_TARGET_USD,
+      treasuryEthBalance: ethBalance, ethSpent: 0, skyntBought: 0, status: "buyback_failed",
+    });
     return;
   }
 
@@ -511,6 +521,11 @@ async function runEpoch(): Promise<void> {
   );
 
   wsHub.broadcast("price_driver:buyback", { ...ev });
+  wsHub.broadcast("price_driver:epoch", {
+    epoch, mode, priceUsd: priceAfterUsd, targetPriceUsd: PRICE_TARGET_USD,
+    treasuryEthBalance: ethBalance, ethSpent: ethToSpend, skyntBought: skyntBoughtFloat,
+    status: "buyback_success",
+  });
 
   // Persist snapshot with actual buyback amounts
   await savePriceSnapshot(priceAfterUsd / ethPriceUsd, priceAfterUsd, ethPriceUsd, exactQuote.fee, ethBalance, epoch, ethToSpend, skyntBoughtFloat);
