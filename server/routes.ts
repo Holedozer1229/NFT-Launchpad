@@ -5109,8 +5109,14 @@ STYLE:
       const peers = getP2PPeers();
 
       // 0-100 scoring across exactly 5 required dimensions (20pts each)
-      // 1. ETH runway (20pts) — treasury ETH balance vs 1 ETH baseline
-      const ethRunwayScore = Math.min(20, Math.round((pd.treasuryEthBalance / 1.0) * 20));
+      // 1. ETH runway (20pts) — weeks of runway: balance / weekly burn rate estimate
+      // Weekly burn ≈ max(totalEthSpent / max(epochCount,1)) * (604800000/priceDriverInterval)
+      const PRICE_DRIVER_INTERVAL_MS = 300_000; // 5-minute epochs
+      const epochsPerWeek = 604_800_000 / PRICE_DRIVER_INTERVAL_MS;
+      const avgEthPerEpoch = pd.epochCount > 0 ? pd.totalEthSpent / pd.epochCount : 0;
+      const weeklyBurnEst = avgEthPerEpoch * epochsPerWeek;
+      const weeksRunway = weeklyBurnEst > 0 ? pd.treasuryEthBalance / weeklyBurnEst : (pd.treasuryEthBalance > 0.005 ? 52 : 0);
+      const ethRunwayScore = Math.min(20, Math.round((weeksRunway / 52) * 20));
       // 2. Buyback capacity (20pts) — total ETH spent on buybacks (more = higher trust)
       const buybackCapacityScore = Math.min(20, Math.round((pd.totalEthSpent / 0.1) * 20));
       // 3. Burn rate trend (20pts) — ratio of burned to bought SKYNT
@@ -5293,8 +5299,12 @@ STYLE:
       if (events.length === 0 && offset === 0) {
         const { getPriceDriverState } = await import("./skynt-price-driver");
         const { buybackHistory } = getPriceDriverState();
+        const total = buybackHistory.length;
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        const safePage = Math.min(page, totalPages);
+        const offset = (safePage - 1) * limit;
         return res.json({
-          events: buybackHistory.slice(0, limit).map(ev => ({
+          events: buybackHistory.slice(offset, offset + limit).map(ev => ({
             id: ev.id,
             ethSpent: ev.ethSpent,
             skyntBought: ev.skyntBought,
@@ -5308,10 +5318,10 @@ STYLE:
             status: ev.status,
             createdAt: new Date(ev.timestamp).toISOString(),
           })),
-          total: buybackHistory.length,
-          page: 1,
+          total,
+          page: safePage,
           limit,
-          totalPages: 1,
+          totalPages,
           source: "memory",
         });
       }
