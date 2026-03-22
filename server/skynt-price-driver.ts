@@ -397,6 +397,9 @@ async function runEpoch(): Promise<void> {
   const ethBalance = await getTreasuryEthBalance();
   _state.treasuryEthBalance = ethBalance;
 
+  // Persist price snapshot regardless of whether a buyback runs
+  savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch);
+
   // 3. Determine buy pressure
   const { mode, ethToSpend } = calcBuyPressure(priceUsd, PRICE_TARGET_USD, ethBalance);
   _state.pricePressureMode = mode;
@@ -490,6 +493,28 @@ async function runEpoch(): Promise<void> {
     `[PriceDriver] ✓ Bought ${skyntBoughtFloat.toFixed(2)} SKYNT | Burned ${skyntBurnedFloat.toFixed(2)} | ` +
     `Impact: +${impactBps}bps | $${priceUsd.toFixed(4)} → $${priceAfterUsd.toFixed(4)}`
   );
+}
+
+// ── Persist price snapshot to DB ──────────────────────────────────────────
+async function savePriceSnapshot(
+  priceEth: number,
+  priceUsd: number,
+  ethPriceUsd: number,
+  poolFee: number,
+  treasuryEthBalance: number,
+  epochNumber: number,
+): Promise<void> {
+  try {
+    const { pool: dbPool } = await import("./db");
+    await dbPool.query(
+      `INSERT INTO skynt_price_snapshots
+         (price_eth, price_usd, eth_price_usd, pool_fee, treasury_eth_balance, epoch_number)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [priceEth, priceUsd, ethPriceUsd, poolFee, treasuryEthBalance, epochNumber]
+    );
+  } catch (err: any) {
+    console.warn("[PriceDriver] Failed to save price snapshot:", err.message?.slice(0, 80));
+  }
 }
 
 // ── Scheduler ─────────────────────────────────────────────────────────────

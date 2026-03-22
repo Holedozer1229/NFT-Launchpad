@@ -4,6 +4,12 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
+- **Mar 2026**: **Task #4 — SKYNT Price Chart, History DB & Token Analytics**
+  - `shared/schema.ts`: Added `skynt_price_snapshots` table — `id`, `price_eth`, `price_usd`, `eth_price_usd`, `pool_fee`, `treasury_eth_balance`, `epoch_number`, `created_at`
+  - `server/skynt-price-driver.ts`: `savePriceSnapshot()` helper persists a row after each epoch's live price read; called immediately after fetching treasury balance so every 5-min epoch snapshot is stored
+  - `server/routes.ts`: Added `GET /api/analytics/price-history?range=24h|7d|30d` (up to 500 rows, ordered ASC) and `GET /api/analytics/token-stats` (live SKYNT price, target, ETH price, burned supply, bought/spent totals, treasury balance, engine mode, max supply) using `pool.query()` + in-memory `getPriceDriverState()`
+  - `client/src/pages/Analytics.tsx`: Full rewrite adding — SKYNT token stats row (6 KPIs: price, target, burned, bought, max supply, ETH price); live `LineChart` price chart with 24h/7d/30d range switcher; empty-state placeholder when no snapshots yet; pool fee, epoch count, engine mode footer. All existing NFT analytics charts preserved below.
+  - DB migration: `skynt_price_snapshots` table created via `CREATE TABLE IF NOT EXISTS`; drizzle-orm schema export added
 - **Mar 2026**: **Stacks + Monero live transmit + Chain Config Panel**
   - `server/chain-transmit.ts`: Full Stacks (STX) real on-chain transfer via `@stacks/transactions` + `makeSTXTokenTransfer` + `broadcastTransaction` (STACKS_MAINNET); full Monero (XMR) real transmit via wallet RPC JSON-RPC HTTP (`transfer` method, piconero units, optional Basic auth via `XMR_WALLET_RPC_USER`/`XMR_WALLET_RPC_PASS`)
   - `server/routes.ts`: Added `GET /api/wormhole/chain-config` endpoint — returns live/offline status per chain with required env var names; no secret values exposed

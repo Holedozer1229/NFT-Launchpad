@@ -1151,6 +1151,26 @@ export const insertGasFundingEventSchema = createInsertSchema(gasFundingEvents).
 export type GasFundingEventRow = typeof gasFundingEvents.$inferSelect;
 export type InsertGasFundingEvent = z.infer<typeof insertGasFundingEventSchema>;
 
+// ==================== SKYNT Price History ====================
+
+export const skyntPriceSnapshots = pgTable("skynt_price_snapshots", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  priceEth: real("price_eth").notNull(),
+  priceUsd: real("price_usd").notNull(),
+  ethPriceUsd: real("eth_price_usd").notNull(),
+  poolFee: integer("pool_fee").notNull(),
+  treasuryEthBalance: real("treasury_eth_balance").notNull().default(0),
+  epochNumber: integer("epoch_number").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSkyntPriceSnapshotSchema = createInsertSchema(skyntPriceSnapshots).omit({
+  id: true,
+  createdAt: true,
+} as any);
+export type SkyntPriceSnapshot = typeof skyntPriceSnapshots.$inferSelect;
+export type InsertSkyntPriceSnapshot = z.infer<typeof insertSkyntPriceSnapshotSchema>;
+
 export const yieldPositions = pgTable("yield_positions", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: integer("user_id").notNull().references(() => users.id),
