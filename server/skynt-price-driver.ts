@@ -397,15 +397,14 @@ async function runEpoch(): Promise<void> {
   const ethBalance = await getTreasuryEthBalance();
   _state.treasuryEthBalance = ethBalance;
 
-  // Persist price snapshot regardless of whether a buyback runs
-  savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch);
-
   // 3. Determine buy pressure
   const { mode, ethToSpend } = calcBuyPressure(priceUsd, PRICE_TARGET_USD, ethBalance);
   _state.pricePressureMode = mode;
 
   if (ethToSpend <= 0 || mode === "target_reached" || mode === "idle") {
     console.log(`[PriceDriver] Epoch ${epoch} — mode=${mode}, no buy action needed`);
+    // Persist snapshot with 0 buyback amounts
+    savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     return;
   }
 
@@ -442,6 +441,8 @@ async function runEpoch(): Promise<void> {
       status: "failed",
       reason: "Swap execution failed",
     });
+    // Persist snapshot with intended eth spend but 0 bought (failed)
+    savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, ethToSpend, 0);
     return;
   }
 
@@ -493,6 +494,9 @@ async function runEpoch(): Promise<void> {
     `[PriceDriver] ✓ Bought ${skyntBoughtFloat.toFixed(2)} SKYNT | Burned ${skyntBurnedFloat.toFixed(2)} | ` +
     `Impact: +${impactBps}bps | $${priceUsd.toFixed(4)} → $${priceAfterUsd.toFixed(4)}`
   );
+
+  // Persist snapshot with actual buyback amounts
+  savePriceSnapshot(priceAfterUsd / ethPriceUsd, priceAfterUsd, ethPriceUsd, exactQuote.fee, ethBalance, epoch, ethToSpend, skyntBoughtFloat);
 }
 
 // ── Persist price snapshot to DB ──────────────────────────────────────────
@@ -503,14 +507,16 @@ async function savePriceSnapshot(
   poolFee: number,
   treasuryEthBalance: number,
   epochNumber: number,
+  ethSpent: number = 0,
+  skyntBought: number = 0,
 ): Promise<void> {
   try {
     const { pool: dbPool } = await import("./db");
     await dbPool.query(
       `INSERT INTO skynt_price_snapshots
-         (price_eth, price_usd, eth_price_usd, pool_fee, treasury_eth_balance, epoch_number)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [priceEth, priceUsd, ethPriceUsd, poolFee, treasuryEthBalance, epochNumber]
+         (price_eth, price_usd, eth_price_usd, pool_fee, treasury_eth_balance, epoch_number, eth_spent, skynt_bought)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [priceEth, priceUsd, ethPriceUsd, poolFee, treasuryEthBalance, epochNumber, ethSpent, skyntBought]
     );
   } catch (err: any) {
     console.warn("[PriceDriver] Failed to save price snapshot:", err.message?.slice(0, 80));

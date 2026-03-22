@@ -37,13 +37,18 @@ interface TokenStats {
   ethPriceUsd: number;
   poolFee: number | null;
   targetPriceUsd: number;
-  treasuryEthBalance: number;
+  maxSupply: number;
+  initialCirculating: number;
+  circulatingSupply: number;
   totalSkyntBurned: number;
   totalSkyntBought: number;
   totalEthSpent: number;
+  buybackEth24h: number;
+  buybackSkynt24h: number;
+  treasuryEthBalance: number;
+  treasurySkyntBalance: number;
   epochCount: number;
-  maxSupply: number;
-  initialCirculating: number;
+  nftHolderCount: number;
   lastUpdated: string | null;
   pricePressureMode: string;
   engineRunning: boolean;
@@ -97,7 +102,7 @@ export default function Analytics() {
 
   const { data, isLoading, isError } = useQuery<AnalyticsStats>({
     queryKey: ["/api/analytics/stats"],
-    refetchInterval: 60000,
+    refetchInterval: 30000,
   });
 
   const { data: tokenStats, isLoading: statsLoading } = useQuery<TokenStats>({
@@ -200,19 +205,19 @@ export default function Analytics() {
         {[
           {
             label: "SKYNT Price",
-            value: statsLoading ? null : `$${fmt(latestPrice, 4)}`,
+            value: statsLoading ? null : `$${fmt(latestPrice, 6)}`,
             sub: tokenStats ? `${fmt(tokenStats.priceEth, 8)} ETH` : "",
             icon: CircleDollarSign,
             color: "text-neon-cyan",
             testId: "text-skynt-price",
           },
           {
-            label: "Target Price",
-            value: statsLoading ? null : `$${fmt(targetPrice, 4)}`,
-            sub: `${priceProgress.toFixed(0)}% reached`,
-            icon: Target,
-            color: "text-neon-green",
-            testId: "text-target-price",
+            label: "Circulating Supply",
+            value: statsLoading ? null : `${fmt(tokenStats?.circulatingSupply ?? 0, 0)}`,
+            sub: `of ${(tokenStats?.maxSupply ?? 21_000_000).toLocaleString()} max`,
+            icon: Coins,
+            color: "text-neon-magenta",
+            testId: "text-circulating-supply",
           },
           {
             label: "Total Burned",
@@ -223,28 +228,28 @@ export default function Analytics() {
             testId: "text-total-burned",
           },
           {
-            label: "Total Bought",
-            value: statsLoading ? null : `${fmt(tokenStats?.totalSkyntBought ?? 0, 2)} SKYNT`,
-            sub: `${fmt(tokenStats?.totalEthSpent ?? 0, 5)} ETH spent`,
+            label: "24h Buyback ETH",
+            value: statsLoading ? null : `${fmt(tokenStats?.buybackEth24h ?? 0, 5)} ETH`,
+            sub: `${fmt(tokenStats?.buybackSkynt24h ?? 0, 2)} SKYNT bought`,
             icon: ArrowUpRight,
             color: "text-neon-orange",
-            testId: "text-total-bought",
+            testId: "text-buyback-24h",
           },
           {
-            label: "Max Supply",
-            value: statsLoading ? null : `${(tokenStats?.maxSupply ?? 21_000_000).toLocaleString()}`,
-            sub: "SKYNT tokens",
-            icon: Coins,
-            color: "text-neon-magenta",
-            testId: "text-max-supply",
+            label: "Treasury SKYNT",
+            value: statsLoading ? null : `${fmt(tokenStats?.treasurySkyntBalance ?? 0, 2)}`,
+            sub: `${fmt(tokenStats?.treasuryEthBalance ?? 0, 5)} ETH reserve`,
+            icon: Target,
+            color: "text-neon-green",
+            testId: "text-treasury-skynt",
           },
           {
-            label: "ETH Price",
-            value: statsLoading ? null : `$${(tokenStats?.ethPriceUsd ?? 3200).toLocaleString()}`,
+            label: "NFT Holders",
+            value: statsLoading ? null : `${(tokenStats?.nftHolderCount ?? 0).toLocaleString()}`,
             sub: tokenStats?.engineRunning ? "Engine live" : "Engine paused",
             icon: Zap,
-            color: tokenStats?.engineRunning ? "text-neon-green" : "text-muted-foreground",
-            testId: "text-eth-price",
+            color: tokenStats?.engineRunning ? "text-neon-cyan" : "text-muted-foreground",
+            testId: "text-nft-holders",
           },
         ].map((stat) => (
           <div key={stat.label} className="cosmic-card p-3">

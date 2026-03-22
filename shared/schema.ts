@@ -1161,6 +1161,8 @@ export const skyntPriceSnapshots = pgTable("skynt_price_snapshots", {
   poolFee: integer("pool_fee").notNull(),
   treasuryEthBalance: real("treasury_eth_balance").notNull().default(0),
   epochNumber: integer("epoch_number").notNull(),
+  ethSpent: real("eth_spent").notNull().default(0),
+  skyntBought: real("skynt_bought").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

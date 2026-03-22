@@ -1311,23 +1311,40 @@ STYLE:
   app.get("/api/analytics/token-stats", async (_req, res) => {
     try {
       const { pool: dbPool } = await import("./db");
+      const { getPriceDriverState } = await import("./skynt-price-driver");
+      const { SKYNT_TOKENOMICS } = await import("@shared/schema");
+      const { db } = await import("./db");
+      const { nfts } = await import("@shared/schema");
+      const { sql: drizzleSql } = await import("drizzle-orm");
+      const driverState = getPriceDriverState();
 
-      // Latest price snapshot
+      // Latest price snapshot (includes persistent eth_spent, skynt_bought)
       const latestSnap = await dbPool.query(
-        `SELECT price_usd, price_eth, eth_price_usd, pool_fee, treasury_eth_balance, epoch_number, created_at
+        `SELECT price_usd, price_eth, eth_price_usd, pool_fee, treasury_eth_balance,
+                epoch_number, created_at
          FROM skynt_price_snapshots
-         ORDER BY created_at DESC
-         LIMIT 1`
+         ORDER BY created_at DESC LIMIT 1`
       );
       const snap = latestSnap.rows[0] ?? null;
 
-      // Daily buyback volume (total ETH spent on successful buybacks in last 24h)
-      // Using price snapshots count as proxy — real buyback events tracked in memory
-      const { getPriceDriverState } = await import("./skynt-price-driver");
-      const driverState = getPriceDriverState();
+      // 24h buyback volume from DB (persistent across restarts)
+      const dailyVol = await dbPool.query(
+        `SELECT
+           COALESCE(SUM(eth_spent), 0)::float    AS eth_24h,
+           COALESCE(SUM(skynt_bought), 0)::float AS skynt_24h
+         FROM skynt_price_snapshots
+         WHERE created_at > NOW() - INTERVAL '24 hours'`
+      );
+      const buybackEth24h  = parseFloat(dailyVol.rows[0]?.eth_24h  ?? 0);
+      const buybackSkynt24h = parseFloat(dailyVol.rows[0]?.skynt_24h ?? 0);
 
-      // Burn address balance (SKYNT sent to 0x000dead) — use viem if Alchemy configured
-      let burnedBalance = driverState.totalSkyntBurned; // fallback to in-memory total
+      // NFT unique holder count from DB
+      const [holdersRow] = await db.select({ count: drizzleSql<number>`COUNT(DISTINCT owner)::int` }).from(nfts);
+      const nftHolderCount = holdersRow?.count ?? 0;
+
+      // On-chain SKYNT balances — burn address + treasury SKYNT holdings
+      let burnedBalance    = driverState.totalSkyntBurned;
+      let treasurySkyntBal = 0;
       try {
         if (process.env.ALCHEMY_API_KEY) {
           const { createPublicClient, http, formatUnits } = await import("viem");
@@ -1336,37 +1353,54 @@ STYLE:
             chain: mainnet,
             transport: http(`https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`, { timeout: 5000 }),
           });
-          const BURN_ADDR = "0x000000000000000000000000000000000000dEaD" as const;
-          const SKYNT_ADDR = (process.env.SKYNT_CONTRACT_ADDRESS || "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20") as `0x${string}`;
+          const BURN_ADDR      = "0x000000000000000000000000000000000000dEaD" as `0x${string}`;
+          const TREASURY_ADDR  = (process.env.TREASURY_ADDRESS || "0xD55dDb0f19DAc37cDb3c5c50d8A89EB177ecc6e0") as `0x${string}`;
+          const SKYNT_ADDR     = (process.env.SKYNT_CONTRACT_ADDRESS || "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20") as `0x${string}`;
           const ERC20_ABI = [{
             name: "balanceOf", type: "function", stateMutability: "view",
             inputs: [{ name: "account", type: "address" }],
             outputs: [{ name: "", type: "uint256" }],
           }] as const;
-          const bal = await client.readContract({ address: SKYNT_ADDR, abi: ERC20_ABI, functionName: "balanceOf", args: [BURN_ADDR] });
-          burnedBalance = parseFloat(formatUnits(bal as bigint, 18));
+          const [burnBal, tBal] = await Promise.all([
+            client.readContract({ address: SKYNT_ADDR, abi: ERC20_ABI, functionName: "balanceOf", args: [BURN_ADDR] }),
+            client.readContract({ address: SKYNT_ADDR, abi: ERC20_ABI, functionName: "balanceOf", args: [TREASURY_ADDR] }),
+          ]);
+          burnedBalance    = parseFloat(formatUnits(burnBal as bigint, 18));
+          treasurySkyntBal = parseFloat(formatUnits(tBal as bigint, 18));
         }
       } catch { /* fallback to in-memory */ }
 
-      // Total supply from schema constant
-      const { SKYNT_TOKENOMICS } = await import("@shared/schema");
+      // Circulating supply: initial - burned
+      const circulatingSupply = Math.max(0, SKYNT_TOKENOMICS.initialCirculating - burnedBalance);
 
       res.json({
-        priceUsd:            snap?.price_usd ?? driverState.liveSkyntPriceUsd ?? 0,
-        priceEth:            snap?.price_eth ?? driverState.liveSkyntPriceEth ?? 0,
-        ethPriceUsd:         snap?.eth_price_usd ?? driverState.currentEthPrice ?? 3200,
-        poolFee:             snap?.pool_fee ?? driverState.activeFee ?? null,
-        targetPriceUsd:      driverState.targetPriceUsd,
-        treasuryEthBalance:  snap?.treasury_eth_balance ?? driverState.treasuryEthBalance ?? 0,
-        totalSkyntBurned:    burnedBalance,
-        totalSkyntBought:    driverState.totalSkyntBought,
-        totalEthSpent:       driverState.totalEthSpent,
-        epochCount:          snap?.epoch_number ?? driverState.epochCount ?? 0,
-        maxSupply:           SKYNT_TOKENOMICS.maxSupply,
-        initialCirculating:  SKYNT_TOKENOMICS.initialCirculating,
-        lastUpdated:         snap?.created_at ?? null,
-        pricePressureMode:   driverState.pricePressureMode,
-        engineRunning:       driverState.running,
+        // Price
+        priceUsd:           snap?.price_usd ?? driverState.liveSkyntPriceUsd ?? 0,
+        priceEth:           snap?.price_eth ?? driverState.liveSkyntPriceEth ?? 0,
+        ethPriceUsd:        snap?.eth_price_usd ?? driverState.currentEthPrice ?? 3200,
+        poolFee:            snap?.pool_fee ?? driverState.activeFee ?? null,
+        targetPriceUsd:     driverState.targetPriceUsd,
+        // Supply
+        maxSupply:          SKYNT_TOKENOMICS.maxSupply,
+        initialCirculating: SKYNT_TOKENOMICS.initialCirculating,
+        circulatingSupply,
+        // Burn/Buy
+        totalSkyntBurned:   burnedBalance,
+        totalSkyntBought:   driverState.totalSkyntBought,
+        totalEthSpent:      driverState.totalEthSpent,
+        // 24h persistent metrics from DB
+        buybackEth24h,
+        buybackSkynt24h,
+        // Treasury
+        treasuryEthBalance: snap?.treasury_eth_balance ?? driverState.treasuryEthBalance ?? 0,
+        treasurySkyntBalance: treasurySkyntBal,
+        // Counts
+        epochCount:         snap?.epoch_number ?? driverState.epochCount ?? 0,
+        nftHolderCount,
+        // Engine state
+        lastUpdated:        snap?.created_at ?? null,
+        pricePressureMode:  driverState.pricePressureMode,
+        engineRunning:      driverState.running,
       });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
