@@ -506,3 +506,18 @@ Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection
 - Cosmic/space-themed UI with neon accents
 - SphinxOS and aerospace branding throughout
 - Live mainnet RPC calls via Alchemy for transactions, blocks, balances
+
+### SKYNT Price Driver Engine
+- `server/skynt-price-driver.ts` — live on-chain buyback + burn engine for SKYNT token price support
+  - Reads live SKYNT/WETH price directly from Uniswap v3 Quoter V2 (`0x61fFE014bA17989E743c5F6cB21bF9697530B21e`) using viem `simulateContract`
+  - Executes real ETH → SKYNT swaps via Uniswap v3 SwapRouter02 (`0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45`)
+  - Burns 30% of every purchased SKYNT to `0x000000000000000000000000000000000000dEaD`
+  - Scales buy pressure inversely to price vs. target (aggressive/moderate/idle/target_reached modes)
+  - 5-minute epoch cycles with circuit breakers: MAX_ETH_PER_EPOCH=0.005, MIN_TREASURY_RESERVE=0.01 ETH
+  - Configured by `SKYNT_PRICE_TARGET_USD` env var (default $0.65), `ALCHEMY_API_KEY`, `TREASURY_PRIVATE_KEY`
+  - Tries 0.3%, 1%, 0.05% fee tiers on Uniswap v3 to find best pool
+  - Auto-started in `server/index.ts` alongside all other background engines
+- API routes: `GET /api/price-driver/status`, `POST /api/price-driver/trigger` (admin), `POST /api/price-driver/start` (admin), `POST /api/price-driver/stop` (admin)
+- Frontend: `client/src/pages/PriceDriver.tsx` — admin dashboard showing live price, buy pressure mode, progress bar to target, cumulative stats, buyback history with Etherscan links
+- Sidebar: "Price Driver" (Zap icon) under SYSTEM group — admin-only visible
+- Route: `/price-driver`

@@ -39,6 +39,7 @@ const DysonSphereMiner = lazy(() => import("@/pages/DysonSphereMiner"));
 const AirdropPage = lazy(() => import("@/pages/Airdrop"));
 const KYCPage = lazy(() => import("@/pages/KYC"));
 const BtcZkDaemon = lazy(() => import("@/pages/BtcZkDaemon"));
+const PriceDriver = lazy(() => import("@/pages/PriceDriver"));
 const SphinxOracle = lazy(() => import("@/components/SphinxOracle"));
 const QuantumMiner = lazy(() => import("@/components/QuantumMiner").then(m => ({ default: m.QuantumMiner })));
 const SkyAI = lazy(() => import("@/components/SkyAI").then(m => ({ default: m.SkyAI })));
@@ -142,6 +143,7 @@ function AppRouter() {
             <Route path="/contracts" component={ContractDeployment} />
             <Route path="/treasury" component={TreasuryVaultGuard} />
             <Route path="/wallet" component={WalletPage} />
+            <Route path="/price-driver" component={PriceDriver} />
             <Route path="/admin" component={AdminGuard} />
             <Route component={NotFound} />
           </Switch>

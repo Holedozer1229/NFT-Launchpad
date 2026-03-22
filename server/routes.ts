@@ -3706,6 +3706,56 @@ STYLE:
     }
   });
 
+  // ========== SKYNT PRICE DRIVER ROUTES ==========
+
+  app.get("/api/price-driver/status", async (_req, res) => {
+    try {
+      const { getPriceDriverState } = await import("./skynt-price-driver");
+      res.json(getPriceDriverState());
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/price-driver/trigger", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const { triggerManualBuyback } = await import("./skynt-price-driver");
+      const event = await triggerManualBuyback();
+      res.json({ success: true, event });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/price-driver/start", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const { startPriceDriver } = await import("./skynt-price-driver");
+      startPriceDriver();
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/price-driver/stop", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const { stopPriceDriver } = await import("./skynt-price-driver");
+      stopPriceDriver();
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Spectral PoW proofs
   app.get("/api/spectral-pow/proofs", async (_req, res) => {
     try {

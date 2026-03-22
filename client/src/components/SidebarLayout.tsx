@@ -61,6 +61,7 @@ const navGroups = [
     items: [
       { path: "/kyc", label: "KYC / ID Verify", icon: UserCheck, adminOnly: false },
       { path: "/contracts", label: "Contracts", icon: FileCode2, adminOnly: false },
+      { path: "/price-driver", label: "Price Driver", icon: Zap, adminOnly: true },
       { path: "/treasury", label: "Treasury", icon: Vault, adminOnly: true },
       { path: "/wallet", label: "Wallet", icon: WalletCards, adminOnly: false },
       { path: "/admin", label: "Admin", icon: Shield, adminOnly: true },
@@ -96,6 +97,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/contracts": "Contract Deployment | SKYNT Protocol",
   "/treasury": "Treasury Vault | SKYNT Protocol",
   "/wallet": "Wallet | SKYNT Protocol",
+  "/price-driver": "Price Driver | SKYNT Protocol",
   "/admin": "Admin Console | SKYNT Protocol",
 };
 
