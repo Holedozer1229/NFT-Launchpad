@@ -2,14 +2,13 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   RefreshCw, Settings, Cpu, Network, Vault, Zap, Fuel, Atom,
-  PickaxeIcon, Power, AlertCircle, Activity, BookOpen, Clock, Hash
+  Power, PowerOff, AlertCircle, Activity, BookOpen, Clock, Hash, AlertTriangle
 } from "lucide-react";
 
 interface EngineStatus {
@@ -19,6 +18,8 @@ interface EngineStatus {
   epochCount: number | null;
   lastActivity: number | null;
   detail: string;
+  errorCount: number;
+  lastError: string | null;
 }
 
 interface EngineStatusResponse {
@@ -59,22 +60,24 @@ function timeAgo(ts: number | null): string {
   return `${Math.floor(s / 3600)}h ago`;
 }
 
-function EngineCard({ engine, onRestart, isRestarting }: {
+function EngineCard({ engine, onRestart, onStop, actionEngineId }: {
   engine: EngineStatus;
   onRestart: (id: string) => void;
-  isRestarting: boolean;
+  onStop: (id: string) => void;
+  actionEngineId: string | null;
 }) {
   const icon = ENGINE_ICONS[engine.id] ?? <Cpu className="w-4 h-4" />;
+  const isActing = actionEngineId === engine.id;
 
   return (
     <Card className="bg-card/60 border-border/40" data-testid={`engine-card-${engine.id}`}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3 min-w-0">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
             <div className={`p-2 rounded-md mt-0.5 shrink-0 ${engine.running ? "bg-primary/10 text-primary" : "bg-muted/40 text-muted-foreground"}`}>
               {icon}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="font-mono text-sm font-semibold text-foreground">{engine.label}</div>
               <div className="text-xs text-muted-foreground mt-0.5 truncate" title={engine.detail}>{engine.detail}</div>
               <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -90,32 +93,57 @@ function EngineCard({ engine, onRestart, isRestarting }: {
                   {engine.running ? "running" : "stopped"}
                 </Badge>
                 {engine.epochCount !== null && (
-                  <span className="text-xs text-muted-foreground font-mono flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground font-mono flex items-center gap-1" data-testid={`epoch-count-${engine.id}`}>
                     <Hash className="w-3 h-3" />
                     {engine.epochCount}
                   </span>
                 )}
                 {engine.lastActivity !== null && (
-                  <span className="text-xs text-muted-foreground font-mono flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground font-mono flex items-center gap-1" data-testid={`last-activity-${engine.id}`}>
                     <Clock className="w-3 h-3" />
                     {timeAgo(engine.lastActivity)}
                   </span>
                 )}
+                {engine.errorCount > 0 && (
+                  <span className="text-xs text-red-400 font-mono flex items-center gap-1" data-testid={`error-count-${engine.id}`}>
+                    <AlertTriangle className="w-3 h-3" />
+                    {engine.errorCount} err{engine.errorCount !== 1 ? "s" : ""}
+                  </span>
+                )}
               </div>
+              {engine.lastError && (
+                <div className="text-xs text-red-400/70 font-mono mt-1 truncate" title={engine.lastError} data-testid={`last-error-${engine.id}`}>
+                  ↳ {engine.lastError}
+                </div>
+              )}
             </div>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="shrink-0 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-            onClick={() => onRestart(engine.id)}
-            disabled={isRestarting}
-            data-testid={`restart-${engine.id}`}
-          >
-            {isRestarting
-              ? <RefreshCw className="w-3 h-3 animate-spin" />
-              : <Power className="w-3 h-3" />}
-          </Button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-red-500/30 text-red-400 hover:bg-red-500/10 h-8 w-8 p-0"
+              onClick={() => onStop(engine.id)}
+              disabled={isActing || !engine.running}
+              title="Stop engine"
+              data-testid={`stop-${engine.id}`}
+            >
+              <PowerOff className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 h-8 w-8 p-0"
+              onClick={() => onRestart(engine.id)}
+              disabled={isActing}
+              title="Restart engine"
+              data-testid={`restart-${engine.id}`}
+            >
+              {isActing
+                ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                : <Power className="w-3.5 h-3.5" />}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -125,7 +153,7 @@ function EngineCard({ engine, onRestart, isRestarting }: {
 export default function AdminEngines() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [restartingEngine, setRestartingEngine] = useState<string | null>(null);
+  const [actionEngineId, setActionEngineId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
@@ -146,13 +174,27 @@ export default function AdminEngines() {
     mutationFn: (engineName: string) =>
       apiRequest("POST", `/api/admin/engines/${engineName}/restart`),
     onSuccess: (_data: any, engineName: string) => {
-      toast({ title: "Engine restarted", description: `${engineName} successfully restarted.` });
-      setRestartingEngine(null);
+      toast({ title: "Engine restarted", description: `${engineName} restarted successfully.` });
+      setActionEngineId(null);
       queryClient.invalidateQueries({ queryKey: ["/api/admin/engines/status"] });
     },
     onError: (err: any) => {
       toast({ title: "Restart failed", description: err.message, variant: "destructive" });
-      setRestartingEngine(null);
+      setActionEngineId(null);
+    },
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: (engineName: string) =>
+      apiRequest("POST", `/api/admin/engines/${engineName}/stop`),
+    onSuccess: (_data: any, engineName: string) => {
+      toast({ title: "Engine stopped", description: `${engineName} stopped.` });
+      setActionEngineId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/engines/status"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Stop failed", description: err.message, variant: "destructive" });
+      setActionEngineId(null);
     },
   });
 
@@ -174,8 +216,13 @@ export default function AdminEngines() {
   };
 
   const handleRestart = (id: string) => {
-    setRestartingEngine(id);
+    setActionEngineId(id);
     restartMutation.mutate(id);
+  };
+
+  const handleStop = (id: string) => {
+    setActionEngineId(id);
+    stopMutation.mutate(id);
   };
 
   const settings = settingsData?.settings ?? {};
@@ -184,6 +231,7 @@ export default function AdminEngines() {
 
   const runningCount = engines.filter(e => e.running).length;
   const totalCount   = engines.length;
+  const totalErrors  = engines.reduce((s, e) => s + e.errorCount, 0);
 
   return (
     <div className="min-h-screen p-6 space-y-8 max-w-5xl mx-auto">
@@ -196,14 +244,25 @@ export default function AdminEngines() {
             Engine Console
           </h1>
           <p className="text-sm text-muted-foreground mt-1 font-mono">
-            Live engine status · restart controls · hot-reload protocol settings
+            Live engine status · stop / restart controls · hot-reload protocol settings
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {!statusLoading && (
-            <Badge variant="outline" className={`font-mono text-xs ${runningCount === totalCount ? "border-green-500/30 text-green-400" : "border-amber-500/30 text-amber-400"}`}>
-              {runningCount}/{totalCount} engines running
-            </Badge>
+            <>
+              <Badge
+                variant="outline"
+                className={`font-mono text-xs ${runningCount === totalCount ? "border-green-500/30 text-green-400" : "border-amber-500/30 text-amber-400"}`}
+                data-testid="engines-running-badge"
+              >
+                {runningCount}/{totalCount} running
+              </Badge>
+              {totalErrors > 0 && (
+                <Badge variant="outline" className="font-mono text-xs border-red-500/30 text-red-400" data-testid="engines-error-badge">
+                  {totalErrors} error{totalErrors !== 1 ? "s" : ""}
+                </Badge>
+              )}
+            </>
           )}
           <Button
             size="sm"
@@ -226,7 +285,7 @@ export default function AdminEngines() {
           <h2 className="font-mono text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Live Engine Status
           </h2>
-          <span className="text-xs text-muted-foreground font-mono">auto-refresh 10s</span>
+          <span className="text-xs text-muted-foreground font-mono">auto-refresh every 10s</span>
         </div>
 
         {statusLoading ? (
@@ -246,7 +305,8 @@ export default function AdminEngines() {
                 key={engine.id}
                 engine={engine}
                 onRestart={handleRestart}
-                isRestarting={restartingEngine === engine.id}
+                onStop={handleStop}
+                actionEngineId={actionEngineId}
               />
             ))}
           </div>

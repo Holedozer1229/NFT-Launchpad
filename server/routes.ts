@@ -4817,6 +4817,7 @@ STYLE:
         { getSelfFundStatus },
         { getPriceDriverState },
         { getLedgerState },
+        { getEngineErrorCount, getLastEngineError },
       ] = await Promise.all([
         import("./iit-engine"),
         import("./p2p-network"),
@@ -4825,6 +4826,7 @@ STYLE:
         import("./self-fund-gas"),
         import("./skynt-price-driver"),
         import("./p2p-ledger"),
+        import("./engine-error-counter"),
       ]);
 
       const btcZk      = getBtcZkDaemonStatus();
@@ -4841,72 +4843,64 @@ STYLE:
 
       const dysonState = (dysonMiner as any).getState?.() ?? null;
 
+      const mkEngine = (id: string, label: string, running: boolean, epochCount: number | null, lastActivity: number | null, detail: string) => ({
+        id, label, running, epochCount, lastActivity, detail,
+        errorCount: getEngineErrorCount(id),
+        lastError: getLastEngineError(id),
+      });
+
       res.json({
         engines: [
-          {
-            id: "iit-engine",
-            label: "IIT Consciousness",
-            running: iitRunning(),
-            epochCount: null,
-            lastActivity: null,
-            detail: "Phi (Φ) computation loop active",
-          },
-          {
-            id: "p2p-network",
-            label: "P2P Network",
-            running: p2pStats !== null,
-            epochCount: p2pStats?.totalNodes ?? 0,
-            lastActivity: p2pStats?.lastBlockTime ?? null,
-            detail: p2pStats ? `${p2pStats.totalNodes} nodes | ${p2pActive} active | h:${p2pStats.consensusHeight}` : "stopped",
-          },
-          {
-            id: "p2p-ledger",
-            label: "P2P Ledger",
-            running: ledger !== null,
-            epochCount: (ledger as any)?.guardians?.length ?? null,
-            lastActivity: null,
-            detail: ledger ? `guardians: ${(ledger as any).guardians?.length ?? 0}` : "stopped",
-          },
-          {
-            id: "treasury-yield",
-            label: "Treasury Yield",
-            running: treasury.autoCompoundEnabled,
-            epochCount: treasury.compoundCount,
-            lastActivity: treasury.lastCompoundTimestamp,
-            detail: `pool: ${treasury.currentPoolBalance.toFixed(4)} | yield: ${treasury.totalYieldGenerated.toFixed(4)} | φ-boost: ${treasury.phiBoostMultiplier.toFixed(3)}`,
-          },
-          {
-            id: "btc-zk-daemon",
-            label: "BTC ZK Daemon",
-            running: btcZk.running,
-            epochCount: btcZk.totalEpochs,
-            lastActivity: btcZk.lastEpoch?.createdAt ? new Date(btcZk.lastEpoch.createdAt).getTime() : null,
-            detail: `epoch ${btcZk.epoch} | ${btcZk.blocksFound} blocks | ${(btcZk.avgHashRate / 1000).toFixed(1)}kH/s | xiPass:${(btcZk.xiPassRate * 100).toFixed(1)}%`,
-          },
-          {
-            id: "self-fund-sentinel",
-            label: "OIYE Gas Sentinel",
-            running: selfFund.running,
-            epochCount: selfFund.sentinelTriggers,
-            lastActivity: selfFund.lastCheckAt ? new Date(selfFund.lastCheckAt).getTime() : null,
-            detail: `phase: ${selfFund.phase} | reserve: ${selfFund.gasReserveEth.toFixed(8)} ETH | ${selfFund.isCritical ? "CRITICAL" : selfFund.isHealthy ? "healthy" : "low"} | runway:${selfFund.projectedRunwayEpochs} epochs`,
-          },
-          {
-            id: "price-driver",
-            label: "Price Driver",
-            running: priceDriver.running,
-            epochCount: priceDriver.epochCount,
-            lastActivity: priceDriver.lastBuybackAt,
-            detail: `target: $${priceDriver.targetPriceUsd.toFixed(4)} | live: $${priceDriver.liveSkyntPriceUsd.toFixed(6)} | mode: ${priceDriver.pricePressureMode} | burned: ${priceDriver.totalSkyntBurned.toFixed(2)}`,
-          },
-          {
-            id: "dyson-sphere",
-            label: "Dyson Sphere",
-            running: dysonState !== null,
-            epochCount: dysonState?.epoch ?? 0,
-            lastActivity: dysonState?.lastUpdate ?? null,
-            detail: dysonState ? `epoch ${dysonState.epoch} | corr: ${dysonState.chainCorrelation?.toFixed(4) ?? "?"} | boost: ${dysonState.hashRateBoost?.toFixed(2) ?? "?"}x` : "idle",
-          },
+          mkEngine("iit-engine", "IIT Consciousness", iitRunning(), null, null, "Phi (Φ) computation loop active"),
+          mkEngine(
+            "p2p-network", "P2P Network",
+            p2pStats !== null,
+            p2pStats?.totalNodes ?? 0,
+            p2pStats?.lastBlockTime ?? null,
+            p2pStats ? `${p2pStats.totalNodes} nodes | ${p2pActive} active | h:${p2pStats.consensusHeight}` : "stopped",
+          ),
+          mkEngine(
+            "p2p-ledger", "P2P Ledger",
+            ledger !== null,
+            (ledger as any)?.guardians?.length ?? null,
+            null,
+            ledger ? `guardians: ${(ledger as any).guardians?.length ?? 0}` : "stopped",
+          ),
+          mkEngine(
+            "treasury-yield", "Treasury Yield",
+            treasury.autoCompoundEnabled,
+            treasury.compoundCount,
+            treasury.lastCompoundTimestamp,
+            `pool: ${treasury.currentPoolBalance.toFixed(4)} | yield: ${treasury.totalYieldGenerated.toFixed(4)} | φ-boost: ${treasury.phiBoostMultiplier.toFixed(3)}`,
+          ),
+          mkEngine(
+            "btc-zk-daemon", "BTC ZK Daemon",
+            btcZk.running,
+            btcZk.totalEpochs,
+            btcZk.lastEpoch?.createdAt ? new Date(btcZk.lastEpoch.createdAt).getTime() : null,
+            `epoch ${btcZk.epoch} | ${btcZk.blocksFound} blocks | ${(btcZk.avgHashRate / 1000).toFixed(1)}kH/s | xiPass:${(btcZk.xiPassRate * 100).toFixed(1)}%`,
+          ),
+          mkEngine(
+            "self-fund-sentinel", "OIYE Gas Sentinel",
+            selfFund.running,
+            selfFund.sentinelTriggers,
+            selfFund.lastCheckAt ? new Date(selfFund.lastCheckAt).getTime() : null,
+            `phase: ${selfFund.phase} | reserve: ${selfFund.gasReserveEth.toFixed(8)} ETH | ${selfFund.isCritical ? "CRITICAL" : selfFund.isHealthy ? "healthy" : "low"} | runway:${selfFund.projectedRunwayEpochs} epochs`,
+          ),
+          mkEngine(
+            "price-driver", "Price Driver",
+            priceDriver.running,
+            priceDriver.epochCount,
+            priceDriver.lastBuybackAt,
+            `target: $${priceDriver.targetPriceUsd.toFixed(4)} | live: $${priceDriver.liveSkyntPriceUsd.toFixed(6)} | mode: ${priceDriver.pricePressureMode} | burned: ${priceDriver.totalSkyntBurned.toFixed(2)}`,
+          ),
+          mkEngine(
+            "dyson-sphere", "Dyson Sphere",
+            dysonState !== null,
+            dysonState?.epoch ?? 0,
+            dysonState?.lastUpdate ?? null,
+            dysonState ? `epoch ${dysonState.epoch} | corr: ${dysonState.chainCorrelation?.toFixed(4) ?? "?"} | boost: ${dysonState.hashRateBoost?.toFixed(2) ?? "?"}x` : "idle",
+          ),
         ],
         timestamp: Date.now(),
       });
@@ -5054,9 +5048,44 @@ STYLE:
     }
 
     try {
+      const { resetEngineErrors } = await import("./engine-error-counter");
+      resetEngineErrors(name);
       const result = await handler();
       console.log(`[Admin] Engine restart: ${name} | stopped=${result.stopped} started=${result.started}`);
       res.json({ success: true, engine: name, ...result, restartedAt: new Date().toISOString() });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Stop individual engine (graceful stop, no restart)
+  app.post("/api/admin/engines/:name/stop", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    const { name } = req.params;
+
+    const stopMap: Record<string, () => Promise<void>> = {
+      "iit-engine":         async () => { const { stopEngine }               = await import("./iit-engine");            stopEngine(); },
+      "p2p-network":        async () => { const { stopP2PNetwork }           = await import("./p2p-network");           stopP2PNetwork(); },
+      "p2p-ledger":         async () => { const { stopP2PLedger }            = await import("./p2p-ledger");            stopP2PLedger(); },
+      "treasury-yield":     async () => { const { stopTreasuryYieldEngine }  = await import("./treasury-yield");        stopTreasuryYieldEngine(); },
+      "btc-zk-daemon":      async () => { const { stopBtcZkDaemon }          = await import("./btc-zk-daemon");         stopBtcZkDaemon(); },
+      "self-fund-sentinel": async () => { const { stopSelfFundSentinel }     = await import("./self-fund-gas");         stopSelfFundSentinel(); },
+      "price-driver":       async () => { const { stopPriceDriver }          = await import("./skynt-price-driver");    stopPriceDriver(); },
+      "dyson-sphere":       async () => { const { stopDysonEvolution }       = await import("./dyson-sphere-miner");    stopDysonEvolution(); },
+      "background-miner":   async () => { const { stopAllMining }            = await import("./background-miner");      stopAllMining(); },
+    };
+
+    const handler = stopMap[name];
+    if (!handler) {
+      return res.status(404).json({ message: `Unknown engine: ${name}`, validEngines: Object.keys(stopMap) });
+    }
+
+    try {
+      await handler();
+      console.log(`[Admin] Engine stopped: ${name}`);
+      res.json({ success: true, engine: name, stopped: true, stoppedAt: new Date().toISOString() });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

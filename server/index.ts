@@ -185,6 +185,22 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Run SQL bootstrap migrations before anything else
+  try {
+    const fs = await import("fs");
+    const path = await import("path");
+    const { pool: migPool } = await import("./db");
+    const migDir = path.join(process.cwd(), "migrations");
+    const migFiles = fs.readdirSync(migDir).filter((f: string) => f.endsWith(".sql")).sort();
+    for (const file of migFiles) {
+      const sql = fs.readFileSync(path.join(migDir, file), "utf-8");
+      await migPool.query(sql);
+      console.log(`[Migrations] Applied: ${file}`);
+    }
+  } catch (err: any) {
+    console.error("[Migrations] Bootstrap failed:", err.message);
+  }
+
   const httpServer = await registerRoutes(app);
 
   await seedDatabase();
