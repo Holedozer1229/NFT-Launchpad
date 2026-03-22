@@ -5181,7 +5181,9 @@ STYLE:
         liveBalanceUnavailable = wallets.length > 0;
       }
 
-      const totalSkynt = liveSkyntBalance > 0 ? liveSkyntBalance : storedSkynt;
+      // Use live balance when Alchemy was reachable (even if balance is 0)
+      const anyLive = !liveBalanceUnavailable && !(wallets.length > 0 && liveSkyntBalance === 0 && storedSkynt > 0 && !process.env.ALCHEMY_API_KEY);
+      const totalSkynt = (wallets.length === 0 || liveBalanceUnavailable) ? storedSkynt : liveSkyntBalance;
       const totalEth = storedEth;
 
       // NFT breakdown by rarity
