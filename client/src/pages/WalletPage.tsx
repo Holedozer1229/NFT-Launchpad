@@ -261,12 +261,13 @@ export default function WalletPage() {
 
   const consolidateMutation = useMutation({
     mutationFn: async () => {
-      if (!activeWallet) throw new Error("No active wallet");
-      const res = await apiRequest("POST", "/api/wallet/consolidate", { targetWalletId: activeWallet.id });
+      const res = await apiRequest("POST", "/api/wallet/consolidate", {});
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: { wallet: SphinxWallet; deletedCount: number }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/wallet/list"] });
+      // Switch active wallet to the admin wallet (only one remaining)
+      if (data?.wallet?.id) setActiveWalletId(data.wallet.id);
     },
   });
 
@@ -352,7 +353,12 @@ export default function WalletPage() {
             <button
               data-testid="button-consolidate-wallets"
               onClick={() => {
-                if (window.confirm(`Consolidate all wallet balances into "${activeWallet?.name}"? Other wallets will be zeroed out.`)) {
+                const adminWallet = [...(wallets ?? [])].sort((a, b) => a.id - b.id)[0];
+                const othersCount = (wallets?.length ?? 0) - 1;
+                if (window.confirm(
+                  `Consolidate all balances into "${adminWallet?.name ?? "your primary wallet"}" (admin wallet)?\n\n` +
+                  `${othersCount} other wallet${othersCount !== 1 ? "s" : ""} will be permanently deleted.`
+                )) {
                   consolidateMutation.mutate();
                 }
               }}

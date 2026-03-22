@@ -30,7 +30,7 @@ export interface IStorage {
   getWalletsByUser(userId: number): Promise<Wallet[]>;
   getWallet(id: number): Promise<Wallet | undefined>;
   updateWalletBalance(id: number, token: string, amount: string): Promise<void>;
-  consolidateWallets(userId: number, targetWalletId: number): Promise<Wallet>;
+  consolidateWallets(userId: number): Promise<{ wallet: Wallet; deletedCount: number }>;
   createTransaction(tx: InsertWalletTransaction): Promise<WalletTransaction>;
   getTransactionsByWallet(walletId: number): Promise<WalletTransaction[]>;
 
@@ -227,28 +227,44 @@ export class DatabaseStorage implements IStorage {
     await db.update(wallets).set({ [field]: amount }).where(eq(wallets.id, id));
   }
 
-  async consolidateWallets(userId: number, targetWalletId: number): Promise<Wallet> {
-    const allWallets = await this.getWalletsByUser(userId);
-    const target = allWallets.find(w => w.id === targetWalletId);
-    if (!target) throw new Error("Target wallet not found");
+  async consolidateWallets(userId: number): Promise<{ wallet: Wallet; deletedCount: number }> {
+    // Sort by id ascending — the first wallet (lowest id) is the admin/primary wallet
+    const allWallets = (await this.getWalletsByUser(userId)).sort((a, b) => a.id - b.id);
+    if (allWallets.length === 0) throw new Error("No wallets found");
 
-    let totalStx = parseFloat(target.balanceStx);
-    let totalSkynt = parseFloat(target.balanceSkynt);
-    let totalEth = parseFloat(target.balanceEth);
+    const adminWallet = allWallets[0];
+    const others = allWallets.slice(1);
 
-    for (const w of allWallets) {
-      if (w.id === targetWalletId) continue;
+    // Sum all balances into the admin wallet
+    let totalStx    = parseFloat(adminWallet.balanceStx);
+    let totalSkynt  = parseFloat(adminWallet.balanceSkynt);
+    let totalEth    = parseFloat(adminWallet.balanceEth);
+
+    for (const w of others) {
       totalStx   += parseFloat(w.balanceStx);
       totalSkynt += parseFloat(w.balanceSkynt);
       totalEth   += parseFloat(w.balanceEth);
-      await db.update(wallets).set({ balanceStx: "0", balanceSkynt: "0", balanceEth: "0" }).where(eq(wallets.id, w.id));
     }
 
+    // Update admin wallet with the combined total
     const [updated] = await db.update(wallets)
-      .set({ balanceStx: totalStx.toString(), balanceSkynt: totalSkynt.toString(), balanceEth: totalEth.toString() })
-      .where(eq(wallets.id, targetWalletId))
+      .set({
+        balanceStx:    totalStx.toFixed(6),
+        balanceSkynt:  totalSkynt.toFixed(6),
+        balanceEth:    totalEth.toFixed(8),
+        name:          adminWallet.name,
+      })
+      .where(eq(wallets.id, adminWallet.id))
       .returning();
-    return updated;
+
+    // Delete all other wallets (wallet_transactions cascade automatically)
+    let deletedCount = 0;
+    for (const w of others) {
+      await db.delete(wallets).where(eq(wallets.id, w.id));
+      deletedCount++;
+    }
+
+    return { wallet: updated, deletedCount };
   }
 
   async createTransaction(tx: InsertWalletTransaction): Promise<WalletTransaction> {

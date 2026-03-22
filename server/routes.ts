@@ -947,12 +947,8 @@ STYLE:
   app.post("/api/wallet/consolidate", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const { targetWalletId } = req.body;
-      if (!targetWalletId || typeof targetWalletId !== "number") {
-        return res.status(400).json({ message: "targetWalletId is required" });
-      }
-      const consolidated = await storage.consolidateWallets(req.user!.id, targetWalletId);
-      res.json({ success: true, wallet: consolidated });
+      const result = await storage.consolidateWallets(req.user!.id);
+      res.json({ success: true, wallet: result.wallet, deletedCount: result.deletedCount });
     } catch (error) {
       console.error("[Consolidate] Error:", error);
       res.status(500).json({ message: "Failed to consolidate wallets" });
