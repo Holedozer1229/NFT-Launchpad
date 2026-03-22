@@ -706,7 +706,7 @@ export default function Dashboard() {
               { key: "buybackCapacity", label: "Buybacks" },
               { key: "burnRateTrend", label: "Burn Rate" },
               { key: "p2pNetwork", label: "P2P" },
-              { key: "yieldEngine", label: "Yield Engine" },
+              { key: "epochCount", label: "Epoch Count" },
             ].map(({ key, label }) => {
               const val = healthScore.breakdown[key] ?? 0;
               const pct = Math.round((val / 20) * 100);

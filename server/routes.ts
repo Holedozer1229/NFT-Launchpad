@@ -5103,28 +5103,26 @@ STYLE:
         return res.json(_healthScoreCache);
       }
       const { getPriceDriverState } = await import("./skynt-price-driver");
-      const { getTreasuryYieldState } = await import("./treasury-yield");
       const { getP2PPeers } = await import("./p2p-ledger");
 
       const pd = getPriceDriverState();
-      const ty = getTreasuryYieldState();
       const peers = getP2PPeers();
 
-      // 0-100 scoring across 5 dimensions
-      // 1. ETH runway (20pts) — based on treasury ETH balance vs reasonable floor
+      // 0-100 scoring across exactly 5 required dimensions (20pts each)
+      // 1. ETH runway (20pts) — treasury ETH balance vs 1 ETH baseline
       const ethRunwayScore = Math.min(20, Math.round((pd.treasuryEthBalance / 1.0) * 20));
-      // 2. Buyback activity (20pts) — more recent epochs = higher score
-      const buybackScore = Math.min(20, Math.round((pd.epochCount / 50) * 20));
-      // 3. Burn pressure (20pts) — ratio of burned to bought
+      // 2. Buyback capacity (20pts) — total ETH spent on buybacks (more = higher trust)
+      const buybackCapacityScore = Math.min(20, Math.round((pd.totalEthSpent / 0.1) * 20));
+      // 3. Burn rate trend (20pts) — ratio of burned to bought SKYNT
       const burnRatio = pd.totalSkyntBought > 0 ? pd.totalSkyntBurned / pd.totalSkyntBought : 0;
-      const burnScore = Math.min(20, Math.round(burnRatio * 20));
-      // 4. P2P network health (20pts) — connected peers
-      const p2pScore = Math.min(20, Math.round((peers.length / 10) * 20));
-      // 5. Yield engine health (20pts) — compound rate and running state
-      const yieldScore = ty.running ? Math.min(20, Math.round((ty.compoundIntervalMs > 0 ? 15 : 5) + (ty.totalYieldAccrued > 0 ? 5 : 0))) : 0;
+      const burnRateTrendScore = Math.min(20, Math.round(burnRatio * 20));
+      // 4. Active P2P nodes (20pts) — connected guardian peers
+      const p2pNodesScore = Math.min(20, Math.round((peers.length / 10) * 20));
+      // 5. Price Driver epoch count (20pts) — engine activity history
+      const epochCountScore = Math.min(20, Math.round((pd.epochCount / 50) * 20));
 
-      const total = ethRunwayScore + buybackScore + burnScore + p2pScore + yieldScore;
-      const grade = total >= 90 ? "A+" : total >= 80 ? "A" : total >= 70 ? "B+" : total >= 60 ? "B" : total >= 50 ? "C+" : total >= 40 ? "C" : total >= 30 ? "D" : "F";
+      const total = ethRunwayScore + buybackCapacityScore + burnRateTrendScore + p2pNodesScore + epochCountScore;
+      const grade = total >= 80 ? "A" : total >= 60 ? "B" : total >= 40 ? "C" : total >= 20 ? "D" : "F";
       const label = total >= 80 ? "Excellent" : total >= 60 ? "Good" : total >= 40 ? "Fair" : total >= 20 ? "Weak" : "Critical";
 
       _healthScoreCache = {
@@ -5132,10 +5130,10 @@ STYLE:
         grade,
         breakdown: {
           ethRunway: ethRunwayScore,
-          buybackCapacity: buybackScore,
-          burnRateTrend: burnScore,
-          p2pNetwork: p2pScore,
-          yieldEngine: yieldScore,
+          buybackCapacity: buybackCapacityScore,
+          burnRateTrend: burnRateTrendScore,
+          p2pNetwork: p2pNodesScore,
+          epochCount: epochCountScore,
         },
         label,
         cachedAt: Date.now(),
@@ -5161,8 +5159,31 @@ STYLE:
       const yieldState = getTreasuryYieldState();
 
       // Aggregate wallet balances from stored rows
-      const totalSkynt = wallets.reduce((sum, w) => sum + (parseFloat(w.skyntBalance ?? "0") || 0), 0);
-      const totalEth = wallets.reduce((sum, w) => sum + (parseFloat(w.ethBalance ?? "0") || 0), 0);
+      const storedSkynt = wallets.reduce((sum, w) => sum + (parseFloat(w.skyntBalance ?? "0") || 0), 0);
+      const storedEth = wallets.reduce((sum, w) => sum + (parseFloat(w.ethBalance ?? "0") || 0), 0);
+
+      // Fetch live on-chain SKYNT balance for linked wallet addresses via Alchemy
+      let liveSkyntBalance = 0;
+      try {
+        const { SKYNT_CONTRACT_ADDRESS: SKYNT_ADDR } = await import("./alchemy-engine");
+        const { Alchemy, Network, Utils, Contract } = await import("alchemy-sdk");
+        if (process.env.ALCHEMY_API_KEY && wallets.length > 0) {
+          const alchemy = new Alchemy({ apiKey: process.env.ALCHEMY_API_KEY, network: Network.ETH_MAINNET });
+          const ERC20_ABI = ["function balanceOf(address account) external view returns (uint256)"];
+          const contract = new Contract(SKYNT_ADDR, ERC20_ABI, await (alchemy.config.getProvider() as any));
+          const balancePromises = wallets.map(async (w) => {
+            try {
+              const raw = await contract.balanceOf(w.address);
+              return parseFloat(Utils.formatEther(raw));
+            } catch { return 0; }
+          });
+          const balances = await Promise.all(balancePromises);
+          liveSkyntBalance = balances.reduce((s, b) => s + b, 0);
+        }
+      } catch { /* fallback to stored */ }
+
+      const totalSkynt = liveSkyntBalance > 0 ? liveSkyntBalance : storedSkynt;
+      const totalEth = storedEth;
 
       // NFT breakdown by rarity
       const nftsByRarity: Record<string, number> = {};
@@ -5188,16 +5209,20 @@ STYLE:
         ).catch(() => ({ rows: [{ count: 0 }] })),
       ]);
 
-      const totalYieldEarned = parseFloat(yieldPositionsResult.rows[0]?.total_earned ?? "0");
-      const yieldPositionCount = parseInt(yieldPositionsResult.rows[0]?.position_count ?? "0");
-      const proposalsCreated = parseInt(proposalsResult.rows[0]?.count ?? "0");
-      const votesCast = parseInt(votesResult.rows[0]?.count ?? "0");
+      const totalYieldEarned = parseFloat(String(yieldPositionsResult.rows[0]?.total_earned ?? "0"));
+      const yieldPositionCount = parseInt(String(yieldPositionsResult.rows[0]?.position_count ?? "0"));
+      const proposalsCreated = parseInt(String(proposalsResult.rows[0]?.count ?? "0"));
+      const votesCast = parseInt(String(votesResult.rows[0]?.count ?? "0"));
+
+      // Governance voting weight: 1 per NFT + 1 per 1000 SKYNT held (integer)
+      const votingWeight = nfts.length + Math.floor(totalSkynt / 1000);
 
       res.json({
         userId,
         username: user?.username ?? "unknown",
         walletCount: wallets.length,
         totalSkynt,
+        totalSkyntLive: liveSkyntBalance,
         totalEth,
         nftCount: nfts.length,
         nftsByRarity,
@@ -5208,6 +5233,13 @@ STYLE:
         governance: {
           proposalsCreated,
           votesCast,
+          votingWeight,
+        },
+        onChainActivitySummary: {
+          nftsMinted: nfts.length,
+          walletsLinked: wallets.length,
+          yieldPositions: yieldPositionCount,
+          governanceActions: proposalsCreated + votesCast,
         },
         recentNfts: nfts.slice(0, 6).map(n => ({
           id: n.id, name: n.name, rarity: n.rarity, imageUrl: n.imageUrl, mintedAt: n.mintedAt,
