@@ -2,10 +2,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useAccount } from "wagmi";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Coins, Clock, CheckCircle2, Zap, Users, ExternalLink, Gift } from "lucide-react";
+import { Coins, Clock, CheckCircle2, Zap, Users, ExternalLink, Gift, Wallet } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
 interface AirdropEntry {
@@ -155,6 +157,7 @@ function AirdropCard({ airdrop }: { airdrop: AirdropEntry }) {
 
 export default function AirdropPage() {
   const { user } = useAuth();
+  const { address: walletAddr, isConnected: walletConnected } = useAccount();
   const { data: airdrops = [], isLoading } = useQuery<AirdropEntry[]>({
     queryKey: ["/api/airdrops"],
   });
@@ -185,6 +188,29 @@ export default function AirdropPage() {
           </div>
         </div>
       </div>
+
+      {walletConnected && walletAddr ? (
+        <div className="cosmic-card p-3 mb-4 flex items-center gap-3" data-testid="card-airdrop-wallet-status">
+          <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse shrink-0" />
+          <div className="flex items-center gap-1.5 text-[10px] font-mono text-neon-green">
+            <Zap className="w-3 h-3" /> OIYE Gas Active — claims are gas-free
+          </div>
+          <div className="ml-auto font-mono text-[10px] text-muted-foreground">
+            {walletAddr.slice(0, 6)}…{walletAddr.slice(-4)}
+          </div>
+        </div>
+      ) : (
+        <div className="cosmic-card p-3 mb-4 flex items-center gap-3" data-testid="card-airdrop-connect">
+          <Wallet className="w-4 h-4 text-muted-foreground shrink-0" />
+          <div>
+            <p className="font-heading text-xs tracking-wider">Connect wallet for gas-free claiming</p>
+            <p className="font-mono text-[10px] text-muted-foreground">OIYE system covers all gas fees</p>
+          </div>
+          <div className="ml-auto">
+            <ConnectWalletButton label="Connect" chainStatus="none" />
+          </div>
+        </div>
+      )}
 
       {!user && (
         <div className="cosmic-card p-5 mb-8 border-neon-cyan/30 bg-neon-cyan/5 text-center">

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import LaunchCountdown from "@/components/LaunchCountdown";
-import { useAccount, useSignMessage } from "wagmi";
+import { useAccount, useSignMessage, useBalance } from "wagmi";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { haptic } from "@/lib/haptics";
@@ -35,6 +35,10 @@ interface StarshipMintModalProps {
 function StarshipMintModal({ flight, onClose }: StarshipMintModalProps) {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const { data: ethBalance } = useBalance({
+    address: address as `0x${string}` | undefined,
+    query: { enabled: isConnected && !!address },
+  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedRarity, setSelectedRarity] = useState<RarityTier>("common");
@@ -253,6 +257,19 @@ function StarshipMintModal({ flight, onClose }: StarshipMintModalProps) {
                   <ExternalLink className="w-3 h-3" />
                 </a>
               )}
+            </div>
+          )}
+
+          {isConnected && address && (
+            <div className="flex items-center justify-between text-[10px] font-mono px-3 py-2 bg-black/30 border border-white/5 rounded-sm">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
+                <span className="text-neon-green">⛽ OIYE Gas Covered</span>
+              </div>
+              <span className="text-muted-foreground">
+                {address.slice(0, 6)}…{address.slice(-4)}
+                {ethBalance ? <span className="text-primary ml-2">{parseFloat(ethBalance.formatted).toFixed(4)} ETH</span> : null}
+              </span>
             </div>
           )}
 

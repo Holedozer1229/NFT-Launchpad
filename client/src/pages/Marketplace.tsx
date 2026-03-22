@@ -12,10 +12,12 @@ import { useToast } from "@/hooks/use-toast";
 import { haptic } from "@/lib/haptics";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { useAccount, useBalance } from "wagmi";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { SUPPORTED_CHAINS, RARITY_TIERS } from "@shared/schema";
 import {
   Store, ShoppingCart, Tag, Filter, Plus, X, ExternalLink,
-  Gem, Loader2, TrendingUp, Users, Package, Coins, Search
+  Gem, Loader2, TrendingUp, Users, Package, Coins, Search, Wallet, Zap
 } from "lucide-react";
 
 const CHAIN_LIST = [
@@ -51,6 +53,11 @@ export default function Marketplace() {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { address: walletAddr, isConnected: walletConnected } = useAccount();
+  const { data: walletEthBalance } = useBalance({
+    address: walletAddr as `0x${string}` | undefined,
+    query: { enabled: walletConnected && !!walletAddr },
+  });
   const [chainFilter, setChainFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"browse" | "my-listings">("browse");
   const [searchQuery, setSearchQuery] = useState("");
@@ -277,6 +284,40 @@ export default function Marketplace() {
           </Dialog>
         </div>
       </div>
+
+      {walletConnected && walletAddr ? (
+        <div className="cosmic-card p-3 flex items-center gap-3 border-neon-cyan/20" data-testid="card-wallet-balance-marketplace">
+          <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse shrink-0" />
+          <div className="flex items-center gap-1.5 text-[10px] font-mono text-neon-green">
+            <Zap className="w-3 h-3" /> OIYE Gas Active — Fees covered on all trades
+          </div>
+          <div className="ml-auto flex items-center gap-4">
+            {walletEthBalance && (
+              <div className="text-right">
+                <p className="font-mono text-[9px] text-muted-foreground">ETH Balance</p>
+                <p className="font-heading text-sm text-neon-cyan" data-testid="text-marketplace-eth-balance">
+                  {parseFloat(walletEthBalance.formatted).toFixed(4)} ETH
+                </p>
+              </div>
+            )}
+            <div className="text-right">
+              <p className="font-mono text-[9px] text-muted-foreground">Wallet</p>
+              <p className="font-mono text-[10px] text-foreground">{walletAddr.slice(0, 6)}…{walletAddr.slice(-4)}</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="cosmic-card p-3 flex items-center gap-3" data-testid="card-connect-wallet-marketplace">
+          <Wallet className="w-4 h-4 text-muted-foreground shrink-0" />
+          <div>
+            <p className="font-heading text-xs tracking-wider">Connect wallet for live balance & OIYE gas coverage</p>
+            <p className="font-mono text-[10px] text-muted-foreground">Internal wallet purchases always available</p>
+          </div>
+          <div className="ml-auto">
+            <ConnectWalletButton label="Connect" chainStatus="none" />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="cosmic-card-cyan p-3">

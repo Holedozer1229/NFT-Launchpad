@@ -1,7 +1,7 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Wallet, ChevronDown, Copy, ExternalLink, LogOut, Check, Loader2, AlertTriangle, Coins } from "lucide-react";
+import { Wallet, ChevronDown, Copy, ExternalLink, LogOut, Check, Loader2, AlertTriangle, Coins, Zap, TrendingUp } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useBalance } from "wagmi";
+import { useBalance, useAccount } from "wagmi";
 import { SKYNT_CONTRACT_ADDRESS } from "@shared/schema";
 
 interface ConnectWalletButtonProps {
@@ -27,6 +27,25 @@ function SkyntBalance({ address }: { address: string }) {
     <div className="flex items-center gap-1.5 px-3 py-1.5 mt-1 rounded bg-neon-cyan/5 border border-neon-cyan/20" data-testid="text-skynt-balance">
       <Coins className="w-3 h-3 text-neon-cyan" style={{ filter: "drop-shadow(0 0 4px hsl(185 100% 50% / 0.6))" }} />
       <span className="font-mono text-[11px] text-neon-cyan font-bold">{formatted} SKYNT</span>
+    </div>
+  );
+}
+
+function EthBalance({ address }: { address: string }) {
+  const { data } = useBalance({
+    address: address as `0x${string}`,
+  });
+
+  if (!data) return null;
+  const val = parseFloat(data.formatted);
+  if (val === 0) return null;
+
+  return (
+    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-primary/5 border border-primary/20" data-testid="text-eth-balance">
+      <span className="text-[10px]">⟠</span>
+      <span className="font-mono text-[11px] text-primary font-bold">
+        {val.toFixed(4)} ETH
+      </span>
     </div>
   );
 }
@@ -168,7 +187,7 @@ export function ConnectWalletButton({
                   <Loader2 className="w-3 h-3 animate-spin text-primary" />
                 )}
                 {!account.hasPendingTransactions && (
-                  <div className="w-4 h-4 rounded-full bg-gradient-to-br from-primary/60 to-neon-cyan/60" />
+                  <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
                 )}
                 {accountStatus !== "avatar" && (
                   <span>{account.displayName}</span>
@@ -177,18 +196,38 @@ export function ConnectWalletButton({
               </button>
 
               {showMenu && (
-                <div className="absolute top-full mt-1 right-0 z-[9999] min-w-[220px] py-1
+                <div className="absolute top-full mt-1 right-0 z-[9999] min-w-[240px] py-1
                   bg-[hsl(var(--card))] border border-white/10 rounded-sm shadow-2xl
                   animate-in fade-in zoom-in-95 duration-150">
-                  <div className="px-3 py-2 border-b border-white/5">
-                    <div className="font-mono text-[10px] text-muted-foreground">{chain.name}</div>
-                    <div className="font-mono text-[11px] text-foreground mt-0.5 truncate">
+
+                  <div className="px-3 py-2.5 border-b border-white/5">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <div className="w-2 h-2 rounded-full bg-neon-green" />
+                      <span className="font-mono text-[9px] text-neon-green uppercase tracking-widest">Live Mainnet</span>
+                      <span className="ml-auto font-mono text-[9px] text-muted-foreground">{chain.name}</span>
+                    </div>
+                    <div className="font-mono text-[11px] text-foreground mb-2 truncate">
                       {account.address}
                     </div>
-                    {account.displayBalance && (
-                      <div className="font-mono text-[10px] text-primary mt-0.5">{account.displayBalance}</div>
+                    <div className="space-y-1">
+                      <EthBalance address={account.address} />
+                      <SkyntBalance address={account.address} />
+                    </div>
+                    {account.hasPendingTransactions && (
+                      <div className="flex items-center gap-1 mt-2 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20">
+                        <Loader2 className="w-3 h-3 animate-spin text-amber-400" />
+                        <span className="font-mono text-[10px] text-amber-400">Pending transaction...</span>
+                      </div>
                     )}
-                    <SkyntBalance address={account.address} />
+                  </div>
+
+                  <div className="px-3 py-2 border-b border-white/5">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Zap className="w-3 h-3 text-neon-cyan" />
+                      <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-widest">OIYE Gas</span>
+                      <span className="ml-auto font-mono text-[9px] text-neon-green">ACTIVE ⛽</span>
+                    </div>
+                    <p className="text-[9px] text-muted-foreground font-mono">Gas fees on all transactions are covered by the OIYE self-fund system.</p>
                   </div>
 
                   <button
@@ -206,7 +245,7 @@ export function ConnectWalletButton({
                     className="w-full flex items-center gap-2 px-3 py-2 text-left font-mono text-[11px] text-foreground hover:bg-white/5 transition-colors"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    View on Explorer
+                    View on Etherscan
                   </button>
 
                   <button

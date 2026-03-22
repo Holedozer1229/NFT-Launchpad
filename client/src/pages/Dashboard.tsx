@@ -5,10 +5,13 @@ import {
 } from "recharts";
 import {
   Activity, Cpu, Box, DollarSign, Clock,
-  ChevronUp, ChevronDown, Loader2, Zap, Brain, Pickaxe, Shield, TrendingUp, AlertCircle, RefreshCw
+  ChevronUp, ChevronDown, Loader2, Zap, Brain, Pickaxe, Shield, TrendingUp, AlertCircle, RefreshCw,
+  Wallet, Coins, ArrowUpRight
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useAccount, useBalance } from "wagmi";
 import { ResonanceDrop } from "@/components/ResonanceDrop";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -116,6 +119,11 @@ function StatCard({ label, value, change, icon, accent, loading, error, onRetry,
 
 export default function Dashboard() {
   const [uptimeSeconds, setUptimeSeconds] = useState(() => Math.floor((Date.now() - new Date().setHours(0, 0, 0, 0)) / 1000));
+  const { address: walletAddress, isConnected: walletConnected } = useAccount();
+  const { data: ethBalance } = useBalance({
+    address: walletAddress as `0x${string}` | undefined,
+    query: { enabled: walletConnected && !!walletAddress, refetchInterval: 30000 },
+  });
 
   const { data: mempoolStats, isLoading: statsLoading, isError: statsError, refetch: refetchStats } = useQuery<MempoolStats>({
     queryKey: ["/api/mempool/stats"],
@@ -220,6 +228,68 @@ export default function Dashboard() {
           LIVE — mempool.space
         </span>
       </div>
+
+      {walletConnected && walletAddress ? (
+        <div className="cosmic-card cosmic-card-cyan p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 page-enter" data-testid="card-portfolio">
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-cyan/30 to-primary/30 border border-neon-cyan/30 flex items-center justify-center shrink-0">
+              <Wallet className="w-5 h-5 text-neon-cyan" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
+                <span className="font-mono text-[9px] text-neon-green uppercase tracking-widest">Live Mainnet Wallet</span>
+              </div>
+              <p className="font-mono text-[11px] text-muted-foreground">
+                {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-6 sm:ml-auto">
+            <div data-testid="portfolio-eth-balance">
+              <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-wider">ETH Balance</p>
+              <p className="font-heading text-xl text-neon-cyan">
+                {ethBalance ? parseFloat(ethBalance.formatted).toFixed(4) : "—"} <span className="text-xs">ETH</span>
+              </p>
+              <p className="font-mono text-[10px] text-muted-foreground">on-chain · live</p>
+            </div>
+            <div data-testid="portfolio-apr">
+              <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-wider">Protocol APR</p>
+              <p className="font-heading text-xl text-neon-green">
+                {treasuryData?.currentApr?.toFixed(1) ?? "—"}<span className="text-xs">%</span>
+              </p>
+              <p className="font-mono text-[10px] text-muted-foreground">SKYNT staking</p>
+            </div>
+            <div data-testid="portfolio-daily-yield">
+              <p className="font-mono text-[9px] text-muted-foreground uppercase tracking-wider">Daily Yield (100 SKYNT)</p>
+              <p className="font-heading text-xl text-neon-orange">
+                {((treasuryData?.currentApr ?? 0) / 100 / 365 * 100).toFixed(4)} <span className="text-xs">SKYNT</span>
+              </p>
+              <p className="font-mono text-[10px] text-muted-foreground">auto-compounds</p>
+            </div>
+            <div className="flex items-center">
+              <a href="/yield" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm font-heading text-[10px] uppercase tracking-wider bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/20 transition-colors" data-testid="link-start-earning">
+                Start Earning <ArrowUpRight className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="cosmic-card p-4 flex flex-col sm:flex-row items-center gap-4 page-enter" data-testid="card-connect-prompt">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+              <Wallet className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <p className="font-heading text-xs tracking-wider">Connect Wallet to See Your Portfolio</p>
+              <p className="font-mono text-[10px] text-muted-foreground">View live ETH balance, earnings & yield projections</p>
+            </div>
+          </div>
+          <div className="sm:ml-auto">
+            <ConnectWalletButton label="Connect Wallet" chainStatus="icon" />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
