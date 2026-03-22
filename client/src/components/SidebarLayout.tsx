@@ -1,6 +1,6 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Atom, Gift, UserCheck, Share2, Vote, Cpu, Fuel } from "lucide-react";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Atom, Gift, UserCheck, Share2, Vote, Cpu, Fuel, Zap, Layers } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -39,6 +39,8 @@ const navGroups = [
     label: "NETWORK",
     items: [
       { path: "/cross-chain", label: "Cross-Chain Portal", icon: Share2, adminOnly: false },
+      { path: "/bridge", label: "Bridge", icon: ArrowLeftRight, adminOnly: false },
+      { path: "/wormhole", label: "ZK Wormhole", icon: Layers, adminOnly: false },
       { path: "/governance", label: "Governance", icon: Vote, adminOnly: false },
       { path: "/p2p-network", label: "P2P Network", icon: Globe, adminOnly: false },
       { path: "/iit", label: "IIT Consciousness", icon: Brain, adminOnly: false },
@@ -65,6 +67,37 @@ const navGroups = [
     ]
   },
 ];
+
+const PAGE_TITLES: Record<string, string> = {
+  "/": "Mint NFT | SKYNT Protocol",
+  "/dashboard": "Dashboard | SKYNT Protocol",
+  "/gallery": "NFT Gallery | SKYNT Protocol",
+  "/marketplace": "Marketplace | SKYNT Protocol",
+  "/rocket-babes": "RocketBabes NFT | SKYNT Protocol",
+  "/airdrop": "Airdrop | SKYNT Protocol",
+  "/genesis-miner": "Genesis Miner | SKYNT Protocol",
+  "/btc-zk-daemon": "BTC ZK Miner | SKYNT Protocol",
+  "/dyson-sphere": "Dyson Sphere Miner | SKYNT Protocol",
+  "/yield": "Yield Generator | SKYNT Protocol",
+  "/serpent": "Omega Serpent | SKYNT Protocol",
+  "/openclaw": "ClawdBot Terminal | SKYNT Protocol",
+  "/cross-chain": "Cross-Chain Portal | SKYNT Protocol",
+  "/bridge": "Bridge | SKYNT Protocol",
+  "/wormhole": "ZK Wormhole | SKYNT Protocol",
+  "/governance": "Governance | SKYNT Protocol",
+  "/p2p-network": "P2P Network | SKYNT Protocol",
+  "/iit": "IIT Consciousness | SKYNT Protocol",
+  "/berry-phase": "Berry Phase | SKYNT Protocol",
+  "/analytics": "Analytics | SKYNT Protocol",
+  "/rarity-proof": "Rarity Proof Engine | SKYNT Protocol",
+  "/starship": "Starship Launches | SKYNT Protocol",
+  "/lab": "Public Lab | SKYNT Protocol",
+  "/kyc": "KYC Verification | SKYNT Protocol",
+  "/contracts": "Contract Deployment | SKYNT Protocol",
+  "/treasury": "Treasury Vault | SKYNT Protocol",
+  "/wallet": "Wallet | SKYNT Protocol",
+  "/admin": "Admin Console | SKYNT Protocol",
+};
 
 const starData = Array.from({ length: 80 }, (_, i) => ({
   id: i,
@@ -105,6 +138,10 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
   const { address, isConnected, connector } = useAccount();
   const { disconnect: twDisconnect } = useDisconnect();
   const { user, logout } = useAuth();
+
+  useEffect(() => {
+    document.title = PAGE_TITLES[location] ?? "SKYNT Protocol";
+  }, [location]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden cosmic-bg">
