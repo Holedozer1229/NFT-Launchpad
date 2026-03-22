@@ -2,7 +2,8 @@ import { useState } from "react";
 import {
   Vote, Shield, Zap, Clock, CheckCircle, XCircle, Minus, Loader2,
   TrendingUp, Lock, Coins, Server, Globe, Cpu, Activity, Hash,
-  ChevronDown, ChevronUp, Plus, AlertTriangle, ExternalLink, Users
+  ChevronDown, ChevronUp, Plus, AlertTriangle, ExternalLink, Users,
+  Settings, Play, Database
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -31,6 +32,21 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 
 interface VoteRecord {
   id: number; proposalId: number; voterId: number; choice: string; weight: number; reason: string | null;
+}
+
+interface ExecutionRecord {
+  proposalId: number;
+  title: string;
+  category: string;
+  settingsWritten: string[];
+  executedAt: string;
+}
+
+interface ProtocolSetting {
+  key: string;
+  value: string;
+  updatedBy: string;
+  updatedAt: string | null;
 }
 
 interface RosettaStatus {
@@ -192,6 +208,32 @@ export default function Governance() {
   const { data: rosetta } = useQuery<RosettaStatus>({
     queryKey: ["/api/rosetta/status"],
     refetchInterval: 60000,
+  });
+
+  const { data: executionLog = [] } = useQuery<ExecutionRecord[]>({
+    queryKey: ["/api/governance/execution-log"],
+    refetchInterval: 30000,
+  });
+
+  const { data: protocolSettings = [] } = useQuery<ProtocolSetting[]>({
+    queryKey: ["/api/governance/protocol-settings"],
+    refetchInterval: 60000,
+  });
+
+  const executeMutation = useMutation({
+    mutationFn: async (proposalId: number) => {
+      const res = await apiRequest("POST", `/api/governance/execute/${proposalId}`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/governance/proposals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/governance/execution-log"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/governance/protocol-settings"] });
+      toast({ title: "Proposal Executed", description: "Governance parameters have been written to protocol settings." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Execution Failed", description: error.message, variant: "destructive" });
+    },
   });
 
   const voteMutation = useMutation({
@@ -464,6 +506,93 @@ export default function Governance() {
                 isPending={voteMutation.isPending}
               />
             ))}
+          </div>
+        )}
+      </section>
+
+      {/* Governance Execution Engine */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-heading font-bold text-white flex items-center gap-2">
+          <Settings className="w-5 h-5 text-neon-orange" /> Governance Execution Engine
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Execution Log */}
+          <div className="cosmic-card p-5 space-y-3" data-testid="card-execution-log">
+            <h3 className="text-sm font-heading font-bold text-neon-orange flex items-center gap-2">
+              <Play className="w-4 h-4" /> Execution Log
+            </h3>
+            {executionLog.length === 0 ? (
+              <p className="text-[10px] font-mono text-muted-foreground">No proposals executed yet. Auto-execution runs every 5 minutes.</p>
+            ) : (
+              <div className="space-y-2">
+                {executionLog.slice(0, 5).map((rec, i) => (
+                  <div key={i} className="p-3 bg-black/20 border border-border/30 rounded-sm space-y-1.5" data-testid={`row-execution-${rec.proposalId}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono text-neon-orange font-bold">GIP-{String(rec.proposalId).padStart(3, "0")}</span>
+                      <span className="text-[9px] font-mono text-muted-foreground">{new Date(rec.executedAt).toLocaleString()}</span>
+                    </div>
+                    <p className="text-[10px] font-mono text-foreground truncate">{rec.title}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {rec.settingsWritten.map((s, j) => (
+                        <span key={j} className="text-[8px] font-mono bg-neon-orange/10 text-neon-orange border border-neon-orange/20 px-1.5 py-0.5 rounded-sm">
+                          {s.length > 30 ? s.slice(0, 30) + "…" : s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Protocol Settings */}
+          <div className="cosmic-card p-5 space-y-3" data-testid="card-protocol-settings">
+            <h3 className="text-sm font-heading font-bold text-neon-cyan flex items-center gap-2">
+              <Database className="w-4 h-4" /> Protocol Settings
+            </h3>
+            {protocolSettings.length === 0 ? (
+              <p className="text-[10px] font-mono text-muted-foreground">No protocol parameters set yet. Parameters are written when proposals execute.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                {protocolSettings.map((setting, i) => (
+                  <div key={i} className="flex items-center justify-between text-[9px] font-mono p-2 bg-black/20 border border-border/30 rounded-sm" data-testid={`row-setting-${setting.key}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-neon-cyan shrink-0">{setting.key}</span>
+                      <span className="text-muted-foreground">=</span>
+                      <span className="text-foreground truncate max-w-[100px]">{setting.value}</span>
+                    </div>
+                    <span className="text-muted-foreground shrink-0 ml-2">{setting.updatedBy?.replace("governance:", "GIP-")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Admin force-execute for passed/active proposals */}
+        {user?.isAdmin && proposals.filter(p => p.status === "active" && (p.votesFor ?? 0) > 0).length > 0 && (
+          <div className="cosmic-card p-4 space-y-3">
+            <h3 className="text-sm font-heading font-bold text-muted-foreground flex items-center gap-2">
+              <Shield className="w-4 h-4" /> Admin Override — Force Execute
+            </h3>
+            <div className="space-y-2">
+              {proposals.filter(p => p.status === "active" && (p.votesFor ?? 0) > 0).map(p => (
+                <div key={p.id} className="flex items-center justify-between p-2 bg-black/20 border border-border/30 rounded-sm">
+                  <div className="min-w-0 mr-3">
+                    <span className="text-[10px] font-mono text-muted-foreground">GIP-{String(p.id).padStart(3, "0")} — </span>
+                    <span className="text-[10px] font-mono text-foreground truncate">{p.title}</span>
+                  </div>
+                  <button
+                    data-testid={`button-force-execute-${p.id}`}
+                    onClick={() => executeMutation.mutate(p.id)}
+                    disabled={executeMutation.isPending}
+                    className="shrink-0 text-[9px] font-heading tracking-wider px-3 py-1.5 rounded-sm border bg-neon-orange/10 hover:bg-neon-orange/20 text-neon-orange border-neon-orange/30 transition-colors disabled:opacity-40"
+                  >
+                    {executeMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin inline-block" /> : "Execute"}
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </section>

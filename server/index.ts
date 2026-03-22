@@ -10,6 +10,8 @@ import { startEngine } from "./iit-engine";
 import { startP2PLedger } from "./p2p-ledger";
 import { startP2PNetwork } from "./p2p-network";
 import { startTreasuryYieldEngine } from "./treasury-yield";
+import { startAaveYieldEngine } from "./aave-yield";
+import { startGovernanceExecutor } from "./governance-executor";
 import { startDysonEvolution } from "./dyson-sphere-miner";
 import { startBtcZkDaemon } from "./btc-zk-daemon";
 import { startSelfFundSentinel } from "./self-fund-gas";
@@ -250,6 +252,8 @@ app.use((req, res, next) => {
       startP2PLedger();
       startP2PNetwork();
       startTreasuryYieldEngine();
+      startAaveYieldEngine();
+      startGovernanceExecutor();
       startDysonEvolution();
       startBtcZkDaemon();
       startSelfFundSentinel();

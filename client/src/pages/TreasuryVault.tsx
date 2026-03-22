@@ -3,11 +3,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { MetaMaskSDK } from "@metamask/sdk";
+import { useAuth } from "@/hooks/use-auth";
 import { 
   Vault, Shield, Wallet, CreditCard, Activity, 
   Settings, CheckCircle2, AlertCircle, Loader2,
   Lock, ArrowRight, Zap, RefreshCw, Layers, FileCode2,
-  ExternalLink, Copy, Fuel, TrendingUp, TrendingDown
+  ExternalLink, Copy, Fuel, TrendingUp, TrendingDown,
+  BarChart3, Download, Upload
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -83,12 +85,25 @@ const keyFormSchema = z.object({
   privateKey: z.string().min(64, "Private key must be at least 64 characters (hex)").max(66, "Invalid private key length"),
 });
 
+interface AaveState {
+  depositedEth: number;
+  aTokenBalance: number;
+  yieldEarned: number;
+  currentApr: number;
+  lastUpdated: number;
+  isActive: boolean;
+  depositHistory: { timestamp: number; amountEth: number; txHash: string | null; type: string }[];
+}
+
 export default function TreasuryVault() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [sdk, setSdk] = useState<any>(null);
   const [account, setAccount] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [aaveDepositAmt, setAaveDepositAmt] = useState("");
+  const [aaveWithdrawAmt, setAaveWithdrawAmt] = useState("");
 
   const { data: walletInfo, isLoading: isLoadingWallet } = useQuery<WalletInfo>({
     queryKey: ["/api/treasury/wallet"],
@@ -105,6 +120,39 @@ export default function TreasuryVault() {
   const { data: transactions } = useQuery<TreasuryTransaction[]>({
     queryKey: ["/api/treasury/wallet/transactions"],
     enabled: !!walletInfo?.isConfigured,
+  });
+
+  const { data: aaveState } = useQuery<AaveState>({
+    queryKey: ["/api/aave/state"],
+    refetchInterval: 60000,
+  });
+
+  const aaveDepositMutation = useMutation({
+    mutationFn: async (amountEth: number) => {
+      const res = await apiRequest("POST", "/api/aave/deposit", { amountEth });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/aave/state"] });
+      toast({ title: data.success ? "Aave Deposit Initiated" : "Deposit Queued", description: data.message });
+      setAaveDepositAmt("");
+    },
+    onError: (err: Error) => toast({ title: "Deposit Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const aaveWithdrawMutation = useMutation({
+    mutationFn: async (amountEth: number) => {
+      const res = await apiRequest("POST", "/api/aave/withdraw", { amountEth });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/aave/state"] });
+      toast({ title: data.success ? "Aave Withdrawal Initiated" : "Withdrawal Queued", description: data.message });
+      setAaveWithdrawAmt("");
+    },
+    onError: (err: Error) => toast({ title: "Withdrawal Failed", description: err.message, variant: "destructive" }),
   });
 
   const form = useForm<z.infer<typeof keyFormSchema>>({
@@ -667,6 +715,125 @@ export default function TreasuryVault() {
                     +4 Guardians
                   </Badge>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-black/40 border-white/10" data-testid="card-aave-yield">
+            <CardHeader className="pb-2">
+              <CardDescription className="font-mono text-[10px] uppercase text-blue-400/70">DeFi Yield</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-blue-400" /> Aave v3 Position
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-black/40 border border-white/5">
+                  <p className="font-mono text-[9px] text-muted-foreground uppercase mb-1">Deposited</p>
+                  <p className="font-mono text-sm font-bold text-blue-400" data-testid="text-aave-deposited">
+                    {aaveState?.depositedEth?.toFixed(4) ?? "0.0000"} ETH
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-black/40 border border-white/5">
+                  <p className="font-mono text-[9px] text-muted-foreground uppercase mb-1">aWETH Balance</p>
+                  <p className="font-mono text-sm font-bold text-neon-green" data-testid="text-aave-atoken">
+                    {aaveState?.aTokenBalance?.toFixed(4) ?? "0.0000"}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-black/40 border border-white/5">
+                  <p className="font-mono text-[9px] text-muted-foreground uppercase mb-1">Yield Earned</p>
+                  <p className="font-mono text-sm font-bold text-neon-green" data-testid="text-aave-yield">
+                    +{aaveState?.yieldEarned?.toFixed(6) ?? "0.000000"} ETH
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-black/40 border border-white/5">
+                  <p className="font-mono text-[9px] text-muted-foreground uppercase mb-1">Current APR</p>
+                  <p className="font-mono text-sm font-bold text-neon-cyan" data-testid="text-aave-apr">
+                    {aaveState?.currentApr?.toFixed(2) ?? "3.50"}%
+                  </p>
+                </div>
+              </div>
+
+              <div className={`flex items-center gap-2 p-2 rounded border text-[10px] font-mono ${aaveState?.isActive ? "bg-neon-green/5 border-neon-green/20 text-neon-green" : "bg-white/5 border-white/10 text-muted-foreground"}`}>
+                {aaveState?.isActive ? <CheckCircle2 className="w-3 h-3 shrink-0" /> : <AlertCircle className="w-3 h-3 shrink-0" />}
+                {aaveState?.isActive ? "Position active — aWETH accruing yield" : "No active Aave position"}
+              </div>
+
+              {user?.isAdmin && (
+                <div className="space-y-2 pt-1">
+                  <p className="font-mono text-[9px] text-muted-foreground uppercase">Admin Controls</p>
+                  <div className="flex gap-2">
+                    <Input
+                      data-testid="input-aave-deposit-amount"
+                      type="number"
+                      placeholder="ETH"
+                      value={aaveDepositAmt}
+                      onChange={e => setAaveDepositAmt(e.target.value)}
+                      className="bg-black/40 border-white/10 font-mono text-xs h-8 flex-1"
+                    />
+                    <Button
+                      data-testid="button-aave-deposit"
+                      size="sm"
+                      className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 font-mono text-[9px] h-8 shrink-0"
+                      disabled={aaveDepositMutation.isPending || !aaveDepositAmt}
+                      onClick={() => {
+                        const amt = parseFloat(aaveDepositAmt);
+                        if (isNaN(amt) || amt <= 0) return;
+                        aaveDepositMutation.mutate(amt);
+                      }}
+                    >
+                      {aaveDepositMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3 mr-1" />}
+                      Deposit
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      data-testid="input-aave-withdraw-amount"
+                      type="number"
+                      placeholder="ETH"
+                      value={aaveWithdrawAmt}
+                      onChange={e => setAaveWithdrawAmt(e.target.value)}
+                      className="bg-black/40 border-white/10 font-mono text-xs h-8 flex-1"
+                    />
+                    <Button
+                      data-testid="button-aave-withdraw"
+                      size="sm"
+                      variant="outline"
+                      className="border-orange-500/30 text-orange-400 hover:bg-orange-500/10 font-mono text-[9px] h-8 shrink-0"
+                      disabled={aaveWithdrawMutation.isPending || !aaveWithdrawAmt}
+                      onClick={() => {
+                        const amt = parseFloat(aaveWithdrawAmt);
+                        if (isNaN(amt) || amt <= 0) return;
+                        aaveWithdrawMutation.mutate(amt);
+                      }}
+                    >
+                      {aaveWithdrawMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
+                      Withdraw
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {aaveState?.depositHistory && aaveState.depositHistory.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="font-mono text-[9px] text-muted-foreground uppercase">Recent Activity</p>
+                  {aaveState.depositHistory.slice(0, 3).map((rec, i) => (
+                    <div key={i} className="flex items-center justify-between text-[9px] font-mono bg-black/20 p-2 rounded border border-white/5" data-testid={`row-aave-history-${i}`}>
+                      <span className={rec.type === "deposit" ? "text-neon-green" : rec.type === "withdraw" ? "text-orange-400" : "text-blue-400"}>
+                        {rec.type.toUpperCase()}
+                      </span>
+                      <span className="text-foreground">{rec.amountEth.toFixed(4)} ETH</span>
+                      <span className="text-muted-foreground">{new Date(rec.timestamp).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center gap-1 text-[9px] font-mono text-muted-foreground">
+                <ExternalLink className="w-2.5 h-2.5" />
+                <a href="https://app.aave.com" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">
+                  Aave v3 Pool — 0x87870...
+                </a>
               </div>
             </CardContent>
           </Card>

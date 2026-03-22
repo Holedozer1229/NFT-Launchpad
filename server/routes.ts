@@ -4778,6 +4778,122 @@ STYLE:
     }
   });
 
+  // ==================== GOVERNANCE EXECUTOR (protocol settings) ====================
+
+  app.get("/api/governance/execution-log", async (_req, res) => {
+    try {
+      const { getExecutionLog } = await import("./governance-executor");
+      res.json(getExecutionLog());
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Internal server error") });
+    }
+  });
+
+  app.get("/api/governance/protocol-settings", async (_req, res) => {
+    try {
+      const { getProtocolSettingsList } = await import("./governance-executor");
+      const settings = await getProtocolSettingsList();
+      res.json(settings);
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Internal server error") });
+    }
+  });
+
+  app.post("/api/governance/execute/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+      const user = (req as any).user;
+      if (!user.isAdmin) return res.status(403).json({ message: "Admin only" });
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      const proposalId = parseInt(req.params.id);
+      const [proposal] = await db.select().from(governanceProposals).where(eq(governanceProposals.id, proposalId));
+      if (!proposal) return res.status(404).json({ message: "Proposal not found" });
+      if (proposal.status === "executed") return res.status(409).json({ message: "Already executed" });
+
+      const { getExecutionLog } = await import("./governance-executor");
+      const { protocolSettings } = await import("@shared/schema");
+      const { db: dbInstance } = await import("./db");
+
+      const params: Record<string, string> = {};
+      if (proposal.category === "parameter") {
+        params["parameter_update"] = `manual_gip_${proposalId}_${Date.now()}`;
+      } else {
+        params[`${proposal.category}_decision`] = `manual_gip_${proposalId}_${Date.now()}`;
+      }
+
+      const settingsWritten: string[] = [];
+      for (const [key, value] of Object.entries(params)) {
+        const { eq: eqInner } = await import("drizzle-orm");
+        const existing = await dbInstance.select().from(protocolSettings).where(eqInner(protocolSettings.key, key)).limit(1);
+        if (existing.length > 0) {
+          await dbInstance.update(protocolSettings).set({ value, updatedBy: `admin:gip-${proposalId}`, updatedAt: new Date() }).where(eqInner(protocolSettings.key, key));
+        } else {
+          await dbInstance.insert(protocolSettings).values({ key, value, updatedBy: `admin:gip-${proposalId}` });
+        }
+        settingsWritten.push(`${key}=${value}`);
+      }
+
+      const hash = `0x${Buffer.from(`manual-gip-${proposalId}-${Date.now()}`).toString("hex").slice(0, 64).padEnd(64, "0")}`;
+      await dbInstance.update(governanceProposals).set({ status: "executed", executedAt: new Date(), executionHash: hash }).where(eq(governanceProposals.id, proposalId));
+
+      res.json({ success: true, proposalId, settingsWritten, executionHash: hash });
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Internal server error") });
+    }
+  });
+
+  // ==================== AAVE v3 YIELD ====================
+
+  app.get("/api/aave/state", async (_req, res) => {
+    try {
+      const { getAaveYieldState } = await import("./aave-yield");
+      res.json(getAaveYieldState());
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Internal server error") });
+    }
+  });
+
+  app.get("/api/aave/apr", async (_req, res) => {
+    try {
+      const { fetchAaveApr } = await import("./aave-yield");
+      const apr = await fetchAaveApr();
+      res.json({ apr, source: "aave-v3-mainnet", pool: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2" });
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Internal server error") });
+    }
+  });
+
+  app.post("/api/aave/deposit", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+      const user = (req as any).user;
+      if (!user.isAdmin) return res.status(403).json({ message: "Admin only" });
+      const amountEth = parseFloat(req.body.amountEth);
+      if (isNaN(amountEth) || amountEth <= 0) return res.status(400).json({ message: "amountEth must be > 0" });
+      const { depositToAave } = await import("./aave-yield");
+      const result = await depositToAave(amountEth);
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Internal server error") });
+    }
+  });
+
+  app.post("/api/aave/withdraw", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+      const user = (req as any).user;
+      if (!user.isAdmin) return res.status(403).json({ message: "Admin only" });
+      const amountEth = parseFloat(req.body.amountEth);
+      if (isNaN(amountEth) || amountEth <= 0) return res.status(400).json({ message: "amountEth must be > 0" });
+      const { withdrawFromAave } = await import("./aave-yield");
+      const result = await withdrawFromAave(amountEth);
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Internal server error") });
+    }
+  });
+
   // ==================== ROSETTA STATUS (public) ====================
 
   app.get("/api/rosetta/status", async (_req, res) => {

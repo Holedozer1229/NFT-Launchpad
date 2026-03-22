@@ -547,3 +547,30 @@ Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection
 - Frontend: `client/src/pages/PriceDriver.tsx` — admin dashboard showing live price, buy pressure mode, progress bar to target, cumulative stats, buyback history with Etherscan links
 - Sidebar: "Price Driver" (Zap icon) under SYSTEM group — admin-only visible
 - Route: `/price-driver`
+
+### Task #8 — DeFi Yield (Aave v3) & Governance Parameter Execution Engine
+
+#### Aave v3 Integration (`server/aave-yield.ts`)
+- Polls Aave v3 Pool (`0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2`) every 5 minutes for live WETH APR
+- Reads `currentLiquidityRate` from `getReserveData` (RAY-denominated) and converts to percentage APR
+- Tracks `depositedEth`, `aTokenBalance`, `aWETH` balance via `balanceOf` on aWETH contract
+- `depositToAave(amountEth)` and `withdrawFromAave(amountEth)` via viem v2 `writeContract` to supply/withdraw WETH
+- Broadcasts `aave:deposit`, `aave:withdraw`, `aave:state` events on WebSocket hub
+- Seed data: 0.5 ETH deposited, 0.5042 aWETH balance, 0.0042 ETH yield earned
+- Auto-starts alongside all other engines in `server/index.ts`
+- API: `GET /api/aave/state`, `GET /api/aave/apr`, `POST /api/aave/deposit` (admin), `POST /api/aave/withdraw` (admin)
+- Frontend: Aave v3 Position card in TreasuryVault sidebar — shows deposited/aWETH/yield/APR, admin deposit+withdraw controls, deposit history
+
+#### Governance Parameter Execution Engine (`server/governance-executor.ts`)
+- Polls every 5 minutes for `active` proposals where `ends_at` has passed
+- Quorum check: `total_votes >= quorum_required` AND `votes_for > votes_against` → executes
+- Failed proposals → marks `rejected`; broadcasts `governance:rejected` WebSocket event
+- Execution: Parses proposal description for protocol parameters (mining_reward, halving_interval, reinvestment_rate, etc.) using regex
+- Writes parsed k=v pairs to `protocol_settings` table (upsert) with `updated_by=governance:gip-{id}`
+- Marks proposal `executed`, writes `execution_hash`, broadcasts `governance:executed` WebSocket event
+- In-memory `executionLog` (last 50 executions) returned via `GET /api/governance/execution-log`
+- API: `GET /api/governance/execution-log`, `GET /api/governance/protocol-settings`, `POST /api/governance/execute/:id` (admin force-execute)
+- Frontend (Governance.tsx): "Governance Execution Engine" section with Execution Log + Protocol Settings panels; admin-only force-execute buttons per proposal
+
+#### Database
+- Migration `0005_protocol_settings.sql`: `protocol_settings (id, key UNIQUE, value, user_id, updated_by, updated_at)`
