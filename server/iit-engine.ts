@@ -216,6 +216,8 @@ const phiHistory: { timestamp: number; phi: number }[] = [];
 let latestPerception: NetworkPerception | null = null;
 let engineInterval: ReturnType<typeof setInterval> | null = null;
 let lastBlockHeight = 0;
+let _epochCount = 0;
+let _lastActivityMs: number | null = null;
 
 const ENGINE_TICK_MS = 30_000;
 let lastTickKey = "";
@@ -244,6 +246,8 @@ function tick(blockHeight: number): NetworkPerception {
     return latestPerception;
   }
   lastTickKey = tickKey;
+  _epochCount++;
+  _lastActivityMs = now;
 
   const blockData = `block-${blockHeight}-${timeSlot}`;
   const currentPhi = calculatePhi(blockData);
@@ -309,4 +313,12 @@ export function stopEngine(): void {
 
 export function isEngineRunning(): boolean {
   return engineInterval !== null;
+}
+
+export function getEngineEpochCount(): number {
+  return _epochCount;
+}
+
+export function getEngineLastActivity(): number | null {
+  return _lastActivityMs;
 }

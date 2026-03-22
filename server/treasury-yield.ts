@@ -154,6 +154,12 @@ function compoundYield(): void {
   state.projectedAnnualYield = state.totalReinvested * (weightedAPR / 100) * state.phiBoostMultiplier;
 }
 
+async function onCompoundError(err: any) {
+  console.error("[TreasuryYield] Compound error:", err?.message);
+  const { recordEngineError } = await import("./engine-error-counter").catch(() => ({ recordEngineError: () => {} }));
+  recordEngineError("treasury-yield", err?.message ?? "compound error");
+}
+
 export function recordMintFee(amount: number, rarity: string, chain: string, txHash: string): void {
   const record: MintFeeRecord = {
     timestamp: Date.now(),
@@ -301,7 +307,9 @@ export function startTreasuryYieldEngine(): void {
   );
   state.projectedAnnualYield = state.totalReinvested * (weightedAPR / 100) * state.phiBoostMultiplier;
 
-  compoundInterval = setInterval(compoundYield, COMPOUND_INTERVAL_MS);
+  compoundInterval = setInterval(() => {
+    try { compoundYield(); } catch (e: any) { onCompoundError(e); }
+  }, COMPOUND_INTERVAL_MS);
 
   process.on("SIGTERM", () => stopTreasuryYieldEngine());
   process.on("SIGINT", () => stopTreasuryYieldEngine());

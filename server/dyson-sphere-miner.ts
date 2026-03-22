@@ -579,8 +579,13 @@ export function startDysonEvolution(): void {
   if (_evolutionHandle) return;
   dysonMiner.evolve(0.01, 20);
   _evolutionHandle = setInterval(() => {
-    dysonMiner.evolve(0.01, 20);
-    console.log(`[DysonSphere] Epoch ${dysonMiner.getState().epoch} — chainCorr=${dysonMiner.getState().chainCorrelation.toFixed(4)} boost=${dysonMiner.getState().hashRateBoost.toFixed(2)}x`);
+    try {
+      dysonMiner.evolve(0.01, 20);
+      console.log(`[DysonSphere] Epoch ${dysonMiner.getState().epoch} — chainCorr=${dysonMiner.getState().chainCorrelation.toFixed(4)} boost=${dysonMiner.getState().hashRateBoost.toFixed(2)}x`);
+    } catch (e: any) {
+      console.error("[DysonSphere] Evolution error:", e.message);
+      import("./engine-error-counter").then(({ recordEngineError }) => recordEngineError("dyson-sphere", e.message)).catch(() => {});
+    }
   }, 60_000);
 }
 

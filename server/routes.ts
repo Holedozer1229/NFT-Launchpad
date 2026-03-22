@@ -4810,7 +4810,7 @@ STYLE:
     }
     try {
       const [
-        { isEngineRunning: iitRunning, getNetworkPerception },
+        { isEngineRunning: iitRunning, getEngineEpochCount: iitEpochCount, getEngineLastActivity: iitLastActivity },
         { getNetwork },
         { getTreasuryYieldState, isTreasuryYieldRunning },
         { getBtcZkDaemonStatus },
@@ -4853,7 +4853,7 @@ STYLE:
 
       res.json({
         engines: [
-          mkEngine("iit-engine", "IIT Consciousness", iitRunning(), null, null, "Phi (Φ) computation loop active"),
+          mkEngine("iit-engine", "IIT Consciousness", iitRunning(), iitEpochCount(), iitLastActivity(), "Phi (Φ) computation loop active"),
           mkEngine(
             "p2p-network", "P2P Network",
             p2pStats !== null,
