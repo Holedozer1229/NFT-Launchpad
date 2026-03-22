@@ -8,62 +8,100 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  RefreshCw, Activity, Settings, Play, Square, Cpu, Network,
-  Vault, Zap, Fuel, Atom, PickaxeIcon, Power, AlertCircle
+  RefreshCw, Settings, Cpu, Network, Vault, Zap, Fuel, Atom,
+  PickaxeIcon, Power, AlertCircle, Activity, BookOpen, Clock, Hash
 } from "lucide-react";
 
-interface EngineInfo {
+interface EngineStatus {
   id: string;
   label: string;
-  description: string;
-  icon: React.ReactNode;
-  statusKey?: string;
+  running: boolean;
+  epochCount: number | null;
+  lastActivity: number | null;
+  detail: string;
 }
 
-const ENGINES: EngineInfo[] = [
-  { id: "iit-engine",         label: "IIT Consciousness",    description: "Integrated Information Theory φ engine",             icon: <Cpu className="w-4 h-4" /> },
-  { id: "p2p-network",        label: "P2P Network",          description: "Genesis peer-to-peer mesh network",                  icon: <Network className="w-4 h-4" /> },
-  { id: "treasury-yield",     label: "Treasury Yield",       description: "Auto-compound yield & gas refill engine",            icon: <Vault className="w-4 h-4" /> },
-  { id: "btc-zk-daemon",      label: "BTC ZK Daemon",        description: "Bitcoin AuxPoW + zkSync Era anchoring daemon",       icon: <Zap className="w-4 h-4" /> },
-  { id: "self-fund-sentinel", label: "Self-Fund Sentinel",   description: "OIYE gas reserve sentinel & auto-funder",           icon: <Fuel className="w-4 h-4" /> },
-  { id: "price-driver",       label: "Price Driver",         description: "SKYNT buyback & burn engine (Uniswap v3)",           icon: <Activity className="w-4 h-4" /> },
-  { id: "background-miner",   label: "Background Miner",     description: "Multi-chain merge miner & fee accumulator",         icon: <PickaxeIcon className="w-4 h-4" /> },
-  { id: "dyson-sphere",       label: "Dyson Sphere",         description: "Quantum gravity lattice evolution engine",           icon: <Atom className="w-4 h-4" /> },
-];
+interface EngineStatusResponse {
+  engines: EngineStatus[];
+  timestamp: number;
+}
 
-const SETTING_META: Record<string, { label: string; hint: string; type: "number" | "text" | "boolean" }> = {
-  "price_driver.target_price_usd": { label: "Target Price (USD)",       hint: "e.g. 0.65",   type: "number" },
-  "price_driver.burn_ratio":       { label: "Burn Ratio (0–1)",         hint: "e.g. 0.30",   type: "number" },
-  "price_driver.max_eth_per_epoch":{ label: "Max ETH / Epoch",          hint: "e.g. 0.005",  type: "number" },
-  "price_driver.epoch_interval_ms":{ label: "Epoch Interval (ms)",      hint: "e.g. 300000", type: "number" },
-  "iit_engine.enabled":            { label: "IIT Engine Enabled",       hint: "true/false",  type: "boolean" },
-  "p2p_network.enabled":           { label: "P2P Network Enabled",      hint: "true/false",  type: "boolean" },
-  "treasury_yield.enabled":        { label: "Treasury Yield Enabled",   hint: "true/false",  type: "boolean" },
-  "btc_zk_daemon.enabled":         { label: "BTC ZK Daemon Enabled",    hint: "true/false",  type: "boolean" },
-  "self_fund_sentinel.enabled":    { label: "Self-Fund Sentinel Enabled",hint: "true/false", type: "boolean" },
-  "dyson_sphere.enabled":          { label: "Dyson Sphere Enabled",     hint: "true/false",  type: "boolean" },
+const ENGINE_ICONS: Record<string, React.ReactNode> = {
+  "iit-engine":         <Cpu className="w-4 h-4" />,
+  "p2p-network":        <Network className="w-4 h-4" />,
+  "p2p-ledger":         <BookOpen className="w-4 h-4" />,
+  "treasury-yield":     <Vault className="w-4 h-4" />,
+  "btc-zk-daemon":      <Zap className="w-4 h-4" />,
+  "self-fund-sentinel": <Fuel className="w-4 h-4" />,
+  "price-driver":       <Activity className="w-4 h-4" />,
+  "dyson-sphere":       <Atom className="w-4 h-4" />,
 };
 
+const SETTING_META: Record<string, { label: string; hint: string }> = {
+  "price_driver.target_price_usd":  { label: "Target Price (USD)",        hint: "e.g. 0.65"   },
+  "price_driver.burn_ratio":        { label: "Burn Ratio (0–1)",           hint: "e.g. 0.30"   },
+  "price_driver.max_eth_per_epoch": { label: "Max ETH / Epoch",            hint: "e.g. 0.005"  },
+  "price_driver.epoch_interval_ms": { label: "Epoch Interval (ms)",        hint: "e.g. 300000" },
+  "iit_engine.enabled":             { label: "IIT Engine Enabled",         hint: "true/false"  },
+  "p2p_network.enabled":            { label: "P2P Network Enabled",        hint: "true/false"  },
+  "treasury_yield.enabled":         { label: "Treasury Yield Enabled",     hint: "true/false"  },
+  "btc_zk_daemon.enabled":          { label: "BTC ZK Daemon Enabled",      hint: "true/false"  },
+  "self_fund_sentinel.enabled":     { label: "OIYE Sentinel Enabled",      hint: "true/false"  },
+  "dyson_sphere.enabled":           { label: "Dyson Sphere Enabled",       hint: "true/false"  },
+};
+
+function timeAgo(ts: number | null): string {
+  if (!ts) return "—";
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 5) return "just now";
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ago`;
+}
+
 function EngineCard({ engine, onRestart, isRestarting }: {
-  engine: EngineInfo;
+  engine: EngineStatus;
   onRestart: (id: string) => void;
   isRestarting: boolean;
 }) {
+  const icon = ENGINE_ICONS[engine.id] ?? <Cpu className="w-4 h-4" />;
+
   return (
     <Card className="bg-card/60 border-border/40" data-testid={`engine-card-${engine.id}`}>
       <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-md bg-primary/10 text-primary mt-0.5">
-              {engine.icon}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className={`p-2 rounded-md mt-0.5 shrink-0 ${engine.running ? "bg-primary/10 text-primary" : "bg-muted/40 text-muted-foreground"}`}>
+              {icon}
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="font-mono text-sm font-semibold text-foreground">{engine.label}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">{engine.description}</div>
-              <Badge variant="outline" className="mt-1.5 text-xs font-mono border-green-500/30 text-green-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block mr-1.5 animate-pulse" />
-                active
-              </Badge>
+              <div className="text-xs text-muted-foreground mt-0.5 truncate" title={engine.detail}>{engine.detail}</div>
+              <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                <Badge
+                  variant="outline"
+                  className={`text-xs font-mono ${engine.running
+                    ? "border-green-500/30 text-green-400"
+                    : "border-red-500/30 text-red-400"
+                  }`}
+                  data-testid={`status-badge-${engine.id}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full inline-block mr-1.5 ${engine.running ? "bg-green-400 animate-pulse" : "bg-red-400"}`} />
+                  {engine.running ? "running" : "stopped"}
+                </Badge>
+                {engine.epochCount !== null && (
+                  <span className="text-xs text-muted-foreground font-mono flex items-center gap-1">
+                    <Hash className="w-3 h-3" />
+                    {engine.epochCount}
+                  </span>
+                )}
+                {engine.lastActivity !== null && (
+                  <span className="text-xs text-muted-foreground font-mono flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {timeAgo(engine.lastActivity)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <Button
@@ -75,9 +113,8 @@ function EngineCard({ engine, onRestart, isRestarting }: {
             data-testid={`restart-${engine.id}`}
           >
             {isRestarting
-              ? <RefreshCw className="w-3 h-3 animate-spin mr-1.5" />
-              : <Power className="w-3 h-3 mr-1.5" />}
-            Restart
+              ? <RefreshCw className="w-3 h-3 animate-spin" />
+              : <Power className="w-3 h-3" />}
           </Button>
         </div>
       </CardContent>
@@ -92,6 +129,11 @@ export default function AdminEngines() {
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
+  const { data: statusData, isLoading: statusLoading } = useQuery<EngineStatusResponse>({
+    queryKey: ["/api/admin/engines/status"],
+    refetchInterval: 10_000,
+  });
+
   const { data: settingsData, isLoading: settingsLoading } = useQuery<{
     settings: Record<string, string>;
     rows: Array<{ key: string; value: string; updated_by: string; updated_at: string }>;
@@ -103,11 +145,12 @@ export default function AdminEngines() {
   const restartMutation = useMutation({
     mutationFn: (engineName: string) =>
       apiRequest("POST", `/api/admin/engines/${engineName}/restart`),
-    onSuccess: (_data, engineName) => {
-      toast({ title: `Engine restarted`, description: `${engineName} successfully restarted.` });
+    onSuccess: (_data: any, engineName: string) => {
+      toast({ title: "Engine restarted", description: `${engineName} successfully restarted.` });
       setRestartingEngine(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/engines/status"] });
     },
-    onError: (err: any, engineName) => {
+    onError: (err: any) => {
       toast({ title: "Restart failed", description: err.message, variant: "destructive" });
       setRestartingEngine(null);
     },
@@ -115,11 +158,12 @@ export default function AdminEngines() {
 
   const saveSetting = async (key: string) => {
     const value = editValues[key];
-    if (value === undefined || value === null) return;
+    if (value === undefined) return;
     setSavingKey(key);
     try {
       await apiRequest("PUT", "/api/admin/settings", { key, value });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/engines/status"] });
       toast({ title: "Setting saved", description: `${key} = ${value}` });
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
@@ -136,9 +180,14 @@ export default function AdminEngines() {
 
   const settings = settingsData?.settings ?? {};
   const rows = settingsData?.rows ?? [];
+  const engines = statusData?.engines ?? [];
+
+  const runningCount = engines.filter(e => e.running).length;
+  const totalCount   = engines.length;
 
   return (
     <div className="min-h-screen p-6 space-y-8 max-w-5xl mx-auto">
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -147,57 +196,87 @@ export default function AdminEngines() {
             Engine Console
           </h1>
           <p className="text-sm text-muted-foreground mt-1 font-mono">
-            Restart engines & hot-reload protocol parameters from DB
+            Live engine status · restart controls · hot-reload protocol settings
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] })}
-          data-testid="refresh-settings"
-        >
-          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          {!statusLoading && (
+            <Badge variant="outline" className={`font-mono text-xs ${runningCount === totalCount ? "border-green-500/30 text-green-400" : "border-amber-500/30 text-amber-400"}`}>
+              {runningCount}/{totalCount} engines running
+            </Badge>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["/api/admin/engines/status"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+            }}
+            data-testid="refresh-all"
+          >
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* Engines Grid */}
+      {/* Live Engine Status Grid */}
       <div>
-        <h2 className="font-mono text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          Protocol Engines
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {ENGINES.map(engine => (
-            <EngineCard
-              key={engine.id}
-              engine={engine}
-              onRestart={handleRestart}
-              isRestarting={restartingEngine === engine.id}
-            />
-          ))}
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-mono text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Live Engine Status
+          </h2>
+          <span className="text-xs text-muted-foreground font-mono">auto-refresh 10s</span>
         </div>
+
+        {statusLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Card key={i} className="bg-card/40 border-border/30 animate-pulse">
+                <CardContent className="p-4 h-24" />
+              </Card>
+            ))}
+          </div>
+        ) : engines.length === 0 ? (
+          <div className="text-sm text-muted-foreground font-mono">No engine data available</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {engines.map(engine => (
+              <EngineCard
+                key={engine.id}
+                engine={engine}
+                onRestart={handleRestart}
+                isRestarting={restartingEngine === engine.id}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Protocol Settings */}
       <div>
-        <h2 className="font-mono text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          Protocol Settings (Hot-Reload)
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-mono text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Protocol Settings (Hot-Reload)
+          </h2>
+          <span className="text-xs text-muted-foreground font-mono">price driver reloads each epoch</span>
+        </div>
 
         {settingsLoading ? (
-          <div className="text-sm text-muted-foreground font-mono animate-pulse">Loading settings from DB…</div>
+          <div className="text-sm text-muted-foreground font-mono animate-pulse">Loading from DB…</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {Object.entries(SETTING_META).map(([key, meta]) => {
               const currentValue = settings[key] ?? "";
-              const editedValue = editValues[key];
+              const editedValue  = editValues[key];
               const displayValue = editedValue !== undefined ? editedValue : currentValue;
               const row = rows.find(r => r.key === key);
               const isDirty = editedValue !== undefined && editedValue !== currentValue;
+
               return (
                 <Card key={key} className="bg-card/60 border-border/40" data-testid={`setting-card-${key}`}>
                   <CardContent className="p-4 space-y-2">
-                    <Label className="font-mono text-xs text-muted-foreground">{key}</Label>
+                    <div className="font-mono text-xs text-primary">{key}</div>
                     <div className="font-semibold text-sm text-foreground">{meta.label}</div>
                     <div className="flex gap-2">
                       <Input
@@ -225,7 +304,7 @@ export default function AdminEngines() {
                     {isDirty && (
                       <div className="flex items-center gap-1 text-xs text-amber-400">
                         <AlertCircle className="w-3 h-3" />
-                        Unsaved change
+                        Unsaved
                       </div>
                     )}
                   </CardContent>
@@ -236,7 +315,7 @@ export default function AdminEngines() {
         )}
       </div>
 
-      {/* Raw Settings Table */}
+      {/* All Settings Table */}
       {rows.length > 0 && (
         <div>
           <h2 className="font-mono text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
@@ -256,7 +335,7 @@ export default function AdminEngines() {
                   </thead>
                   <tbody>
                     {rows.map(row => (
-                      <tr key={row.key} className="border-b border-border/20 hover:bg-muted/10">
+                      <tr key={row.key} className="border-b border-border/20 hover:bg-muted/10" data-testid={`settings-row-${row.key}`}>
                         <td className="p-3 text-primary">{row.key}</td>
                         <td className="p-3 text-foreground">{row.value}</td>
                         <td className="p-3 text-muted-foreground">{row.updated_by}</td>

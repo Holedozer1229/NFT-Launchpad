@@ -1200,6 +1200,7 @@ export const protocolSettings = pgTable("protocol_settings", {
   key: text("key").notNull().unique(),
   value: text("value").notNull(),
   updatedBy: text("updated_by").notNull().default("system"),
+  userId: integer("user_id"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

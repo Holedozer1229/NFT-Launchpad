@@ -375,6 +375,9 @@ async function runEpoch(): Promise<void> {
   _state.epochCount++;
   const epoch = _state.epochCount;
 
+  // 0. Hot-reload settings from DB each epoch
+  await reloadSettingsFromDb().catch(() => {});
+
   // 1. Read live on-chain price
   const quote = await getOnChainPrice();
   const ethPriceUsd = await fetchEthPriceUsd();

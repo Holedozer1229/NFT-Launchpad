@@ -4802,6 +4802,119 @@ STYLE:
     }
   });
 
+  // ==================== ENGINE STATUS (Admin) ====================
+
+  app.get("/api/admin/engines/status", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const [
+        { isEngineRunning: iitRunning, getNetworkPerception },
+        { getNetwork },
+        { getTreasuryYieldState },
+        { getBtcZkDaemonStatus },
+        { getSelfFundStatus },
+        { getPriceDriverState },
+        { getLedgerState },
+      ] = await Promise.all([
+        import("./iit-engine"),
+        import("./p2p-network"),
+        import("./treasury-yield"),
+        import("./btc-zk-daemon"),
+        import("./self-fund-gas"),
+        import("./skynt-price-driver"),
+        import("./p2p-ledger"),
+      ]);
+
+      const btcZk      = getBtcZkDaemonStatus();
+      const selfFund   = getSelfFundStatus();
+      const priceDriver = getPriceDriverState();
+      const treasury   = getTreasuryYieldState();
+      const ledger     = getLedgerState();
+
+      // P2P network stats via exported helper
+      const { getP2PNetworkStats: netStats, getNetworkNodes } = await import("./p2p-network");
+      const p2pStats   = netStats();
+      const p2pNodes   = getNetworkNodes();
+      const p2pActive  = p2pNodes.filter((n: any) => n.status === "online" || n.status === "syncing").length;
+
+      const dysonState = (dysonMiner as any).getState?.() ?? null;
+
+      res.json({
+        engines: [
+          {
+            id: "iit-engine",
+            label: "IIT Consciousness",
+            running: iitRunning(),
+            epochCount: null,
+            lastActivity: null,
+            detail: "Phi (Φ) computation loop active",
+          },
+          {
+            id: "p2p-network",
+            label: "P2P Network",
+            running: p2pStats !== null,
+            epochCount: p2pStats?.totalNodes ?? 0,
+            lastActivity: p2pStats?.lastBlockTime ?? null,
+            detail: p2pStats ? `${p2pStats.totalNodes} nodes | ${p2pActive} active | h:${p2pStats.consensusHeight}` : "stopped",
+          },
+          {
+            id: "p2p-ledger",
+            label: "P2P Ledger",
+            running: ledger !== null,
+            epochCount: (ledger as any)?.guardians?.length ?? null,
+            lastActivity: null,
+            detail: ledger ? `guardians: ${(ledger as any).guardians?.length ?? 0}` : "stopped",
+          },
+          {
+            id: "treasury-yield",
+            label: "Treasury Yield",
+            running: treasury.autoCompoundEnabled,
+            epochCount: treasury.compoundCount,
+            lastActivity: treasury.lastCompoundTimestamp,
+            detail: `pool: ${treasury.currentPoolBalance.toFixed(4)} | yield: ${treasury.totalYieldGenerated.toFixed(4)} | φ-boost: ${treasury.phiBoostMultiplier.toFixed(3)}`,
+          },
+          {
+            id: "btc-zk-daemon",
+            label: "BTC ZK Daemon",
+            running: btcZk.running,
+            epochCount: btcZk.totalEpochs,
+            lastActivity: btcZk.lastEpoch?.createdAt ? new Date(btcZk.lastEpoch.createdAt).getTime() : null,
+            detail: `epoch ${btcZk.epoch} | ${btcZk.blocksFound} blocks | ${(btcZk.avgHashRate / 1000).toFixed(1)}kH/s | xiPass:${(btcZk.xiPassRate * 100).toFixed(1)}%`,
+          },
+          {
+            id: "self-fund-sentinel",
+            label: "OIYE Gas Sentinel",
+            running: selfFund.running,
+            epochCount: selfFund.sentinelTriggers,
+            lastActivity: selfFund.lastCheckAt ? new Date(selfFund.lastCheckAt).getTime() : null,
+            detail: `phase: ${selfFund.phase} | reserve: ${selfFund.gasReserveEth.toFixed(8)} ETH | ${selfFund.isCritical ? "CRITICAL" : selfFund.isHealthy ? "healthy" : "low"} | runway:${selfFund.projectedRunwayEpochs} epochs`,
+          },
+          {
+            id: "price-driver",
+            label: "Price Driver",
+            running: priceDriver.running,
+            epochCount: priceDriver.epochCount,
+            lastActivity: priceDriver.lastBuybackAt,
+            detail: `target: $${priceDriver.targetPriceUsd.toFixed(4)} | live: $${priceDriver.liveSkyntPriceUsd.toFixed(6)} | mode: ${priceDriver.pricePressureMode} | burned: ${priceDriver.totalSkyntBurned.toFixed(2)}`,
+          },
+          {
+            id: "dyson-sphere",
+            label: "Dyson Sphere",
+            running: dysonState !== null,
+            epochCount: dysonState?.epoch ?? 0,
+            lastActivity: dysonState?.lastUpdate ?? null,
+            detail: dysonState ? `epoch ${dysonState.epoch} | corr: ${dysonState.chainCorrelation?.toFixed(4) ?? "?"} | boost: ${dysonState.hashRateBoost?.toFixed(2) ?? "?"}x` : "idle",
+          },
+        ],
+        timestamp: Date.now(),
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // ==================== PROTOCOL SETTINGS (Admin) ====================
 
   app.get("/api/admin/settings", async (req, res) => {
@@ -4833,12 +4946,13 @@ STYLE:
     }
     const updatedBy = (req.user as any)?.username || "admin";
     try {
+      const userId2 = (req.user as any)?.id ?? null;
       const { pool } = await import("./db");
       await pool.query(
-        `INSERT INTO protocol_settings (key, value, updated_by, updated_at)
-         VALUES ($1, $2, $3, now())
-         ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = now()`,
-        [key, String(value), updatedBy]
+        `INSERT INTO protocol_settings (key, value, updated_by, user_id, updated_at)
+         VALUES ($1, $2, $3, $4, now())
+         ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, user_id = $4, updated_at = now()`,
+        [key, String(value), updatedBy, userId2]
       );
 
       // Hot-reload price driver settings if relevant key
@@ -4848,6 +4962,17 @@ STYLE:
           await reloadSettingsFromDb();
         } catch {}
       }
+
+      // Log settings change to admin activity
+      console.log(`[AdminSettings] ${updatedBy} (id:${userId2}) SET ${key}=${value} at ${new Date().toISOString()}`);
+      try {
+        const { pool: p2 } = await import("./db");
+        await p2.query(
+          `INSERT INTO admin_action_log (user_id, username, action, detail, created_at)
+           VALUES ($1,$2,'settings_change',$3,now())`,
+          [userId2, updatedBy, `SET ${key}=${value}`]
+        ).catch(() => {});
+      } catch {}
 
       res.json({ success: true, key, value });
     } catch (err: any) {
@@ -4874,6 +4999,12 @@ STYLE:
         const { stopP2PNetwork, startP2PNetwork } = await import("./p2p-network");
         stopP2PNetwork();
         startP2PNetwork();
+        return { stopped: true, started: true };
+      },
+      "p2p-ledger": async () => {
+        const { stopP2PLedger, startP2PLedger } = await import("./p2p-ledger");
+        stopP2PLedger();
+        startP2PLedger();
         return { stopped: true, started: true };
       },
       "treasury-yield": async () => {
