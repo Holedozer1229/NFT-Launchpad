@@ -5181,8 +5181,7 @@ STYLE:
         liveBalanceUnavailable = wallets.length > 0;
       }
 
-      // Use live balance when Alchemy was reachable (even if balance is 0)
-      const anyLive = !liveBalanceUnavailable && !(wallets.length > 0 && liveSkyntBalance === 0 && storedSkynt > 0 && !process.env.ALCHEMY_API_KEY);
+      // Use live balance when Alchemy was reachable (even if balance is legitimately 0)
       const totalSkynt = (wallets.length === 0 || liveBalanceUnavailable) ? storedSkynt : liveSkyntBalance;
       const totalEth = storedEth;
 
@@ -5322,7 +5321,7 @@ STYLE:
         });
       }
 
-      res.json({ events, total, page, limit, totalPages: Math.ceil(total / limit), source: "db" });
+      res.json({ events, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)), source: "db" });
     } catch (err: any) {
       res.status(500).json({ message: safeError(err, "Failed to load buyback feed") });
     }
