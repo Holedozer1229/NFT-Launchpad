@@ -1298,9 +1298,10 @@ STYLE:
            treasury_eth_balance AS "treasuryEthBalance",
            created_at     AS "createdAt"
          FROM skynt_price_snapshots
-         WHERE created_at > NOW() - INTERVAL '${interval}'
+         WHERE created_at > NOW() - $1::interval
          ORDER BY created_at ASC
          LIMIT 500`,
+        [interval],
       );
       res.json(result.rows);
     } catch (err: any) {
@@ -1342,9 +1343,10 @@ STYLE:
       const [holdersRow] = await db.select({ count: drizzleSql<number>`COUNT(DISTINCT owner)::int` }).from(nfts);
       const nftHolderCount = holdersRow?.count ?? 0;
 
-      // On-chain SKYNT balances — burn address + treasury SKYNT holdings
+      // On-chain SKYNT balances — burn address + treasury SKYNT holdings + totalSupply
       let burnedBalance    = driverState.totalSkyntBurned;
       let treasurySkyntBal = 0;
+      let onChainTotalSupply: number | null = null;
       try {
         if (process.env.ALCHEMY_API_KEY) {
           const { createPublicClient, http, formatUnits } = await import("viem");
@@ -1356,22 +1358,32 @@ STYLE:
           const BURN_ADDR      = "0x000000000000000000000000000000000000dEaD" as `0x${string}`;
           const TREASURY_ADDR  = (process.env.TREASURY_ADDRESS || "0xD55dDb0f19DAc37cDb3c5c50d8A89EB177ecc6e0") as `0x${string}`;
           const SKYNT_ADDR     = (process.env.SKYNT_CONTRACT_ADDRESS || "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20") as `0x${string}`;
-          const ERC20_ABI = [{
-            name: "balanceOf", type: "function", stateMutability: "view",
-            inputs: [{ name: "account", type: "address" }],
-            outputs: [{ name: "", type: "uint256" }],
-          }] as const;
-          const [burnBal, tBal] = await Promise.all([
+          const ERC20_ABI = [
+            {
+              name: "balanceOf", type: "function", stateMutability: "view",
+              inputs: [{ name: "account", type: "address" }],
+              outputs: [{ name: "", type: "uint256" }],
+            },
+            {
+              name: "totalSupply", type: "function", stateMutability: "view",
+              inputs: [],
+              outputs: [{ name: "", type: "uint256" }],
+            },
+          ] as const;
+          const [burnBal, tBal, totalSup] = await Promise.all([
             client.readContract({ address: SKYNT_ADDR, abi: ERC20_ABI, functionName: "balanceOf", args: [BURN_ADDR] }),
             client.readContract({ address: SKYNT_ADDR, abi: ERC20_ABI, functionName: "balanceOf", args: [TREASURY_ADDR] }),
+            client.readContract({ address: SKYNT_ADDR, abi: ERC20_ABI, functionName: "totalSupply" }),
           ]);
-          burnedBalance    = parseFloat(formatUnits(burnBal as bigint, 18));
-          treasurySkyntBal = parseFloat(formatUnits(tBal as bigint, 18));
+          burnedBalance      = parseFloat(formatUnits(burnBal as bigint, 18));
+          treasurySkyntBal   = parseFloat(formatUnits(tBal as bigint, 18));
+          onChainTotalSupply = parseFloat(formatUnits(totalSup as bigint, 18));
         }
       } catch { /* fallback to in-memory */ }
 
-      // Circulating supply: initial - burned
-      const circulatingSupply = Math.max(0, SKYNT_TOKENOMICS.initialCirculating - burnedBalance);
+      // Circulating supply: use on-chain totalSupply - burned if available; else constant - burned
+      const baseSupply = onChainTotalSupply ?? SKYNT_TOKENOMICS.initialCirculating;
+      const circulatingSupply = Math.max(0, baseSupply - burnedBalance);
 
       res.json({
         // Price

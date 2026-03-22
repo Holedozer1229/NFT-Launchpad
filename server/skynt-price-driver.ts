@@ -384,7 +384,7 @@ async function runEpoch(): Promise<void> {
     _state.pricePressureMode = "idle";
     // Persist snapshot with zeroed price/fee so history is uninterrupted
     const ethBalFallback = await getTreasuryEthBalance().catch(() => _state.treasuryEthBalance);
-    savePriceSnapshot(0, 0, ethPriceUsd, 0, ethBalFallback, epoch, 0, 0);
+    await savePriceSnapshot(0, 0, ethPriceUsd, 0, ethBalFallback, epoch, 0, 0);
     return;
   }
 
@@ -407,7 +407,7 @@ async function runEpoch(): Promise<void> {
   if (ethToSpend <= 0 || mode === "target_reached" || mode === "idle") {
     console.log(`[PriceDriver] Epoch ${epoch} — mode=${mode}, no buy action needed`);
     // Persist snapshot with 0 buyback amounts
-    savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
+    await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     return;
   }
 
@@ -418,7 +418,7 @@ async function runEpoch(): Promise<void> {
   if (!exactQuote) {
     console.warn("[PriceDriver] Could not get exact quote — aborting epoch");
     // Still persist snapshot (no buyback executed)
-    savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
+    await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     return;
   }
 
@@ -447,7 +447,7 @@ async function runEpoch(): Promise<void> {
       reason: "Swap execution failed",
     });
     // Persist snapshot: eth_spent=0 because swap was not executed (only counts executed volume)
-    savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
+    await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     return;
   }
 
@@ -501,7 +501,7 @@ async function runEpoch(): Promise<void> {
   );
 
   // Persist snapshot with actual buyback amounts
-  savePriceSnapshot(priceAfterUsd / ethPriceUsd, priceAfterUsd, ethPriceUsd, exactQuote.fee, ethBalance, epoch, ethToSpend, skyntBoughtFloat);
+  await savePriceSnapshot(priceAfterUsd / ethPriceUsd, priceAfterUsd, ethPriceUsd, exactQuote.fee, ethBalance, epoch, ethToSpend, skyntBoughtFloat);
 }
 
 // ── Persist price snapshot to DB ──────────────────────────────────────────
