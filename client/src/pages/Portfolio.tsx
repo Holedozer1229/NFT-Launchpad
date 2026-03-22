@@ -328,38 +328,40 @@ export default function Portfolio() {
               {[1, 2].map(i => <Skeleton key={i} className="h-16 w-full" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-black/30 rounded p-4 text-center" data-testid="text-governance-votes">
-                <Vote className="w-5 h-5 text-neon-magenta mx-auto mb-1" />
-                <div className="font-mono text-2xl font-bold text-neon-magenta">{data?.governance?.votesCast ?? 0}</div>
-                <div className="text-[9px] font-heading text-muted-foreground uppercase tracking-wider mt-1">Votes Cast</div>
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-black/30 rounded p-4 text-center" data-testid="text-governance-votes">
+                  <Vote className="w-5 h-5 text-neon-magenta mx-auto mb-1" />
+                  <div className="font-mono text-2xl font-bold text-neon-magenta">{data?.governance?.votesCast ?? 0}</div>
+                  <div className="text-[9px] font-heading text-muted-foreground uppercase tracking-wider mt-1">Votes Cast</div>
+                </div>
+                <div className="bg-black/30 rounded p-4 text-center" data-testid="text-governance-proposals">
+                  <FileText className="w-5 h-5 text-neon-cyan mx-auto mb-1" />
+                  <div className="font-mono text-2xl font-bold text-neon-cyan">{data?.governance?.proposalsCreated ?? 0}</div>
+                  <div className="text-[9px] font-heading text-muted-foreground uppercase tracking-wider mt-1">Proposals</div>
+                </div>
+                <div className="bg-black/30 rounded p-4 text-center" data-testid="text-governance-voting-weight">
+                  <TrendingUp className="w-5 h-5 text-neon-green mx-auto mb-1" />
+                  <div className="font-mono text-2xl font-bold text-neon-green">{data?.governance?.votingWeight ?? 0}</div>
+                  <div className="text-[9px] font-heading text-muted-foreground uppercase tracking-wider mt-1">Voting Weight</div>
+                </div>
               </div>
-              <div className="bg-black/30 rounded p-4 text-center" data-testid="text-governance-proposals">
-                <FileText className="w-5 h-5 text-neon-cyan mx-auto mb-1" />
-                <div className="font-mono text-2xl font-bold text-neon-cyan">{data?.governance?.proposalsCreated ?? 0}</div>
-                <div className="text-[9px] font-heading text-muted-foreground uppercase tracking-wider mt-1">Proposals</div>
-              </div>
-              <div className="bg-black/30 rounded p-4 text-center" data-testid="text-governance-voting-weight">
-                <TrendingUp className="w-5 h-5 text-neon-green mx-auto mb-1" />
-                <div className="font-mono text-2xl font-bold text-neon-green">{data?.governance?.votingWeight ?? 0}</div>
-                <div className="text-[9px] font-heading text-muted-foreground uppercase tracking-wider mt-1">Voting Weight</div>
-              </div>
-            </div>
-            {data?.onChainActivitySummary && (
-              <div className="mt-3 grid grid-cols-4 gap-2" data-testid="section-onchain-activity">
-                {[
-                  { label: "NFTs Minted", val: data.onChainActivitySummary.nftsMinted },
-                  { label: "Wallets", val: data.onChainActivitySummary.walletsLinked },
-                  { label: "Yield Positions", val: data.onChainActivitySummary.yieldPositions },
-                  { label: "Gov Actions", val: data.onChainActivitySummary.governanceActions },
-                ].map(({ label, val }) => (
-                  <div key={label} className="bg-black/20 rounded p-2 text-center">
-                    <div className="font-mono text-sm font-bold text-foreground">{val}</div>
-                    <div className="text-[8px] font-heading text-muted-foreground uppercase tracking-wider mt-0.5">{label}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+              {data?.onChainActivitySummary && (
+                <div className="mt-3 grid grid-cols-4 gap-2" data-testid="section-onchain-activity">
+                  {[
+                    { label: "NFTs Minted", val: data.onChainActivitySummary.nftsMinted },
+                    { label: "Wallets", val: data.onChainActivitySummary.walletsLinked },
+                    { label: "Yield Positions", val: data.onChainActivitySummary.yieldPositions },
+                    { label: "Gov Actions", val: data.onChainActivitySummary.governanceActions },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="bg-black/20 rounded p-2 text-center">
+                      <div className="font-mono text-sm font-bold text-foreground">{val}</div>
+                      <div className="text-[8px] font-heading text-muted-foreground uppercase tracking-wider mt-0.5">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
           <div className="mt-3">
             <Link href="/governance" className="text-[10px] text-neon-cyan hover:underline flex items-center gap-1" data-testid="link-governance-page">
