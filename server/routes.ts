@@ -3898,6 +3898,54 @@ STYLE:
     }
   });
 
+  app.post("/api/price-driver/set-target", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    const target = parseFloat(req.body?.targetPriceUsd);
+    if (!isFinite(target) || target <= 0) {
+      return res.status(400).json({ message: "targetPriceUsd must be a positive number" });
+    }
+    try {
+      const { setTargetPrice } = await import("./skynt-price-driver");
+      setTargetPrice(target);
+      res.json({ success: true, targetPriceUsd: target });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/engine/console", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const [
+        { getPriceDriverState },
+        { getBtcZkDaemonStatus, getRecentBtcZkEpochs },
+        { getP2PNetworkStats },
+        { getSelfFundStatus },
+        { getTreasuryYieldState },
+      ] = await Promise.all([
+        import("./skynt-price-driver"),
+        import("./btc-zk-daemon"),
+        import("./p2p-network"),
+        import("./self-fund-gas"),
+        import("./treasury-yield"),
+      ]);
+      res.json({
+        priceDriver: getPriceDriverState(),
+        btcZk: getBtcZkDaemonStatus(),
+        recentBtcZkEpochs: getRecentBtcZkEpochs(5),
+        p2p: getP2PNetworkStats(),
+        gasReserve: getSelfFundStatus(),
+        treasury: getTreasuryYieldState(),
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Spectral PoW proofs
   app.get("/api/spectral-pow/proofs", async (_req, res) => {
     try {

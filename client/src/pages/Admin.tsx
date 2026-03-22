@@ -7,13 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Download, Rocket, Activity, Gift, Plus, Users, Coins, CheckCircle2, Clock, XCircle, UserCheck, ShieldCheck, ShieldAlert, Loader2, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { Settings, Download, Rocket, Activity, Gift, Plus, Users, Coins, CheckCircle2, Clock, XCircle, UserCheck, ShieldCheck, ShieldAlert, Loader2, ChevronDown, ChevronUp, FileText, Cpu, Play, Square, Zap, Target, Flame, Wifi, WifiOff } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useEngineStream, type EngineEvent } from "@/hooks/use-engine-stream";
 
 interface AirdropEntry {
   id: number;
@@ -412,6 +413,342 @@ function KycReviewPanel() {
   );
 }
 
+// ── Engine type shapes ──────────────────────────────────────────────────────
+interface ConsoleData {
+  priceDriver: {
+    running: boolean;
+    configured: boolean;
+    liveSkyntPriceUsd: number;
+    targetPriceUsd: number;
+    pricePressureMode: string;
+    treasuryEthBalance: number;
+    totalSkyntBought: number;
+    totalSkyntBurned: number;
+    totalEthSpent: number;
+    epochCount: number;
+    lastBuybackAt: number | null;
+  };
+  btcZk: {
+    running: boolean;
+    epochCount: number;
+    hashRate: number;
+    totalStxYield: number;
+    latestBtcBlock: number;
+    lastEpochAt: number | null;
+  };
+  p2p: {
+    nodeCount: number;
+    blockCount: number;
+    networkId: string;
+    started: boolean;
+  };
+  gasReserve: {
+    reserveEth: number;
+    totalAllocated: number;
+    epochCount: number;
+    stxYieldEnabled: boolean;
+    autoEnabled: boolean;
+  };
+  treasury: {
+    totalYieldEth: number;
+    compoundCount: number;
+    autoCompoundEnabled: boolean;
+    lastCompoundAt: number | null;
+    currentApyBps: number;
+  };
+}
+
+const EVENT_COLORS: Record<string, string> = {
+  "price_driver:epoch":          "text-neon-cyan",
+  "price_driver:buyback":        "text-neon-green",
+  "price_driver:burn_completed": "text-plasma-red",
+  "price_driver:target_updated": "text-neon-orange",
+  "miner:block_found":           "text-neon-magenta",
+  "miner:hashrate_update":       "text-violet-400",
+  "p2p:peer_joined":             "text-neon-cyan",
+  "p2p:peer_left":               "text-muted-foreground",
+  "p2p:block_announced":         "text-neon-blue",
+  "treasury:compound":           "text-neon-green",
+  "btc_zk:epoch_result":         "text-neon-orange",
+};
+
+function eventSummary(ev: EngineEvent): string {
+  const d = ev.data;
+  switch (ev.event) {
+    case "price_driver:epoch":
+      return `Epoch ${d.epoch} — ${String(d.mode).toUpperCase()} | $${Number(d.priceUsd).toFixed(4)} | ${String(d.status)}`;
+    case "price_driver:buyback":
+      return `Buyback ${d.status} — ${Number(d.ethSpent ?? 0).toFixed(4)} ETH → ${Number(d.skyntBought ?? 0).toFixed(2)} SKYNT`;
+    case "price_driver:burn_completed":
+      return `Burned ${Number(d.skyntBurned ?? 0).toFixed(2)} SKYNT at $${Number(d.priceUsd ?? 0).toFixed(4)}`;
+    case "price_driver:target_updated":
+      return `Target updated → $${Number(d.targetPriceUsd).toFixed(4)}`;
+    case "miner:block_found":
+      return `Block #${d.height} found — ${Number(d.hashRate ?? 0).toFixed(0)} H/s`;
+    case "miner:hashrate_update":
+      return `Hashrate: ${Number(d.hashRate ?? 0).toFixed(0)} H/s | ${d.activeMiners ?? 0} miners`;
+    case "p2p:peer_joined":
+      return `Peer joined: ${String(d.nodeId ?? "").slice(0, 12)}…`;
+    case "p2p:peer_left":
+      return `Peer left: ${String(d.nodeId ?? "").slice(0, 12)}…`;
+    case "p2p:block_announced":
+      return `Block #${d.height} announced via P2P`;
+    case "treasury:compound":
+      return `Compounded ${Number(d.yieldEth ?? 0).toFixed(6)} ETH yield`;
+    case "btc_zk:epoch_result":
+      return `BTC Epoch ${d.epoch} — ${Number(d.hashRate ?? 0).toFixed(0)} H/s | STX yield: ${Number(d.stxYield ?? 0).toFixed(3)}`;
+    default:
+      return ev.event;
+  }
+}
+
+function EngineConsoleTab() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { events, connected } = useEngineStream();
+  const [targetInput, setTargetInput] = useState("");
+
+  const { data: console_data, isLoading: consoleLoading, refetch } = useQuery<ConsoleData>({
+    queryKey: ["/api/engine/console"],
+    refetchInterval: 15_000,
+  });
+
+  useEffect(() => {
+    if (console_data?.priceDriver?.targetPriceUsd) {
+      setTargetInput(String(console_data.priceDriver.targetPriceUsd));
+    }
+  }, [console_data?.priceDriver?.targetPriceUsd]);
+
+  const startMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/price-driver/start"),
+    onSuccess: () => { toast({ title: "Price Driver started" }); qc.invalidateQueries({ queryKey: ["/api/engine/console"] }); refetch(); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/price-driver/stop"),
+    onSuccess: () => { toast({ title: "Price Driver stopped" }); qc.invalidateQueries({ queryKey: ["/api/engine/console"] }); refetch(); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const triggerMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/price-driver/trigger"),
+    onSuccess: () => { toast({ title: "Manual buyback triggered" }); refetch(); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const setTargetMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/price-driver/set-target", { targetPriceUsd: parseFloat(targetInput) }),
+    onSuccess: (data: any) => {
+      toast({ title: `Target updated → $${Number(data?.targetPriceUsd ?? 0).toFixed(4)}` });
+      qc.invalidateQueries({ queryKey: ["/api/engine/console"] });
+      qc.invalidateQueries({ queryKey: ["/api/price-driver/status"] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const pd = console_data?.priceDriver;
+  const btcZk = console_data?.btcZk;
+  const p2p = console_data?.p2p;
+  const gas = console_data?.gasReserve;
+  const treasury = console_data?.treasury;
+
+  const recentEvents = events.slice(0, 25);
+
+  return (
+    <div className="space-y-6" data-testid="engine-console-tab">
+      {/* WS status bar */}
+      <div className="flex items-center justify-between">
+        <h3 className="font-heading font-bold text-sm text-foreground uppercase tracking-widest flex items-center gap-2">
+          <Cpu className="w-4 h-4 text-primary" /> Engine Console
+        </h3>
+        <div className="flex items-center gap-2 font-mono text-xs">
+          {connected
+            ? <><span className="w-2 h-2 rounded-full bg-neon-green animate-pulse" /><span className="text-neon-green">WS Live</span></>
+            : <><span className="w-2 h-2 rounded-full bg-neon-orange animate-pulse" /><span className="text-neon-orange">Reconnecting</span></>
+          }
+        </div>
+      </div>
+
+      {/* Price Driver Control */}
+      <div className="cosmic-card p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-heading font-bold text-sm text-foreground">SKYNT Price Driver</p>
+            <p className="font-mono text-[10px] text-muted-foreground mt-0.5">On-chain buyback & burn engine — Uniswap v3</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {pd?.running
+              ? <Badge className="bg-neon-green/20 text-neon-green border-neon-green/40 font-mono text-[10px]" data-testid="badge-pd-running">● RUNNING</Badge>
+              : <Badge className="bg-muted/30 text-muted-foreground border-border/40 font-mono text-[10px]" data-testid="badge-pd-stopped">■ STOPPED</Badge>
+            }
+          </div>
+        </div>
+
+        {/* Stats row */}
+        {consoleLoading ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono"><Loader2 className="w-3 h-3 animate-spin" /> Loading…</div>
+        ) : pd && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="p-3 bg-black/30 rounded-lg border border-border/40 space-y-1" data-testid="stat-pd-price">
+              <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Live Price</p>
+              <p className="font-heading font-bold text-sm text-neon-cyan">${pd.liveSkyntPriceUsd.toFixed(4)}</p>
+            </div>
+            <div className="p-3 bg-black/30 rounded-lg border border-border/40 space-y-1" data-testid="stat-pd-target">
+              <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Target</p>
+              <p className="font-heading font-bold text-sm text-neon-green">${pd.targetPriceUsd.toFixed(4)}</p>
+            </div>
+            <div className="p-3 bg-black/30 rounded-lg border border-border/40 space-y-1" data-testid="stat-pd-eth-spent">
+              <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">ETH Spent</p>
+              <p className="font-heading font-bold text-sm text-neon-orange">{pd.totalEthSpent.toFixed(5)} ETH</p>
+            </div>
+            <div className="p-3 bg-black/30 rounded-lg border border-border/40 space-y-1" data-testid="stat-pd-burned">
+              <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">SKYNT Burned</p>
+              <p className="font-heading font-bold text-sm text-plasma-red">{pd.totalSkyntBurned.toFixed(2)}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Controls row */}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={() => startMutation.mutate()}
+            disabled={pd?.running || startMutation.isPending}
+            className="bg-neon-green/20 hover:bg-neon-green/30 border border-neon-green/40 text-neon-green font-mono text-xs"
+            data-testid="button-pd-start"
+          >
+            {startMutation.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}
+            Start
+          </Button>
+          <Button
+            size="sm" variant="outline"
+            onClick={() => stopMutation.mutate()}
+            disabled={!pd?.running || stopMutation.isPending}
+            className="border-plasma-red/40 text-plasma-red hover:bg-plasma-red/10 font-mono text-xs"
+            data-testid="button-pd-stop"
+          >
+            {stopMutation.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Square className="w-3 h-3 mr-1" />}
+            Stop
+          </Button>
+          <Button
+            size="sm" variant="outline"
+            onClick={() => triggerMutation.mutate()}
+            disabled={!pd?.running || triggerMutation.isPending}
+            className="border-neon-cyan/40 text-neon-cyan hover:bg-neon-cyan/10 font-mono text-xs"
+            data-testid="button-pd-trigger"
+          >
+            {triggerMutation.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Zap className="w-3 h-3 mr-1" />}
+            Manual Buyback
+          </Button>
+        </div>
+
+        {/* Price target setter */}
+        <div className="flex items-end gap-2 border-t border-border/30 pt-4">
+          <div className="flex-1 space-y-1.5">
+            <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Target className="w-3 h-3" /> Set Price Target (USD)
+            </label>
+            <Input
+              value={targetInput}
+              onChange={e => setTargetInput(e.target.value)}
+              className="font-mono text-xs h-8 bg-black/40 border-border/50"
+              placeholder="e.g. 0.65"
+              data-testid="input-price-target"
+            />
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setTargetMutation.mutate()}
+            disabled={setTargetMutation.isPending || !targetInput || isNaN(parseFloat(targetInput))}
+            className="h-8 bg-neon-cyan/20 hover:bg-neon-cyan/30 border border-neon-cyan/40 text-neon-cyan font-mono text-xs"
+            data-testid="button-set-target"
+          >
+            {setTargetMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Apply"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Secondary engine stats */}
+      <div className="grid md:grid-cols-3 gap-4">
+        {/* BTC ZK */}
+        <div className="cosmic-card p-4 space-y-2" data-testid="card-btczk-status">
+          <p className="font-heading font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Flame className="w-3.5 h-3.5 text-neon-orange" /> BTC ZK Daemon
+          </p>
+          {btcZk ? (
+            <div className="space-y-1 font-mono text-xs text-muted-foreground">
+              <div className="flex justify-between"><span>Status</span><span className={btcZk.running ? "text-neon-green" : "text-plasma-red"}>{btcZk.running ? "Running" : "Stopped"}</span></div>
+              <div className="flex justify-between"><span>Epochs</span><span className="text-foreground">{btcZk.epochCount}</span></div>
+              <div className="flex justify-between"><span>Hash Rate</span><span className="text-foreground">{btcZk.hashRate.toFixed(0)} H/s</span></div>
+              <div className="flex justify-between"><span>STX Yield</span><span className="text-neon-orange">{btcZk.totalStxYield.toFixed(3)} STX</span></div>
+              <div className="flex justify-between"><span>BTC Block</span><span className="text-neon-cyan">#{btcZk.latestBtcBlock.toLocaleString()}</span></div>
+            </div>
+          ) : <p className="font-mono text-xs text-muted-foreground">Loading…</p>}
+        </div>
+
+        {/* P2P */}
+        <div className="cosmic-card p-4 space-y-2" data-testid="card-p2p-status">
+          <p className="font-heading font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Wifi className="w-3.5 h-3.5 text-neon-cyan" /> P2P Network
+          </p>
+          {p2p ? (
+            <div className="space-y-1 font-mono text-xs text-muted-foreground">
+              <div className="flex justify-between"><span>Status</span><span className={p2p.started ? "text-neon-green" : "text-muted-foreground"}>{p2p.started ? "Active" : "Offline"}</span></div>
+              <div className="flex justify-between"><span>Peers</span><span className="text-foreground">{p2p.nodeCount}</span></div>
+              <div className="flex justify-between"><span>Blocks</span><span className="text-foreground">{p2p.blockCount}</span></div>
+              <div className="flex justify-between"><span>Network</span><span className="text-neon-cyan text-[10px] truncate max-w-[100px]">{p2p.networkId}</span></div>
+            </div>
+          ) : <p className="font-mono text-xs text-muted-foreground">Loading…</p>}
+        </div>
+
+        {/* Gas + Treasury */}
+        <div className="cosmic-card p-4 space-y-2" data-testid="card-treasury-status">
+          <p className="font-heading font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Coins className="w-3.5 h-3.5 text-neon-green" /> Gas / Treasury
+          </p>
+          {gas && treasury ? (
+            <div className="space-y-1 font-mono text-xs text-muted-foreground">
+              <div className="flex justify-between"><span>Gas Reserve</span><span className="text-neon-green">{gas.reserveEth.toFixed(6)} ETH</span></div>
+              <div className="flex justify-between"><span>OIYE Auto</span><span className={gas.autoEnabled ? "text-neon-green" : "text-muted-foreground"}>{gas.autoEnabled ? "On" : "Off"}</span></div>
+              <div className="flex justify-between"><span>Yield Total</span><span className="text-neon-green">{treasury.totalYieldEth.toFixed(6)} ETH</span></div>
+              <div className="flex justify-between"><span>Compounds</span><span className="text-foreground">{treasury.compoundCount}</span></div>
+              <div className="flex justify-between"><span>Auto-Compound</span><span className={treasury.autoCompoundEnabled ? "text-neon-green" : "text-muted-foreground"}>{treasury.autoCompoundEnabled ? "On" : "Off"}</span></div>
+            </div>
+          ) : <p className="font-mono text-xs text-muted-foreground">Loading…</p>}
+        </div>
+      </div>
+
+      {/* Live event feed */}
+      <div className="cosmic-card p-5 space-y-3" data-testid="engine-event-feed">
+        <div className="flex items-center justify-between">
+          <p className="font-heading font-bold text-xs text-foreground uppercase tracking-wider">Live Engine Events</p>
+          <span className="font-mono text-[10px] text-muted-foreground">{recentEvents.length} events</span>
+        </div>
+        <div className="h-72 overflow-y-auto space-y-1 pr-1">
+          {recentEvents.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-muted-foreground font-mono text-xs">
+              Waiting for engine events…
+            </div>
+          ) : recentEvents.map((ev, i) => (
+            <div key={i} className="flex items-start gap-2 py-1 border-b border-border/20 last:border-0" data-testid={`event-row-${i}`}>
+              <span className="font-mono text-[9px] text-muted-foreground shrink-0 pt-0.5 w-16 text-right">
+                {new Date(ev.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </span>
+              <span className={`font-mono text-[10px] shrink-0 ${EVENT_COLORS[ev.event] ?? "text-muted-foreground"}`}>
+                {ev.event}
+              </span>
+              <span className="font-mono text-[10px] text-muted-foreground truncate">
+                {eventSummary(ev)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Admin() {
   const [activeTab, setActiveTab] = useState("overview");
   const qc = useQueryClient();
@@ -439,6 +776,9 @@ export default function Admin() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
         <TabsList className="bg-muted/30 border border-border/50 flex-wrap h-auto gap-1 p-1">
           <TabsTrigger value="overview" data-testid="tab-flight-status">Flight Status</TabsTrigger>
+          <TabsTrigger value="engine" data-testid="tab-engine-console">
+            <Cpu className="w-3.5 h-3.5 mr-1.5" />Engine Console
+          </TabsTrigger>
           <TabsTrigger value="airdrops" data-testid="tab-airdrops">
             <Gift className="w-3.5 h-3.5 mr-1.5" />Airdrops
           </TabsTrigger>
@@ -450,6 +790,10 @@ export default function Admin() {
           <TabsTrigger value="cross-chain" data-testid="tab-mining">Mining (StarLord 2)</TabsTrigger>
           <TabsTrigger value="legal" data-testid="tab-legal">Legal Telemetry</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="engine">
+          <EngineConsoleTab />
+        </TabsContent>
 
         <TabsContent value="overview" className="space-y-6">
           <div className="grid md:grid-cols-4 gap-6">

@@ -46,7 +46,7 @@ const MIN_TREASURY_RESERVE = 0.01;       // ETH — never spend below this
 const MAX_ETH_PER_EPOCH    = 0.005;      // max ETH per buyback cycle
 const EPOCH_INTERVAL_MS    = 5 * 60_000; // 5 minutes between cycles
 const SLIPPAGE_BPS         = 200;        // 2% max slippage
-const PRICE_TARGET_USD     = parseFloat(process.env.SKYNT_PRICE_TARGET_USD ?? "0.65");
+let _targetPriceUsd        = parseFloat(process.env.SKYNT_PRICE_TARGET_USD ?? "0.65");
 
 // ── ABIs (minimal) ─────────────────────────────────────────────────────────
 const QUOTER_V2_ABI = [
@@ -168,7 +168,7 @@ let _state: PriceDriverState = {
   configured: false,
   liveSkyntPriceEth: 0,
   liveSkyntPriceUsd: 0,
-  targetPriceUsd: PRICE_TARGET_USD,
+  targetPriceUsd: _targetPriceUsd,
   pricePressureMode: "idle",
   treasuryEthBalance: 0,
   totalSkyntBought: 0,
@@ -386,7 +386,7 @@ async function runEpoch(): Promise<void> {
     const ethBalFallback = await getTreasuryEthBalance().catch(() => _state.treasuryEthBalance);
     await savePriceSnapshot(0, 0, ethPriceUsd, 0, ethBalFallback, epoch, 0, 0);
     wsHub.broadcast("price_driver:epoch", {
-      epoch, mode: "idle", priceUsd: 0, targetPriceUsd: PRICE_TARGET_USD,
+      epoch, mode: "idle", priceUsd: 0, targetPriceUsd: _targetPriceUsd,
       treasuryEthBalance: ethBalFallback, ethSpent: 0, skyntBought: 0, status: "no_pool",
     });
     return;
@@ -405,14 +405,14 @@ async function runEpoch(): Promise<void> {
   _state.treasuryEthBalance = ethBalance;
 
   // 3. Determine buy pressure
-  const { mode, ethToSpend } = calcBuyPressure(priceUsd, PRICE_TARGET_USD, ethBalance);
+  const { mode, ethToSpend } = calcBuyPressure(priceUsd, _targetPriceUsd, ethBalance);
   _state.pricePressureMode = mode;
 
   if (ethToSpend <= 0 || mode === "target_reached" || mode === "idle") {
     console.log(`[PriceDriver] Epoch ${epoch} — mode=${mode}, no buy action needed`);
     await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     wsHub.broadcast("price_driver:epoch", {
-      epoch, mode, priceUsd, targetPriceUsd: PRICE_TARGET_USD,
+      epoch, mode, priceUsd, targetPriceUsd: _targetPriceUsd,
       treasuryEthBalance: ethBalance, ethSpent: 0, skyntBought: 0, status: "no_action",
     });
     return;
@@ -426,7 +426,7 @@ async function runEpoch(): Promise<void> {
     console.warn("[PriceDriver] Could not get exact quote — aborting epoch");
     await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     wsHub.broadcast("price_driver:epoch", {
-      epoch, mode, priceUsd, targetPriceUsd: PRICE_TARGET_USD,
+      epoch, mode, priceUsd, targetPriceUsd: _targetPriceUsd,
       treasuryEthBalance: ethBalance, ethSpent: 0, skyntBought: 0, status: "quote_failed",
     });
     return;
@@ -460,7 +460,7 @@ async function runEpoch(): Promise<void> {
     await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     wsHub.broadcast("price_driver:buyback", { ...failedEv });
     wsHub.broadcast("price_driver:epoch", {
-      epoch, mode, priceUsd, targetPriceUsd: PRICE_TARGET_USD,
+      epoch, mode, priceUsd, targetPriceUsd: _targetPriceUsd,
       treasuryEthBalance: ethBalance, ethSpent: 0, skyntBought: 0, status: "buyback_failed",
     });
     return;
@@ -522,7 +522,7 @@ async function runEpoch(): Promise<void> {
 
   wsHub.broadcast("price_driver:buyback", { ...ev });
   wsHub.broadcast("price_driver:epoch", {
-    epoch, mode, priceUsd: priceAfterUsd, targetPriceUsd: PRICE_TARGET_USD,
+    epoch, mode, priceUsd: priceAfterUsd, targetPriceUsd: _targetPriceUsd,
     treasuryEthBalance: ethBalance, ethSpent: ethToSpend, skyntBought: skyntBoughtFloat,
     status: "buyback_success",
   });
@@ -575,7 +575,7 @@ export function startPriceDriver(): void {
   _state.configured = hasKey && hasAlchemy;
   _state.running = true;
   console.log(
-    `[PriceDriver] SKYNT Price Driver started — target: $${PRICE_TARGET_USD} | ` +
+    `[PriceDriver] SKYNT Price Driver started — target: $${_targetPriceUsd} | ` +
     `wallet: ${_state.configured ? "configured" : "READ-ONLY (no TREASURY_PRIVATE_KEY)"}`
   );
   // Run first epoch immediately then schedule
@@ -599,4 +599,12 @@ export async function triggerManualBuyback(): Promise<BuybackEvent | null> {
     console.error("[PriceDriver] Manual trigger error:", e.message);
   }
   return _state.buybackHistory[0] ?? null;
+}
+
+export function setTargetPrice(newTarget: number): void {
+  if (newTarget <= 0 || !isFinite(newTarget)) throw new Error("Invalid target price");
+  _targetPriceUsd = newTarget;
+  _state.targetPriceUsd = newTarget;
+  console.log(`[PriceDriver] Target price updated → $${newTarget.toFixed(4)}`);
+  wsHub.broadcast("price_driver:target_updated", { targetPriceUsd: newTarget });
 }
