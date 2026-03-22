@@ -269,6 +269,10 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
     const hashElapsed = Math.max(1, Date.now() - hashLoopStart);
     stats.noncesChecked += realNonces;
     stats.hashRate = Math.round(realNonces / (hashElapsed / 1000));
+    wsHub.broadcast("miner:hashrate_update", {
+      userId, username: session.username, hashRate: stats.hashRate,
+      cyclesCompleted: stats.cyclesCompleted, totalSkyntEarned: stats.totalSkyntEarned,
+    });
     stats.anchoredBlock = liveBlockNumber;
     stats.anchoredHash = liveBlockSeed.slice(0, 16);
     stats.cyclesCompleted++;

@@ -119,12 +119,16 @@ function StatCard({ label, value, change, icon, accent, loading, error, onRetry,
 }
 
 const EVENT_LABELS: Record<string, { label: string; color: string }> = {
-  "price_driver:buyback": { label: "BUYBACK", color: "text-neon-green" },
-  "price_driver:epoch":   { label: "PD EPOCH", color: "text-neon-cyan" },
-  "miner:block_found":    { label: "BLOCK", color: "text-neon-orange" },
-  "p2p:peer_joined":      { label: "PEER", color: "text-neon-magenta" },
-  "treasury:compound":    { label: "COMPOUND", color: "text-neon-green" },
-  "btc_zk:epoch_result":  { label: "ZK EPOCH", color: "text-neon-cyan" },
+  "price_driver:buyback":       { label: "BUYBACK",  color: "text-neon-green" },
+  "price_driver:epoch":         { label: "PD EPOCH", color: "text-neon-cyan" },
+  "price_driver:burn_completed":{ label: "BURN",     color: "text-plasma-red" },
+  "miner:block_found":          { label: "BLOCK",    color: "text-neon-orange" },
+  "miner:hashrate_update":      { label: "HASHRATE", color: "text-neon-orange" },
+  "p2p:peer_joined":            { label: "PEER +",   color: "text-neon-magenta" },
+  "p2p:peer_left":              { label: "PEER −",   color: "text-muted-foreground" },
+  "p2p:block_announced":        { label: "P2P BLK",  color: "text-neon-cyan" },
+  "treasury:compound":          { label: "COMPOUND", color: "text-neon-green" },
+  "btc_zk:epoch_result":        { label: "ZK EPOCH", color: "text-neon-cyan" },
 };
 
 function formatEventSummary(ev: EngineEvent): string {
@@ -143,6 +147,14 @@ function formatEventSummary(ev: EngineEvent): string {
       return `${d.name as string} joined (${d.region as string}) — ${d.totalNodes as number} nodes total`;
     case "treasury:compound":
       return `+${(d.periodYield as number).toFixed(6)} SKYNT yield | total pool: ${(d.currentPoolBalance as number).toFixed(2)}`;
+    case "price_driver:burn_completed":
+      return `Burned ${(d.skyntBurned as number).toFixed(4)} SKYNT | tx: ${String(d.txHash).slice(0, 12)}…`;
+    case "miner:hashrate_update":
+      return `${d.username as string}: ${(d.hashRate as number).toLocaleString()}H/s | ${(d.totalSkyntEarned as number).toFixed(4)} SKYNT earned`;
+    case "p2p:peer_left":
+      return `${d.name as string} left (${d.region as string}) — ${d.totalNodes as number} nodes remaining`;
+    case "p2p:block_announced":
+      return `Block #${d.blockIndex as number} (${d.blockHash as string}…) proposed — ${d.totalNodes as number} nodes`;
     case "btc_zk:epoch_result":
       return `Epoch ${d.epoch as number} | xi=${(d.valknutXi as number).toFixed(4)} | ${d.blockFound ? "BLOCK FOUND!" : "no block"} | ${(d.hashRate as number).toLocaleString()}H/s`;
     default:

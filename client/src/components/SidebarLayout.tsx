@@ -157,9 +157,9 @@ function WSIndicator({ collapsed }: { collapsed: boolean }) {
         <span className="text-[9px] font-heading tracking-widest text-muted-foreground uppercase">Engine</span>
       </div>
       <div className="flex items-center gap-1">
-        <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-neon-green animate-pulse" : "bg-amber-400"}`} />
+        <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-neon-green animate-pulse" : "bg-amber-400 animate-pulse"}`} />
         <span className={`text-[9px] font-mono ${connected ? "text-neon-green" : "text-amber-400"}`}>
-          {connected ? "LIVE" : "…"}
+          {connected ? "Live" : "Reconnecting"}
         </span>
       </div>
     </div>

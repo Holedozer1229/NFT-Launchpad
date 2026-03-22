@@ -465,7 +465,12 @@ async function runEpoch(): Promise<void> {
   if (burnAmount > 0n) {
     burnHash = await burnSkynt(burnAmount);
     if (burnHash) {
-      console.log(`[PriceDriver] Burned ${formatUnits(burnAmount, 18)} SKYNT → 0x000dead`);
+      const burnFloat = parseFloat(formatUnits(burnAmount, 18));
+      console.log(`[PriceDriver] Burned ${burnFloat.toFixed(6)} SKYNT → 0x000dead`);
+      wsHub.broadcast("price_driver:burn_completed", {
+        epoch, txHash: burnHash, skyntBurned: burnFloat,
+        burnRatio: BURN_RATIO, priceUsd,
+      });
     }
   }
 

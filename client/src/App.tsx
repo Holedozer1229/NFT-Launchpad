@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { EngineStreamProvider } from "@/hooks/use-engine-stream";
 import SidebarLayout from "@/components/SidebarLayout";
 import AuthPage from "@/pages/AuthPage";
 import PageTransition from "@/components/PageTransition";
@@ -166,11 +167,13 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <TooltipProvider>
-          <OfflineBanner />
-          <Toaster />
-          <AppRouter />
-        </TooltipProvider>
+        <EngineStreamProvider>
+          <TooltipProvider>
+            <OfflineBanner />
+            <Toaster />
+            <AppRouter />
+          </TooltipProvider>
+        </EngineStreamProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

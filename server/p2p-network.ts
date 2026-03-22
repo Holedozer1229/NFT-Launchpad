@@ -227,6 +227,9 @@ class P2PNetwork {
     const node = this.nodes.get(nodeId);
     if (!node || node.isSeedNode) return false;
     this.nodes.delete(nodeId);
+    wsHub.broadcast("p2p:peer_left", {
+      nodeId, name: node.name, region: node.region, totalNodes: this.nodes.size,
+    });
     return true;
   }
 
@@ -331,6 +334,12 @@ class P2PNetwork {
 
     this.blockTimeHistory.push(Date.now());
     if (this.blockTimeHistory.length > 100) this.blockTimeHistory.shift();
+
+    wsHub.broadcast("p2p:block_announced", {
+      blockIndex: block.index, blockHash: block.hash.slice(0, 16),
+      proposer: proposerNodeId, signature: announcement.signature.slice(0, 16),
+      totalNodes: this.nodes.size,
+    });
 
     return announcement;
   }

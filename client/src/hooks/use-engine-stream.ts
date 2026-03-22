@@ -1,9 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, createContext, useContext, createElement } from "react";
+import type { ReactNode } from "react";
 
 export interface EngineEvent {
   event: string;
   data: Record<string, unknown>;
   ts: number;
+}
+
+type EventListener = (data: Record<string, unknown>) => void;
+
+interface EngineStreamCtx {
+  events: EngineEvent[];
+  connected: boolean;
+  on: (event: string, cb: EventListener) => () => void;
 }
 
 const MAX_EVENTS = 100;
@@ -15,14 +24,20 @@ function buildWsUrl(): string {
   return `${proto}//${window.location.host}/ws`;
 }
 
-export function useEngineStream() {
+export const EngineStreamContext = createContext<EngineStreamCtx>({
+  events: [],
+  connected: false,
+  on: () => () => {},
+});
+
+export function EngineStreamProvider({ children }: { children: ReactNode }) {
   const [events, setEvents] = useState<EngineEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectDelay = useRef(BASE_RECONNECT_MS);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmounted = useRef(false);
-  const listenersRef = useRef<Map<string, Set<(data: Record<string, unknown>) => void>>>(new Map());
+  const listenersRef = useRef<Map<string, Set<EventListener>>>(new Map());
 
   const connect = useCallback(() => {
     if (unmounted.current) return;
@@ -47,9 +62,7 @@ export function useEngineStream() {
 
         const callbacks = listenersRef.current.get(parsed.event);
         if (callbacks) {
-          callbacks.forEach((cb) => {
-            try { cb(parsed.data); } catch {}
-          });
+          callbacks.forEach((cb) => { try { cb(parsed.data); } catch {} });
         }
       } catch {}
     };
@@ -81,15 +94,21 @@ export function useEngineStream() {
     };
   }, [connect]);
 
-  const on = useCallback((event: string, cb: (data: Record<string, unknown>) => void) => {
+  const on = useCallback((event: string, cb: EventListener) => {
     if (!listenersRef.current.has(event)) {
       listenersRef.current.set(event, new Set());
     }
     listenersRef.current.get(event)!.add(cb);
-    return () => {
-      listenersRef.current.get(event)?.delete(cb);
-    };
+    return () => { listenersRef.current.get(event)?.delete(cb); };
   }, []);
 
-  return { events, connected, on };
+  return createElement(
+    EngineStreamContext.Provider,
+    { value: { events, connected, on } },
+    children
+  );
+}
+
+export function useEngineStream(): EngineStreamCtx {
+  return useContext(EngineStreamContext);
 }
