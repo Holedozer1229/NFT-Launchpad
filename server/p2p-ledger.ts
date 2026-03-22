@@ -1,6 +1,7 @@
 import { qgMiner } from "./qg-miner-v8";
 import { calculatePhi, type PhiMetrics, generateAdjacencyMatrix } from "./iit-engine";
 import { createHash } from "crypto";
+import { wsHub } from "./ws-hub";
 
 export interface PeerNode {
   id: string;
@@ -209,8 +210,17 @@ export function startP2PLedger() {
 
   // Sync immediately then every 15s
   ledger.syncWithChain();
-  tickInterval = setInterval(() => {
-    ledger?.syncWithChain();
+  tickInterval = setInterval(async () => {
+    await ledger?.syncWithChain();
+    const state = ledger?.getLedgerState();
+    if (state) {
+      wsHub.broadcast("p2p_ledger:sync", {
+        blockHeight: state.blockHeight,
+        peers: state.peers,
+        consensusStatus: state.consensusStatus,
+        lastBlockTime: state.lastBlockTime,
+      });
+    }
   }, 15_000);
 }
 

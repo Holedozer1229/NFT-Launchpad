@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { wsHub } from "./ws-hub";
 
 export interface PhiMetrics {
   phi: number;
@@ -292,7 +293,17 @@ export function startEngine(): void {
     } catch (e: any) {
       import("./engine-error-counter").then(({ recordEngineError }) => recordEngineError("iit-engine", e?.message ?? "tick error")).catch(() => {});
     }
-    tick(lastBlockHeight);
+    const perception = tick(lastBlockHeight);
+    wsHub.broadcast("iit:tick", {
+      phi: perception.currentPhi.phi,
+      phiLevel: perception.currentPhi.level,
+      phiLevelLabel: perception.currentPhi.levelLabel,
+      blockHeight: perception.blockHeight,
+      meetsConsensus: perception.meetsConsensus,
+      totalNodes: perception.totalNodes,
+      epoch: _epochCount,
+      lastActivityMs: _lastActivityMs,
+    });
   };
 
   runTick();

@@ -1,3 +1,5 @@
+import { wsHub } from "./ws-hub";
+
 /**
  * QUANTUM GRAVITY MINER — VALKNUT DIAL v9 + DYSON SPHERE EQUILIBRIUM
  * TypeScript port of the Quantum Gravity Miner with Spectral Lattice Correlation.
@@ -581,7 +583,17 @@ export function startDysonEvolution(): void {
   _evolutionHandle = setInterval(() => {
     try {
       dysonMiner.evolve(0.01, 20);
-      console.log(`[DysonSphere] Epoch ${dysonMiner.getState().epoch} — chainCorr=${dysonMiner.getState().chainCorrelation.toFixed(4)} boost=${dysonMiner.getState().hashRateBoost.toFixed(2)}x`);
+      const ds = dysonMiner.getState();
+      console.log(`[DysonSphere] Epoch ${ds.epoch} — chainCorr=${ds.chainCorrelation.toFixed(4)} boost=${ds.hashRateBoost.toFixed(2)}x`);
+      wsHub.broadcast("dyson:evolution", {
+        epoch: ds.epoch,
+        chainCorrelation: ds.chainCorrelation,
+        hashRateBoost: ds.hashRateBoost,
+        dysonEquilibrium: ds.dysonEquilibrium,
+        valknutPassRate: ds.valknutPassRate,
+        xiTolerance: ds.xiTolerance,
+        lastUpdate: ds.lastUpdate,
+      });
     } catch (e: any) {
       console.error("[DysonSphere] Evolution error:", e.message);
       import("./engine-error-counter").then(({ recordEngineError }) => recordEngineError("dyson-sphere", e.message)).catch(() => {});

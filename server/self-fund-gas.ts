@@ -16,6 +16,7 @@
  */
 
 import { createHash } from "crypto";
+import { wsHub } from "./ws-hub";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -224,6 +225,16 @@ async function sentinelTick() {
       console.warn("[SelfFundGas] ⚠ CRITICAL: gas reserve exhausted — bootstrap more STX yield");
     }
   }
+
+  wsHub.broadcast("gas_sentinel:tick", {
+    phase: _phase,
+    gasBalanceEth: await getLiveGasBalance().catch(() => 0),
+    reserveEth: _gasReserveEth,
+    totalEthFunded: _totalEthFunded,
+    sentinelTriggers: _sentinelTriggers,
+    totalYieldAllocated: _totalYieldAllocated,
+    lastCheckAt: _lastCheckAt?.toISOString() ?? null,
+  });
 }
 
 // ─── Public: epoch yield allocation (called from BTC ZK daemon) ───────────────
