@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   AreaChart, Area, BarChart, Bar, ResponsiveContainer,
   XAxis, YAxis, Tooltip, CartesianGrid
@@ -6,7 +6,7 @@ import {
 import {
   Activity, Cpu, Box, DollarSign, Clock,
   ChevronUp, ChevronDown, Loader2, Zap, Brain, Pickaxe, Shield, TrendingUp, AlertCircle, RefreshCw,
-  Wallet, Coins, ArrowUpRight
+  Wallet, Coins, ArrowUpRight, Radio, Flame
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useBalance } from "wagmi";
@@ -15,6 +15,7 @@ import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useEngineStream, type EngineEvent } from "@/hooks/use-engine-stream";
 
 interface MempoolStats {
   mempoolSize: number;
@@ -117,8 +118,42 @@ function StatCard({ label, value, change, icon, accent, loading, error, onRetry,
   );
 }
 
+const EVENT_LABELS: Record<string, { label: string; color: string }> = {
+  "price_driver:buyback": { label: "BUYBACK", color: "text-neon-green" },
+  "price_driver:epoch":   { label: "PD EPOCH", color: "text-neon-cyan" },
+  "miner:block_found":    { label: "BLOCK", color: "text-neon-orange" },
+  "p2p:peer_joined":      { label: "PEER", color: "text-neon-magenta" },
+  "treasury:compound":    { label: "COMPOUND", color: "text-neon-green" },
+  "btc_zk:epoch_result":  { label: "ZK EPOCH", color: "text-neon-cyan" },
+};
+
+function formatEventSummary(ev: EngineEvent): string {
+  const d = ev.data;
+  switch (ev.event) {
+    case "price_driver:buyback":
+      if (d.status === "success") {
+        return `Bought ${(d.skyntBought as number).toFixed(2)} SKYNT | ${(d.ethSpent as number).toFixed(5)} ETH | ${(d.priceImpactBps as number) >= 0 ? "+" : ""}${d.priceImpactBps as number}bps`;
+      }
+      return `Buyback ${d.status as string}: ${d.reason ?? ""}`;
+    case "price_driver:epoch":
+      return `Mode: ${d.mode as string} | Price: $${(d.priceUsd as number).toFixed(4)} | Target: $${(d.targetPriceUsd as number).toFixed(4)}`;
+    case "miner:block_found":
+      return `${d.username as string} mined block #${d.blocksFound as number} | +${(d.reward as number).toFixed(4)} SKYNT | streak ${d.streak as number}`;
+    case "p2p:peer_joined":
+      return `${d.name as string} joined (${d.region as string}) — ${d.totalNodes as number} nodes total`;
+    case "treasury:compound":
+      return `+${(d.periodYield as number).toFixed(6)} SKYNT yield | total pool: ${(d.currentPoolBalance as number).toFixed(2)}`;
+    case "btc_zk:epoch_result":
+      return `Epoch ${d.epoch as number} | xi=${(d.valknutXi as number).toFixed(4)} | ${d.blockFound ? "BLOCK FOUND!" : "no block"} | ${(d.hashRate as number).toLocaleString()}H/s`;
+    default:
+      return JSON.stringify(d).slice(0, 80);
+  }
+}
+
 export default function Dashboard() {
   const [uptimeSeconds, setUptimeSeconds] = useState(() => Math.floor((Date.now() - new Date().setHours(0, 0, 0, 0)) / 1000));
+  const { events: wsEvents, connected: wsConnected } = useEngineStream();
+  const feedRef = useRef<HTMLDivElement>(null);
   const { address: walletAddress, isConnected: walletConnected } = useAccount();
   const { data: ethBalance } = useBalance({
     address: walletAddress as `0x${string}` | undefined,
@@ -594,6 +629,49 @@ export default function Dashboard() {
                 <span className="font-mono">{mempoolStats?.fees.minimum || "—"} sat/vB</span>
               </div>
             </div>
+          )}
+        </div>
+      </div>
+
+      <div className="cosmic-card p-4" data-testid="panel-live-feed">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Radio className="w-3.5 h-3.5 text-neon-cyan" />
+            <h3 className="stat-label">Engine Live Feed</h3>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${wsConnected ? "bg-neon-green animate-pulse" : "bg-amber-400"}`} data-testid="ws-status-dot" />
+            <span className="text-[9px] font-mono text-muted-foreground">{wsConnected ? "LIVE" : "CONNECTING…"}</span>
+          </div>
+        </div>
+        <div
+          ref={feedRef}
+          className="space-y-1 max-h-48 overflow-y-auto scrollbar-none"
+          data-testid="live-feed-log"
+        >
+          {wsEvents.length === 0 ? (
+            <p className="text-[11px] font-mono text-muted-foreground text-center py-6">
+              {wsConnected ? "Waiting for engine events…" : "Connecting to engine hub…"}
+            </p>
+          ) : (
+            wsEvents.slice(0, 20).map((ev, i) => {
+              const meta = EVENT_LABELS[ev.event] ?? { label: ev.event, color: "text-muted-foreground" };
+              const isBuyback = ev.event === "price_driver:buyback" && ev.data.status === "success";
+              return (
+                <div
+                  key={`${ev.ts}-${i}`}
+                  className={`flex items-start gap-2 py-1 px-2 rounded-sm text-[10px] font-mono ${isBuyback ? "bg-neon-green/5 border border-neon-green/10" : "hover:bg-white/3"}`}
+                  data-testid={`feed-event-${ev.event}`}
+                >
+                  <span className={`shrink-0 font-heading tracking-wider text-[8px] px-1 py-0.5 rounded-sm border ${meta.color} border-current/30 bg-current/5`}>
+                    {meta.label}
+                  </span>
+                  <span className="text-foreground/70 flex-1 leading-relaxed">{formatEventSummary(ev)}</span>
+                  {isBuyback && <Flame className="w-3 h-3 text-neon-green shrink-0 mt-0.5" />}
+                  <span className="text-muted-foreground/50 shrink-0">{new Date(ev.ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                </div>
+              );
+            })
           )}
         </div>
       </div>

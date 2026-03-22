@@ -1,4 +1,5 @@
 import { calculatePhi } from "./iit-engine";
+import { wsHub } from "./ws-hub";
 
 export interface MintFeeRecord {
   timestamp: number;
@@ -141,6 +142,11 @@ function compoundYield(): void {
   state.currentPoolBalance += periodYield;
   state.compoundCount++;
   state.lastCompoundTimestamp = now;
+
+  wsHub.broadcast("treasury:compound", {
+    periodYield, totalYieldGenerated: state.totalYieldGenerated,
+    compoundCount: state.compoundCount, currentPoolBalance: state.currentPoolBalance,
+  });
 
   const weightedAPR = state.strategyAllocations.reduce(
     (sum, a) => sum + a.apr * a.weight, 0

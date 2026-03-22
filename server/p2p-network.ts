@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "crypto";
+import { wsHub } from "./ws-hub";
 import { calculatePhi } from "./iit-engine";
 import { qgMiner } from "./qg-miner-v8";
 import {
@@ -215,6 +216,10 @@ class P2PNetwork {
 
     this.nodes.set(nodeId, node);
     console.log(`[P2P Network] Node registered: ${node.name} (${nodeId})`);
+    wsHub.broadcast("p2p:peer_joined", {
+      nodeId, name: node.name, address: node.address,
+      region: node.region, totalNodes: this.nodes.size,
+    });
     return node;
   }
 

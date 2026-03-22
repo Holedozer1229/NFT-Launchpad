@@ -1,6 +1,7 @@
 import { ReactNode, useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Atom, Gift, UserCheck, Share2, Vote, Cpu, Fuel, Zap, Layers } from "lucide-react";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Atom, Gift, UserCheck, Share2, Vote, Cpu, Fuel, Zap, Layers, Radio } from "lucide-react";
+import { useEngineStream } from "@/hooks/use-engine-stream";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -129,6 +130,38 @@ function StarField() {
           }}
         />
       ))}
+    </div>
+  );
+}
+
+function WSIndicator({ collapsed }: { collapsed: boolean }) {
+  const { connected } = useEngineStream();
+  if (collapsed) {
+    return (
+      <div
+        className="flex justify-center py-1.5 border-t border-[hsl(var(--sidebar-border))]"
+        title={connected ? "Engine hub connected" : "Engine hub connecting…"}
+        data-testid="ws-indicator-collapsed"
+      >
+        <Radio className={`w-3.5 h-3.5 ${connected ? "text-neon-green" : "text-amber-400"}`} />
+      </div>
+    );
+  }
+  return (
+    <div
+      className="px-3 py-1.5 border-t border-[hsl(var(--sidebar-border))] flex items-center justify-between"
+      data-testid="ws-indicator"
+    >
+      <div className="flex items-center gap-1.5">
+        <Radio className={`w-3 h-3 ${connected ? "text-neon-green" : "text-amber-400"}`} />
+        <span className="text-[9px] font-heading tracking-widest text-muted-foreground uppercase">Engine</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-neon-green animate-pulse" : "bg-amber-400"}`} />
+        <span className={`text-[9px] font-mono ${connected ? "text-neon-green" : "text-amber-400"}`}>
+          {connected ? "LIVE" : "…"}
+        </span>
+      </div>
     </div>
   );
 }
@@ -282,6 +315,8 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
         )}
+
+        <WSIndicator collapsed={collapsed} />
 
         <div className={`flex items-center border-t border-[hsl(var(--sidebar-border))] ${collapsed ? "justify-center p-2" : "justify-between px-3 py-2"}`}>
           <ThemeToggle />

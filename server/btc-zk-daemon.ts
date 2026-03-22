@@ -673,6 +673,13 @@ async function runEpoch() {
     console.log(
       `[BtcZkDaemon] Epoch ${currentEpoch} | bestXi=${xiStr} ${passStr} | ${spectralStr} | ${hashes}H @ ${currentHashRate}H/s | stxYield=${stxYieldAmount.toFixed(3)} | gas+${gasFundedThisEpoch.toFixed(8)}ETH`
     );
+
+    const { wsHub } = await import("./ws-hub");
+    wsHub.broadcast("btc_zk:epoch_result", {
+      epoch: currentEpoch, blockFound, valknutXi: epochBestXi, xiPassed: epochXiPassed,
+      hashRate: currentHashRate, hashes, stxYieldRouted: stxYieldAmount,
+      btcBlockHeight, spectralValid: spectralProof.isValid,
+    });
   } catch (err: any) {
     console.error(`[BtcZkDaemon] Epoch ${currentEpoch} error:`, err.message);
   }

@@ -14,6 +14,7 @@ import { startDysonEvolution } from "./dyson-sphere-miner";
 import { startBtcZkDaemon } from "./btc-zk-daemon";
 import { startSelfFundSentinel } from "./self-fund-gas";
 import { startPriceDriver } from "./skynt-price-driver";
+import { wsHub } from "./ws-hub";
 import { pool } from "./db";
 import { isEngineConfigured } from "./alchemy-engine";
 
@@ -204,6 +205,8 @@ app.use((req, res, next) => {
 
     return res.status(status).json({ message: process.env.NODE_ENV === "production" ? "Internal Server Error" : message });
   });
+
+  wsHub.attach(httpServer);
 
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);

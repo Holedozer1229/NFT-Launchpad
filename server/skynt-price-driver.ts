@@ -13,6 +13,7 @@
  */
 
 import { createHash } from "crypto";
+import { wsHub } from "./ws-hub";
 import {
   createPublicClient,
   createWalletClient,
@@ -406,8 +407,11 @@ async function runEpoch(): Promise<void> {
 
   if (ethToSpend <= 0 || mode === "target_reached" || mode === "idle") {
     console.log(`[PriceDriver] Epoch ${epoch} — mode=${mode}, no buy action needed`);
-    // Persist snapshot with 0 buyback amounts
     await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
+    wsHub.broadcast("price_driver:epoch", {
+      epoch, mode, priceUsd, targetPriceUsd: PRICE_TARGET_USD,
+      treasuryEthBalance: ethBalance, ethSpent: 0, skyntBought: 0,
+    });
     return;
   }
 
@@ -431,7 +435,7 @@ async function runEpoch(): Promise<void> {
     .slice(0, 16);
 
   if (!buyResult) {
-    _state.buybackHistory.unshift({
+    const failedEv: BuybackEvent = {
       id: eventId,
       timestamp: Date.now(),
       ethSpent: ethToSpend,
@@ -445,9 +449,10 @@ async function runEpoch(): Promise<void> {
       poolFee: quote.fee,
       status: "failed",
       reason: "Swap execution failed",
-    });
-    // Persist snapshot: eth_spent=0 because swap was not executed (only counts executed volume)
+    };
+    _state.buybackHistory.unshift(failedEv);
     await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
+    wsHub.broadcast("price_driver:buyback", { ...failedEv });
     return;
   }
 
@@ -499,6 +504,8 @@ async function runEpoch(): Promise<void> {
     `[PriceDriver] ✓ Bought ${skyntBoughtFloat.toFixed(2)} SKYNT | Burned ${skyntBurnedFloat.toFixed(2)} | ` +
     `Impact: +${impactBps}bps | $${priceUsd.toFixed(4)} → $${priceAfterUsd.toFixed(4)}`
   );
+
+  wsHub.broadcast("price_driver:buyback", { ...ev });
 
   // Persist snapshot with actual buyback amounts
   await savePriceSnapshot(priceAfterUsd / ethPriceUsd, priceAfterUsd, ethPriceUsd, exactQuote.fee, ethBalance, epoch, ethToSpend, skyntBoughtFloat);

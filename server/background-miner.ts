@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "crypto";
+import { wsHub } from "./ws-hub";
 import { calculatePhi } from "./iit-engine";
 import { recordMintFee } from "./treasury-yield";
 import { storage } from "./storage";
@@ -328,6 +329,11 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
         message: `Block mined! Hash: ${blockHash.slice(0, 12)}... | +${reward.toFixed(4)} SKYNT`,
         timestamp: Date.now(),
         reward,
+      });
+      wsHub.broadcast("miner:block_found", {
+        userId, username: session.username, blockHash: blockHash.slice(0, 16),
+        reward, streak: stats.streak, streakMultiplier: stats.streakMultiplier,
+        blocksFound: stats.blocksFound,
       });
 
       if (stats.streak >= 3 && STREAK_THRESHOLDS.includes(stats.streak)) {

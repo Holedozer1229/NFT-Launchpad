@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useEngineStream } from "@/hooks/use-engine-stream";
 import {
   TrendingUp, TrendingDown, Flame, Zap, ArrowUpRight, Shield,
   RefreshCw, Play, Square, ExternalLink, CircleDollarSign,
@@ -66,6 +68,13 @@ export default function PriceDriver() {
   const { user } = useAuth();
   const { toast } = useToast();
   const isAdmin = (user as any)?.isAdmin;
+  const { on } = useEngineStream();
+
+  useEffect(() => {
+    return on("price_driver:buyback", () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/price-driver/status"] });
+    });
+  }, [on]);
 
   const { data: state, isLoading } = useQuery<PriceDriverState>({
     queryKey: ["/api/price-driver/status"],
