@@ -163,6 +163,10 @@ export async function getAaveApr(): Promise<number> {
 }
 
 export async function getAavePosition(treasuryAddress: string): Promise<{ aTokenBalance: number; depositedEth: number; yieldEarned: number; currentApr: number }> {
+  const ZERO = "0x0000000000000000000000000000000000000000";
+  if (!treasuryAddress || treasuryAddress === ZERO) {
+    return { aTokenBalance: state.aTokenBalance, depositedEth: state.depositedEth, yieldEarned: state.yieldEarned, currentApr: state.currentApr };
+  }
   try {
     const { publicClient, getAddress } = await getViemClients();
     const raw = await publicClient.readContract({

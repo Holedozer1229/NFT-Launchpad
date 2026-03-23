@@ -223,7 +223,8 @@ async function sendEvm(
     const wallet = new Wallet(privateKey, provider);
 
     const weiAmount = Utils.parseEther(amount);
-    const gasPrice = await provider.getGasPrice();
+    const feeData = await provider.getFeeData();
+    const mult = Math.round(speedMultiplier * 100);
 
     const gasEstimate = await pub.estimateGas({
       account: wallet.address as `0x${string}`,
@@ -231,16 +232,32 @@ async function sendEvm(
       value: parseEther(amount),
     });
     const gasLimit = (gasEstimate * 120n) / 100n;
+    const gasLimitStr = gasLimit.toString();
+
+    // EIP-1559 (type 2) for all post-London chains; legacy gasPrice fallback for L2s
+    // that don't yet support EIP-1559 (e.g. some zkSync builds).
+    const hasEip1559 = feeData.maxFeePerGas != null && feeData.maxPriorityFeePerGas != null;
+    const feeParams = hasEip1559
+      ? {
+          maxFeePerGas: feeData.maxFeePerGas!.mul(mult).div(100),
+          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas!.mul(mult).div(100),
+          type: 2,
+        }
+      : { gasPrice: feeData.gasPrice!.mul(mult).div(100) };
+
+    const worstCaseFeePerGas = hasEip1559
+      ? feeData.maxFeePerGas!.mul(mult).div(100)
+      : feeData.gasPrice!.mul(mult).div(100);
 
     const tx = await wallet.sendTransaction({
       to: toAddress,
       value: weiAmount,
-      gasLimit: gasLimit.toString(),
-      gasPrice,
+      gasLimit: gasLimitStr,
+      ...feeParams,
     });
 
     const txHash: string = tx.hash;
-    const feeBn = gasPrice.mul(gasLimit.toString());
+    const feeBn = worstCaseFeePerGas.mul(gasLimitStr);
     const fee = Utils.formatEther(feeBn);
     const explorerBase = EVM_CHAIN_EXPLORER[chain] ?? EVM_CHAIN_EXPLORER.ethereum;
 
@@ -534,10 +551,11 @@ async function sendMonero(
 export async function treasurySend(
   chain: string,
   toAddress: string,
-  amount: string
+  amount: string,
+  speedMultiplier = 1.0
 ): Promise<TreasurySendResult> {
   if (EVM_CHAINS.has(chain)) {
-    return sendEvm(chain, toAddress, amount);
+    return sendEvm(chain, toAddress, amount, speedMultiplier);
   }
   switch (chain) {
     case "solana":

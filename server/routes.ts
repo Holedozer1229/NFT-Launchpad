@@ -154,10 +154,18 @@ async function deployContractsForWallet(walletAddress: string, chain: string, wa
   return deployments;
 }
 
+const SPEED_MULTIPLIERS: Record<string, number> = {
+  normal: 1.0,
+  fast: 1.5,
+  rapid: 2.0,
+  instant: 3.0,
+};
+
 const sendTokenSchema = z.object({
   toAddress: z.string().min(1, "Recipient address is required"),
   amount: z.string().refine((v) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0; }, "Amount must be a positive number"),
   token: z.enum(["SKYNT", "STX", "ETH", "DOGE", "XMR", "SOL"]).default("SKYNT"),
+  speedTier: z.enum(["normal", "fast", "rapid", "instant"]).optional().default("normal"),
 }).superRefine((data, ctx) => {
   const addr = data.toAddress;
   if (data.token === "ETH") {
@@ -1026,7 +1034,8 @@ STYLE:
       if (!parsed.success) {
         return res.status(400).json({ message: parsed.error.issues[0]?.message || "Invalid parameters" });
       }
-      const { toAddress, amount, token } = parsed.data;
+      const { toAddress, amount, token, speedTier } = parsed.data;
+      const speedMultiplier = SPEED_MULTIPLIERS[speedTier ?? "normal"] ?? 1.0;
 
       // Validate recipient address format (including EIP-55 checksum for ETH) before touching balances
       const chain = token === "ETH" ? "ethereum" : token === "STX" ? "stacks" : token === "DOGE" ? "dogecoin" : token === "XMR" ? "monero" : token === "SOL" ? "solana" : "skynt";
@@ -1080,7 +1089,7 @@ STYLE:
       // Phase 2: Broadcast on-chain via Treasury Service (ETH, STX, DOGE, XMR, SOL)
       if (token !== "SKYNT") {
         try {
-          const result = await treasurySend(chain, toAddress, amount);
+          const result = await treasurySend(chain, toAddress, amount, speedMultiplier);
           txHash = result.txHash;
           explorerUrl = result.explorerUrl;
           networkFee = gasCoverage.covered
@@ -1346,6 +1355,7 @@ STYLE:
   // ========== SKYNT PRICE ANALYTICS ROUTES ==========
 
   app.get("/api/analytics/price-history", async (req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=10");
     try {
       const { pool: dbPool } = await import("./db");
       const range = (req.query.range as string) || "24h";
@@ -4835,6 +4845,7 @@ STYLE:
   // ==================== GOVERNANCE ====================
 
   app.get("/api/governance/proposals", async (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=20");
     try {
       const { db } = await import("./db");
       const { desc: drizzleDesc } = await import("drizzle-orm");
@@ -5594,6 +5605,55 @@ STYLE:
     } catch (err: any) {
       res.status(500).json({ message: safeError(err, "Failed to load buyback feed") });
     }
+  });
+
+  // ===== ENV HEALTH (admin-only) =====
+  // Returns only boolean presence of each env var — values are NEVER exposed.
+  app.get("/api/admin/env-health", async (req, res) => {
+    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+      return res.status(403).json({ message: "Admin only" });
+    }
+    const check = (name: string) => ({ set: !!process.env[name] });
+    return res.json({
+      core: {
+        SESSION_SECRET: check("SESSION_SECRET"),
+        JWT_SECRET: check("JWT_SECRET"),
+        DATABASE_URL: check("DATABASE_URL"),
+      },
+      alchemy: {
+        ALCHEMY_API_KEY: check("ALCHEMY_API_KEY"),
+        SKYNT_CONTRACT_ADDRESS: check("SKYNT_CONTRACT_ADDRESS"),
+        SKYNT_MINING_CONTRACT_ADDRESS: check("SKYNT_MINING_CONTRACT_ADDRESS"),
+      },
+      treasury: {
+        TREASURY_PRIVATE_KEY: check("TREASURY_PRIVATE_KEY"),
+        TREASURY_WALLET_ADDRESS: check("TREASURY_WALLET_ADDRESS"),
+        TREASURY_ADDRESS: check("TREASURY_ADDRESS"),
+      },
+      chains: {
+        SOLANA_TREASURY_KEY: check("SOLANA_TREASURY_KEY"),
+        DOGE_TREASURY_WIF: check("DOGE_TREASURY_WIF"),
+        DOGE_TREASURY_ADDRESS: check("DOGE_TREASURY_ADDRESS"),
+        STACKS_TREASURY_KEY: check("STACKS_TREASURY_KEY"),
+        STACKS_YIELD_RECIPIENT: check("STACKS_YIELD_RECIPIENT"),
+        XMR_WALLET_RPC_URL: check("XMR_WALLET_RPC_URL"),
+        XMR_WALLET_RPC_USER: check("XMR_WALLET_RPC_USER"),
+        XMR_WALLET_RPC_PASS: check("XMR_WALLET_RPC_PASS"),
+      },
+      auth: {
+        ADMIN_USERNAME: check("ADMIN_USERNAME"),
+        ADMIN_PASSWORD: check("ADMIN_PASSWORD"),
+        GOOGLE_CLIENT_ID: check("GOOGLE_CLIENT_ID"),
+        GOOGLE_CLIENT_SECRET: check("GOOGLE_CLIENT_SECRET"),
+        APPLE_CLIENT_ID: check("APPLE_CLIENT_ID"),
+        HCAPTCHA_SECRET_KEY: check("HCAPTCHA_SECRET_KEY"),
+        HCAPTCHA_SITE_KEY: check("HCAPTCHA_SITE_KEY"),
+      },
+      integrations: {
+        OPENSEA_API_KEY: check("OPENSEA_API_KEY"),
+        AI_INTEGRATIONS_OPENAI_API_KEY: check("AI_INTEGRATIONS_OPENAI_API_KEY"),
+      },
+    });
   });
 
   app.use((err: any, _req: any, res: any, _next: any) => {

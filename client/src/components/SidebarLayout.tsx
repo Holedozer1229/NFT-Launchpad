@@ -40,16 +40,22 @@ const navGroups = [
       { path: "/cross-chain", label: "Cross-Chain Portal", icon: Share2, adminOnly: false },
       { path: "/governance", label: "Governance", icon: Vote, adminOnly: false },
       { path: "/p2p-network", label: "P2P Network", icon: Globe, adminOnly: false },
-      { path: "/iit", label: "IIT Consciousness", icon: Brain, adminOnly: false },
-      { path: "/berry-phase", label: "Berry Phase", icon: Orbit, adminOnly: false },
     ]
   },
   {
     label: "TOOLS",
     items: [
       { path: "/analytics", label: "Analytics", icon: BarChart3, adminOnly: false },
-      { path: "/rarity-proof", label: "Rarity Proof", icon: ShieldCheck, adminOnly: false },
       { path: "/starship", label: "Starship", icon: Flame, adminOnly: false },
+    ]
+  },
+  {
+    label: "ADVANCED",
+    collapsible: true,
+    items: [
+      { path: "/iit", label: "IIT Consciousness", icon: Brain, adminOnly: false },
+      { path: "/berry-phase", label: "Berry Phase", icon: Orbit, adminOnly: false },
+      { path: "/rarity-proof", label: "Rarity Proof", icon: ShieldCheck, adminOnly: false },
       { path: "/lab", label: "Public Lab", icon: FlaskConical, adminOnly: false },
     ]
   },
@@ -178,6 +184,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const { address, isConnected, connector } = useAccount();
   const { disconnect: twDisconnect } = useDisconnect();
   const { user, logout } = useAuth();
@@ -231,36 +238,54 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
           {navGroups.map((group, groupIdx) => {
             const visibleItems = group.items.filter((item) => !item.adminOnly || user?.isAdmin);
             if (visibleItems.length === 0) return null;
+            const isCollapsibleGroup = (group as { collapsible?: boolean }).collapsible;
+            const isGroupOpen = !isCollapsibleGroup || advancedOpen;
+            const anyActive = visibleItems.some((item) => location === item.path);
 
             return (
               <div key={group.label} className="space-y-1">
                 {!collapsed && (
                   <div className="px-4 py-2">
                     {groupIdx > 0 && <div className="h-px bg-[hsl(var(--sidebar-border))] mb-2 opacity-50" />}
-                    <h3 className="text-[9px] font-heading uppercase tracking-widest text-muted-foreground/40 font-bold">
-                      {group.label}
-                    </h3>
+                    {isCollapsibleGroup ? (
+                      <button
+                        data-testid={`sidebar-group-${group.label.toLowerCase()}`}
+                        onClick={() => setAdvancedOpen((o) => !o)}
+                        className="flex items-center justify-between w-full group"
+                      >
+                        <h3 className={`text-[9px] font-heading uppercase tracking-widest font-bold transition-colors ${anyActive ? "text-primary/60" : "text-muted-foreground/40"} group-hover:text-muted-foreground/70`}>
+                          {group.label}
+                        </h3>
+                        <ChevronRight className={`w-3 h-3 text-muted-foreground/40 transition-transform group-hover:text-muted-foreground/70 ${isGroupOpen ? "rotate-90" : ""}`} />
+                      </button>
+                    ) : (
+                      <h3 className="text-[9px] font-heading uppercase tracking-widest text-muted-foreground/40 font-bold">
+                        {group.label}
+                      </h3>
+                    )}
                   </div>
                 )}
-                <div className="space-y-1">
-                  {visibleItems.map((item) => {
-                    const isActive = location === item.path;
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={item.path}
-                        href={item.path}
-                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
-                        className={`sidebar-nav-item ${isActive ? "active" : ""} ${collapsed ? "justify-center px-2" : ""}`}
-                        onClick={() => setMobileOpen(false)}
-                        title={collapsed ? item.label : undefined}
-                      >
-                        <Icon className="w-4 h-4 shrink-0" />
-                        {!collapsed && <span>{item.label}</span>}
-                      </Link>
-                    );
-                  })}
-                </div>
+                {isGroupOpen && (
+                  <div className="space-y-1">
+                    {visibleItems.map((item) => {
+                      const isActive = location === item.path;
+                      const Icon = item.icon;
+                      return (
+                        <Link
+                          key={item.path}
+                          href={item.path}
+                          data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+                          className={`sidebar-nav-item ${isActive ? "active" : ""} ${collapsed ? "justify-center px-2" : ""}`}
+                          onClick={() => setMobileOpen(false)}
+                          title={collapsed ? item.label : undefined}
+                        >
+                          <Icon className="w-4 h-4 shrink-0" />
+                          {!collapsed && <span>{item.label}</span>}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}

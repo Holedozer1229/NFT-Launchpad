@@ -749,6 +749,71 @@ function EngineConsoleTab() {
   );
 }
 
+type EnvGroup = Record<string, { set: boolean }>;
+type EnvHealthData = Record<string, EnvGroup>;
+
+function EnvHealthPanel() {
+  const { data, isLoading, refetch } = useQuery<EnvHealthData>({
+    queryKey: ["/api/admin/env-health"],
+    refetchInterval: 60000,
+  });
+
+  const GROUP_LABELS: Record<string, string> = {
+    core: "Core Infrastructure",
+    alchemy: "Alchemy / Smart Contracts",
+    treasury: "Treasury Wallet",
+    chains: "Multi-Chain Keys",
+    auth: "Authentication",
+    integrations: "External Integrations",
+  };
+
+  return (
+    <div className="cosmic-card p-6 space-y-6" data-testid="panel-env-health">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-heading text-lg text-primary">Environment Config</h3>
+          <p className="text-xs text-muted-foreground font-mono mt-1">Secret presence status — values are never shown</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()} data-testid="button-env-refresh" className="border-border/50 text-muted-foreground hover:text-foreground">
+          <Activity className="w-3 h-3 mr-1.5" /> Refresh
+        </Button>
+      </div>
+
+      {isLoading && (
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="w-6 h-6 animate-spin text-primary/40" />
+        </div>
+      )}
+
+      {data && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Object.entries(data).map(([group, vars]) => (
+            <div key={group} className="border border-border/40 rounded-sm p-4 bg-black/20 space-y-2">
+              <h4 className="text-[10px] font-heading uppercase tracking-widest text-muted-foreground/60 mb-3">
+                {GROUP_LABELS[group] ?? group}
+              </h4>
+              {Object.entries(vars).map(([varName, status]) => (
+                <div key={varName} className="flex items-center justify-between" data-testid={`env-var-${varName.toLowerCase()}`}>
+                  <span className="font-mono text-[11px] text-muted-foreground">{varName}</span>
+                  {status.set ? (
+                    <Badge className="bg-neon-green/15 text-neon-green border-neon-green/30 text-[9px] font-mono px-1.5">
+                      <CheckCircle2 className="w-2.5 h-2.5 mr-1" />SET
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-red-500/10 text-red-400 border-red-500/20 text-[9px] font-mono px-1.5">
+                      <XCircle className="w-2.5 h-2.5 mr-1" />MISSING
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Admin() {
   const [activeTab, setActiveTab] = useState("overview");
   const qc = useQueryClient();
@@ -789,6 +854,7 @@ export default function Admin() {
           <TabsTrigger value="metadata" data-testid="tab-payload">Payload (Metadata)</TabsTrigger>
           <TabsTrigger value="cross-chain" data-testid="tab-mining">Mining (StarLord 2)</TabsTrigger>
           <TabsTrigger value="legal" data-testid="tab-legal">Legal Telemetry</TabsTrigger>
+          <TabsTrigger value="env-config" data-testid="tab-env-config">Env Config</TabsTrigger>
         </TabsList>
 
         <TabsContent value="engine">
@@ -898,6 +964,10 @@ export default function Admin() {
               </div>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="env-config">
+          <EnvHealthPanel />
         </TabsContent>
       </Tabs>
     </div>

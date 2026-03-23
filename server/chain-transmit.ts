@@ -96,7 +96,7 @@ export async function transmitEthereum(
       const wallet = new Wallet(privateKey, provider);
 
       const weiAmount = Utils.parseEther(amount);
-      const gasPrice = await provider.getGasPrice();
+      const feeData = await provider.getFeeData();
 
       const gasEstimate = await pub.estimateGas({
         account: wallet.address as `0x${string}`,
@@ -104,16 +104,27 @@ export async function transmitEthereum(
         value: parseEther(amount),
       });
       const gasLimit = (gasEstimate * 120n) / 100n;
+      const gasLimitStr = gasLimit.toString();
+
+      const hasEip1559 = feeData.maxFeePerGas != null && feeData.maxPriorityFeePerGas != null;
+      const feeParams = hasEip1559
+        ? {
+            maxFeePerGas: feeData.maxFeePerGas!,
+            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas!,
+            type: 2,
+          }
+        : { gasPrice: feeData.gasPrice! };
+      const worstCaseFeePerGas = hasEip1559 ? feeData.maxFeePerGas! : feeData.gasPrice!;
 
       const tx = await wallet.sendTransaction({
         to: recipientAddress,
         value: weiAmount,
-        gasLimit: gasLimit.toString(),
-        gasPrice,
+        gasLimit: gasLimitStr,
+        ...feeParams,
       });
 
       const txHash: string = tx.hash;
-      const feeBn = gasPrice.mul(gasLimit.toString());
+      const feeBn = worstCaseFeePerGas.mul(gasLimitStr);
       const networkFee = Utils.formatEther(feeBn);
 
       console.log(`[ChainTransmit] ETH ${amount} → ${recipientAddress} | tx: ${txHash} | fee: ${networkFee}`);

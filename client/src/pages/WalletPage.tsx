@@ -82,6 +82,7 @@ export default function WalletPage() {
   const mobile = isMobileDevice();
   const [activeWalletId, setActiveWalletId] = useState<number | null>(null);
   const [tab, setTab] = useState<"overview" | "send" | "receive" | "swap">("overview");
+  const [speedTier, setSpeedTier] = useState<"normal" | "fast" | "rapid" | "instant">("normal");
   const [sendTo, setSendTo] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [sendToken, setSendToken] = useState("SKYNT");
@@ -281,7 +282,7 @@ export default function WalletPage() {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         credentials: "include",
-        body: JSON.stringify({ toAddress: sendTo, amount: sendAmount, token: sendToken }),
+        body: JSON.stringify({ toAddress: sendTo, amount: sendAmount, token: sendToken, speedTier: sendToken === "ETH" ? speedTier : "normal" }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -825,6 +826,38 @@ export default function WalletPage() {
                     </button>
                   </div>
                 </div>
+
+                {sendToken === "ETH" && (
+                  <div className="space-y-2">
+                    <label className="stat-label flex items-center gap-1.5">
+                      <Zap className="w-3 h-3" /> Transaction Speed
+                    </label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {([ 
+                        { tier: "normal", label: "Normal", fee: "1×", hint: "Base fee" },
+                        { tier: "fast", label: "Fast", fee: "1.5×", hint: "+50% tip" },
+                        { tier: "rapid", label: "Rapid", fee: "2×", hint: "+100% tip" },
+                        { tier: "instant", label: "Instant", fee: "3×", hint: "+200% tip" },
+                      ] as const).map(({ tier, label, fee, hint }) => (
+                        <button
+                          key={tier}
+                          type="button"
+                          data-testid={`send-speed-${tier}`}
+                          onClick={() => setSpeedTier(tier)}
+                          title={hint}
+                          className={`py-2 px-1 rounded-sm text-center border transition-all ${
+                            speedTier === tier
+                              ? "bg-primary/20 text-primary border-primary/40"
+                              : "bg-black/20 text-muted-foreground border-border/30 hover:border-border/60"
+                          }`}
+                        >
+                          <div className="text-[10px] font-heading uppercase">{label}</div>
+                          <div className="text-[9px] font-mono mt-0.5 opacity-70">{fee}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <button
                   data-testid="button-send-submit"

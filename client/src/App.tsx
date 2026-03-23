@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import { EngineStreamProvider } from "@/hooks/use-engine-stream";
 import SidebarLayout from "@/components/SidebarLayout";
 import AuthPage from "@/pages/AuthPage";
@@ -88,9 +89,11 @@ function AppRouter() {
     return (
       <SidebarLayout>
         <PageTransition key={location}>
-          <Suspense fallback={<PageLoader />}>
-            <PublicPage />
-          </Suspense>
+          <PageErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <PublicPage />
+            </Suspense>
+          </PageErrorBoundary>
         </PageTransition>
       </SidebarLayout>
     );
@@ -103,49 +106,51 @@ function AppRouter() {
   return (
     <SidebarLayout>
       <PageTransition key={location}>
-        <Suspense fallback={<PageLoader />}>
-          <Switch>
-            <Route path="/" component={MintNFT} />
-            <Route path="/dashboard" component={Dashboard} />
-            <Route path="/lab" component={PublicLab} />
-            <Route path="/gallery" component={Gallery} />
-            <Route path="/marketplace" component={Marketplace} />
-            <Route path="/analytics" component={Analytics} />
-            <Route path="/bridge" component={Bridge} />
-            <Route path="/cross-chain" component={CrossChain} />
-            <Route path="/governance" component={Governance} />
-            <Route path="/yield" component={YieldGenerator} />
-            <Route path="/iit" component={IITConsciousness} />
-            <Route path="/berry-phase" component={QuantumBerryPhase} />
-            <Route path="/serpent" component={OmegaSerpent} />
-            <Route path="/starship" component={StarshipLaunches} />
-            <Route path="/mining" component={UnifiedMiner} />
-            <Route path="/genesis-miner" component={UnifiedMiner} />
-            <Route path="/btc-zk-daemon" component={UnifiedMiner} />
-            <Route path="/dyson-sphere" component={UnifiedMiner} />
-            <Route path="/wormhole" component={ZkWormhole} />
-            <Route path="/rarity-proof" component={RarityProofEngine} />
-            <Route path="/p2p-network" component={P2PNetworkPage} />
-            <Route path="/rocket-babes" component={RocketBabesNFT} />
-            <Route path="/openclaw" component={OpenClawTerminal} />
-            <Route path="/airdrop" component={AirdropPage} />
-            <Route path="/kyc" component={KYCPage} />
-            <Route path="/contracts" component={ContractDeployment} />
-            <Route path="/treasury">
-              <RequireAdmin testId="treasury-denied"><TreasuryVault /></RequireAdmin>
-            </Route>
-            <Route path="/wallet" component={WalletPage} />
-            <Route path="/portfolio" component={Portfolio} />
-            <Route path="/price-driver" component={PriceDriver} />
-            <Route path="/admin/engines">
-              <RequireAdmin testId="engines-denied"><AdminEngines /></RequireAdmin>
-            </Route>
-            <Route path="/admin">
-              <RequireAdmin testId="admin-denied"><Admin /></RequireAdmin>
-            </Route>
-            <Route component={NotFound} />
-          </Switch>
-        </Suspense>
+        <PageErrorBoundary>
+          <Suspense fallback={<PageLoader />}>
+            <Switch>
+              <Route path="/" component={MintNFT} />
+              <Route path="/dashboard" component={Dashboard} />
+              <Route path="/lab" component={PublicLab} />
+              <Route path="/gallery" component={Gallery} />
+              <Route path="/marketplace" component={Marketplace} />
+              <Route path="/analytics" component={Analytics} />
+              <Route path="/bridge" component={Bridge} />
+              <Route path="/cross-chain" component={CrossChain} />
+              <Route path="/governance" component={Governance} />
+              <Route path="/yield" component={YieldGenerator} />
+              <Route path="/iit" component={IITConsciousness} />
+              <Route path="/berry-phase" component={QuantumBerryPhase} />
+              <Route path="/serpent" component={OmegaSerpent} />
+              <Route path="/starship" component={StarshipLaunches} />
+              <Route path="/mining" component={UnifiedMiner} />
+              <Route path="/genesis-miner" component={UnifiedMiner} />
+              <Route path="/btc-zk-daemon" component={UnifiedMiner} />
+              <Route path="/dyson-sphere" component={UnifiedMiner} />
+              <Route path="/wormhole" component={ZkWormhole} />
+              <Route path="/rarity-proof" component={RarityProofEngine} />
+              <Route path="/p2p-network" component={P2PNetworkPage} />
+              <Route path="/rocket-babes" component={RocketBabesNFT} />
+              <Route path="/openclaw" component={OpenClawTerminal} />
+              <Route path="/airdrop" component={AirdropPage} />
+              <Route path="/kyc" component={KYCPage} />
+              <Route path="/contracts" component={ContractDeployment} />
+              <Route path="/treasury">
+                <RequireAdmin testId="treasury-denied"><TreasuryVault /></RequireAdmin>
+              </Route>
+              <Route path="/wallet" component={WalletPage} />
+              <Route path="/portfolio" component={Portfolio} />
+              <Route path="/price-driver" component={PriceDriver} />
+              <Route path="/admin/engines">
+                <RequireAdmin testId="engines-denied"><AdminEngines /></RequireAdmin>
+              </Route>
+              <Route path="/admin">
+                <RequireAdmin testId="admin-denied"><Admin /></RequireAdmin>
+              </Route>
+              <Route component={NotFound} />
+            </Switch>
+          </Suspense>
+        </PageErrorBoundary>
       </PageTransition>
       <Suspense fallback={null}>
         <QuantumMiner minimized={location !== "/"} />
