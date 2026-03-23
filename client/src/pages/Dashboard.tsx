@@ -6,7 +6,7 @@ import {
 import {
   Activity, Cpu, Box, DollarSign, Clock,
   ChevronUp, ChevronDown, Loader2, Zap, Brain, Pickaxe, Shield, TrendingUp, AlertCircle, RefreshCw,
-  Wallet, Coins, ArrowUpRight, Radio, Flame, ShieldCheck
+  Wallet, Coins, ArrowUpRight, Radio, Flame, ShieldCheck, Layers, Sparkles, Bitcoin, Link2
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useBalance } from "wagmi";
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useEngineStream, type EngineEvent } from "@/hooks/use-engine-stream";
+import { useProtocol } from "@/lib/ProtocolContext";
 
 interface MempoolStats {
   mempoolSize: number;
@@ -166,6 +167,7 @@ export default function Dashboard() {
   const [uptimeSeconds, setUptimeSeconds] = useState(() => Math.floor((Date.now() - new Date().setHours(0, 0, 0, 0)) / 1000));
   const { events: wsEvents, connected: wsConnected } = useEngineStream();
   const feedRef = useRef<HTMLDivElement>(null);
+  const { protocol, isLoading: protocolLoading, refetch: refetchProtocol } = useProtocol();
   const { address: walletAddress, isConnected: walletConnected } = useAccount();
   const { data: ethBalance } = useBalance({
     address: walletAddress as `0x${string}` | undefined,
@@ -764,6 +766,103 @@ export default function Dashboard() {
               );
             })
           )}
+        </div>
+      </div>
+
+      {/* ── Protocol Cortex — unified cross-domain live state ── */}
+      <div className="cosmic-card p-5 space-y-4" data-testid="section-protocol-cortex">
+        <div className="flex items-center justify-between">
+          <h3 className="stat-label flex items-center gap-2">
+            <Brain className="w-4 h-4 text-primary" />
+            Protocol Cortex
+          </h3>
+          <button
+            onClick={refetchProtocol}
+            disabled={protocolLoading}
+            className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
+            data-testid="button-refresh-protocol"
+          >
+            <RefreshCw className={`w-3 h-3 ${protocolLoading ? "animate-spin" : ""}`} />
+            {protocol.lastUpdated ? new Date(protocol.lastUpdated).toLocaleTimeString() : "Loading…"}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {/* Treasury */}
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-sm p-3 space-y-2" data-testid="cortex-card-treasury">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase">
+              <Wallet className="w-3 h-3 text-cyan-400" /> Treasury
+            </div>
+            <div className="text-sm font-bold text-cyan-400">{protocol.treasury.poolBalance.toFixed(6)} ETH</div>
+            <div className="text-[10px] font-mono text-muted-foreground">Φ boost: <span className="text-purple-400">{protocol.treasury.phiBoost.toFixed(2)}x</span></div>
+            <div className="text-[10px] font-mono text-muted-foreground">NFT amp: <span className="text-pink-400">{protocol.treasury.nftPhiMultiplier.toFixed(2)}x</span></div>
+            <div className="text-[10px] font-mono text-muted-foreground">Aave APR: <span className="text-neon-green">{protocol.treasury.aaveApr.toFixed(2)}%</span></div>
+          </div>
+
+          {/* Mining */}
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-sm p-3 space-y-2" data-testid="cortex-card-mining">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase">
+              <Pickaxe className="w-3 h-3 text-orange-400" /> ZK Mining
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${protocol.mining.isRunning ? "bg-neon-green animate-pulse" : "bg-red-500"}`} />
+              <span className={`text-[10px] font-mono ${protocol.mining.isRunning ? "text-neon-green" : "text-red-400"}`}>
+                {protocol.mining.isRunning ? "Running" : "Stopped"}
+              </span>
+            </div>
+            <div className="text-sm font-bold text-orange-400">ξ {protocol.mining.latestEpochXi.toFixed(4)}</div>
+            <div className="text-[10px] font-mono text-muted-foreground">STX yield: <span className="text-yellow-400">{protocol.mining.totalStxYield.toFixed(2)}</span></div>
+            <div className="text-[10px] font-mono text-muted-foreground">Block: <span className="text-foreground">#{protocol.mining.currentBlock.toLocaleString()}</span></div>
+          </div>
+
+          {/* OIYE */}
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-sm p-3 space-y-2" data-testid="cortex-card-oiye">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase">
+              <Bitcoin className="w-3 h-3 text-yellow-400" /> OIYE
+            </div>
+            <div className="text-sm font-bold text-yellow-400">{protocol.oiye.btcBalance.toFixed(8)} BTC</div>
+            <div className="text-[10px] font-mono text-muted-foreground">Sweeps: <span className="text-foreground">{protocol.oiye.sweepCount}</span></div>
+            <div className="text-[10px] font-mono text-muted-foreground">Freebit: <span className="text-foreground">{protocol.oiye.freebitcoinDeposited.toFixed(8)} BTC</span></div>
+            <div className="text-[10px] font-mono text-muted-foreground">Deposits: <span className="text-foreground">{protocol.oiye.depositCount}</span></div>
+          </div>
+
+          {/* Wormhole */}
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-sm p-3 space-y-2" data-testid="cortex-card-wormhole">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase">
+              <Link2 className="w-3 h-3 text-neon-cyan" /> Wormhole
+            </div>
+            <div className="text-sm font-bold text-neon-cyan">{protocol.wormhole.activePortals} portals</div>
+            <div className="text-[10px] font-mono text-muted-foreground">Bridged: <span className="text-foreground">${protocol.wormhole.totalBridged.toFixed(2)}</span></div>
+            <div className="text-[10px] font-mono text-muted-foreground">Transfers: <span className="text-foreground">{protocol.wormhole.completedTransfers}</span></div>
+            <div className="text-[10px] font-mono text-muted-foreground">Chains: <span className="text-foreground">{protocol.wormhole.networkChains}</span></div>
+          </div>
+
+          {/* NFT Portfolio */}
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-sm p-3 space-y-2" data-testid="cortex-card-nfts">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase">
+              <Sparkles className="w-3 h-3 text-purple-400" /> NFTs
+            </div>
+            <div className="text-sm font-bold text-purple-400">{protocol.nfts.totalMinted} minted</div>
+            <div className="text-[10px] font-mono text-muted-foreground">Staked: <span className="text-neon-green">{protocol.nfts.stakedCount}</span></div>
+            <div className="text-[10px] font-mono text-muted-foreground">Listed: <span className="text-blue-400">{protocol.nfts.listedCount}</span></div>
+            <div className="text-[10px] font-mono text-muted-foreground">Top: <span className="text-yellow-400 capitalize">{protocol.nfts.topRarity ?? "—"}</span></div>
+          </div>
+        </div>
+
+        {/* Cross-domain insight row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+          <div className="flex items-center gap-2 bg-purple-500/5 border border-purple-500/15 rounded-sm px-3 py-2 text-[10px] font-mono text-muted-foreground" data-testid="cortex-insight-nft-yield">
+            <Layers className="w-3 h-3 text-purple-400 shrink-0" />
+            <span><span className="text-purple-400 font-bold">{protocol.nfts.stakedCount} staked NFT{protocol.nfts.stakedCount !== 1 ? "s" : ""}</span> amplifying treasury Φ by <span className="text-pink-400 font-bold">{protocol.nfts.nftPhiMultiplier.toFixed(3)}x</span></span>
+          </div>
+          <div className="flex items-center gap-2 bg-orange-500/5 border border-orange-500/15 rounded-sm px-3 py-2 text-[10px] font-mono text-muted-foreground" data-testid="cortex-insight-mining-gas">
+            <Pickaxe className="w-3 h-3 text-orange-400 shrink-0" />
+            <span>Mining yielded <span className="text-yellow-400 font-bold">{protocol.mining.totalStxYield.toFixed(1)} STX</span> → <span className="text-cyan-400 font-bold">{protocol.mining.gasAccumulated?.toFixed?.(6) ?? "0.000000"} ETH</span> gas reserve</span>
+          </div>
+          <div className="flex items-center gap-2 bg-cyan-500/5 border border-cyan-500/15 rounded-sm px-3 py-2 text-[10px] font-mono text-muted-foreground" data-testid="cortex-insight-oiye-wormhole">
+            <Radio className="w-3 h-3 text-neon-cyan shrink-0" />
+            <span><span className="text-yellow-400 font-bold">{(protocol.oiye.btcBalance + protocol.oiye.freebitcoinDeposited).toFixed(8)} BTC</span> collected → OIYE seeding <span className="text-cyan-400 font-bold">{protocol.wormhole.activePortals}</span> Wormhole portals</span>
+          </div>
         </div>
       </div>
 

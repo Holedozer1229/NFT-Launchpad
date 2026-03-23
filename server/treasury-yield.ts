@@ -119,12 +119,65 @@ let state: TreasuryYieldState = {
 
 let compoundInterval: ReturnType<typeof setInterval> | null = null;
 
+// ─── NFT Rarity Phi Amplifier Registry ────────────────────────────────────────
+// Staked NFTs inject a persistent Φ multiplier into the yield engine.
+// Rarity ladder: Common(+1%) → Uncommon(+5%) → Rare(+15%) → Epic(+30%) → Legendary(+50%) → Mythic(+100%)
+
+export const NFT_RARITY_BOOSTS: Record<string, number> = {
+  common:     1.01,
+  uncommon:   1.05,
+  rare:       1.15,
+  epic:       1.30,
+  legendary:  1.50,
+  mythic:     2.00,
+};
+
+export interface StakedNftRecord {
+  nftId: number;
+  rarity: string;
+  title: string;
+  owner: string;
+  boost: number;
+  stakedAt: number;
+}
+
+const stakedNftBoosts = new Map<number, StakedNftRecord>();
+
+export function injectNftRarityBoost(nftId: number, rarity: string, title: string, owner: string): StakedNftRecord {
+  const boost = NFT_RARITY_BOOSTS[rarity.toLowerCase()] ?? 1.0;
+  const record: StakedNftRecord = { nftId, rarity: rarity.toLowerCase(), title, owner, boost, stakedAt: Date.now() };
+  stakedNftBoosts.set(nftId, record);
+  console.log(`[TreasuryYield] NFT#${nftId} (${rarity}) staked → Φ boost +${((boost - 1) * 100).toFixed(0)}% registered`);
+  return record;
+}
+
+export function removeNftRarityBoost(nftId: number): void {
+  stakedNftBoosts.delete(nftId);
+  console.log(`[TreasuryYield] NFT#${nftId} unstaked — Φ boost removed`);
+}
+
+export function getStakedNftBoosts(): StakedNftRecord[] {
+  return Array.from(stakedNftBoosts.values()).sort((a, b) => b.boost - a.boost);
+}
+
+export function getNftPhiMultiplier(): number {
+  if (stakedNftBoosts.size === 0) return 1.0;
+  // Compound all staked boosts up to a maximum of 4.0x total
+  let combined = 1.0;
+  for (const rec of stakedNftBoosts.values()) {
+    combined *= rec.boost;
+  }
+  return Math.min(4.0, combined);
+}
+
 function calculatePhiBoost(): number {
   try {
     const phi = calculatePhi(`treasury-yield-${Date.now()}`);
-    return Math.min(2.0, Math.exp(phi.phi));
+    const baseBoost = Math.min(2.0, Math.exp(phi.phi));
+    const nftAmplifier = getNftPhiMultiplier();
+    return Math.min(4.0, baseBoost * nftAmplifier);
   } catch {
-    return 1.0;
+    return getNftPhiMultiplier();
   }
 }
 

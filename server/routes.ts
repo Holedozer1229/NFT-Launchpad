@@ -6,7 +6,7 @@ import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, inse
 import { randomBytes, createHash } from "crypto";
 import { recoverMessageAddress } from "viem";
 import { mintNftViaEngine, getEngineTransactionStatus, isEngineConfigured, getTreasuryGasStatus, TREASURY_WALLET, SKYNT_CONTRACT_ADDRESS as ENGINE_CONTRACT } from "./alchemy-engine";
-import { recordMintFee, getTreasuryYieldState, startTreasuryYieldEngine, getGasRefillPool, sweepGasToTreasury } from "./treasury-yield";
+import { recordMintFee, getTreasuryYieldState, startTreasuryYieldEngine, getGasRefillPool, sweepGasToTreasury, injectNftRarityBoost, removeNftRarityBoost, getStakedNftBoosts, getNftPhiMultiplier } from "./treasury-yield";
 import { z } from "zod";
 import OpenAI from "openai";
 import { calculatePhi, getNetworkPerception, startEngine, isEngineRunning } from "./iit-engine";
@@ -1706,6 +1706,139 @@ STYLE:
     } catch (e: any) {
       console.error("[NFTTransfer] Error:", e.message);
       res.status(500).json({ message: safeError(e, "NFT transfer failed") });
+    }
+  });
+
+  // ─── NFT Stake → OIYE Vault (injects rarity Φ boost into treasury yield) ──────
+  app.post("/api/nfts/:id/stake", rateLimit(5000, 5), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const nftId = parseInt(req.params.id as string);
+      if (isNaN(nftId)) return res.status(400).json({ message: "Invalid NFT id" });
+
+      const nft = await storage.getNft(nftId);
+      if (!nft) return res.status(404).json({ message: "NFT not found" });
+
+      const user = req.user as Express.User;
+      const isOwner = nft.mintedBy === user.id || (req.user as any).isAdmin;
+      if (!isOwner) return res.status(403).json({ message: "Not your NFT" });
+
+      if (nft.status === "staked") return res.status(409).json({ message: "NFT already staked" });
+      if (nft.status === "transferred") return res.status(409).json({ message: "Transferred NFTs cannot be staked" });
+
+      await storage.updateNftStatus(nftId, "staked");
+      const record = injectNftRarityBoost(nftId, nft.rarity ?? "common", nft.title, nft.owner ?? "");
+
+      const newMultiplier = getNftPhiMultiplier();
+      res.json({
+        message: `NFT#${nftId} staked — Φ boost +${((record.boost - 1) * 100).toFixed(0)}% applied to OIYE vault`,
+        record,
+        totalNftMultiplier: newMultiplier,
+      });
+    } catch (e: any) {
+      console.error("[NFTStake] Error:", e.message);
+      res.status(500).json({ message: safeError(e, "NFT stake failed") });
+    }
+  });
+
+  // ─── NFT Unstake — removes Φ boost from treasury yield ────────────────────────
+  app.post("/api/nfts/:id/unstake", rateLimit(5000, 5), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const nftId = parseInt(req.params.id as string);
+      if (isNaN(nftId)) return res.status(400).json({ message: "Invalid NFT id" });
+
+      const nft = await storage.getNft(nftId);
+      if (!nft) return res.status(404).json({ message: "NFT not found" });
+
+      const user = req.user as Express.User;
+      const isOwner = nft.mintedBy === user.id || (req.user as any).isAdmin;
+      if (!isOwner) return res.status(403).json({ message: "Not your NFT" });
+
+      if (nft.status !== "staked") return res.status(409).json({ message: "NFT is not staked" });
+
+      await storage.updateNftStatus(nftId, "minted");
+      removeNftRarityBoost(nftId);
+
+      res.json({
+        message: `NFT#${nftId} unstaked — Φ boost removed`,
+        totalNftMultiplier: getNftPhiMultiplier(),
+      });
+    } catch (e: any) {
+      console.error("[NFTUnstake] Error:", e.message);
+      res.status(500).json({ message: safeError(e, "NFT unstake failed") });
+    }
+  });
+
+  // ─── Unified Protocol State — fuses all subsystems into one response ──────────
+  app.get("/api/protocol/state", async (req, res) => {
+    try {
+      const { getBtcZkDaemonStatus } = await import("./btc-zk-daemon");
+      const { getBtcSweeperState } = await import("./btc-dust-sweeper");
+      const { getFreebitcoinMonitorState } = await import("./freebitcoin-monitor");
+
+      const treasury = getTreasuryYieldState();
+      const stakedNftBoosts = getStakedNftBoosts();
+      const nftPhiMultiplier = getNftPhiMultiplier();
+      const mining = getBtcZkDaemonStatus();
+      const wormholeStats = await getNetworkWormholeStats();
+      const btcSweep = getBtcSweeperState();
+      const freebitcoin = getFreebitcoinMonitorState();
+
+      // Pull NFT aggregate from DB
+      let nftStats = { totalMinted: 0, stakedCount: stakedNftBoosts.length, listedCount: 0 };
+      try {
+        const allNfts = await storage.getNfts();
+        nftStats = {
+          totalMinted: allNfts.length,
+          stakedCount: allNfts.filter((n) => n.status === "staked").length,
+          listedCount: allNfts.filter((n) => n.status === "listed").length,
+        };
+      } catch { /* non-critical */ }
+
+      res.json({
+        lastUpdated: Date.now(),
+        treasury: {
+          poolBalance: treasury.currentPoolBalance,
+          totalYield: treasury.totalYieldGenerated,
+          phiBoost: treasury.phiBoostMultiplier,
+          nftPhiMultiplier,
+          aaveApr: treasury.aaveCurrentApr,
+          aaveDeposited: treasury.aaveDepositedEth,
+          gasRefillPool: treasury.gasRefillPool,
+        },
+        mining: {
+          isRunning: mining.running,
+          currentBlock: mining.lastEpoch?.btcBlockHeight ?? 0,
+          latestEpochXi: mining.bestXi,
+          totalStxYield: mining.totalStxYield,
+          gasAccumulated: treasury.gasRefillPool,
+          daemonUptime: mining.uptime,
+        },
+        oiye: {
+          btcBalance: btcSweep.totalSweptBtc ?? 0,
+          sweepCount: btcSweep.sweepCount ?? 0,
+          lastSweepAt: btcSweep.lastSweepAt,
+          freebitcoinDeposited: freebitcoin.totalBtcDeposited ?? 0,
+          depositCount: freebitcoin.depositCount ?? 0,
+          watchAddress: freebitcoin.watchAddress,
+        },
+        wormhole: {
+          totalBridged: parseFloat(wormholeStats.volumeTransferred?.split(" ")[0] ?? "0"),
+          activePortals: wormholeStats.activeWormholes ?? 0,
+          completedTransfers: wormholeStats.proofsVerified ?? 0,
+          networkChains: wormholeStats.supportedChains ?? 0,
+        },
+        nfts: {
+          ...nftStats,
+          nftPhiMultiplier,
+          stakedBoosts: stakedNftBoosts,
+          topRarity: stakedNftBoosts[0]?.rarity ?? null,
+        },
+      });
+    } catch (e: any) {
+      console.error("[ProtocolState] Error:", e.message);
+      res.status(500).json({ message: safeError(e, "Protocol state unavailable") });
     }
   });
 

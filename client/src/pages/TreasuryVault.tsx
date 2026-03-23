@@ -4,12 +4,13 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { MetaMaskSDK } from "@metamask/sdk";
 import { useAuth } from "@/hooks/use-auth";
+import { useProtocol } from "@/lib/ProtocolContext";
 import { 
   Vault, Shield, Wallet, CreditCard, Activity, 
   Settings, CheckCircle2, AlertCircle, Loader2,
   Lock, ArrowRight, Zap, RefreshCw, Layers, FileCode2,
   ExternalLink, Copy, Fuel, TrendingUp, TrendingDown,
-  BarChart3, Download, Upload, QrCode
+  BarChart3, Download, Upload, QrCode, Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -116,6 +117,7 @@ export default function TreasuryVault() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { protocol } = useProtocol();
   const [sdk, setSdk] = useState<any>(null);
   const [account, setAccount] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -957,6 +959,63 @@ export default function TreasuryVault() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* NFT Φ Amplifiers — staked NFTs boosting vault APY */}
+              <Card className="bg-gradient-to-br from-purple-500/5 to-pink-500/5 border-purple-500/20" data-testid="card-nft-phi-amplifiers">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-purple-400" />
+                    NFT Φ Amplifiers
+                    <Badge variant="outline" className="ml-auto text-[9px] border-purple-500/30 text-purple-400">
+                      {protocol.nfts.stakedCount} staked
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs font-mono">
+                    Staked NFTs inject a compounding Φ multiplier into the yield engine. Higher rarity = larger boost to treasury APY.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-white/5 rounded-lg p-3 text-center">
+                      <div className="text-[10px] font-mono text-muted-foreground uppercase mb-1">Staked NFTs</div>
+                      <div className="text-lg font-bold text-purple-400" data-testid="text-staked-nft-count">{protocol.nfts.stakedCount}</div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3 text-center">
+                      <div className="text-[10px] font-mono text-muted-foreground uppercase mb-1">Φ Multiplier</div>
+                      <div className="text-lg font-bold text-pink-400" data-testid="text-nft-phi-multiplier">{protocol.nfts.nftPhiMultiplier.toFixed(3)}x</div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3 text-center">
+                      <div className="text-[10px] font-mono text-muted-foreground uppercase mb-1">Top Rarity</div>
+                      <div className="text-sm font-bold text-yellow-400 capitalize" data-testid="text-top-rarity">{protocol.nfts.topRarity ?? "—"}</div>
+                    </div>
+                  </div>
+
+                  {protocol.nfts.stakedBoosts.length === 0 ? (
+                    <div className="flex flex-col items-center py-4 text-center space-y-2">
+                      <Layers className="w-6 h-6 text-muted-foreground/40" />
+                      <p className="text-xs font-mono text-muted-foreground">No NFTs staked yet. Stake NFTs from the Gallery to amplify vault APY.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {protocol.nfts.stakedBoosts.slice(0, 6).map((rec) => (
+                        <div key={rec.nftId} className="flex items-center justify-between bg-white/5 rounded px-3 py-2 text-[10px] font-mono" data-testid={`row-staked-nft-${rec.nftId}`}>
+                          <span className="text-foreground truncate max-w-[140px]">{rec.title}</span>
+                          <Badge variant="outline" className="text-[8px] capitalize border-purple-500/20 text-purple-300">{rec.rarity}</Badge>
+                          <span className="text-neon-green font-bold">+{((rec.boost - 1) * 100).toFixed(0)}% Φ</span>
+                        </div>
+                      ))}
+                      {protocol.nfts.stakedBoosts.length > 6 && (
+                        <p className="text-[10px] font-mono text-muted-foreground text-center">+{protocol.nfts.stakedBoosts.length - 6} more staked</p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between bg-purple-500/10 border border-purple-500/20 rounded-lg px-3 py-2 text-xs font-mono">
+                    <span className="text-muted-foreground">Combined treasury Φ boost</span>
+                    <span className="text-purple-400 font-bold" data-testid="text-total-phi-boost">{protocol.treasury.phiBoost.toFixed(3)}x</span>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* OIYE Vault Lifecycle Stepper */}
               <Card className="bg-gradient-to-br from-cyan-500/5 to-purple-500/5 border-cyan-500/10" data-testid="card-vault-lifecycle">

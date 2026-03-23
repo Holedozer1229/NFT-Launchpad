@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import { EngineStreamProvider } from "@/hooks/use-engine-stream";
+import { ProtocolProvider } from "@/lib/ProtocolContext";
 import SidebarLayout from "@/components/SidebarLayout";
 import AuthPage from "@/pages/AuthPage";
 import PageTransition from "@/components/PageTransition";
@@ -167,11 +168,13 @@ function App() {
     <ErrorBoundary>
       <AuthProvider>
         <EngineStreamProvider>
-          <TooltipProvider>
-            <OfflineBanner />
-            <Toaster />
-            <AppRouter />
-          </TooltipProvider>
+          <ProtocolProvider>
+            <TooltipProvider>
+              <OfflineBanner />
+              <Toaster />
+              <AppRouter />
+            </TooltipProvider>
+          </ProtocolProvider>
         </EngineStreamProvider>
       </AuthProvider>
     </ErrorBoundary>

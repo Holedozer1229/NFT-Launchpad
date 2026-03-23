@@ -2,11 +2,12 @@ import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2, Search, Upload, CheckCircle2, AlertCircle, ArrowRight, Wallet, Lock, Send, X, Copy } from "lucide-react";
+import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2, Search, Upload, CheckCircle2, AlertCircle, ArrowRight, Wallet, Lock, Send, X, Copy, Layers, Radio } from "lucide-react";
 import { SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 import NFTPreview3D from "@/components/NFTPreview3D";
 
 interface ZkCertRecord {
@@ -114,8 +115,10 @@ export default function Gallery() {
   const [sendNftId, setSendNftId] = useState<number | null>(null);
   const [sendToAddress, setSendToAddress] = useState("");
   const [sendResult, setSendResult] = useState<{ txHash: string | null; explorerUrl: string | null; message: string } | null>(null);
+  const [stakeNftId, setStakeNftId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const addressValidation = useMemo(() => validateEthAddress(sellerAddressInput), [sellerAddressInput]);
 
@@ -165,6 +168,48 @@ export default function Gallery() {
       toast({ title: "Transfer Failed", description: e.message, variant: "destructive" });
     },
   });
+
+  // ─── Stake NFT → OIYE Vault ──────────────────────────────────────────────────
+  const stakeMutation = useMutation({
+    mutationFn: async (nftId: number) => {
+      const res = await apiRequest("POST", `/api/nfts/${nftId}/stake`, {});
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onSuccess: (data, nftId) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/protocol/state"] });
+      setStakeNftId(null);
+      toast({
+        title: "NFT Staked to OIYE Vault",
+        description: data.message,
+      });
+    },
+    onError: (e: any) => {
+      toast({ title: "Stake Failed", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const unstakeMutation = useMutation({
+    mutationFn: async (nftId: number) => {
+      const res = await apiRequest("POST", `/api/nfts/${nftId}/unstake`, {});
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/protocol/state"] });
+      toast({ title: "NFT Unstaked", description: "Φ boost removed from OIYE vault" });
+    },
+    onError: (e: any) => {
+      toast({ title: "Unstake Failed", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const handleBridgeNft = (e: React.MouseEvent, nft: NFTItem) => {
+    e.stopPropagation();
+    setLocation(`/wormhole?nftId=${nft.id}&chain=${nft.chain}&token=${encodeURIComponent(nft.tokenId)}&title=${encodeURIComponent(nft.title)}`);
+  };
 
   const handleSendNft = (e: React.MouseEvent, nftId: number) => {
     e.stopPropagation();
@@ -761,6 +806,43 @@ export default function Gallery() {
                       <Send className="w-3.5 h-3.5" />
                       Send to Address
                     </button>
+                  )}
+
+                  {/* ── Stake to OIYE Vault / Bridge via Wormhole ── */}
+                  {nft.status !== "transferred" && (
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {nft.status === "staked" ? (
+                        <button
+                          onClick={e => { e.stopPropagation(); unstakeMutation.mutate(nft.id); }}
+                          disabled={unstakeMutation.isPending && stakeNftId === nft.id}
+                          className="col-span-2 flex items-center justify-center gap-1.5 w-full py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider bg-neon-green/10 border border-neon-green/30 text-neon-green hover:bg-neon-green/20 transition-all"
+                          data-testid={`button-unstake-nft-${nft.id}`}
+                        >
+                          {unstakeMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Layers className="w-3 h-3" />}
+                          Staked — Click to Unstake
+                        </button>
+                      ) : (
+                        <button
+                          onClick={e => { e.stopPropagation(); setStakeNftId(nft.id); stakeMutation.mutate(nft.id); }}
+                          disabled={stakeMutation.isPending || nft.status === "listed"}
+                          className="flex items-center justify-center gap-1.5 w-full py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider bg-purple-500/10 border border-purple-500/30 text-purple-400 hover:bg-purple-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                          data-testid={`button-stake-nft-${nft.id}`}
+                        >
+                          {stakeMutation.isPending && stakeNftId === nft.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Layers className="w-3 h-3" />}
+                          Stake to Vault
+                        </button>
+                      )}
+                      {nft.status !== "staked" && (
+                        <button
+                          onClick={e => handleBridgeNft(e, nft)}
+                          className="flex items-center justify-center gap-1.5 w-full py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500/20 transition-all"
+                          data-testid={`button-bridge-nft-${nft.id}`}
+                        >
+                          <Radio className="w-3 h-3" />
+                          Bridge
+                        </button>
+                      )}
+                    </div>
                   )}
 
                   <div className="flex justify-between items-center text-[10px] font-mono text-muted-foreground/60 pt-2 border-t border-border/50">
