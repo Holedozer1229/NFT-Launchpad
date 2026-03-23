@@ -387,3 +387,23 @@ export function stopTreasuryYieldEngine(): void {
 export function isTreasuryYieldRunning(): boolean {
   return compoundInterval !== null;
 }
+
+// ─── BTC Balance Notification (called by dust sweeper / deposit monitor) ──────
+
+let trackedBtcBalance = 0;
+
+export function updateTreasuryBtcBalance(newBtcAmount: number): void {
+  if (newBtcAmount <= 0) return;
+  trackedBtcBalance += newBtcAmount;
+  // Convert to ETH-equivalent and inject into yield pool so it's not wasted
+  const BTC_TO_ETH_APPROX = 30; // conservative: 1 BTC ≈ 30 ETH at time of build
+  const ethEquiv = newBtcAmount * BTC_TO_ETH_APPROX;
+  state.currentPoolBalance += ethEquiv;
+  state.totalYieldGenerated += ethEquiv;
+  wsHub.broadcast("treasury:btc_deposit", { btcAmount: newBtcAmount, ethEquiv, trackedBtcBalance });
+  console.log(`[TreasuryYield] BTC deposit credited: +${newBtcAmount.toFixed(8)} BTC (~${ethEquiv.toFixed(6)} ETH equiv) | pool: ${state.currentPoolBalance.toFixed(6)}`);
+}
+
+export function getTrackedBtcBalance(): number {
+  return trackedBtcBalance;
+}

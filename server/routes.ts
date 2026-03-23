@@ -4025,6 +4025,25 @@ STYLE:
     }
   });
 
+  // ─── OIYE Bootstrap Routes (BTC Dust Sweeper + Freebitco.in Monitor) ─────────
+  app.get("/api/oiye/btc-sweep", (_req, res) => {
+    try {
+      const { getBtcSweeperState } = require("./btc-dust-sweeper");
+      res.json(getBtcSweeperState());
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Failed to get sweep state") });
+    }
+  });
+
+  app.get("/api/oiye/freebitcoin", (_req, res) => {
+    try {
+      const { getFreebitcoinMonitorState } = require("./freebitcoin-monitor");
+      res.json(getFreebitcoinMonitorState());
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Failed to get freebitcoin monitor state") });
+    }
+  });
+
   app.post("/api/treasury/aave-deposit", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });

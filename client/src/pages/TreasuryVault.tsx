@@ -149,6 +149,16 @@ export default function TreasuryVault() {
     refetchInterval: 300000,
   });
 
+  const { data: oiyeSweep } = useQuery<{
+    totalSweptBtc: number; sweepCount: number; lastSweepAt: number | null; lastUtxoCount: number;
+  }>({ queryKey: ["/api/oiye/btc-sweep"], refetchInterval: 60000 });
+
+  const { data: oiyeFreebitcoin } = useQuery<{
+    totalBtcDeposited: number; depositCount: number; lastPollAt: number | null;
+    recentDeposits: Array<{ txHash: string; btcAmount: number; confirmedAt: string; source: string }>;
+    watchAddress: string | null; accountEmail: string | null;
+  }>({ queryKey: ["/api/oiye/freebitcoin"], refetchInterval: 60000 });
+
   const aaveDepositMutation = useMutation({
     mutationFn: async (amountEth: number) => {
       const res = await apiRequest("POST", "/api/aave/deposit", { amountEth });
@@ -384,6 +394,7 @@ export default function TreasuryVault() {
               <TabsTrigger value="history" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary px-4 py-2 text-xs font-mono uppercase tracking-widest">Transaction Log</TabsTrigger>
               <TabsTrigger value="deposit" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary px-4 py-2 text-xs font-mono uppercase tracking-widest">Deposit Addresses</TabsTrigger>
               <TabsTrigger value="deployment" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary px-4 py-2 text-xs font-mono uppercase tracking-widest">Contract Registry</TabsTrigger>
+              <TabsTrigger value="oiye" data-testid="tab-oiye" className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-400 px-4 py-2 text-xs font-mono uppercase tracking-widest">OIYE Bootstrap</TabsTrigger>
             </TabsList>
             
             <TabsContent value="operations" className="space-y-6 mt-0">
@@ -797,6 +808,137 @@ export default function TreasuryVault() {
                   </Card>
                 ))}
               </div>
+            </TabsContent>
+
+            <TabsContent value="oiye" className="mt-0 space-y-4" data-testid="tab-content-oiye">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* BTC Dust Sweeper */}
+                <Card className="bg-black/40 border-orange-500/20" data-testid="card-btc-sweeper">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Download className="w-4 h-4 text-orange-400" />
+                      BTC Dust UTXO Sweeper
+                    </CardTitle>
+                    <CardDescription className="text-xs font-mono">
+                      Automatically consolidates dust UTXOs from the treasury Bitcoin address via BlockCypher. Runs every 6 hours.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-white/5 rounded-lg p-3">
+                        <div className="text-[10px] font-mono text-muted-foreground uppercase mb-1">Total Swept</div>
+                        <div className="text-sm font-bold text-orange-400" data-testid="text-total-swept-btc">
+                          {(oiyeSweep?.totalSweptBtc ?? 0).toFixed(8)} BTC
+                        </div>
+                      </div>
+                      <div className="bg-white/5 rounded-lg p-3">
+                        <div className="text-[10px] font-mono text-muted-foreground uppercase mb-1">Sweep Cycles</div>
+                        <div className="text-sm font-bold text-foreground" data-testid="text-sweep-count">
+                          {oiyeSweep?.sweepCount ?? 0}
+                        </div>
+                      </div>
+                      <div className="bg-white/5 rounded-lg p-3">
+                        <div className="text-[10px] font-mono text-muted-foreground uppercase mb-1">Live UTXOs</div>
+                        <div className="text-sm font-bold text-foreground" data-testid="text-utxo-count">
+                          {oiyeSweep?.lastUtxoCount ?? 0}
+                        </div>
+                      </div>
+                      <div className="bg-white/5 rounded-lg p-3">
+                        <div className="text-[10px] font-mono text-muted-foreground uppercase mb-1">Last Sweep</div>
+                        <div className="text-xs font-mono text-muted-foreground" data-testid="text-last-sweep">
+                          {oiyeSweep?.lastSweepAt ? new Date(oiyeSweep.lastSweepAt).toLocaleTimeString() : "Pending…"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono ${process.env.BTC_TREASURY_ADDRESS ? "bg-green-500/10 text-green-400" : "bg-yellow-500/10 text-yellow-400"}`}>
+                      <Activity className="w-3 h-3 shrink-0" />
+                      {oiyeFreebitcoin?.watchAddress
+                        ? <span>Watching: <span className="text-cyan-400">{oiyeFreebitcoin.watchAddress.slice(0, 8)}…{oiyeFreebitcoin.watchAddress.slice(-6)}</span></span>
+                        : <span>Set <code className="text-orange-300">BTC_TREASURY_ADDRESS</code> + <code className="text-orange-300">BTC_TREASURY_WIF</code> secrets to enable</span>
+                      }
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Freebitco.in Monitor */}
+                <Card className="bg-black/40 border-yellow-500/20" data-testid="card-freebitcoin-monitor">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-yellow-400" />
+                      Freebitco.in Deposit Monitor
+                    </CardTitle>
+                    <CardDescription className="text-xs font-mono">
+                      Watches the treasury BTC address for incoming deposits every 15 min. Set your freebitco.in auto-withdrawal address to your treasury BTC address.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-white/5 rounded-lg p-3">
+                        <div className="text-[10px] font-mono text-muted-foreground uppercase mb-1">Total Received</div>
+                        <div className="text-sm font-bold text-yellow-400" data-testid="text-total-btc-deposited">
+                          {(oiyeFreebitcoin?.totalBtcDeposited ?? 0).toFixed(8)} BTC
+                        </div>
+                      </div>
+                      <div className="bg-white/5 rounded-lg p-3">
+                        <div className="text-[10px] font-mono text-muted-foreground uppercase mb-1">Deposits Found</div>
+                        <div className="text-sm font-bold text-foreground" data-testid="text-deposit-count">
+                          {oiyeFreebitcoin?.depositCount ?? 0}
+                        </div>
+                      </div>
+                    </div>
+                    {oiyeFreebitcoin?.accountEmail && (
+                      <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2 text-xs font-mono text-yellow-300">
+                        Account: {oiyeFreebitcoin.accountEmail}
+                      </div>
+                    )}
+                    {!oiyeFreebitcoin?.accountEmail && (
+                      <div className="bg-white/5 rounded-lg px-3 py-2 text-xs font-mono text-muted-foreground">
+                        Set <code className="text-yellow-300">FREEBITCOIN_EMAIL</code> secret to track your account. Configure auto-withdrawal on freebitco.in → your treasury BTC address.
+                      </div>
+                    )}
+                    {oiyeFreebitcoin?.recentDeposits && oiyeFreebitcoin.recentDeposits.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-[10px] font-mono text-muted-foreground uppercase">Recent Deposits</div>
+                        {oiyeFreebitcoin.recentDeposits.slice(-3).reverse().map(d => (
+                          <div key={d.txHash} className="flex items-center justify-between bg-white/5 rounded px-2 py-1.5 text-[10px] font-mono" data-testid={`row-deposit-${d.txHash.slice(0, 8)}`}>
+                            <a href={`https://mempool.space/tx/${d.txHash}`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">
+                              {d.txHash.slice(0, 10)}…
+                            </a>
+                            <span className="text-yellow-400">+{d.btcAmount.toFixed(8)} BTC</span>
+                            <Badge variant="outline" className="text-[9px] border-yellow-500/30 text-yellow-400">{d.source.replace(/_/g, " ")}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* OIYE Architecture Summary */}
+              <Card className="bg-gradient-to-br from-orange-500/5 to-yellow-500/5 border-orange-500/10" data-testid="card-oiye-architecture">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-orange-400" />
+                    OIYE $0-Bootstrap Engine — Active Funding Sources
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] font-mono">
+                    <div className="bg-white/5 rounded-lg p-3 space-y-1">
+                      <div className="text-orange-400 font-bold uppercase text-[10px]">Layer 1 — BTC Dust Sweep</div>
+                      <div className="text-muted-foreground">Scans treasury BTC address for unspent UTXOs and consolidates them every 6h via BlockCypher. Requires BTC_TREASURY_ADDRESS + BTC_TREASURY_WIF.</div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3 space-y-1">
+                      <div className="text-yellow-400 font-bold uppercase text-[10px]">Layer 2 — Freebitco.in</div>
+                      <div className="text-muted-foreground">Monitor watches for incoming BTC deposits every 15 min. Set auto-withdrawal on freebitco.in → treasury BTC address. Cannot auto-claim (Cloudflare Turnstile blocks bots).</div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3 space-y-1">
+                      <div className="text-cyan-400 font-bold uppercase text-[10px]">Layer 3 — STX/ETH Yield</div>
+                      <div className="text-muted-foreground">BTC deposits are credited to the ETH yield pool at a live BTC/ETH rate. Combined with Aave v3 compounding and BTC ZK mining STX yield.</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </div>
