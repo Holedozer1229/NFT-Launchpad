@@ -1,0 +1,65 @@
+The Wormhole SDK consists of several official components maintained by the Wormhole Foundation. These provide tools for building cross-chain applications, including token transfers (via Native Token Transfers / NTT or Wrapped Token Transfers), general messaging, and integrations across supported chains (Ethereum, Solana, and others). Below is a structured overview of the full SDK ecosystem, with emphasis on the primary packages relevant to mainnet development.
+1. TypeScript SDK (Primary Off-Chain / Frontend / Backend Integration)
+	•	Repository: https://github.com/wormhole-foundation/wormhole-sdk-ts
+	•	NPM Package: @wormhole-foundation/sdk (meta-package combining platform-specific modules)
+	•	Purpose: Unified, type-safe interface for interacting with Wormhole protocols across chains. Supports core features such as:
+	◦	Sending and redeeming messages/tokens.
+	◦	NTT (Native Token Transfers) and CCTP (Circle’s Cross-Chain Transfer Protocol).
+	◦	Chain-specific platforms (EVM, Solana, Aptos, Sui, etc.).
+	•	Installation (for Node.js / browser environments): npm install @wormhole-foundation/sdk
+	•	 For selective imports (tree-shakable): npm install @wormhole-foundation/sdk-base @wormhole-foundation/sdk-evm @wormhole-foundation/sdk-solana
+	•	
+	•	Basic Usage Example (initializing Wormhole instance): import { wormhole } from "@wormhole-foundation/sdk";
+	•	
+	•	// Initialize for mainnet (or "Testnet")
+	•	const wh = await wormhole("Mainnet", [
+	•	  // Import required platform modules
+	•	  await import("@wormhole-foundation/sdk-evm"),
+	•	  await import("@wormhole-foundation/sdk-solana"),
+	•	]);
+	•	
+	•	// Example: Get core contracts on Ethereum
+	•	const eth = wh.getPlatform("Evm");
+	•	const core = await eth.getCore("Ethereum");
+	•	console.log("Ethereum Core contract:", core.address.toString());
+	•	
+	•	Documentation: https://wormhole-foundation.github.io/wormhole-sdk-ts/ (Typedoc-generated reference)
+	•	Key Guides: Getting started guide at https://wormhole.com/docs/tools/typescript-sdk/get-started
+2. Solidity SDK (On-Chain EVM Integrations)
+	•	Repository: https://github.com/wormhole-foundation/wormhole-solidity-sdk
+	•	Purpose: Provides Solidity interfaces, prebuilt contracts, libraries, and testing utilities for EVM-compatible chains. Essential for:
+	◦	Emitting Wormhole messages from smart contracts.
+	◦	Consuming VAAs (Verified Action Approvals) on-chain.
+	◦	Integrating token bridges (NTT, Token Bridge).
+	•	Installation (using Foundry / Forge): forge install wormhole-foundation/wormhole-solidity-sdk@v1.0.0
+	•	 Or via npm for Hardhat/Truffle: npm install @wormhole-foundation/wormhole-solidity-sdk
+	•	
+	•	Core Interfaces (examples from the SDK): // IWormholeCore.sol (simplified excerpt)
+	•	interface IWormhole {
+	•	    function publishMessage(
+	•	        uint32 nonce,
+	•	        bytes calldata payload,
+	•	        uint8 consistencyLevel
+	•	    ) external returns (uint64 sequence);
+	•	
+	•	    function parseAndVerifyVM(bytes calldata vm)
+	•	        external
+	•	        view
+	•	        returns (IWormhole.VM memory s, bool valid, string memory reason);
+	•	}
+	•	
+	•	Documentation: In-repo docs folder (https://github.com/wormhole-foundation/wormhole-solidity-sdk/tree/main/docs) and raw README at https://github.com/wormhole-foundation/wormhole-solidity-sdk/blob/main/README.md
+3. zk-Wormhole Integration Aspects (2026 Context)
+Wormhole has progressively incorporated zero-knowledge elements, particularly for privacy-preserving transfers (e.g., zk-proof-of-burn in zERC20 patterns) and aggregation proofs for faster/lower-cost verification. These are not a separate “zk-SDK” package but enhancements within the core SDKs:
+	•	zk light clients and consensus proofs (e.g., for Ethereum finality attestation) appear in collaborations (e.g., with Boundless/RISC Zero or Argument/Sphinx zkVM).
+	•	Aggregation proofs have seen optimizations (e.g., 2x faster proving in 2026 updates).
+	•	Integration Path: Use the TypeScript SDK for off-chain zk-proof generation/verification when needed, combined with Solidity interfaces for on-chain verification. For production zk-enhanced NTT or private transfers, reference Wormhole’s protocol updates and co-developed zkVM tools (e.g., Sphinx zkVM repository).
+	•	Relevant Repositories:
+	◦	Core protocol reference: https://github.com/wormhole-foundation/wormhole
+	◦	Rust tooling (for advanced zk-related parsing): https://github.com/wormhole-foundation/wormhole-sdk-rs
+Additional Resources
+	•	Official Documentation Portal: https://wormhole.com/docs (covers all SDKs, protocols, contract addresses, and tutorials).
+	•	Contract Addresses: https://wormhole.com/docs/reference/contracts (mainnet deployments across chains).
+	•	Developer Examples: Integration tests and demos in the TypeScript SDK repository (e.g., token bridge examples).
+	•	Community & Support: Wormhole Discord / forums for mainnet deployment questions.
+For practical usage in your OIYE application (e.g., bridging ERC-20/NFT from Ethereum to Solana via zk-enhanced NTT), the TypeScript SDK handles the off-chain relay logic, while the Solidity SDK enables emitting messages from your contracts. If you require a specific code snippet (e.g., full NTT send/redeem flow or zk-proof integration example), please provide additional details on the desired chain pair or protocol.
