@@ -259,11 +259,10 @@ app.use((req, res, next) => {
       startSelfFundSentinel();
       startPriceDriver();
       // Vault auto-init check
-      if (process.env.TREASURY_PRIVATE_KEY) {
-        log("[Vault] TREASURY_PRIVATE_KEY detected — engine auto-initialized for mainnet transactions");
+      const vaultReady = !!process.env.TREASURY_PRIVATE_KEY;
+      log(`[Vault] Treasury engine initialized — on-chain transmit: ${vaultReady ? "enabled" : "disabled (read-only)"}`);
+      if (vaultReady) {
         log("[Vault] Auto-payout chain: Ethereum Mainnet | SKYNT rewards will transmit on-chain");
-      } else {
-        log("[Vault] TREASURY_PRIVATE_KEY not configured — on-chain transactions will be rejected until the secret is set");
       }
     },
   );

@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, ArrowLeftRight, Shield, ChevronLeft, ChevronRight, Menu, X, Wallet, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Atom, Gift, UserCheck, Share2, Vote, Cpu, Fuel, Zap, Layers, Radio } from "lucide-react";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, Shield, ChevronLeft, ChevronRight, Menu, X, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Gift, UserCheck, Share2, Vote, Cpu, Fuel, Zap, Radio } from "lucide-react";
 import { useEngineStream } from "@/hooks/use-engine-stream";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -38,8 +38,6 @@ const navGroups = [
     label: "NETWORK",
     items: [
       { path: "/cross-chain", label: "Cross-Chain Portal", icon: Share2, adminOnly: false },
-      { path: "/bridge", label: "Bridge", icon: ArrowLeftRight, adminOnly: false },
-      { path: "/wormhole", label: "ZK Wormhole", icon: Layers, adminOnly: false },
       { path: "/governance", label: "Governance", icon: Vote, adminOnly: false },
       { path: "/p2p-network", label: "P2P Network", icon: Globe, adminOnly: false },
       { path: "/iit", label: "IIT Consciousness", icon: Brain, adminOnly: false },

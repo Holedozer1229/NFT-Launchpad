@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -46,46 +46,18 @@ const AdminEngines = lazy(() => import("@/pages/AdminEngines"));
 const Portfolio = lazy(() => import("@/pages/Portfolio"));
 const BuybackFeed = lazy(() => import("@/pages/BuybackFeed"));
 
-function AdminGuard() {
+function RequireAdmin({ children, testId = "admin-denied" }: { children: ReactNode; testId?: string }) {
   const { user } = useAuth();
   if (!user?.isAdmin) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4" data-testid="admin-denied">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4" data-testid={testId}>
         <ShieldAlert className="w-12 h-12 text-red-400" />
         <h2 className="font-heading text-xl font-bold text-foreground">Access Restricted</h2>
-        <p className="font-mono text-xs text-muted-foreground">Admin clearance required to access Mission Control.</p>
+        <p className="font-mono text-xs text-muted-foreground">Admin clearance required.</p>
       </div>
     );
   }
-  return <Admin />;
-}
-
-function AdminEnginesGuard() {
-  const { user } = useAuth();
-  if (!user?.isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4" data-testid="engines-denied">
-        <ShieldAlert className="w-12 h-12 text-red-400" />
-        <h2 className="font-heading text-xl font-bold text-foreground">Access Restricted</h2>
-        <p className="font-mono text-xs text-muted-foreground">Admin clearance required to access Engine Console.</p>
-      </div>
-    );
-  }
-  return <AdminEngines />;
-}
-
-function TreasuryVaultGuard() {
-  const { user } = useAuth();
-  if (!user?.isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4" data-testid="treasury-denied">
-        <ShieldAlert className="w-12 h-12 text-red-400" />
-        <h2 className="font-heading text-xl font-bold text-foreground">Treasury Access Restricted</h2>
-        <p className="font-mono text-xs text-muted-foreground">Admin clearance required to access Treasury Vault.</p>
-      </div>
-    );
-  }
-  return <TreasuryVault />;
+  return <>{children}</>;
 }
 
 function PageLoader() {
@@ -159,12 +131,18 @@ function AppRouter() {
             <Route path="/airdrop" component={AirdropPage} />
             <Route path="/kyc" component={KYCPage} />
             <Route path="/contracts" component={ContractDeployment} />
-            <Route path="/treasury" component={TreasuryVaultGuard} />
+            <Route path="/treasury">
+              <RequireAdmin testId="treasury-denied"><TreasuryVault /></RequireAdmin>
+            </Route>
             <Route path="/wallet" component={WalletPage} />
             <Route path="/portfolio" component={Portfolio} />
             <Route path="/price-driver" component={PriceDriver} />
-            <Route path="/admin/engines" component={AdminEnginesGuard} />
-            <Route path="/admin" component={AdminGuard} />
+            <Route path="/admin/engines">
+              <RequireAdmin testId="engines-denied"><AdminEngines /></RequireAdmin>
+            </Route>
+            <Route path="/admin">
+              <RequireAdmin testId="admin-denied"><Admin /></RequireAdmin>
+            </Route>
             <Route component={NotFound} />
           </Switch>
         </Suspense>

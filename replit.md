@@ -4,6 +4,12 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
+- **Mar 2026**: **Complete Refactor & Security Hardening**
+  - `server/skynt-price-driver.ts`: Removed startup `console.log` that exposed target price and wallet configuration status to stdout
+  - `server/index.ts`: Sanitized Vault startup logs — removed direct `TREASURY_PRIVATE_KEY` variable name from logs; now only reports `on-chain transmit: enabled/disabled`
+  - `client/src/App.tsx`: Consolidated three near-identical admin guard components (`AdminGuard`, `AdminEnginesGuard`, `TreasuryVaultGuard`) into a single reusable `RequireAdmin` component with `testId` prop
+  - `client/src/components/SidebarLayout.tsx`: Removed redundant Bridge and ZK Wormhole nav entries (both redirect to Cross-Chain Portal); cleaned up unused icon imports (`ArrowLeftRight`, `Layers`, `Atom`, `Wallet`)
+
 - **Mar 2026**: **Production Polish — WebSocket Engine Broadcasting & Build Optimization**
   - `server/ws-hub.ts`: Upgraded from simple Set to per-client Map with metadata; 30s ping/pong heartbeat auto-evicts dead connections; `message` handler supports `ping`, `subscribe` (event filtering), `subscribe_all`; selective delivery skips unsubscribed clients; `getStats()` method
   - Added WebSocket broadcasts to 4 previously-silent engines: IIT Engine (`iit:tick`, every 30s — phi/level/blockHeight/consensus/epoch), P2P Ledger (`p2p_ledger:sync`, every 15s — blockHeight/peers/consensusStatus), Self-Fund Sentinel (`gas_sentinel:tick` — phase/reserve/triggers/lastCheck), Dyson Sphere (`dyson:evolution`, every 60s — epoch/chainCorrelation/hashRateBoost/dysonEquilibrium)
