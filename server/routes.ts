@@ -1623,6 +1623,10 @@ STYLE:
       const contractAddr = chainData?.contractAddress || "0x0000000000000000000000000000000000000000";
       const tokenIdClean = nft.tokenId.replace(/\.\.\./g, "").replace("0x", "");
 
+      // Look up any valid ZK rarity certificate for this NFT
+      const zkCert = await storage.getRarityCertificateByNftOnly(nft.id);
+      const zkProofHash = zkCert?.zkProofHash;
+
       const result = await listNftOnOpenSea({
         chain: chainId,
         contractAddress: contractAddr,
@@ -1630,6 +1634,7 @@ STYLE:
         price: nft.price,
         sellerAddress,
         title: nft.title,
+        zkProofHash,
       });
 
       const status = result.success ? "listed" : "submitted";
@@ -1638,7 +1643,15 @@ STYLE:
         await storage.updateNftStatus(nft.id, "listed");
       }
 
-      res.json({ ...result, sellerAddress, correctedAddress });
+      const zkProofAttached = zkCert ? {
+        certificateId: zkCert.certificateId,
+        rarityScore: zkCert.rarityScore,
+        rarityPercentile: zkCert.rarityPercentile,
+        zkProofHash: zkCert.zkProofHash,
+        phiBoost: zkCert.phiBoost,
+      } : null;
+
+      res.json({ ...result, sellerAddress, correctedAddress, zkProofAttached });
     } catch (error) {
       res.status(500).json({ message: safeError(error, "Failed to list on OpenSea") });
     }
@@ -1707,6 +1720,9 @@ STYLE:
         const tokenIdClean = nft.tokenId.replace(/\.\.\./g, "").replace("0x", "");
         const sellerAddress = overrideSellerAddress ?? nft.owner;
 
+        // Look up ZK rarity certificate to embed in Seaport zoneHash
+        const zkCert = await storage.getRarityCertificateByNftOnly(nft.id);
+
         const result = await listNftOnOpenSea({
           chain: chainId,
           contractAddress: contractAddr,
@@ -1714,6 +1730,7 @@ STYLE:
           price: nft.price,
           sellerAddress,
           title: nft.title,
+          zkProofHash: zkCert?.zkProofHash,
         });
 
         const status = result.success ? "listed" : "failed";

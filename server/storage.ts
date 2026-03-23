@@ -96,6 +96,7 @@ export interface IStorage {
   createRarityCertificate(cert: InsertRarityCertificate): Promise<RarityCertificate>;
   getRarityCertificatesByUser(userId: number): Promise<RarityCertificate[]>;
   getRarityCertificateByNft(nftId: number, userId: number): Promise<RarityCertificate | undefined>;
+  getRarityCertificateByNftOnly(nftId: number): Promise<RarityCertificate | undefined>;
   getRarityCertificateById(certificateId: string): Promise<RarityCertificate | undefined>;
 
   getModelByUserId(userId: number): Promise<RocketBabeModel | undefined>;
@@ -634,6 +635,14 @@ export class DatabaseStorage implements IStorage {
   async getRarityCertificateByNft(nftId: number, userId: number): Promise<RarityCertificate | undefined> {
     const [cert] = await db.select().from(rarityCertificates)
       .where(and(eq(rarityCertificates.nftId, nftId), eq(rarityCertificates.userId, userId)));
+    return cert;
+  }
+
+  async getRarityCertificateByNftOnly(nftId: number): Promise<RarityCertificate | undefined> {
+    const [cert] = await db.select().from(rarityCertificates)
+      .where(and(eq(rarityCertificates.nftId, nftId), eq(rarityCertificates.status, "valid")))
+      .orderBy(desc(rarityCertificates.createdAt))
+      .limit(1);
     return cert;
   }
 

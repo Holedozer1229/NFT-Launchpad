@@ -9,6 +9,7 @@ interface OpenSeaListingParams {
   price: string;
   sellerAddress: string;
   title: string;
+  zkProofHash?: string;
 }
 
 interface OpenSeaListingResult {
@@ -101,10 +102,16 @@ export async function listNftOnOpenSea(params: OpenSeaListingParams): Promise<Op
     const conduitKey = "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000";
     const seaportAddress = "0x00000000000000ADc04C56Bf30aC9d3c0aAF14dC";
 
+    // Embed the ZK rarity proof hash as Seaport zoneHash — cryptographically anchors
+    // the SKYNT rarity certificate to this on-chain order
+    const zoneHash = params.zkProofHash && /^0x[0-9a-fA-F]{64}$/.test(params.zkProofHash)
+      ? params.zkProofHash
+      : "0x0000000000000000000000000000000000000000000000000000000000000000";
+
     const orderParameters = {
       offerer: params.sellerAddress,
       zone: "0x0000000000000000000000000000000000000000",
-      zoneHash: "0x0000000000000000000000000000000000000000000000000000000000000000",
+      zoneHash,
       offer: [
         {
           itemType: 2,

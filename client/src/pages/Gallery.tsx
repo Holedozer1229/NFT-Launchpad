@@ -2,12 +2,23 @@ import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2, Search, Upload, CheckCircle2, AlertCircle, ArrowRight, Wallet } from "lucide-react";
+import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2, Search, Upload, CheckCircle2, AlertCircle, ArrowRight, Wallet, Lock } from "lucide-react";
 import { SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import NFTPreview3D from "@/components/NFTPreview3D";
+
+interface ZkCertRecord {
+  id: number;
+  nftId: number;
+  certificateId: string;
+  rarityScore: number;
+  rarityPercentile: string;
+  zkProofHash: string;
+  phiBoost: string;
+  status: string;
+}
 
 type AddressValidation =
   | { status: "empty" }
@@ -110,6 +121,18 @@ export default function Gallery() {
       ? addressValidation.address
       : undefined;
 
+  const { data: zkCerts = [] } = useQuery<ZkCertRecord[]>({
+    queryKey: ["/api/rarity-proof/certificates"],
+  });
+
+  const zkCertByNftId = useMemo(() => {
+    const map = new Map<number, ZkCertRecord>();
+    for (const cert of zkCerts) {
+      if (cert.status === "valid") map.set(cert.nftId, cert);
+    }
+    return map;
+  }, [zkCerts]);
+
   const handleListOnOpenSea = async (nftId: number) => {
     if (sellerAddressInput && !resolvedSellerAddress) return;
     setListingNftId(nftId);
@@ -120,8 +143,10 @@ export default function Gallery() {
       const result = await res.json();
       queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
       if (result.success) {
-        const addrDesc = resolvedSellerAddress ? ` → ${result.sellerAddress || resolvedSellerAddress}` : "";
-        toast({ title: "LISTED ON OPENSEA", description: `NFT successfully listed on OpenSea marketplace.${addrDesc}` });
+        const zkDesc = result.zkProofAttached
+          ? ` ZK-Rarity proof embedded in Seaport order (${result.zkProofAttached.rarityPercentile} percentile, score ${result.zkProofAttached.rarityScore}).`
+          : "";
+        toast({ title: "LISTED ON OPENSEA", description: `NFT successfully listed on OpenSea marketplace.${zkDesc}` });
       } else {
         toast({ title: "OPENSEA LISTING SENT", description: result.error || "Listing submitted to OpenSea Seaport protocol." });
       }
@@ -335,6 +360,7 @@ export default function Gallery() {
               {listableNfts.slice(0, 8).map((nft) => {
                 const isSelected = selectedForBulk.has(nft.id);
                 const rConf = rarityConfig[nft.rarity] || rarityConfig.Common;
+                const zkCert = zkCertByNftId.get(nft.id);
                 return (
                   <button
                     key={nft.id}
@@ -353,7 +379,14 @@ export default function Gallery() {
                     />
                     <div className="min-w-0">
                       <div className="text-[10px] font-heading text-foreground truncate max-w-[150px] sm:max-w-[120px]">{nft.title}</div>
-                      <div className={`text-[9px] font-mono ${rConf.color.split(" ")[0]}`}>{nft.rarity} | {nft.price}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[9px] font-mono ${rConf.color.split(" ")[0]}`}>{nft.rarity} | {nft.price}</span>
+                        {zkCert && (
+                          <span className="flex items-center gap-0.5 text-[8px] font-mono text-neon-green bg-neon-green/10 border border-neon-green/20 rounded px-1 py-0.5" title={`ZK Rarity Proof: ${zkCert.certificateId}`} data-testid={`badge-zk-proof-${nft.id}`}>
+                            <Lock className="w-2 h-2" />ZK
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#2081E2] shrink-0" />}
                   </button>
@@ -466,6 +499,7 @@ export default function Gallery() {
             const chainData = SUPPORTED_CHAINS[nft.chain as ChainId];
             const explorerUrl = getExplorerUrl(nft.chain, nft.tokenId);
             const canListOnOpenSea = nft.status === "minted" && !nft.openseaUrl && OPENSEA_SUPPORTED.has(nft.chain);
+            const nftZkCert = zkCertByNftId.get(nft.id);
             return (
               <div
                 key={nft.id}
@@ -481,11 +515,16 @@ export default function Gallery() {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-                  <div className="absolute top-3 left-3">
+                  <div className="absolute top-3 left-3 flex flex-col gap-1">
                     <Badge variant="outline" className={`${rConf.color} text-[10px] font-mono uppercase tracking-widest backdrop-blur-md bg-black/40`}>
                       {rConf.icon}
                       <span className="ml-1">{nft.rarity}</span>
                     </Badge>
+                    {nftZkCert && (
+                      <Badge variant="outline" className="text-[9px] font-mono text-neon-green border-neon-green/40 bg-black/60 backdrop-blur-md gap-0.5" data-testid={`badge-zk-card-${nft.id}`} title={`ZK Rarity Proof: ${nftZkCert.certificateId}`}>
+                        <Lock className="w-2.5 h-2.5" />ZK Proof
+                      </Badge>
+                    )}
                   </div>
 
                   <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
@@ -556,16 +595,22 @@ export default function Gallery() {
                   ) : canListOnOpenSea ? (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleListOnOpenSea(nft.id); }}
-                      disabled={listingNftId === nft.id}
+                      disabled={listingNftId === nft.id || addressValidation.status === "invalid"}
                       className="flex items-center justify-center gap-2 w-full py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider bg-[#2081E2]/10 border border-[#2081E2]/40 text-[#2081E2] hover:bg-[#2081E2]/20 transition-all hover:border-[#2081E2]/60 disabled:opacity-50"
                       data-testid={`button-list-opensea-${nft.id}`}
                     >
                       {listingNftId === nft.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : nftZkCert ? (
+                        <Lock className="w-3.5 h-3.5 text-neon-green" />
                       ) : (
                         <Upload className="w-3.5 h-3.5" />
                       )}
-                      {listingNftId === nft.id ? "Pushing to OpenSea..." : "Push to OpenSea"}
+                      {listingNftId === nft.id
+                        ? "Pushing to OpenSea..."
+                        : nftZkCert
+                        ? "Push + ZK Proof"
+                        : "Push to OpenSea"}
                       <ArrowRight className="w-3 h-3" />
                     </button>
                   ) : !OPENSEA_SUPPORTED.has(nft.chain) ? (
