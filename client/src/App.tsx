@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from "react";
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
@@ -124,9 +124,9 @@ function AppRouter() {
               <Route path="/serpent" component={OmegaSerpent} />
               <Route path="/starship" component={StarshipLaunches} />
               <Route path="/mining" component={UnifiedMiner} />
-              <Route path="/genesis-miner" component={UnifiedMiner} />
-              <Route path="/btc-zk-daemon" component={UnifiedMiner} />
-              <Route path="/dyson-sphere" component={UnifiedMiner} />
+              <Route path="/genesis-miner"><Redirect to="/mining" /></Route>
+              <Route path="/btc-zk-daemon"><Redirect to="/mining" /></Route>
+              <Route path="/dyson-sphere"><Redirect to="/mining" /></Route>
               <Route path="/wormhole" component={ZkWormhole} />
               <Route path="/rarity-proof" component={RarityProofEngine} />
               <Route path="/p2p-network" component={P2PNetworkPage} />

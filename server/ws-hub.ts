@@ -36,7 +36,11 @@ class WSHub {
           },
           ts: Date.now(),
         }));
-      } catch {}
+      } catch (sendErr: any) {
+        console.error("[WSHub] Failed to send connect message:", sendErr.message);
+        this.clients.delete(ws);
+        return;
+      }
 
       ws.on("pong", () => {
         const m = this.clients.get(ws);
@@ -50,7 +54,12 @@ class WSHub {
           if (!m) return;
 
           if (msg.type === "ping") {
-            try { ws.send(JSON.stringify({ event: "pong", data: {}, ts: Date.now() })); } catch {}
+            try {
+              ws.send(JSON.stringify({ event: "pong", data: {}, ts: Date.now() }));
+            } catch (pongErr: any) {
+              console.error("[WSHub] Failed to send pong:", pongErr.message);
+              this.clients.delete(ws);
+            }
             return;
           }
 
@@ -59,7 +68,10 @@ class WSHub {
             m.subscriptions.add("pong");
             try {
               ws.send(JSON.stringify({ event: "subscribed", data: { events: [...m.subscriptions] }, ts: Date.now() }));
-            } catch {}
+            } catch (subErr: any) {
+              console.error("[WSHub] Failed to send subscribed ack:", subErr.message);
+              this.clients.delete(ws);
+            }
             return;
           }
 
@@ -67,13 +79,18 @@ class WSHub {
             m.subscriptions = new Set(["*"]);
             return;
           }
-        } catch {}
+        } catch (parseErr: any) {
+          console.error("[WSHub] Failed to parse client message:", parseErr.message);
+        }
       });
 
       ws.on("close", () => this.clients.delete(ws));
-      ws.on("error", () => {
+      ws.on("error", (err) => {
+        console.error("[WSHub] WebSocket client error:", err.message);
         this.clients.delete(ws);
-        try { ws.terminate(); } catch {}
+        try { ws.terminate(); } catch (termErr: any) {
+          console.error("[WSHub] Failed to terminate errored socket:", termErr.message);
+        }
       });
     });
 
@@ -86,11 +103,16 @@ class WSHub {
       for (const [ws, meta] of this.clients) {
         if (!meta.alive) {
           this.clients.delete(ws);
-          try { ws.terminate(); } catch {}
+          try { ws.terminate(); } catch (termErr: any) {
+            console.error("[WSHub] Failed to terminate stale socket:", termErr.message);
+          }
           continue;
         }
         meta.alive = false;
-        try { ws.ping(); } catch { this.clients.delete(ws); }
+        try { ws.ping(); } catch (pingErr: any) {
+          console.error("[WSHub] Failed to ping client:", pingErr.message);
+          this.clients.delete(ws);
+        }
       }
     }, 30_000);
   }
@@ -102,7 +124,10 @@ class WSHub {
       if (ws.readyState !== WebSocket.OPEN) continue;
       const allowed = meta.subscriptions.has("*") || meta.subscriptions.has(event);
       if (!allowed) continue;
-      try { ws.send(payload); } catch {}
+      try { ws.send(payload); } catch (broadcastErr: any) {
+        console.error("[WSHub] Failed to broadcast to client:", broadcastErr.message);
+        this.clients.delete(ws);
+      }
     }
   }
 

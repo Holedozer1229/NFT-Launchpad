@@ -31,19 +31,30 @@ export interface IStorage {
   getWallet(id: number): Promise<Wallet | undefined>;
   updateWalletBalance(id: number, token: string, amount: string): Promise<void>;
   /**
-   * Atomically deduct `deductAmount` from the balance for `token` on wallet `id`,
-   * but only if the current balance equals `expectedBalance` (optimistic locking).
-   * Returns true if the update succeeded, false if the row was concurrently modified
-   * or the balance has changed (caller should re-read and retry or reject).
+   * Atomically set the balance to `newBalance` for `token` on wallet `id`,
+   * but only if the current balance equals `expectedBalance` (optimistic locking / compare-and-swap).
+   * The caller is responsible for computing `newBalance` using integer (BigInt) arithmetic.
+   * Returns true if the update succeeded, false if the row was concurrently modified.
    */
-  reserveWalletBalance(id: number, token: string, expectedBalance: string, deductAmount: number): Promise<boolean>;
+  reserveWalletBalance(id: number, token: string, expectedBalance: string, newBalance: string): Promise<boolean>;
   /**
-   * Atomically restore a previously reserved balance.
-   * Only restores if the balance is currently equal to `reservedBalance` (the post-deduction
-   * value), preventing the rollback from clobbering a concurrent successful transaction.
+   * Atomically restore a previously reserved balance back to `restoredBalance`,
+   * but only if the current balance equals `reservedBalance` (the post-deduction value).
+   * Prevents the rollback from clobbering a concurrent successful transaction.
    * Returns true if the restore succeeded.
    */
-  releaseWalletBalance(id: number, token: string, reservedBalance: string, restoreAmount: number): Promise<boolean>;
+  releaseWalletBalance(id: number, token: string, reservedBalance: string, restoredBalance: string): Promise<boolean>;
+  /**
+   * Atomically deduct balance and record a transaction in a single DB transaction.
+   * The balance update is gated on `expectedBalance` (CAS predicate) — throws if the row
+   * was concurrently modified. Callers should catch and return HTTP 409.
+   */
+  sendToken(walletId: number, token: string, expectedBalance: string, newBalance: string, txRecord: typeof walletTransactions.$inferInsert): Promise<WalletTransaction>;
+  /**
+   * Atomically update both sides of a swap and record a transaction in a single DB transaction.
+   * Each balance update is gated on its expected current value (CAS). Throws on concurrent modification.
+   */
+  swapTokens(walletId: number, fromToken: string, expectedFromBalance: string, newFromBalance: string, toToken: string, expectedToBalance: string, newToBalance: string, txRecord: typeof walletTransactions.$inferInsert): Promise<WalletTransaction>;
   consolidateWallets(userId: number): Promise<{ wallet: Wallet; deletedCount: number }>;
   createTransaction(tx: InsertWalletTransaction): Promise<WalletTransaction>;
   getTransactionsByWallet(walletId: number): Promise<WalletTransaction[]>;
@@ -242,10 +253,10 @@ export class DatabaseStorage implements IStorage {
     await db.update(wallets).set({ [field]: amount }).where(eq(wallets.id, id));
   }
 
-  async reserveWalletBalance(id: number, token: string, expectedBalance: string, deductAmount: number): Promise<boolean> {
+  async reserveWalletBalance(id: number, token: string, expectedBalance: string, newBalance: string): Promise<boolean> {
     const field: "balanceStx" | "balanceEth" | "balanceSkynt" =
       token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
-    const newBalance = (parseFloat(expectedBalance) - deductAmount).toFixed(6);
+    // Atomic compare-and-swap: only update if balance is still at expectedBalance
     const updated = await db
       .update(wallets)
       .set({ [field]: newBalance })
@@ -254,11 +265,10 @@ export class DatabaseStorage implements IStorage {
     return updated.length > 0;
   }
 
-  async releaseWalletBalance(id: number, token: string, reservedBalance: string, restoreAmount: number): Promise<boolean> {
+  async releaseWalletBalance(id: number, token: string, reservedBalance: string, restoredBalance: string): Promise<boolean> {
     const field: "balanceStx" | "balanceEth" | "balanceSkynt" =
       token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
-    const restoredBalance = (parseFloat(reservedBalance) + restoreAmount).toFixed(6);
-    // Only restore if the balance is still at the reserved value — prevents clobbering concurrent txns
+    // Only restore if balance is still at reservedBalance — prevents clobbering concurrent successful txns
     const updated = await db
       .update(wallets)
       .set({ [field]: restoredBalance })
@@ -267,44 +277,112 @@ export class DatabaseStorage implements IStorage {
     return updated.length > 0;
   }
 
+  async sendToken(walletId: number, token: string, expectedBalance: string, newBalance: string, txRecord: typeof walletTransactions.$inferInsert): Promise<WalletTransaction> {
+    return await db.transaction(async (dbTx) => {
+      const field: "balanceStx" | "balanceEth" | "balanceSkynt" =
+        token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
+      // CAS predicate: only update if balance is still at expectedBalance
+      const updated = await dbTx
+        .update(wallets)
+        .set({ [field]: newBalance })
+        .where(and(eq(wallets.id, walletId), eq(wallets[field], expectedBalance)))
+        .returning({ id: wallets.id });
+      if (updated.length === 0) {
+        throw Object.assign(new Error("Balance changed concurrently — please retry"), { code: "CONCURRENT_MODIFICATION" });
+      }
+      const [transaction] = await dbTx.insert(walletTransactions).values(txRecord).returning();
+      return transaction;
+    });
+  }
+
+  async swapTokens(walletId: number, fromToken: string, expectedFromBalance: string, newFromBalance: string, toToken: string, expectedToBalance: string, newToBalance: string, txRecord: typeof walletTransactions.$inferInsert): Promise<WalletTransaction> {
+    return await db.transaction(async (dbTx) => {
+      const fromField: "balanceStx" | "balanceEth" | "balanceSkynt" =
+        fromToken === "STX" ? "balanceStx" : fromToken === "ETH" ? "balanceEth" : "balanceSkynt";
+      const toField: "balanceStx" | "balanceEth" | "balanceSkynt" =
+        toToken === "STX" ? "balanceStx" : toToken === "ETH" ? "balanceEth" : "balanceSkynt";
+      // CAS on source balance
+      const updatedFrom = await dbTx
+        .update(wallets)
+        .set({ [fromField]: newFromBalance })
+        .where(and(eq(wallets.id, walletId), eq(wallets[fromField], expectedFromBalance)))
+        .returning({ id: wallets.id });
+      if (updatedFrom.length === 0) {
+        throw Object.assign(new Error("Balance changed concurrently — please retry"), { code: "CONCURRENT_MODIFICATION" });
+      }
+      // CAS on destination balance
+      const updatedTo = await dbTx
+        .update(wallets)
+        .set({ [toField]: newToBalance })
+        .where(and(eq(wallets.id, walletId), eq(wallets[toField], expectedToBalance)))
+        .returning({ id: wallets.id });
+      if (updatedTo.length === 0) {
+        throw Object.assign(new Error("Balance changed concurrently — please retry"), { code: "CONCURRENT_MODIFICATION" });
+      }
+      const [transaction] = await dbTx.insert(walletTransactions).values(txRecord).returning();
+      return transaction;
+    });
+  }
+
   async consolidateWallets(userId: number): Promise<{ wallet: Wallet; deletedCount: number }> {
-    // Sort by id ascending — the first wallet (lowest id) is the admin/primary wallet
-    const allWallets = (await this.getWalletsByUser(userId)).sort((a, b) => a.id - b.id);
-    if (allWallets.length === 0) throw new Error("No wallets found");
+    return await db.transaction(async (tx) => {
+      // Sort by id ascending — the first wallet (lowest id) is the admin/primary wallet
+      const allWallets = (await tx.select().from(wallets).where(eq(wallets.userId, userId))).sort((a, b) => a.id - b.id);
+      if (allWallets.length === 0) throw new Error("No wallets found");
 
-    const adminWallet = allWallets[0];
-    const others = allWallets.slice(1);
+      const adminWallet = allWallets[0];
+      const others = allWallets.slice(1);
 
-    // Sum all balances into the admin wallet
-    let totalStx    = parseFloat(adminWallet.balanceStx);
-    let totalSkynt  = parseFloat(adminWallet.balanceSkynt);
-    let totalEth    = parseFloat(adminWallet.balanceEth);
+      // Sum all balances using BigInt micro-unit arithmetic (6 decimal places = 1_000_000 units)
+      // This avoids floating-point rounding errors when summing across many wallets.
+      const PRECISION_STX   = 1_000_000n;    // 6 decimal places
+      const PRECISION_SKYNT = 1_000_000n;    // 6 decimal places
+      const PRECISION_ETH   = 100_000_000n;  // 8 decimal places
 
-    for (const w of others) {
-      totalStx   += parseFloat(w.balanceStx);
-      totalSkynt += parseFloat(w.balanceSkynt);
-      totalEth   += parseFloat(w.balanceEth);
-    }
+      function toMicroUnits(value: string, precision: bigint): bigint {
+        const [intPart = "0", fracPart = ""] = value.split(".");
+        const digits = Number(precision).toString().length - 1;
+        const fracPadded = (fracPart + "0".repeat(digits)).slice(0, digits);
+        return BigInt(intPart) * precision + BigInt(fracPadded);
+      }
 
-    // Update admin wallet with the combined total
-    const [updated] = await db.update(wallets)
-      .set({
-        balanceStx:    totalStx.toFixed(6),
-        balanceSkynt:  totalSkynt.toFixed(6),
-        balanceEth:    totalEth.toFixed(8),
-        name:          adminWallet.name,
-      })
-      .where(eq(wallets.id, adminWallet.id))
-      .returning();
+      function fromMicroUnits(units: bigint, precision: bigint): string {
+        const digits = Number(precision).toString().length - 1;
+        const intPart = units / precision;
+        const fracPart = String(units % precision).padStart(digits, "0");
+        return `${intPart}.${fracPart}`;
+      }
 
-    // Delete all other wallets (wallet_transactions cascade automatically)
-    let deletedCount = 0;
-    for (const w of others) {
-      await db.delete(wallets).where(eq(wallets.id, w.id));
-      deletedCount++;
-    }
+      let totalStx   = toMicroUnits(adminWallet.balanceStx,   PRECISION_STX);
+      let totalSkynt = toMicroUnits(adminWallet.balanceSkynt, PRECISION_SKYNT);
+      let totalEth   = toMicroUnits(adminWallet.balanceEth,   PRECISION_ETH);
 
-    return { wallet: updated, deletedCount };
+      for (const w of others) {
+        totalStx   += toMicroUnits(w.balanceStx,   PRECISION_STX);
+        totalSkynt += toMicroUnits(w.balanceSkynt, PRECISION_SKYNT);
+        totalEth   += toMicroUnits(w.balanceEth,   PRECISION_ETH);
+      }
+
+      // Update admin wallet with the combined total (inside transaction)
+      const [updated] = await tx.update(wallets)
+        .set({
+          balanceStx:   fromMicroUnits(totalStx,   PRECISION_STX),
+          balanceSkynt: fromMicroUnits(totalSkynt, PRECISION_SKYNT),
+          balanceEth:   fromMicroUnits(totalEth,   PRECISION_ETH),
+          name:         adminWallet.name,
+        })
+        .where(eq(wallets.id, adminWallet.id))
+        .returning();
+
+      // Delete all other wallets atomically (wallet_transactions cascade automatically)
+      let deletedCount = 0;
+      for (const w of others) {
+        await tx.delete(wallets).where(eq(wallets.id, w.id));
+        deletedCount++;
+      }
+
+      return { wallet: updated, deletedCount };
+    });
   }
 
   async createTransaction(tx: InsertWalletTransaction): Promise<WalletTransaction> {
@@ -419,10 +497,20 @@ export class DatabaseStorage implements IStorage {
     if (userWallets.length === 0) return undefined;
 
     const wallet = userWallets[0];
-    const currentBalance = parseFloat(wallet.balanceSkynt);
-    const reward = parseFloat(score.skyntEarned);
-    await this.updateWalletBalance(wallet.id, "SKYNT", (currentBalance + reward).toString());
-    await this.createTransaction({
+    // Use BigInt micro-unit arithmetic (SKYNT: 6 decimal places = 1_000_000 units)
+    function skyntToUnits(v: string): bigint {
+      const [i = "0", f = ""] = v.split(".");
+      const fPad = (f + "000000").slice(0, 6);
+      return BigInt(i) * 1_000_000n + BigInt(fPad);
+    }
+    function skyntFromUnits(u: bigint): string {
+      return `${u / 1_000_000n}.${String(u % 1_000_000n).padStart(6, "0")}`;
+    }
+    const expectedBalance = wallet.balanceSkynt;
+    const currentUnits = skyntToUnits(expectedBalance);
+    const rewardUnits = skyntToUnits(score.skyntEarned);
+    const newBalance = skyntFromUnits(currentUnits + rewardUnits);
+    await this.sendToken(wallet.id, "SKYNT", expectedBalance, newBalance, {
       walletId: wallet.id,
       type: "reward",
       fromAddress: "0x0000000000000000000000000000000000000000",
@@ -492,21 +580,33 @@ export class DatabaseStorage implements IStorage {
       if (buyerWalletList.length === 0) return { success: false, error: "Create a wallet first" };
       const buyerWallet = buyerWalletList[0];
 
-      const price = parseFloat(listing.price);
-      if (!Number.isFinite(price) || price <= 0) return { success: false, error: "Invalid listing price" };
-
       const currency = listing.currency || "ETH";
-      const balanceField = currency === "STX" ? "balanceStx" as const : currency === "SKYNT" ? "balanceSkynt" as const : "balanceEth" as const;
-      const buyerBalance = parseFloat(buyerWallet[balanceField]);
-      if (buyerBalance < price) return { success: false, error: `Insufficient ${currency} balance` };
+      const prec = currency === "ETH" ? 100_000_000n : 1_000_000n;
+      const digits = currency === "ETH" ? 8 : 6;
 
-      await tx.update(wallets).set({ [balanceField]: (buyerBalance - price).toString() }).where(eq(wallets.id, buyerWallet.id));
+      function mktToUnits(v: string): bigint {
+        const [i = "0", f = ""] = v.split(".");
+        const fPad = (f + "0".repeat(digits)).slice(0, digits);
+        return BigInt(i) * prec + BigInt(fPad);
+      }
+      function mktFromUnits(u: bigint): string {
+        return `${u / prec}.${String(u % prec).padStart(digits, "0")}`;
+      }
+
+      const priceUnits = mktToUnits(listing.price);
+      if (priceUnits <= 0n) return { success: false, error: "Invalid listing price" };
+
+      const balanceField = currency === "STX" ? "balanceStx" as const : currency === "SKYNT" ? "balanceSkynt" as const : "balanceEth" as const;
+      const buyerBalanceUnits = mktToUnits(String(buyerWallet[balanceField]));
+      if (buyerBalanceUnits < priceUnits) return { success: false, error: `Insufficient ${currency} balance` };
+
+      await tx.update(wallets).set({ [balanceField]: mktFromUnits(buyerBalanceUnits - priceUnits) }).where(eq(wallets.id, buyerWallet.id));
 
       const sellerWalletList = await tx.select().from(wallets).where(eq(wallets.userId, listing.sellerId));
       if (sellerWalletList.length > 0) {
         const sellerWallet = sellerWalletList[0];
-        const sellerBalance = parseFloat(sellerWallet[balanceField]);
-        await tx.update(wallets).set({ [balanceField]: (sellerBalance + price).toString() }).where(eq(wallets.id, sellerWallet.id));
+        const sellerBalanceUnits = mktToUnits(String(sellerWallet[balanceField]));
+        await tx.update(wallets).set({ [balanceField]: mktFromUnits(sellerBalanceUnits + priceUnits) }).where(eq(wallets.id, sellerWallet.id));
       }
 
       const txHash = "0x" + randomBytes(32).toString("hex");

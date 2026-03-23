@@ -112,7 +112,8 @@ async function getLiveGasBalance(): Promise<number> {
     const { getTreasuryGasStatus } = await import("./alchemy-engine");
     const status = await getTreasuryGasStatus();
     return parseFloat(String(status.ethBalance ?? 0)) || 0;
-  } catch {
+  } catch (err: any) {
+    console.error("[GasFund] getLiveGasBalance failed:", err.message);
     return 0;
   }
 }
@@ -132,7 +133,7 @@ function makeEvent(
 function pushEvent(event: GasFundingEvent) {
   _fundingEvents.push(event);
   if (_fundingEvents.length > MAX_EVENTS) _fundingEvents.shift();
-  persistEvent(event).catch(() => {});
+  persistEvent(event).catch((err: any) => console.error("[GasFund] Failed to persist event:", err.message));
 }
 
 // ─── Phase transitions ────────────────────────────────────────────────────────
@@ -205,7 +206,9 @@ async function sentinelTick() {
             event.status = "executed";
           }
         }
-      } catch {}
+      } catch (sweepErr: any) {
+        console.error("[SelfFundGas] On-chain gas sweep failed:", sweepErr.message);
+      }
     } else if (isCritical) {
       const event = makeEvent({
         epoch: null,
@@ -228,7 +231,7 @@ async function sentinelTick() {
 
   wsHub.broadcast("gas_sentinel:tick", {
     phase: _phase,
-    gasBalanceEth: await getLiveGasBalance().catch(() => 0),
+    gasBalanceEth: await getLiveGasBalance().catch((err: any) => { console.error("[GasFund] getLiveGasBalance broadcast failed:", err.message); return 0; }),
     reserveEth: _gasReserveEth,
     totalEthFunded: _totalEthFunded,
     sentinelTriggers: _sentinelTriggers,

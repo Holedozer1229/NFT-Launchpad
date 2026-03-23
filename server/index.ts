@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import compression from "compression";
 import helmet from "helmet";
-import { registerRoutes } from "./routes";
+import { registerRoutes, defaultRateLimiter } from "./routes";
 import { setupAuth } from "./auth";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -136,16 +136,24 @@ app.get("/api/health", async (_req: Request, res: Response) => {
   }
 });
 
-const missingSecrets = ["JWT_SECRET", "SESSION_SECRET"].filter(k => !process.env[k]);
-if (missingSecrets.length > 0) {
-  if (process.env.NODE_ENV === "production") {
-    console.error(`[FATAL] Missing required secrets: ${missingSecrets.join(", ")}. Server will not start.`);
-    process.exit(1);
-  } else {
-    console.warn(`[Security Warning] Missing secrets: ${missingSecrets.join(", ")} — ephemeral values will be generated. Sessions will not persist across restarts. Set these as environment secrets for stable auth.`);
-  }
+const REQUIRED_ENV_VARS = ["JWT_SECRET", "SESSION_SECRET", "DATABASE_URL", "TREASURY_PRIVATE_KEY"];
+const OPTIONAL_ENV_VARS = ["ALCHEMY_API_KEY", "GOOGLE_CLIENT_ID", "ADMIN_USERNAME"];
+
+console.log("[Startup] Environment variable checklist:");
+for (const k of REQUIRED_ENV_VARS) {
+  console.log(`  ${process.env[k] ? "✓" : "✗"} ${k}: ${process.env[k] ? "set" : "MISSING (required)"}`);
+}
+for (const k of OPTIONAL_ENV_VARS) {
+  console.log(`  ${process.env[k] ? "✓" : "○"} ${k}: ${process.env[k] ? "set" : "not set (optional)"}`);
 }
 
+const missingRequired = REQUIRED_ENV_VARS.filter(k => !process.env[k]);
+if (missingRequired.length > 0) {
+  console.error(`[FATAL] Missing required environment variables: ${missingRequired.join(", ")}. Server cannot start.`);
+  process.exit(1);
+}
+
+app.use("/api", defaultRateLimiter);
 setupAuth(app);
 
 export function log(message: string, source = "express") {

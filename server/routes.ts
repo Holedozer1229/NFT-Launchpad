@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import expressRateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { insertMinerSchema, insertNftSchema, insertBridgeTransactionSchema, insertGameScoreSchema, insertMarketplaceListingSchema, insertPowChallengeSchema, insertPowSubmissionSchema, CONTRACT_DEFINITIONS, SUPPORTED_CHAINS, BRIDGE_FEE_BPS, RARITY_TIERS, ACCESS_TIERS, type ChainId, type RarityTier, type InsertNft, type InsertBridgeTransaction, governanceProposals, governanceVotes } from "@shared/schema";
 import { randomBytes, createHash } from "crypto";
@@ -86,43 +87,37 @@ function eip55Checksum(address: string): string {
   try {
     const { ethers } = require("ethers");
     return ethers.getAddress("0x" + addr);
-  } catch {
+  } catch (err: any) {
+    console.error("[eip55Checksum] Failed to checksum address:", err.message);
     return "0x" + addr;
   }
 }
 
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
-
 export function rateLimit(windowMs: number, maxRequests: number) {
-  return (req: any, res: any, next: any) => {
-    const userId = req.user?.id;
-    const ip = req.ip || req.connection.remoteAddress || 'unknown';
-    const route = req.path || req.url || '';
-    const key = userId ? `user:${userId}:${route}` : `ip:${ip}:${route}`;
-    const now = Date.now();
-    const record = rateLimitStore.get(key);
-    
-    if (!record || now > record.resetTime) {
-      rateLimitStore.set(key, { count: 1, resetTime: now + windowMs });
-      return next();
-    }
-    
-    if (record.count >= maxRequests) {
-      const retryAfter = Math.ceil((record.resetTime - now) / 1000);
-      return res.status(429).json({ message: `Too many requests. Try again in ${retryAfter}s.`, retryAfter });
-    }
-    
-    record.count++;
-    return next();
-  };
+  return expressRateLimit({
+    windowMs,
+    max: maxRequests,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests. Please slow down and try again." },
+  });
 }
 
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, record] of rateLimitStore) {
-    if (now > record.resetTime) rateLimitStore.delete(key);
-  }
-}, 300000);
+export const defaultRateLimiter = expressRateLimit({
+  windowMs: 60_000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests. Please slow down." },
+});
+
+export const authRateLimiter = expressRateLimit({
+  windowMs: 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many auth requests. Try again later." },
+});
 
 function generateContractAddress(): string {
   return "0x" + randomBytes(20).toString("hex");
@@ -318,7 +313,7 @@ export async function registerRoutes(
 
       res.json({ tier: currentTier });
     } catch (error) {
-      console.error("Failed to calculate access tier:", error);
+      console.error("[access-tier] Failed to calculate access tier:", (error as any).message, (error as any).stack);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -327,7 +322,8 @@ export async function registerRoutes(
     try {
       const status = getResonanceStatus();
       res.json(status);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch resonance status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch resonance status" });
     }
   });
@@ -336,7 +332,8 @@ export async function registerRoutes(
     try {
       const history = getResonanceHistory();
       res.json(history);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch resonance history:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch resonance history" });
     }
   });
@@ -366,7 +363,8 @@ export async function registerRoutes(
         coupling,
         timestamp: Date.now()
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] IIT demo calculation failed:', error.message, error.stack);
       res.status(500).json({ message: "IIT demo calculation failed" });
     }
   });
@@ -375,7 +373,8 @@ export async function registerRoutes(
     try {
       const launches = await storage.getLaunches();
       res.json(launches);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch launches:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch launches" });
     }
   });
@@ -386,7 +385,8 @@ export async function registerRoutes(
       const launch = await storage.getLaunch(id);
       if (!launch) return res.status(404).json({ message: "Launch not found" });
       res.json(launch);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch launch:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch launch" });
     }
   });
@@ -398,7 +398,8 @@ export async function registerRoutes(
       const { desc: drizzleDesc } = await import("drizzle-orm");
       const allMiners = await db.select().from(minersTable).orderBy(drizzleDesc(minersTable.hashRate)).limit(50);
       res.json(allMiners);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch miners:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch miners" });
     }
   });
@@ -408,7 +409,8 @@ export async function registerRoutes(
       const miner = await storage.getMiner(req.params.address);
       if (!miner) return res.status(404).json({ message: "Miner not found" });
       res.json(miner);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch miner stats:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch miner stats" });
     }
   });
@@ -420,7 +422,8 @@ export async function registerRoutes(
       if (!parsed.success) return res.status(400).json(parsed.error);
       const miner = await storage.upsertMiner(parsed.data);
       res.json(miner);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] sync miner stats:', error.message, error.stack);
       res.status(500).json({ message: "Failed to sync miner stats" });
     }
   });
@@ -451,7 +454,7 @@ export async function registerRoutes(
       spacelaunchesCache = { data: launches, timestamp: now };
       res.json(launches);
     } catch (error) {
-      console.error("Space launches fetch error:", error);
+      console.error("[space-launches] Fetch error:", (error as any).message, (error as any).stack);
       if (spacelaunchesCache) return res.json(spacelaunchesCache.data);
       res.status(500).json({ message: "Failed to fetch space launch data" });
     }
@@ -766,7 +769,7 @@ export async function registerRoutes(
       starshipCache = { data: result, timestamp: now };
       res.json(result);
     } catch (error) {
-      console.error("Starship launches fetch error:", error);
+      console.error("[starship-launches] Fetch error:", (error as any).message, (error as any).stack);
       if (starshipCache) return res.json(starshipCache.data);
       res.status(500).json({ message: "Failed to fetch Starship launch data" });
     }
@@ -784,7 +787,7 @@ export async function registerRoutes(
       }));
       res.json(vectors);
     } catch (error) {
-      console.error("Oracle vectors error:", error);
+      console.error("[oracle/vectors] Error:", (error as any).message, (error as any).stack);
       res.status(500).json({ message: "Failed to fetch oracle vectors" });
     }
   });
@@ -857,7 +860,7 @@ export async function registerRoutes(
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } catch (error) {
-      console.error("Oracle chat error:", error);
+      console.error("[oracle/chat] Error:", (error as any).message, (error as any).stack);
       if (res.headersSent) {
         res.write(`data: ${JSON.stringify({ error: "The Sphinx is temporarily unreachable" })}\n\n`);
         res.end();
@@ -973,7 +976,8 @@ STYLE:
     try {
       const userWallets = await storage.getWalletsByUser(req.user!.id);
       res.json(userWallets);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[wallet/list] Failed to fetch wallets:", error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch wallets" });
     }
   });
@@ -985,7 +989,8 @@ STYLE:
       const wallet = await storage.createWallet(req.user!.id, name || "New Wallet");
       await deployContractsForWallet(wallet.address, "ethereum", wallet.id);
       res.json(wallet);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[wallet/create] Failed to create wallet:", error.message, error.stack);
       res.status(500).json({ message: "Failed to create wallet" });
     }
   });
@@ -996,7 +1001,7 @@ STYLE:
       const result = await storage.consolidateWallets(req.user!.id);
       res.json({ success: true, wallet: result.wallet, deletedCount: result.deletedCount });
     } catch (error) {
-      console.error("[Consolidate] Error:", error);
+      console.error("[consolidate] Error:", (error as any).message, (error as any).stack);
       res.status(500).json({ message: "Failed to consolidate wallets" });
     }
   });
@@ -1007,7 +1012,8 @@ STYLE:
       const wallet = await storage.getWallet(parseInt(req.params.id));
       if (!wallet || wallet.userId !== req.user!.id) return res.status(404).json({ message: "Wallet not found" });
       res.json(wallet);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch wallet:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch wallet" });
     }
   });
@@ -1019,7 +1025,8 @@ STYLE:
       if (!wallet || wallet.userId !== req.user!.id) return res.status(404).json({ message: "Wallet not found" });
       const transactions = await storage.getTransactionsByWallet(wallet.id);
       res.json(transactions);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch transactions:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch transactions" });
     }
   });
@@ -1027,7 +1034,7 @@ STYLE:
   app.post("/api/wallet/:id/send", rateLimit(10000, 5), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const wallet = await storage.getWallet(parseInt(req.params.id));
+      const wallet = await storage.getWallet(parseInt(String(req.params.id)));
       if (!wallet || wallet.userId !== req.user!.id) return res.status(404).json({ message: "Wallet not found" });
 
       const parsed = sendTokenSchema.safeParse(req.body);
@@ -1058,22 +1065,33 @@ STYLE:
       // DOGE/XMR/SOL are cross-chain assets tracked against the SKYNT balance field
       const balanceField: "balanceStx" | "balanceEth" | "balanceSkynt" =
         token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
-      const currentBalanceStr = wallet[balanceField];
-      const currentBalance = parseFloat(currentBalanceStr);
-      const sendAmount = parseFloat(amount);
+      const precision = token === "ETH" ? 100_000_000n : 1_000_000n;
+      const digits = token === "ETH" ? 8 : 6;
 
-      if (sendAmount > currentBalance) {
+      const currentBalanceStr = wallet[balanceField];
+
+      function toUnits(value: string, prec: bigint): bigint {
+        const [intPart = "0", fracPart = ""] = value.split(".");
+        const d = Number(prec).toString().length - 1;
+        const fracPadded = (fracPart + "0".repeat(d)).slice(0, d);
+        return BigInt(intPart) * prec + BigInt(fracPadded);
+      }
+      function fromUnits(units: bigint, prec: bigint, d: number): string {
+        const intPart = units / prec;
+        const fracPart = String(units % prec).padStart(d, "0");
+        return `${intPart}.${fracPart}`;
+      }
+
+      const currentUnits = toUnits(currentBalanceStr, precision);
+      const sendUnits = toUnits(amount, precision);
+
+      if (sendUnits > currentUnits) {
         return res.status(400).json({ message: "Insufficient balance" });
       }
 
-      // Phase 1: Atomically reserve balance using optimistic locking (compare-and-swap).
-      // The DB update only succeeds if the balance hasn't changed since we read it,
-      // preventing concurrent double-spend.
-      const reserved = await storage.reserveWalletBalance(wallet.id, token, currentBalanceStr, sendAmount);
-      if (!reserved) {
-        return res.status(409).json({ message: "Balance changed concurrently — please retry" });
-      }
-      const reservedBalance = (currentBalance - sendAmount).toFixed(6);
+      // Compute the post-deduction balance in integer units — no floating-point math
+      const newBalanceUnits = currentUnits - sendUnits;
+      const newBalance = fromUnits(newBalanceUnits, precision, digits);
 
       let txHash: string | null = null;
       let explorerUrl: string | null = null;
@@ -1086,8 +1104,14 @@ STYLE:
         networkFee = `${gasCoverage.ethUsed.toFixed(8)} ETH (OIYE)`;
       }
 
-      // Phase 2: Broadcast on-chain via Treasury Service (ETH, STX, DOGE, XMR, SOL)
+      // Phase 1: For on-chain assets, optimistically reserve balance before broadcasting.
+      // Uses compare-and-swap: only succeeds if balance hasn't changed since we read it.
       if (token !== "SKYNT") {
+        const reserved = await storage.reserveWalletBalance(wallet.id, token, currentBalanceStr, newBalance);
+        if (!reserved) {
+          return res.status(409).json({ message: "Balance changed concurrently — please retry" });
+        }
+        // Phase 2: Broadcast on-chain via Treasury Service
         try {
           const result = await treasurySend(chain, toAddress, amount, speedMultiplier);
           txHash = result.txHash;
@@ -1096,32 +1120,53 @@ STYLE:
             ? `${gasCoverage.ethUsed.toFixed(8)} ETH (OIYE)`
             : (result.fee ?? networkFee);
           status = result.status;
-          // Phase 3 (success): reservation confirmed — balance stays decremented
         } catch (transmitError: any) {
-          // Phase 3 (failure): atomically release reservation — restore only if balance is still
-          // at the reserved value to prevent clobbering any concurrent successful transaction
-          await storage.releaseWalletBalance(wallet.id, token, reservedBalance, sendAmount);
+          // Transmit failed: restore the reserved balance atomically (only if still at reserved value)
+          await storage.releaseWalletBalance(wallet.id, token, newBalance, currentBalanceStr);
           const msg = transmitError instanceof Error ? transmitError.message : "Chain transmit failed";
           const code = transmitError instanceof TreasuryError ? transmitError.code : "TRANSMIT_ERROR";
           return res.status(400).json({ message: msg, code });
         }
+        // Phase 3 (success): balance already deducted — record the transaction
+        const transaction = await storage.createTransaction({
+          walletId: wallet.id,
+          type: "send",
+          toAddress,
+          fromAddress: wallet.address,
+          amount,
+          token,
+          status,
+          txHash,
+          explorerUrl,
+          networkFee,
+        });
+        return res.json({ transaction, newBalance, oiyeGasCovered: gasCoverage.covered, oiyeReserve: gasCoverage.reserve });
       }
 
-      const transaction = await storage.createTransaction({
-        walletId: wallet.id,
-        type: "send",
-        toAddress,
-        fromAddress: wallet.address,
-        amount,
-        token,
-        status,
-        txHash,
-        explorerUrl,
-        networkFee,
-      });
-
-      res.json({ transaction, newBalance: reservedBalance, oiyeGasCovered: gasCoverage.covered, oiyeReserve: gasCoverage.reserve });
+      // For SKYNT (off-chain): atomically deduct balance and record transaction in one DB transaction
+      // Uses CAS: update is predicated on currentBalanceStr — rejects concurrent modifications (409)
+      try {
+        const transaction = await storage.sendToken(wallet.id, token, currentBalanceStr, newBalance, {
+          walletId: wallet.id,
+          type: "send",
+          toAddress,
+          fromAddress: wallet.address,
+          amount,
+          token,
+          status,
+          txHash,
+          explorerUrl,
+          networkFee,
+        });
+        return res.json({ transaction, newBalance, oiyeGasCovered: gasCoverage.covered, oiyeReserve: gasCoverage.reserve });
+      } catch (casError: any) {
+        if (casError.code === "CONCURRENT_MODIFICATION") {
+          return res.status(409).json({ message: casError.message });
+        }
+        throw casError;
+      }
     } catch (error: any) {
+      console.error("[wallet/send] Transaction failed:", error.message, error.stack);
       res.status(500).json({ message: safeError(error, "Failed to send transaction") });
     }
   });
@@ -1139,7 +1184,8 @@ STYLE:
         STX: raw.blockstack?.usd || 1.85,
         SKYNT: SKYNT_PRICE_USD,
       };
-    } catch {
+    } catch (err: any) {
+      console.error("[fetchLivePrices] Failed to fetch live prices:", err.message);
       return { ETH: 3200, STX: 1.85, SKYNT: SKYNT_PRICE_USD };
     }
   }
@@ -1147,7 +1193,7 @@ STYLE:
   app.get("/api/wallet/:id/swap/quote", rateLimit(3000, 30), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const wallet = await storage.getWallet(parseInt(req.params.id));
+      const wallet = await storage.getWallet(parseInt(String(req.params.id)));
       if (!wallet || wallet.userId !== req.user!.id) return res.status(404).json({ message: "Wallet not found" });
 
       const fromToken = String(req.query.fromToken || "SKYNT");
@@ -1179,7 +1225,8 @@ STYLE:
         prices,
         source: "CoinGecko Live",
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[wallet/swap/quote] Failed to fetch swap quote:", error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch swap quote" });
     }
   });
@@ -1187,7 +1234,7 @@ STYLE:
   app.post("/api/wallet/:id/swap", rateLimit(10000, 5), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const wallet = await storage.getWallet(parseInt(req.params.id));
+      const wallet = await storage.getWallet(parseInt(String(req.params.id)));
       if (!wallet || wallet.userId !== req.user!.id) return res.status(404).json({ message: "Wallet not found" });
 
       const { fromToken, toToken, amount } = req.body;
@@ -1197,51 +1244,103 @@ STYLE:
       }
       if (fromToken === toToken) return res.status(400).json({ message: "Cannot swap same token" });
 
-      const inputAmount = parseFloat(amount);
-      if (isNaN(inputAmount) || inputAmount <= 0) return res.status(400).json({ message: "Invalid amount" });
+      if (!/^\d+(\.\d+)?$/.test(String(amount)) || amount === "0") {
+        return res.status(400).json({ message: "Invalid amount" });
+      }
+
+      // Use BigInt arithmetic to avoid floating-point rounding errors on financial values
+      function swapToUnits(value: string, token: string): bigint {
+        const prec = token === "ETH" ? 100_000_000n : 1_000_000n;
+        const d = Number(prec).toString().length - 1;
+        const [intPart = "0", fracPart = ""] = value.split(".");
+        const fracPadded = (fracPart + "0".repeat(d)).slice(0, d);
+        return BigInt(intPart) * prec + BigInt(fracPadded);
+      }
+      function swapFromUnits(units: bigint, token: string): string {
+        const prec = token === "ETH" ? 100_000_000n : 1_000_000n;
+        const d = Number(prec).toString().length - 1;
+        const intPart = units / prec;
+        const fracPart = String(units % prec).padStart(d, "0");
+        return `${intPart}.${fracPart}`;
+      }
 
       const fromBalanceField = fromToken === "STX" ? "balanceStx" : fromToken === "ETH" ? "balanceEth" : "balanceSkynt";
-      const currentBalance = parseFloat(wallet[fromBalanceField as keyof typeof wallet] as string);
-      if (inputAmount > currentBalance) return res.status(400).json({ message: `Insufficient ${fromToken} balance` });
+      const fromCurrentStr = String(wallet[fromBalanceField as keyof typeof wallet] ?? "0");
+      const fromCurrentUnits = swapToUnits(fromCurrentStr, fromToken);
+      const fromInputUnits = swapToUnits(amount, fromToken);
+      if (fromInputUnits > fromCurrentUnits) return res.status(400).json({ message: `Insufficient ${fromToken} balance` });
 
       const prices = await fetchLivePrices();
       const fromUsd = prices[fromToken];
       const toUsd = prices[toToken];
-      const grossOutput = (inputAmount * fromUsd) / toUsd;
-      const fee = grossOutput * 0.003;
-      const netOutput = grossOutput - fee;
+
+      // Compute swap output in pure integer arithmetic using scaled prices.
+      // Scale prices to 8 decimal places (×10^8) to preserve precision.
+      const fromUsdScaled = BigInt(Math.round(fromUsd * 1e8));
+      const toUsdScaled = BigInt(Math.round(toUsd * 1e8));
+
+      // grossOutputUnits = fromInputUnits × fromUsdScaled / toUsdScaled
+      // Both fromInput and grossOutput are in their respective token's micro-units.
+      // We need to normalise the precision difference between token pair.
+      const fromPrec = fromToken === "ETH" ? 100_000_000n : 1_000_000n;
+      const toPrec   = toToken   === "ETH" ? 100_000_000n : 1_000_000n;
+      // grossOutputUnits (in toPrec) = fromInputUnits × fromUsd × toPrec / (fromPrec × toUsd)
+      const grossOutputUnits = (fromInputUnits * fromUsdScaled * toPrec) / (fromPrec * toUsdScaled);
+      // Fee: 0.3% = 3/1000
+      const feeUnits = (grossOutputUnits * 3n) / 1000n;
+      const netOutputUnits = grossOutputUnits - feeUnits;
 
       const toBalanceField = toToken === "STX" ? "balanceStx" : toToken === "ETH" ? "balanceEth" : "balanceSkynt";
-      const toCurrentBalance = parseFloat(wallet[toBalanceField as keyof typeof wallet] as string);
+      const toCurrentStr = String(wallet[toBalanceField as keyof typeof wallet] ?? "0");
+      const toCurrentUnits = swapToUnits(toCurrentStr, toToken);
 
-      await storage.updateWalletBalance(wallet.id, fromToken, (currentBalance - inputAmount).toFixed(8));
-      await storage.updateWalletBalance(wallet.id, toToken, (toCurrentBalance + netOutput).toFixed(8));
-
+      const newFromBalance = swapFromUnits(fromCurrentUnits - fromInputUnits, fromToken);
+      const newToBalance = swapFromUnits(toCurrentUnits + netOutputUnits, toToken);
       const txHash = "0x" + randomBytes(32).toString("hex");
-      const transaction = await storage.createTransaction({
-        walletId: wallet.id,
-        type: "swap",
-        toAddress: null,
-        fromAddress: wallet.address,
-        amount: inputAmount.toFixed(8),
-        token: fromToken,
-        status: "completed",
-        txHash,
-      });
 
+      let transaction: Awaited<ReturnType<typeof storage.swapTokens>>;
+      try {
+        transaction = await storage.swapTokens(
+          wallet.id,
+          fromToken,
+          fromCurrentStr,
+          newFromBalance,
+          toToken,
+          toCurrentStr,
+          newToBalance,
+          {
+            walletId: wallet.id,
+            type: "swap",
+            toAddress: null,
+            fromAddress: wallet.address,
+            amount: swapFromUnits(fromInputUnits, fromToken),
+            token: fromToken,
+            status: "completed",
+            txHash,
+          }
+        );
+      } catch (casError: any) {
+        if (casError.code === "CONCURRENT_MODIFICATION") {
+          return res.status(409).json({ message: casError.message });
+        }
+        throw casError;
+      }
+
+      // Convert back to display strings only at the response boundary
       res.json({
         transaction,
         fromToken,
         toToken,
-        inputAmount,
-        outputAmount: parseFloat(netOutput.toFixed(8)),
-        rate: parseFloat((fromUsd / toUsd).toFixed(8)),
-        feeAmount: parseFloat(fee.toFixed(8)),
-        newFromBalance: (currentBalance - inputAmount).toFixed(8),
-        newToBalance: (toCurrentBalance + netOutput).toFixed(8),
+        inputAmount: swapFromUnits(fromInputUnits, fromToken),
+        outputAmount: swapFromUnits(netOutputUnits, toToken),
+        rate: (Number(fromUsdScaled) / Number(toUsdScaled)).toFixed(8),
+        feeAmount: swapFromUnits(feeUnits, toToken),
+        newFromBalance,
+        newToBalance,
         source: "CoinGecko Live",
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[wallet/swap] Failed to execute swap:", error.message, error.stack);
       res.status(500).json({ message: "Failed to execute swap" });
     }
   });
@@ -1348,6 +1447,7 @@ STYLE:
         dailyActivity,
       });
     } catch (error: any) {
+      console.error("[route] Failed to fetch analytics:", error.message, error.stack);
       res.status(500).json({ message: safeError(error, "Failed to fetch analytics") });
     }
   });
@@ -1455,7 +1555,9 @@ STYLE:
           treasurySkyntBal   = parseFloat(formatUnits(tBal as bigint, 18));
           onChainTotalSupply = parseFloat(formatUnits(totalSup as bigint, 18));
         }
-      } catch { /* fallback to in-memory */ }
+      } catch (onChainErr: any) {
+        console.error("[analytics/token-stats] On-chain balance lookup failed, using in-memory fallback:", onChainErr.message);
+      }
 
       // Circulating supply: use on-chain totalSupply - burned if available; else constant - burned
       const baseSupply = onChainTotalSupply ?? SKYNT_TOKENOMICS.initialCirculating;
@@ -1501,7 +1603,8 @@ STYLE:
     try {
       const allNfts = await storage.getNfts();
       res.json(allNfts);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch NFTs:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch NFTs" });
     }
   });
@@ -1511,7 +1614,8 @@ STYLE:
       const nft = await storage.getNft(parseInt(req.params.id));
       if (!nft) return res.status(404).json({ message: "NFT not found" });
       res.json(nft);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch NFT:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch NFT" });
     }
   });
@@ -1617,7 +1721,8 @@ STYLE:
         oiyeGasEth: mintGas.covered ? mintGas.ethUsed : 0,
         oiyeReserve: mintGas.reserve,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] create NFT:', error.message, error.stack);
       res.status(500).json({ message: "Failed to create NFT" });
     }
   });
@@ -1626,7 +1731,8 @@ STYLE:
     try {
       const result = await getEngineTransactionStatus(req.params.transactionId);
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch engine transaction status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch engine transaction status" });
     }
   });
@@ -1697,7 +1803,8 @@ STYLE:
       } : null;
 
       res.json({ ...result, sellerAddress, correctedAddress, zkProofAttached });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[opensea/list] Failed to list on OpenSea:", error.message, error.stack);
       res.status(500).json({ message: safeError(error, "Failed to list on OpenSea") });
     }
   });
@@ -1708,7 +1815,8 @@ STYLE:
       const data = await fetchNftFromOpenSea(chain, contract, tokenId);
       if (!data) return res.status(404).json({ message: "NFT not found on OpenSea" });
       res.json(data);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch from OpenSea:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch from OpenSea" });
     }
   });
@@ -1718,7 +1826,8 @@ STYLE:
       const limit = parseInt(req.query.limit as string) || 50;
       const nftList = await fetchCollectionNfts(req.params.slug, limit);
       res.json(nftList);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch collection from OpenSea:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch collection from OpenSea" });
     }
   });
@@ -1788,7 +1897,8 @@ STYLE:
       }
 
       res.json({ results, total: results.length, listed: results.filter(r => r.success).length });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] bulk list on OpenSea:', error.message, error.stack);
       res.status(500).json({ message: "Failed to bulk list on OpenSea" });
     }
   });
@@ -1799,7 +1909,8 @@ STYLE:
     try {
       const txs = await storage.getBridgeTransactions();
       res.json(txs);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch bridge transactions:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch bridge transactions" });
     }
   });
@@ -1846,7 +1957,8 @@ STYLE:
         oiyeGasEth: bridgeGas.covered ? bridgeGas.ethUsed : 0,
         oiyeReserve: bridgeGas.reserve,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] create bridge transaction:', error.message, error.stack);
       res.status(500).json({ message: "Failed to create bridge transaction" });
     }
   });
@@ -1855,7 +1967,8 @@ STYLE:
     try {
       const gs = await storage.getGuardians();
       res.json(gs);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch guardians:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch guardians" });
     }
   });
@@ -1866,7 +1979,8 @@ STYLE:
     try {
       const strategies = await storage.getYieldStrategies();
       res.json(strategies);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch yield strategies:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch yield strategies" });
     }
   });
@@ -1888,7 +2002,8 @@ STYLE:
         return { ...pos, liveAccruedRewards: totalAccrued, strategyName: strategy?.name ?? pos.strategyId, apr, color: strategy?.color ?? "cyan" };
       });
       res.json({ positions: enriched, walletBalance: wallet?.balanceSkynt ?? "0" });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch yield positions:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch yield positions" });
     }
   });
@@ -1934,6 +2049,7 @@ STYLE:
         oiyeGasEth: stakeGas.covered ? stakeGas.ethUsed : 0,
       });
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to stake") });
     }
   });
@@ -1967,6 +2083,7 @@ STYLE:
       }
       res.json({ totalRewards, totalReturn, message: "Unstaked successfully" });
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to unstake") });
     }
   });
@@ -1990,6 +2107,7 @@ STYLE:
       const updated = await storage.compoundYieldPosition(positionId);
       res.json({ position: updated, message: "Rewards compounded into stake" });
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to compound") });
     }
   });
@@ -2098,7 +2216,8 @@ STYLE:
       const data = await fetch("https://mempool.space/api/v1/mining/hashrate/1m").then(r => r.json());
       mempoolHashrateCache = { data, timestamp: now };
       res.json(data);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch hashrate data:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch hashrate data" });
     }
   });
@@ -2112,7 +2231,8 @@ STYLE:
       const data = await fetch("https://mempool.space/api/v1/difficulty-adjustment").then(r => r.json());
       mempoolDifficultyCache = { data, timestamp: now };
       res.json(data);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch difficulty data:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch difficulty data" });
     }
   });
@@ -2127,7 +2247,8 @@ STYLE:
       const data = raw.slice(0, 10);
       mempoolBlocksCache = { data, timestamp: now };
       res.json(data);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch blocks data:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch blocks data" });
     }
   });
@@ -2141,7 +2262,8 @@ STYLE:
       if (!wallet || wallet.userId !== req.user!.id) return res.status(404).json({ message: "Wallet not found" });
       const deployments = await storage.getDeploymentsByWalletId(wallet.id);
       res.json(deployments);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch deployments:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch deployments" });
     }
   });
@@ -2150,7 +2272,8 @@ STYLE:
     try {
       const deployments = await storage.getDeploymentsByWallet(req.params.address);
       res.json(deployments);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch deployments:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch deployments" });
     }
   });
@@ -2188,7 +2311,8 @@ STYLE:
       }
       const allDeployments = [...existingOnChain, ...newDeployments];
       res.json({ message: `Deployed ${newDeployments.length} new contracts (${existingOnChain.length} already existed)`, deployments: allDeployments, newContracts: newDeployments.length, existingContracts: existingOnChain.length });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] deploy contracts:', error.message, error.stack);
       res.status(500).json({ message: "Failed to deploy contracts" });
     }
   });
@@ -2246,7 +2370,8 @@ STYLE:
         chains: results,
         contractDefinitions: CONTRACT_DEFINITIONS.map(c => ({ id: c.contractId, name: c.name, description: c.description })),
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] deploy contracts across chains:', error.message, error.stack);
       res.status(500).json({ message: "Failed to deploy contracts across chains" });
     }
   });
@@ -2280,7 +2405,8 @@ STYLE:
         result[chain] = stats[i].status === "fulfilled" ? stats[i].value : { live: false, error: "unavailable" };
       });
       res.json({ configured: true, chains: result });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch chain status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch chain status" });
     }
   });
@@ -2290,6 +2416,7 @@ STYLE:
       const block = await liveChain.getLatestBlock(req.params.chain);
       res.json(block);
     } catch (error: any) {
+      console.error("[chain/block/latest] Error:", error.message, error.stack);
       res.status(500).json({ message: safeError(error, "Failed to fetch block") });
     }
   });
@@ -2300,6 +2427,7 @@ STYLE:
       const blocks = await liveChain.getRecentBlocks(req.params.chain, count);
       res.json(blocks);
     } catch (error: any) {
+      console.error("[chain/blocks] Error:", error.message, error.stack);
       res.status(500).json({ message: safeError(error, "Failed to fetch blocks") });
     }
   });
@@ -2309,6 +2437,7 @@ STYLE:
       const gas = await liveChain.getGasData(req.params.chain);
       res.json(gas);
     } catch (error: any) {
+      console.error("[chain/gas] Error:", error.message, error.stack);
       res.status(500).json({ message: safeError(error, "Failed to fetch gas data") });
     }
   });
@@ -2318,6 +2447,7 @@ STYLE:
       const balance = await liveChain.getWalletBalance(req.params.address, req.params.chain);
       res.json(balance);
     } catch (error: any) {
+      console.error("[chain/balance] Error:", error.message, error.stack);
       res.status(500).json({ message: safeError(error, "Failed to fetch balance") });
     }
   });
@@ -2328,6 +2458,7 @@ STYLE:
       const txs = await liveChain.getWalletTransactions(req.params.address, req.params.chain, limit);
       res.json(txs);
     } catch (error: any) {
+      console.error("[chain/transactions] Error:", error.message, error.stack);
       res.status(500).json({ message: safeError(error, "Failed to fetch transactions") });
     }
   });
@@ -2338,6 +2469,7 @@ STYLE:
       if (!receipt) return res.status(404).json({ message: "Transaction not found" });
       res.json(receipt);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to fetch transaction") });
     }
   });
@@ -2347,6 +2479,7 @@ STYLE:
       const stats = await liveChain.getNetworkStats(req.params.chain);
       res.json(stats);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to fetch network stats") });
     }
   });
@@ -2358,7 +2491,8 @@ STYLE:
       const input = (req.query.data as string) || `network-${Date.now()}`;
       const phi = calculatePhi(input);
       res.json(phi);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] compute Φ:', error.message, error.stack);
       res.status(500).json({ message: "Failed to compute Φ" });
     }
   });
@@ -2367,7 +2501,8 @@ STYLE:
     try {
       const perception = getNetworkPerception();
       res.json(perception);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] perceive network:', error.message, error.stack);
       res.status(500).json({ message: "Failed to perceive network" });
     }
   });
@@ -2385,7 +2520,8 @@ STYLE:
       }
       const phi = calculatePhi(data);
       res.json(phi);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] compute Φ:', error.message, error.stack);
       res.status(500).json({ message: "Failed to compute Φ" });
     }
   });
@@ -2451,7 +2587,8 @@ STYLE:
       if (!parsed.success) return res.status(400).json(parsed.error);
       const score = await storage.createGameScore(parsed.data);
       res.status(201).json({ ...score, miningFeeCharged: GAME_PLAY_FEE });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] save game score:', error.message, error.stack);
       res.status(500).json({ message: "Failed to save game score" });
     }
   });
@@ -2460,7 +2597,8 @@ STYLE:
     try {
       const leaderboard = await storage.getLeaderboard(20);
       res.json(leaderboard);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch leaderboard:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch leaderboard" });
     }
   });
@@ -2470,7 +2608,8 @@ STYLE:
     try {
       const scores = await storage.getGameScoresByUser(req.user!.id);
       res.json(scores);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch scores:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch scores" });
     }
   });
@@ -2485,7 +2624,8 @@ STYLE:
         networkNodes: perception.totalNodes,
         meetsConsensus: perception.meetsConsensus
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch quantum state:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch quantum state" });
     }
   });
@@ -2530,7 +2670,8 @@ STYLE:
         phiLevel: phiResult.levelLabel,
         claimFeeCharged: GAME_CLAIM_FEE,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] claim reward:', error.message, error.stack);
       res.status(500).json({ message: "Failed to claim reward" });
     }
   });
@@ -2543,7 +2684,8 @@ STYLE:
       const status = req.query.status as string | undefined;
       const listings = await storage.getMarketplaceListings(chain, status || "active");
       res.json(listings);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch marketplace listings:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch marketplace listings" });
     }
   });
@@ -2553,7 +2695,8 @@ STYLE:
       const listing = await storage.getMarketplaceListing(parseInt(req.params.id));
       if (!listing) return res.status(404).json({ message: "Listing not found" });
       res.json(listing);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch listing:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch listing" });
     }
   });
@@ -2563,7 +2706,8 @@ STYLE:
     try {
       const listings = await storage.getMarketplaceListingsBySeller(req.user!.id);
       res.json(listings);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch your listings:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch your listings" });
     }
   });
@@ -2592,7 +2736,8 @@ STYLE:
       if (!parsed.success) return res.status(400).json(parsed.error);
       const listing = await storage.createMarketplaceListing(parsed.data);
       res.json(listing);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] create listing:', error.message, error.stack);
       res.status(500).json({ message: "Failed to create listing" });
     }
   });
@@ -2611,7 +2756,8 @@ STYLE:
         oiyeGasCovered: marketGas.covered,
         oiyeGasEth: marketGas.covered ? marketGas.ethUsed : 0,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] purchase NFT:', error.message, error.stack);
       res.status(500).json({ message: "Failed to purchase NFT" });
     }
   });
@@ -2622,7 +2768,8 @@ STYLE:
       const result = await storage.cancelMarketplaceListing(parseInt(req.params.id), req.user!.id);
       if (!result) return res.status(400).json({ message: "Cannot cancel this listing" });
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] cancel listing:', error.message, error.stack);
       res.status(500).json({ message: "Failed to cancel listing" });
     }
   });
@@ -2690,7 +2837,7 @@ STYLE:
 
       res.json({ message: "Seed data applied successfully" });
     } catch (error) {
-      console.error("Seed error:", error);
+      console.error("[seed] Seed error:", (error as any).message, (error as any).stack);
       res.status(500).json({ message: "Failed to seed data" });
     }
   });
@@ -2704,7 +2851,8 @@ STYLE:
   app.get("/api/qg/status", (_req, res) => {
     try {
       res.json(qgMiner.getStatus());
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch QG miner status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch QG miner status" });
     }
   });
@@ -2716,7 +2864,8 @@ STYLE:
       const diff = typeof difficulty === "number" ? difficulty : 2;
       const { result, stats } = qgMiner.mineWithStats(blockData, diff, { maxAttempts: 50000 });
       res.json({ result, stats });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] mine block:', error.message, error.stack);
       res.status(500).json({ message: "Failed to mine block" });
     }
   });
@@ -2727,7 +2876,8 @@ STYLE:
       const difficulty = parseInt(req.query.difficulty as string) || 2;
       const validation = qgMiner.isValidBlock(hashData, difficulty);
       res.json(validation);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] validate block:', error.message, error.stack);
       res.status(500).json({ message: "Failed to validate block" });
     }
   });
@@ -2738,7 +2888,8 @@ STYLE:
     try {
       const peers = getP2PPeers();
       res.json(peers);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch P2P peers:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch P2P peers" });
     }
   });
@@ -2756,7 +2907,8 @@ STYLE:
         consensusStatus: state.consensusStatus,
         lastBlockTime: state.lastBlockTime,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch P2P status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch P2P status" });
     }
   });
@@ -2765,7 +2917,8 @@ STYLE:
     try {
       const topology = getNetworkTopology();
       res.json(topology || { nodes: [], adjacencyMatrix: [] });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch network topology:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch network topology" });
     }
   });
@@ -2777,7 +2930,8 @@ STYLE:
       if (!tx || typeof tx !== "object") return res.status(400).json({ message: "Transaction object required" });
       broadcastTransaction({ ...tx, timestamp: Date.now() });
       res.json({ message: "Transaction broadcast to P2P network" });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] broadcast:', error.message, error.stack);
       res.status(500).json({ message: "Failed to broadcast" });
     }
   });
@@ -2786,7 +2940,8 @@ STYLE:
     try {
       const state = getLedgerState();
       res.json(state || { peers: [], blockHeight: 0, networkHashRate: 0, consensusStatus: "offline", lastBlockTime: 0 });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch ledger state:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch ledger state" });
     }
   });
@@ -2796,7 +2951,8 @@ STYLE:
       const state = getLedgerState();
       const base = state || { peers: [], blockHeight: 0, networkHashRate: 0, consensusStatus: "offline", lastBlockTime: 0 };
       res.json({ ...base, chain: "SphinxSkynet", protocol: "IIT-PoX", version: "9.0.0" });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch blockchain status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch blockchain status" });
     }
   });
@@ -2808,7 +2964,8 @@ STYLE:
       const stats = getP2PNetworkStats();
       if (!stats) return res.json({ status: "offline" });
       res.json(stats);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch network stats:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch network stats" });
     }
   });
@@ -2816,7 +2973,8 @@ STYLE:
   app.get("/api/network/nodes", (_req, res) => {
     try {
       res.json(getNetworkNodes());
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch nodes:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch nodes" });
     }
   });
@@ -2824,7 +2982,8 @@ STYLE:
   app.get("/api/network/nodes/seeds", (_req, res) => {
     try {
       res.json(getNetworkSeedNodes());
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch seed nodes:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch seed nodes" });
     }
   });
@@ -2834,7 +2993,8 @@ STYLE:
       const node = getNetworkNode(req.params.nodeId);
       if (!node) return res.status(404).json({ message: "Node not found" });
       res.json(node);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch node:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch node" });
     }
   });
@@ -2846,6 +3006,7 @@ STYLE:
       const node = registerNode({ name, address, publicKey, capabilities, region });
       res.json(node);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to register node") });
     }
   });
@@ -2857,7 +3018,8 @@ STYLE:
       const removed = removeNode(req.params.nodeId);
       if (!removed) return res.status(404).json({ message: "Node not found or is a seed node" });
       res.json({ message: "Node removed", nodeId: req.params.nodeId });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] remove node:', error.message, error.stack);
       res.status(500).json({ message: "Failed to remove node" });
     }
   });
@@ -2867,7 +3029,9 @@ STYLE:
       const ok = nodeHeartbeat(req.params.nodeId, req.body);
       if (!ok) return res.status(404).json({ message: "Node not found" });
       res.json({ message: "Heartbeat received", nodeId: req.params.nodeId });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[route] Request failed:", error.message, error.stack);
+      console.error('[route] process heartbeat:', error.message, error.stack);
       res.status(500).json({ message: "Failed to process heartbeat" });
     }
   });
@@ -2879,6 +3043,7 @@ STYLE:
       const snapshot = getChainDownload(fromHeight, maxBlocks);
       res.json(snapshot);
     } catch (error: any) {
+      console.error("[chain/download] Error:", error.message, error.stack);
       res.status(500).json({ message: safeError(error, "Failed to download chain") });
     }
   });
@@ -2898,6 +3063,7 @@ STYLE:
       });
       res.json(syncResult);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to sync blocks") });
     }
   });
@@ -2911,6 +3077,7 @@ STYLE:
       const announcement = announceNewBlock(block, proposerNodeId);
       res.json(announcement);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to announce block") });
     }
   });
@@ -2923,6 +3090,7 @@ STYLE:
       const result = validateNetworkBlock(block);
       res.json(result);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to validate block") });
     }
   });
@@ -2931,7 +3099,8 @@ STYLE:
     try {
       const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 20, 1), 100);
       res.json(getBlockAnnouncements(limit));
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch announcements:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch announcements" });
     }
   });
@@ -2940,7 +3109,8 @@ STYLE:
     try {
       const topology = getP2PTopology();
       res.json(topology || { nodes: [], edges: [], networkId: "" });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch topology:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch topology" });
     }
   });
@@ -2967,7 +3137,8 @@ STYLE:
         };
       });
       res.json(miningStatus);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch bridge mining status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch bridge mining status" });
     }
   });
@@ -2989,7 +3160,8 @@ STYLE:
         level: phi.level,
         levelLabel: phi.levelLabel,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] compute yield phi-boost:', error.message, error.stack);
       res.status(500).json({ message: "Failed to compute yield phi-boost" });
     }
   });
@@ -3072,7 +3244,7 @@ STYLE:
         },
       });
     } catch (error) {
-      console.error("Moltbot portal error:", error);
+      console.error("[moltbot] Portal error:", (error as any).message, (error as any).stack);
       res.status(500).json({ message: "Failed to compute Moltbot portal state" });
     }
   });
@@ -3083,7 +3255,8 @@ STYLE:
     try {
       const limit = parseInt((_req.query.limit as string) || "20");
       res.json(getSkyntRecentBlocks(Math.min(limit, 50)));
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch blocks:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch blocks" });
     }
   });
@@ -3091,7 +3264,8 @@ STYLE:
   app.get("/api/skynt/info", (_req, res) => {
     try {
       res.json(getChainInfo());
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch SphinxSkynet chain info:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch SphinxSkynet chain info" });
     }
   });
@@ -3100,7 +3274,8 @@ STYLE:
     try {
       const balance = getBalance(req.params.address);
       res.json({ address: req.params.address, balance, token: "SKYNT" });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch SKYNT balance:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch SKYNT balance" });
     }
   });
@@ -3110,7 +3285,8 @@ STYLE:
       const tx = getTransaction(req.params.txHash);
       if (!tx) return res.status(404).json({ message: "Transaction not found on SphinxSkynet chain" });
       res.json(tx);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch SKYNT transaction:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch SKYNT transaction" });
     }
   });
@@ -3121,7 +3297,8 @@ STYLE:
       const block = getBlock(/^\d+$/.test(param) ? parseInt(param) : param);
       if (!block) return res.status(404).json({ message: "Block not found on SphinxSkynet chain" });
       res.json(block);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch SKYNT block:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch SKYNT block" });
     }
   });
@@ -3144,7 +3321,8 @@ STYLE:
       }
       const result = mintNftOnSkynt({ owner, title, rarity, launchId, price });
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] mint NFT on SphinxSkynet chain:', error.message, error.stack);
       res.status(500).json({ message: "Failed to mint NFT on SphinxSkynet chain" });
     }
   });
@@ -3152,7 +3330,8 @@ STYLE:
   app.get("/api/skynt/validate", (_req, res) => {
     try {
       res.json({ valid: isChainValid(), chain: "SphinxSkynet" });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] validate SphinxSkynet chain:', error.message, error.stack);
       res.status(500).json({ message: "Failed to validate SphinxSkynet chain" });
     }
   });
@@ -3176,7 +3355,8 @@ STYLE:
       }
 
       res.json(challenge);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch PoW challenge:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch PoW challenge" });
     }
   });
@@ -3228,7 +3408,8 @@ STYLE:
       });
 
       res.status(201).json(challenge);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] create PoW challenge:', error.message, error.stack);
       res.status(500).json({ message: "Failed to create PoW challenge" });
     }
   });
@@ -3304,7 +3485,8 @@ STYLE:
       await storage.incrementPowChallengeSolutions(challengeId);
 
       res.status(201).json({ submission, powHash });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] submit PoW solution:', error.message, error.stack);
       res.status(500).json({ message: "Failed to submit PoW solution" });
     }
   });
@@ -3318,7 +3500,8 @@ STYLE:
     try {
       const submissions = await storage.getPowSubmissions(req.params.challengeId);
       res.json(submissions);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch PoW submissions:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch PoW submissions" });
     }
   });
@@ -3336,7 +3519,8 @@ STYLE:
       const { solanaTxHash } = z.object({ solanaTxHash: z.string().min(1) }).parse(req.body);
       await storage.updatePowSubmissionStatus(id, "confirmed", solanaTxHash);
       res.json({ message: "Submission confirmed" });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] confirm submission:', error.message, error.stack);
       res.status(500).json({ message: "Failed to confirm submission" });
     }
   });
@@ -3349,7 +3533,8 @@ STYLE:
       const result = await startMining(req.user!.id, req.user!.username);
       if (!result.success) return res.status(400).json({ message: result.message });
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] start mining:', error.message, error.stack);
       res.status(500).json({ message: "Failed to start mining" });
     }
   });
@@ -3359,7 +3544,8 @@ STYLE:
     try {
       const result = stopMining(req.user!.id);
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] stop mining:', error.message, error.stack);
       res.status(500).json({ message: "Failed to stop mining" });
     }
   });
@@ -3369,7 +3555,8 @@ STYLE:
     try {
       const stats = getMiningStatus(req.user!.id);
       res.json(stats);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch mining status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch mining status" });
     }
   });
@@ -3377,7 +3564,8 @@ STYLE:
   app.get("/api/mining/network", (_req, res) => {
     try {
       res.json({ activeMiners: getActiveMinerCount() });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch network status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch network status" });
     }
   });
@@ -3388,7 +3576,8 @@ STYLE:
       const result = await activatePremiumPass(req.user!.id);
       if (!result.success) return res.status(400).json({ message: result.message });
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] activate premium pass:', error.message, error.stack);
       res.status(500).json({ message: "Failed to activate premium pass" });
     }
   });
@@ -3396,7 +3585,8 @@ STYLE:
   app.get("/api/mining/leaderboard", (_req, res) => {
     try {
       res.json(getMiningLeaderboard());
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch leaderboard:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch leaderboard" });
     }
   });
@@ -3406,7 +3596,8 @@ STYLE:
     try {
       const blocks = getMinedBlocks(req.user!.id);
       res.json(blocks);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch mined blocks:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch mined blocks" });
     }
   });
@@ -3416,7 +3607,8 @@ STYLE:
     try {
       const stats = getMiningStatus(req.user!.id);
       res.json(stats.autoPayout);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch auto-payout config:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch auto-payout config" });
     }
   });
@@ -3435,7 +3627,8 @@ STYLE:
       const result = await configureAutoPayout(req.user!.id, parsed.data);
       if (!result.success) return res.status(400).json({ message: result.message, config: result.config });
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] configure auto-payout:', error.message, error.stack);
       res.status(500).json({ message: "Failed to configure auto-payout" });
     }
   });
@@ -3580,6 +3773,7 @@ STYLE:
       res.setHeader("Content-Disposition", `attachment; filename="skynt-wallet-${user.username}-${Date.now()}.json"`);
       res.json(walletJson);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to export wallet") });
     }
   });
@@ -3601,7 +3795,8 @@ STYLE:
         gasStatus,
         refillPool,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch treasury wallet info:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch treasury wallet info" });
     }
   });
@@ -3613,7 +3808,8 @@ STYLE:
       const status = await getTreasuryGasStatus();
       const pool = getGasRefillPool();
       res.json({ ...status, refillPool: pool });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch gas status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch gas status" });
     }
   });
@@ -3634,6 +3830,7 @@ STYLE:
       }
       res.json({ success: true, record: result, message: `Swept ${result.ethAmount.toFixed(6)} ETH to treasury gas tank [${result.status}]` });
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Sweep failed") });
     }
   });
@@ -3647,7 +3844,8 @@ STYLE:
         address: TREASURY_WALLET,
         engineStatus: isEngineConfigured() ? "active" : "standby",
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch treasury status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch treasury status" });
     }
   });
@@ -3679,7 +3877,8 @@ STYLE:
       });
       
       res.json(txs.transfers);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch treasury transactions:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch treasury transactions" });
     }
   });
@@ -3690,7 +3889,8 @@ STYLE:
     try {
       const yieldState = getTreasuryYieldState();
       res.json(yieldState);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch treasury yield state:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch treasury yield state" });
     }
   });
@@ -3754,6 +3954,7 @@ STYLE:
       const result = startMergeMining(req.user!.id, chain as MergeMiningChainId);
       res.json(result);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to start merge mining") });
     }
   });
@@ -3768,6 +3969,7 @@ STYLE:
       const result = stopMergeMining(req.user!.id, chain as MergeMiningChainId);
       res.json(result);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to stop merge mining") });
     }
   });
@@ -3777,7 +3979,8 @@ STYLE:
     try {
       const stats = getMergeMiningStatusMap(req.user!.id);
       res.json(stats);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch merge mining status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch merge mining status" });
     }
   });
@@ -3786,7 +3989,8 @@ STYLE:
     try {
       const blocks = getRecentBlocks(req.params.chain);
       res.json(blocks);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch blocks:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch blocks" });
     }
   });
@@ -3798,7 +4002,8 @@ STYLE:
     try {
       const state = getStxLendingState(req.user!.id);
       res.json(state);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch lending status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch lending status" });
     }
   });
@@ -3875,6 +4080,7 @@ STYLE:
       }));
       res.json(wormholes);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to get wormhole status") });
     }
   });
@@ -3912,6 +4118,7 @@ STYLE:
       }));
       res.json(mapped);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to get transfers") });
     }
   });
@@ -3921,6 +4128,7 @@ STYLE:
       const stats = await getNetworkWormholeStats();
       res.json(stats);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to get network stats") });
     }
   });
@@ -4381,8 +4589,8 @@ STYLE:
         nfts: mintedNfts,
         count: mintedNfts.length,
       });
-    } catch (error) {
-      console.error("[PackMint] Error:", error);
+    } catch (error: any) {
+      console.error("[PackMint] Error:", error.message, error.stack);
       res.status(500).json({ message: "Failed to mint pack NFTs" });
     }
   });
@@ -4405,6 +4613,7 @@ STYLE:
       const result = await verifyRarityCertificate(req.params.certificateId);
       res.json(result);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Verification failed") });
     }
   });
@@ -4415,6 +4624,7 @@ STYLE:
       const certs = await getUserCertificates(req.user!.id);
       res.json(certs);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to fetch certificates") });
     }
   });
@@ -4455,7 +4665,8 @@ STYLE:
         totalModels: holdersRow?.count ?? 0,
         soldVolume: parseFloat(volRow?.total ?? "0").toFixed(2),
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch stats:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch stats" });
     }
   });
@@ -4470,7 +4681,8 @@ STYLE:
         role: "model",
         mintCount: rocketBabeCount,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch status:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch status" });
     }
   });
@@ -4481,7 +4693,8 @@ STYLE:
       const userNfts = await storage.getNftsByUser(req.user!.id);
       const rocketBabes = userNfts.filter((n: any) => n.openseaStatus === "rocket-babe");
       res.json(rocketBabes);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[route] fetch collection:', error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch collection" });
     }
   });
@@ -4577,6 +4790,7 @@ STYLE:
         txHash: engineResult.txHash || null,
       });
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to mint RocketBabe NFT") });
     }
   });
@@ -4586,6 +4800,7 @@ STYLE:
       const snapshot = computeQuantumBerryPhaseSnapshot();
       res.json(snapshot);
     } catch (error: any) {
+      console.error("[route] Unhandled error:", (error as any)?.message ?? error, (error as any)?.stack);
       res.status(500).json({ message: safeError(error, "Failed to compute berry phase snapshot") });
     }
   });
@@ -5236,7 +5451,9 @@ STYLE:
         try {
           const { reloadSettingsFromDb } = await import("./skynt-price-driver");
           await reloadSettingsFromDb();
-        } catch {}
+        } catch (reloadErr: any) {
+          console.error("[AdminSettings] Failed to reload price driver settings:", reloadErr.message);
+        }
       }
 
       // Log settings change to admin activity
@@ -5247,8 +5464,10 @@ STYLE:
           `INSERT INTO admin_action_log (user_id, username, action, detail, created_at)
            VALUES ($1,$2,'settings_change',$3,now())`,
           [userId2, updatedBy, `SET ${key}=${value}`]
-        ).catch(() => {});
-      } catch {}
+        ).catch((logErr: any) => { console.error("[AdminSettings] Failed to log action:", logErr.message); });
+      } catch (logErr: any) {
+        console.error("[AdminSettings] Failed to log settings change:", logErr.message);
+      }
 
       res.json({ success: true, key, value });
     } catch (err: any) {
@@ -5457,7 +5676,8 @@ STYLE:
         const anyLive = balanceResults.some(r => r.live);
         liveSkyntBalance = balanceResults.reduce((s, r) => s + r.balance, 0);
         liveBalanceUnavailable = !anyLive && wallets.length > 0;
-      } catch {
+      } catch (balanceErr: any) {
+        console.error("[portfolio] Live SKYNT balance fetch failed, using stored balance:", balanceErr.message);
         liveBalanceUnavailable = wallets.length > 0;
       }
 

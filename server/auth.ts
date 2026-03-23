@@ -10,7 +10,7 @@ import { User, users } from "@shared/schema";
 import connectPg from "connect-pg-simple";
 import { pool, db } from "./db";
 import { eq } from "drizzle-orm";
-import { rateLimit } from "./routes";
+import { rateLimit, authRateLimiter } from "./routes";
 import { getAlchemySigner } from "./alchemy-signer";
 import jwt from "jsonwebtoken";
 import { generateSync, verifySync, generateSecret, generateURI } from "otplib";
@@ -55,7 +55,8 @@ async function verifyCaptcha(token: string): Promise<boolean> {
     });
     const data = await res.json() as { success: boolean };
     return data.success;
-  } catch {
+  } catch (err: any) {
+    console.error("[auth/captcha] hCaptcha verification error:", err.message);
     return false;
   }
 }
@@ -77,9 +78,7 @@ async function comparePasswords(supplied: string, stored: string): Promise<boole
 
 function getJwtSecret(): string {
   if (!process.env.JWT_SECRET) {
-    const generated = randomBytes(64).toString("hex");
-    process.env.JWT_SECRET = generated;
-    console.warn("[Auth] JWT_SECRET not set — generated ephemeral secret");
+    throw new Error("[Auth] JWT_SECRET environment variable is not set. Cannot issue or verify tokens. Set this secret before starting the server.");
   }
   return process.env.JWT_SECRET;
 }
@@ -103,7 +102,10 @@ function generateRefreshToken(user: User): string {
 function verifyToken(token: string): jwt.JwtPayload | null {
   try {
     return jwt.verify(token, getJwtSecret(), { issuer: "skynt-protocol" }) as jwt.JwtPayload;
-  } catch {
+  } catch (err: any) {
+    if (err?.name !== "TokenExpiredError" && err?.name !== "JsonWebTokenError" && err?.name !== "NotBeforeError") {
+      console.error("[Auth] Unexpected JWT verification error:", err.message);
+    }
     return null;
   }
 }
@@ -225,9 +227,7 @@ export function setupAuth(app: Express) {
   const PostgresSessionStore = connectPg(session);
 
   if (!process.env.SESSION_SECRET) {
-    const generated = randomBytes(32).toString("hex");
-    process.env.SESSION_SECRET = generated;
-    console.warn("[Auth] SESSION_SECRET not set — generated ephemeral secret (sessions will not persist across restarts)");
+    throw new Error("[Auth] SESSION_SECRET environment variable is not set. Cannot initialize sessions. Set this secret before starting the server.");
   }
 
   const sessionSettings: session.SessionOptions = {
@@ -324,7 +324,7 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.post("/api/register", rateLimit(60000, 5), async (req, res, next) => {
+  app.post("/api/register", authRateLimiter, async (req, res, next) => {
     try {
       const { username, password, captchaToken } = req.body;
       if (!username || !password) {
@@ -366,7 +366,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", rateLimit(60000, 10), async (req, res, next) => {
+  app.post("/api/login", authRateLimiter, async (req, res, next) => {
     const username = req.body?.username ?? "";
 
     const lockout = checkLoginLockout(username);
@@ -500,7 +500,8 @@ export function setupAuth(app: Express) {
         await storage.updateUserNonce(user.id, nonce);
       }
       res.json({ nonce });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[auth/nonce] Failed to generate nonce:", error.message, error.stack);
       res.status(500).json({ message: "Failed to generate nonce" });
     }
   });
@@ -600,7 +601,8 @@ export function setupAuth(app: Express) {
       const nonce = randomBytes(16).toString("hex");
       await storage.updateUserNonce(req.user.id, nonce);
       res.json({ nonce });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[auth/link-wallet/nonce] Failed to generate link nonce:", error.message, error.stack);
       res.status(500).json({ message: "Failed to generate link nonce" });
     }
   });
@@ -685,7 +687,9 @@ export function setupAuth(app: Express) {
         try {
           const { stopMining } = require("./background-miner");
           stopMining(userId);
-        } catch {}
+        } catch (stopErr: any) {
+          console.error("[auth/logout] Failed to stop mining on logout:", stopErr.message);
+        }
       }
       res.sendStatus(200);
     });
@@ -698,7 +702,8 @@ export function setupAuth(app: Express) {
       }
       const { password: _, mfaSecret: _ms, mfaBackupCodes: _mb, ...safeUser } = req.user as User;
       return res.json(safeUser);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[auth/user] Failed to fetch user:", error.message, error.stack);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
@@ -724,7 +729,8 @@ export function setupAuth(app: Express) {
       const newRefreshToken = generateRefreshToken(user);
       const { password: _, mfaSecret: _ms, mfaBackupCodes: _mb, ...safeUser } = user;
       res.json({ ...safeUser, token: newToken, refreshToken: newRefreshToken });
-    } catch {
+    } catch (error: any) {
+      console.error("[auth/token/refresh] Token refresh failed:", error.message, error.stack);
       res.status(401).json({ message: "Token refresh failed" });
     }
   });
@@ -748,7 +754,8 @@ export function setupAuth(app: Express) {
         exp: payload.exp,
         iss: payload.iss,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[auth/token/verify] Token verification failed:", error.message, error.stack);
       res.status(500).json({ message: "Token verification failed" });
     }
   });
@@ -777,7 +784,8 @@ export function setupAuth(app: Express) {
       if (/^\d{6}$/.test(codeStr)) {
         try {
           valid = verifySync({ token: codeStr, secret: user.mfaSecret }).valid;
-        } catch {
+        } catch (mfaErr: any) {
+          console.error("[auth/mfa/verify] TOTP verification error:", mfaErr.message);
           valid = false;
         }
       }
