@@ -597,10 +597,6 @@ export function startPriceDriver(): void {
   const hasAlchemy = !!process.env.ALCHEMY_API_KEY;
   _state.configured = hasKey && hasAlchemy;
   _state.running = true;
-  console.log(
-    `[PriceDriver] SKYNT Price Driver started — target: $${_targetPriceUsd} | ` +
-    `wallet: ${_state.configured ? "configured" : "READ-ONLY (no TREASURY_PRIVATE_KEY)"}`
-  );
   // Run first epoch immediately then schedule
   runEpoch().catch(e => console.error("[PriceDriver] Initial epoch error:", e.message));
   scheduleNext();
