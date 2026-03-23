@@ -17,6 +17,7 @@ import { openWormhole, closeWormhole, initiateTransfer, getWormholeStatus, getWo
 import { computeQuantumBerryPhaseSnapshot, getPageCurveHistory, getActiveTunnels } from "./berry-phase-engine";
 import { generateRarityCertificate, verifyRarityCertificate, getUserCertificates, downloadCertificate } from "./rarity-proof-engine";
 import { STARSHIP_FLIGHT_SHOWCASES } from "@shared/schema";
+import { CHAIN_REGISTRY, EVM_CHAIN_KEYS, MAINNET_CHAIN_KEYS } from "./chain-registry";
 import { MERGE_MINING_CHAINS, STX_LENDING_TIERS, type MergeMiningChainId, type StxLendingTierId } from "@shared/schema";
 import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
 import * as liveChain from "./live-chain";
@@ -161,6 +162,7 @@ const sendTokenSchema = z.object({
   amount: z.string().refine((v) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0; }, "Amount must be a positive number"),
   token: z.enum(["SKYNT", "STX", "ETH", "DOGE", "XMR", "SOL"]).default("SKYNT"),
   speedTier: z.enum(["normal", "fast", "rapid", "instant"]).optional().default("normal"),
+  evmChain: z.string().optional(),
 }).superRefine((data, ctx) => {
   const addr = data.toAddress;
   if (data.token === "ETH") {
@@ -277,6 +279,19 @@ const SKYNT_PRICE_USD = parseFloat(process.env.SKYNT_PRICE_USD ?? "0.45");
 export async function registerRoutes(
   app: Express
 ): Promise<Server> {
+
+  // ─── Public: full chain registry ────────────────────────────────────────────
+  app.get("/api/chains", (_req, res) => {
+    const chains = Object.entries(CHAIN_REGISTRY).map(([key, cfg]) => ({
+      key,
+      name: cfg.name,
+      chainId: cfg.chainId,
+      mainnet: cfg.mainnet,
+      explorerUrl: cfg.explorerUrl,
+    }));
+    res.json({ total: chains.length, chains });
+  });
+
   app.get("/api/access/tier", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.json({ tier: 0 });
@@ -1041,11 +1056,18 @@ STYLE:
       if (!parsed.success) {
         return res.status(400).json({ message: parsed.error.issues[0]?.message || "Invalid parameters" });
       }
-      const { toAddress, amount, token, speedTier } = parsed.data;
+      const { toAddress, amount, token, speedTier, evmChain } = parsed.data;
       const speedMultiplier = SPEED_MULTIPLIERS[speedTier ?? "normal"] ?? 1.0;
 
-      // Validate recipient address format (including EIP-55 checksum for ETH) before touching balances
-      const chain = token === "ETH" ? "ethereum" : token === "STX" ? "stacks" : token === "DOGE" ? "dogecoin" : token === "XMR" ? "monero" : token === "SOL" ? "solana" : "skynt";
+      // Resolve which chain to use — evmChain lets the caller specify any of the
+      // 136 Alchemy-supported EVM networks; defaults to "ethereum" for ETH.
+      const resolvedEvmChain = (() => {
+        if (token !== "ETH") return null;
+        const c = evmChain?.toLowerCase().replace(/ /g, "_");
+        if (c && EVM_CHAIN_KEYS.has(c)) return c;
+        return "ethereum";
+      })();
+      const chain = token === "ETH" ? (resolvedEvmChain ?? "ethereum") : token === "STX" ? "stacks" : token === "DOGE" ? "dogecoin" : token === "XMR" ? "monero" : token === "SOL" ? "solana" : "skynt";
       if (chain !== "skynt") {
         try {
           validateRecipientAddress(chain, toAddress);

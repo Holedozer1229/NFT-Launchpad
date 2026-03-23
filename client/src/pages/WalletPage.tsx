@@ -83,6 +83,7 @@ export default function WalletPage() {
   const [activeWalletId, setActiveWalletId] = useState<number | null>(null);
   const [tab, setTab] = useState<"overview" | "send" | "receive" | "swap">("overview");
   const [speedTier, setSpeedTier] = useState<"normal" | "fast" | "rapid" | "instant">("normal");
+  const [selectedEvmChain, setSelectedEvmChain] = useState("ethereum");
   const [sendTo, setSendTo] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [sendToken, setSendToken] = useState("SKYNT");
@@ -104,6 +105,11 @@ export default function WalletPage() {
     queryKey: ["/api/wallet/list"],
     refetchInterval: 10000,
     staleTime: 5000,
+  });
+
+  const { data: chainsData } = useQuery<{ total: number; chains: Array<{ key: string; name: string; chainId: number; mainnet: boolean }> }>({
+    queryKey: ["/api/chains"],
+    staleTime: Infinity,
   });
 
   const activeWallet = wallets.find(w => w.id === activeWalletId) || wallets[0] || null;
@@ -282,7 +288,7 @@ export default function WalletPage() {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         credentials: "include",
-        body: JSON.stringify({ toAddress: sendTo, amount: sendAmount, token: sendToken, speedTier: sendToken === "ETH" ? speedTier : "normal" }),
+        body: JSON.stringify({ toAddress: sendTo, amount: sendAmount, token: sendToken, speedTier: sendToken === "ETH" ? speedTier : "normal", ...(sendToken === "ETH" ? { evmChain: selectedEvmChain } : {}) }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -826,6 +832,31 @@ export default function WalletPage() {
                     </button>
                   </div>
                 </div>
+
+                {sendToken === "ETH" && chainsData && (
+                  <div className="space-y-2">
+                    <label className="stat-label flex items-center gap-1.5">
+                      <Globe className="w-3 h-3" /> Network
+                    </label>
+                    <select
+                      data-testid="select-evm-chain"
+                      value={selectedEvmChain}
+                      onChange={e => setSelectedEvmChain(e.target.value)}
+                      className="w-full bg-black/30 border border-border/40 text-foreground text-sm rounded-sm px-3 py-2 focus:outline-none focus:border-primary/60"
+                    >
+                      <optgroup label="── Mainnets ──">
+                        {chainsData.chains.filter(c => c.mainnet && c.key !== "eth").map(c => (
+                          <option key={c.key} value={c.key}>{c.name}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="── Testnets ──">
+                        {chainsData.chains.filter(c => !c.mainnet).map(c => (
+                          <option key={c.key} value={c.key}>{c.name}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+                )}
 
                 {sendToken === "ETH" && (
                   <div className="space-y-2">

@@ -4,6 +4,12 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
+- **Mar 2026**: **Multi-chain Expansion — All Alchemy-Supported EVM Networks**
+  - `server/chain-registry.ts`: New module — comprehensive registry of 93 EVM chain configurations (45 mainnets + 48 testnets) covering every Alchemy SDK–supported network. Each entry includes `alchemySlug`, `chainId`, `explorerUrl`, `name`, `mainnet`. Exports `CHAIN_REGISTRY`, `EVM_CHAIN_KEYS`, `MAINNET_CHAIN_KEYS`, `requireChain()`
+  - `server/treasury-service.ts`: `sendEvm()` now resolves chain config from the registry — no more static 6-chain map. Gas estimation switched from viem `createPublicClient.estimateGas()` to ethers `provider.estimateGas()` (eliminates need for viem chain objects per network). `validateAddress()` now accepts any EVM chain key from the registry. All 93 EVM networks are now sendable
+  - `server/routes.ts`: New public `GET /api/chains` endpoint returning the full registry (key, name, chainId, mainnet, explorerUrl). `sendTokenSchema` gains optional `evmChain` field; send route resolves the correct EVM chain from the field when `token === "ETH"`
+  - `client/src/pages/WalletPage.tsx`: Network selector dropdown added to Send tab (ETH only) — grouped by Mainnet/Testnet, defaults to Ethereum, passes `evmChain` to the send API
+
 - **Mar 2026**: **Production Hardening, EIP-1559 Transactions & Feature Completion**
   - `server/treasury-service.ts`: All EVM sends now use EIP-1559 type-2 transactions (`maxFeePerGas`/`maxPriorityFeePerGas`) with automatic legacy fallback for chains that don't support it; `treasurySend` and `sendEvm` accept `speedMultiplier` (1×/1.5×/2×/3×)
   - `server/chain-transmit.ts`: `transmitEthereum` upgraded to EIP-1559 type-2 transactions

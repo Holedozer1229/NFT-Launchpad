@@ -8,6 +8,8 @@
  *  - All external API calls get up to 3 retries with exponential back-off
  */
 
+import { CHAIN_REGISTRY, EVM_CHAIN_KEYS, requireChain } from "./chain-registry";
+
 export interface TreasurySendResult {
   txHash: string;
   fee: string;
@@ -69,34 +71,28 @@ async function withRetry<T>(
 // ─── Address validation ────────────────────────────────────────────────────────
 
 export function validateAddress(chain: string, address: string): void {
-  switch (chain) {
-    case "ethereum":
-    case "eth":
-    case "polygon":
-    case "polygon_zkevm":
-    case "arbitrum":
-    case "base":
-    case "zksync": {
-      // Must be 0x + 40 hex chars; viem isAddress enforces EIP-55 checksum for mixed-case
-      if (!/^0x[a-fA-F0-9]{40}$/.test(address))
+  if (EVM_CHAIN_KEYS.has(chain)) {
+    // All EVM chains share the same address format: 0x + 40 hex chars
+    if (!/^0x[a-fA-F0-9]{40}$/.test(address))
+      throw new TreasuryError(
+        "INVALID_ADDRESS",
+        "EVM address must be a 0x-prefixed 40-character hex string"
+      );
+    // Enforce EIP-55 checksum when mixed-case is present
+    const hasUpper = /[A-F]/.test(address.slice(2));
+    const hasLower = /[a-f]/.test(address.slice(2));
+    if (hasUpper && hasLower) {
+      const { isAddress } = require("viem");
+      if (!isAddress(address, { strict: true })) {
         throw new TreasuryError(
           "INVALID_ADDRESS",
-          "EVM address must be a 0x-prefixed 40-character hex string"
+          "EVM address has invalid EIP-55 checksum — use all-lowercase or a correctly checksummed address"
         );
-      // Use viem isAddress (strict=true) to enforce EIP-55 checksum when mixed-case is present
-      const hasUpper = /[A-F]/.test(address.slice(2));
-      const hasLower = /[a-f]/.test(address.slice(2));
-      if (hasUpper && hasLower) {
-        const { isAddress } = require("viem");
-        if (!isAddress(address, { strict: true })) {
-          throw new TreasuryError(
-            "INVALID_ADDRESS",
-            "EVM address has invalid EIP-55 checksum — use all-lowercase or a correctly checksummed address"
-          );
-        }
       }
-      break;
     }
+    return;
+  }
+  switch (chain) {
     case "solana":
     case "sol":
       if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address))
@@ -151,18 +147,9 @@ export function validateAddress(chain: string, address: string): void {
   }
 }
 
-// ─── EVM multi-chain (Ethereum, Polygon, Arbitrum, Base, zkSync) ──────────────
-
-const EVM_CHAIN_EXPLORER: Record<string, string> = {
-  ethereum: "https://etherscan.io/tx/",
-  polygon: "https://polygonscan.com/tx/",
-  polygon_zkevm: "https://zkevm.polygonscan.com/tx/",
-  arbitrum: "https://arbiscan.io/tx/",
-  base: "https://basescan.org/tx/",
-  zksync: "https://explorer.zksync.io/tx/",
-};
-
-const EVM_CHAINS = new Set(["ethereum", "eth", "polygon", "polygon_zkevm", "arbitrum", "base", "zksync"]);
+// ─── EVM multi-chain — 136 Alchemy-supported networks ────────────────────────
+//   Chain configs live in chain-registry.ts.  sendEvm() resolves config from
+//   the registry so no per-chain boilerplate is needed here.
 
 type StacksBroadcastResponse =
   | { txid: string; tx_id?: string; error?: never }
@@ -174,51 +161,19 @@ async function sendEvm(
   amount: string,
   speedMultiplier = 1.0
 ): Promise<TreasurySendResult> {
+  const chainConfig = requireChain(chain);   // throws for unknown chains
   validateAddress(chain, toAddress);
+
   const privateKey = requireEnv("TREASURY_PRIVATE_KEY");
   const apiKey = requireEnv("ALCHEMY_API_KEY");
 
-  const { Alchemy, Network, Wallet, Utils } = await import("alchemy-sdk");
-  const { createPublicClient, http, parseEther } = await import("viem");
-
-  const NETWORK_MAP: Record<string, Network> = {
-    ethereum: Network.ETH_MAINNET,
-    eth: Network.ETH_MAINNET,
-    polygon: Network.MATIC_MAINNET,
-    polygon_zkevm: Network.MATIC_MAINNET,
-    arbitrum: Network.ARB_MAINNET,
-    base: Network.BASE_MAINNET,
-    zksync: Network.ZKSYNC_MAINNET,
-  };
-
-  const VIEM_CHAIN_MAP: Record<string, () => Promise<object>> = {
-    ethereum: () => import("viem/chains").then((m) => m.mainnet),
-    eth: () => import("viem/chains").then((m) => m.mainnet),
-    polygon: () => import("viem/chains").then((m) => m.polygon),
-    polygon_zkevm: () => import("viem/chains").then((m) => m.polygonZkEvm),
-    arbitrum: () => import("viem/chains").then((m) => m.arbitrum),
-    base: () => import("viem/chains").then((m) => m.base),
-    zksync: () => import("viem/chains").then((m) => m.zkSync),
-  };
-
-  const RPC_BASE: Record<string, string> = {
-    ethereum: "eth-mainnet",
-    eth: "eth-mainnet",
-    polygon: "polygon-mainnet",
-    polygon_zkevm: "polygonzkevm-mainnet",
-    arbitrum: "arb-mainnet",
-    base: "base-mainnet",
-    zksync: "zksync-mainnet",
-  };
+  const { Alchemy, Wallet, Utils } = await import("alchemy-sdk");
+  const rpcUrl = `https://${chainConfig.alchemySlug}.g.alchemy.com/v2/${apiKey}`;
 
   return withRetry(`sendEvm(${chain})`, async () => {
-    const network = NETWORK_MAP[chain] ?? Network.ETH_MAINNET;
-    const viemChain = await VIEM_CHAIN_MAP[chain]?.() ?? (await import("viem/chains")).mainnet;
-    const rpcSlug = RPC_BASE[chain] ?? "eth-mainnet";
-    const rpcUrl = `https://${rpcSlug}.g.alchemy.com/v2/${apiKey}`;
-
-    const pub = createPublicClient({ chain: viemChain as Parameters<typeof createPublicClient>[0]["chain"], transport: http(rpcUrl) });
-    const alchemy = new Alchemy({ apiKey, network });
+    // Use the Alchemy provider (ethers.js) — it supports estimateGas natively,
+    // so we don't need per-chain viem chain configs for 136 networks.
+    const alchemy = new Alchemy({ apiKey, network: chainConfig.alchemySlug as any, url: rpcUrl });
     const provider = await alchemy.config.getProvider();
     const wallet = new Wallet(privateKey, provider);
 
@@ -226,16 +181,16 @@ async function sendEvm(
     const feeData = await provider.getFeeData();
     const mult = Math.round(speedMultiplier * 100);
 
-    const gasEstimate = await pub.estimateGas({
-      account: wallet.address as `0x${string}`,
-      to: toAddress as `0x${string}`,
-      value: parseEther(amount),
+    const gasEstimate = await provider.estimateGas({
+      from: wallet.address,
+      to: toAddress,
+      value: weiAmount,
     });
-    const gasLimit = (gasEstimate * 120n) / 100n;
-    const gasLimitStr = gasLimit.toString();
+    // Add 20% buffer so the tx doesn't hit the gas limit on busy blocks
+    const gasLimit = gasEstimate.mul(120).div(100);
 
-    // EIP-1559 (type 2) for all post-London chains; legacy gasPrice fallback for L2s
-    // that don't yet support EIP-1559 (e.g. some zkSync builds).
+    // EIP-1559 (type 2) for post-London chains; legacy gasPrice fallback for
+    // chains that haven't yet adopted EIP-1559.
     const hasEip1559 = feeData.maxFeePerGas != null && feeData.maxPriorityFeePerGas != null;
     const feeParams = hasEip1559
       ? {
@@ -252,21 +207,20 @@ async function sendEvm(
     const tx = await wallet.sendTransaction({
       to: toAddress,
       value: weiAmount,
-      gasLimit: gasLimitStr,
+      gasLimit,
       ...feeParams,
     });
 
     const txHash: string = tx.hash;
-    const feeBn = worstCaseFeePerGas.mul(gasLimitStr);
+    const feeBn = worstCaseFeePerGas.mul(gasLimit);
     const fee = Utils.formatEther(feeBn);
-    const explorerBase = EVM_CHAIN_EXPLORER[chain] ?? EVM_CHAIN_EXPLORER.ethereum;
 
-    console.log(`[TreasuryService] ${chain.toUpperCase()} ${amount} → ${toAddress} | tx: ${txHash} | fee: ${fee}`);
+    console.log(`[TreasuryService] ${chainConfig.name} ${amount} → ${toAddress} | tx: ${txHash} | fee: ${fee}`);
     return {
       txHash,
       fee,
       success: true,
-      explorerUrl: `${explorerBase}${txHash}`,
+      explorerUrl: `${chainConfig.explorerUrl}${txHash}`,
       chain,
       status: "broadcast",
     };
@@ -554,7 +508,7 @@ export async function treasurySend(
   amount: string,
   speedMultiplier = 1.0
 ): Promise<TreasurySendResult> {
-  if (EVM_CHAINS.has(chain)) {
+  if (EVM_CHAIN_KEYS.has(chain)) {
     return sendEvm(chain, toAddress, amount, speedMultiplier);
   }
   switch (chain) {
