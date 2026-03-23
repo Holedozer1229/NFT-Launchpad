@@ -9,7 +9,7 @@ import {
   Settings, CheckCircle2, AlertCircle, Loader2,
   Lock, ArrowRight, Zap, RefreshCw, Layers, FileCode2,
   ExternalLink, Copy, Fuel, TrendingUp, TrendingDown,
-  BarChart3, Download, Upload
+  BarChart3, Download, Upload, QrCode
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -85,6 +85,23 @@ const keyFormSchema = z.object({
   privateKey: z.string().min(64, "Private key must be at least 64 characters (hex)").max(66, "Invalid private key length"),
 });
 
+interface DepositAddressEntry {
+  symbol: string;
+  network: string;
+  address: string | null;
+  configured: boolean;
+  explorer: string | null;
+}
+
+interface DepositAddresses {
+  ethereum?: DepositAddressEntry;
+  solana?: DepositAddressEntry;
+  dogecoin?: DepositAddressEntry;
+  stacks?: DepositAddressEntry;
+  bitcoin?: DepositAddressEntry;
+  monero?: DepositAddressEntry;
+}
+
 interface AaveState {
   depositedEth: number;
   aTokenBalance: number;
@@ -125,6 +142,11 @@ export default function TreasuryVault() {
   const { data: aaveState } = useQuery<AaveState>({
     queryKey: ["/api/treasury/aave-position"],
     refetchInterval: 60000,
+  });
+
+  const { data: depositAddresses, isLoading: isLoadingAddresses } = useQuery<DepositAddresses>({
+    queryKey: ["/api/treasury/deposit-addresses"],
+    refetchInterval: 300000,
   });
 
   const aaveDepositMutation = useMutation({
@@ -360,6 +382,7 @@ export default function TreasuryVault() {
             <TabsList className="bg-black/40 border border-white/10 w-full justify-start p-1 h-auto mb-4">
               <TabsTrigger value="operations" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary px-4 py-2 text-xs font-mono uppercase tracking-widest">Vault Ops</TabsTrigger>
               <TabsTrigger value="history" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary px-4 py-2 text-xs font-mono uppercase tracking-widest">Transaction Log</TabsTrigger>
+              <TabsTrigger value="deposit" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary px-4 py-2 text-xs font-mono uppercase tracking-widest">Deposit Addresses</TabsTrigger>
               <TabsTrigger value="deployment" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary px-4 py-2 text-xs font-mono uppercase tracking-widest">Contract Registry</TabsTrigger>
             </TabsList>
             
@@ -654,6 +677,97 @@ export default function TreasuryVault() {
                       </tbody>
                     </table>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="deposit" className="mt-0 space-y-4">
+              <Card className="bg-black/40 border-white/10">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <QrCode className="w-4 h-4 text-cyan-400" />
+                    Treasury Deposit Addresses
+                  </CardTitle>
+                  <CardDescription className="text-xs font-mono">
+                    Send funds to these addresses to fund the protocol treasury. Each address is derived live from your configured treasury keys.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {isLoadingAddresses ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Deriving addresses from keys…
+                    </div>
+                  ) : (
+                    Object.entries(depositAddresses ?? {}).map(([chain, info]) => {
+                      const entry = info as DepositAddressEntry;
+                      return (
+                        <div
+                          key={chain}
+                          className="rounded-lg border border-white/8 bg-black/30 p-3 space-y-2"
+                          data-testid={`deposit-address-${chain}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] font-mono px-2 py-0 no-default-hover-elevate ${entry.configured ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"}`}
+                              >
+                                {entry.symbol}
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground font-mono">{entry.network}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {entry.configured ? (
+                                <CheckCircle2 className="w-3 h-3 text-green-400" />
+                              ) : (
+                                <AlertCircle className="w-3 h-3 text-red-400" />
+                              )}
+                              <span className={`text-[9px] font-mono ${entry.configured ? "text-green-400" : "text-red-400"}`}>
+                                {entry.configured ? "CONFIGURED" : "NOT SET"}
+                              </span>
+                            </div>
+                          </div>
+                          {entry.address ? (
+                            <div className="flex items-center gap-2 bg-black/40 rounded px-2 py-1.5">
+                              <code className="text-[10px] font-mono text-cyan-300 flex-1 break-all leading-relaxed" data-testid={`address-text-${chain}`}>
+                                {entry.address}
+                              </code>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 hover:text-cyan-400"
+                                  data-testid={`button-copy-${chain}`}
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(entry.address!);
+                                    toast({ title: "Copied", description: `${entry.symbol} address copied to clipboard` });
+                                  }}
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </Button>
+                                {entry.explorer && (
+                                  <a href={entry.explorer} target="_blank" rel="noopener noreferrer">
+                                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0 hover:text-cyan-400" data-testid={`button-explorer-${chain}`}>
+                                      <ExternalLink className="w-3 h-3" />
+                                    </Button>
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-[10px] font-mono text-muted-foreground italic px-1">
+                              {chain === "bitcoin" ? "Set BTC_TREASURY_ADDRESS secret to enable" :
+                               chain === "monero"  ? "Set MONERO_TREASURY_ADDRESS secret to enable" :
+                               chain === "dogecoin"? "Set DOGE_TREASURY_ADDRESS secret to enable" :
+                               chain === "solana"  ? "Set SOLANA_TREASURY_KEY secret to enable" :
+                               chain === "stacks"  ? "Set STACKS_TREASURY_KEY secret to enable" :
+                               "Configure treasury key to derive address"}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

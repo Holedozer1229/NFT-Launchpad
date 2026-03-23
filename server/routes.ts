@@ -3942,6 +3942,88 @@ STYLE:
     }
   });
 
+  // ─── Treasury Deposit Addresses ─────────────────────────────────────────────
+  app.get("/api/treasury/deposit-addresses", async (_req, res) => {
+    try {
+      const addresses: Record<string, { address: string | null; configured: boolean; explorer: string | null; symbol: string; network: string }> = {};
+
+      // ETH / EVM — address stored directly in env
+      const ethAddr = process.env.TREASURY_WALLET_ADDRESS || process.env.TREASURY_ADDRESS || null;
+      addresses["ethereum"] = {
+        symbol: "ETH",
+        network: "Ethereum Mainnet",
+        address: ethAddr,
+        configured: !!ethAddr,
+        explorer: ethAddr ? `https://etherscan.io/address/${ethAddr}` : null,
+      };
+
+      // Solana — derive public key from base58 private key
+      try {
+        const solKey = process.env.SOLANA_TREASURY_KEY;
+        if (solKey) {
+          const { Keypair } = await import("@solana/web3.js");
+          const { base58 } = await import("@scure/base");
+          const secret = base58.decode(solKey);
+          const kp = Keypair.fromSecretKey(secret);
+          const solAddr = kp.publicKey.toBase58();
+          addresses["solana"] = { symbol: "SOL", network: "Solana Mainnet", address: solAddr, configured: true, explorer: `https://solscan.io/account/${solAddr}` };
+        } else {
+          addresses["solana"] = { symbol: "SOL", network: "Solana Mainnet", address: null, configured: false, explorer: null };
+        }
+      } catch {
+        addresses["solana"] = { symbol: "SOL", network: "Solana Mainnet", address: null, configured: false, explorer: null };
+      }
+
+      // Dogecoin — address stored directly in env
+      const dogeAddr = process.env.DOGE_TREASURY_ADDRESS || null;
+      addresses["dogecoin"] = {
+        symbol: "DOGE",
+        network: "Dogecoin Mainnet",
+        address: dogeAddr,
+        configured: !!dogeAddr,
+        explorer: dogeAddr ? `https://dogechain.info/address/${dogeAddr}` : null,
+      };
+
+      // Stacks (STX) — derive address from private key
+      try {
+        const stxKey = process.env.STACKS_TREASURY_KEY;
+        if (stxKey) {
+          const { getAddressFromPrivateKey, TransactionVersion } = await import("@stacks/transactions");
+          const stxAddr = getAddressFromPrivateKey(stxKey, TransactionVersion.Mainnet);
+          addresses["stacks"] = { symbol: "STX", network: "Stacks Mainnet", address: stxAddr, configured: true, explorer: `https://explorer.hiro.so/address/${stxAddr}` };
+        } else {
+          addresses["stacks"] = { symbol: "STX", network: "Stacks Mainnet", address: null, configured: false, explorer: null };
+        }
+      } catch {
+        addresses["stacks"] = { symbol: "STX", network: "Stacks Mainnet", address: null, configured: false, explorer: null };
+      }
+
+      // Bitcoin — explicit env var (BTC uses UTXO model, no key derivation here)
+      const btcAddr = process.env.BTC_TREASURY_ADDRESS || null;
+      addresses["bitcoin"] = {
+        symbol: "BTC",
+        network: "Bitcoin Mainnet",
+        address: btcAddr,
+        configured: !!btcAddr,
+        explorer: btcAddr ? `https://mempool.space/address/${btcAddr}` : null,
+      };
+
+      // Monero — explicit env var
+      const xmrAddr = process.env.MONERO_TREASURY_ADDRESS || null;
+      addresses["monero"] = {
+        symbol: "XMR",
+        network: "Monero Mainnet",
+        address: xmrAddr,
+        configured: !!xmrAddr,
+        explorer: xmrAddr ? `https://xmrchain.net/search?value=${xmrAddr}` : null,
+      };
+
+      res.json(addresses);
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Failed to derive deposit addresses") });
+    }
+  });
+
   app.post("/api/treasury/aave-deposit", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
