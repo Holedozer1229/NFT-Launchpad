@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/use-auth";
-import type { GovernanceProposal } from "@shared/schema";
+import type { GovernanceProposal, PriceDriverParamKey } from "@shared/schema";
 import { PRICE_DRIVER_PARAMS } from "@shared/schema";
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -281,7 +281,7 @@ export default function Governance() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: { title: string; description: string; category: string; executionPayload?: any }) => {
+    mutationFn: async (data: { title: string; description: string; category: string; executionPayload?: PdPayload }) => {
       const res = await apiRequest("POST", "/api/governance/proposals", { ...data, timelockHours: 48 });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: "Unknown error" }));
@@ -515,14 +515,14 @@ export default function Governance() {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-heading text-muted-foreground uppercase">
-                      New Value {pdParam && (PRICE_DRIVER_PARAMS as any)[pdParam]?.unit ? `(${(PRICE_DRIVER_PARAMS as any)[pdParam].unit})` : ""}
+                      {(() => { const m = (pdParam in PRICE_DRIVER_PARAMS) ? PRICE_DRIVER_PARAMS[pdParam as PriceDriverParamKey] : null; return `New Value${m?.unit ? ` (${m.unit})` : ""}`; })()}
                     </label>
                     <input
                       data-testid="input-pd-new-value"
                       type="number"
                       value={pdNewValue}
                       onChange={e => setPdNewValue(e.target.value)}
-                      placeholder={`e.g. ${(PRICE_DRIVER_PARAMS as any)[pdParam]?.min ?? ""}`}
+                      placeholder={`e.g. ${(pdParam in PRICE_DRIVER_PARAMS) ? PRICE_DRIVER_PARAMS[pdParam as PriceDriverParamKey].min : ""}`}
                       className="w-full p-2.5 bg-black/40 border border-border rounded-sm font-mono text-xs focus:outline-none focus:border-neon-orange/60 transition-colors placeholder:text-muted-foreground/40"
                     />
                   </div>
@@ -547,12 +547,13 @@ export default function Governance() {
                     toast({ title: "Validation Error", description: "New value is required for price driver parameter proposals.", variant: "destructive" });
                     return;
                   }
+                  const currentSetting = protocolSettings.find(s => s.key === pdParam);
                   createMutation.mutate({
                     title: newTitle.trim(),
                     description: newDesc.trim(),
                     category: newCategory,
                     ...(newCategory === "price_driver_params" ? {
-                      executionPayload: { parameter: pdParam, newValue: pdNewValue.trim() }
+                      executionPayload: { parameter: pdParam, newValue: pdNewValue.trim(), currentValue: currentSetting?.value ?? undefined }
                     } : {}),
                   });
                 }}

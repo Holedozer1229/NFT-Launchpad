@@ -182,13 +182,8 @@ export async function getAavePosition(treasuryAddress: string): Promise<{ aToken
 
 export async function depositToAave(amountEth: number): Promise<{ success: boolean; txHash: string | null; message: string }> {
   if (!process.env.TREASURY_PRIVATE_KEY || !process.env.ALCHEMY_API_KEY) {
-    const record: AaveDepositRecord = { timestamp: Date.now(), amountEth, txHash: null, type: "deposit" };
-    state.depositedEth += amountEth;
-    state.depositHistory.unshift(record);
-    if (state.depositHistory.length > 50) state.depositHistory.pop();
-    state.isActive = true;
-    state.lastUpdated = Date.now();
-    return { success: false, txHash: null, message: "Treasury wallet not configured — deposit recorded as pending" };
+    // Do NOT mutate deposited state — position must reflect on-chain reality only
+    return { success: false, txHash: null, message: "Treasury wallet not configured — on-chain deposit unavailable" };
   }
   if (amountEth <= 0) return { success: false, txHash: null, message: "Amount must be > 0" };
 
