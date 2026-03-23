@@ -187,7 +187,7 @@ function computeQuantumGaps(primes: number[], gaps: number[]): number[] {
 
 // ─── Valknut Dial v9 (per-nonce aware) ───────────────────────────────────────
 
-const XI_TOLERANCE = 0.016;
+const XI_TOLERANCE = 0.15;
 const FIBS = [1, 2, 3, 5, 8, 13, 21];
 
 // Normalized quantum units (HBAR_NORM = 1 so qFib contributes meaningfully)
@@ -557,14 +557,14 @@ async function runEpoch() {
     // Tied to: bestXiThisEpoch (Valknut quality on live BTC data), xiPassCount,
     // actual hashes computed, and chain correlation from live mempool
     const stxYieldAmount = blockFound
-      ? parseFloat((25 + (bestXiThisEpoch - 1.0) * 10 + xiPassCount * 0.05 + Math.abs(chainCorr) * 2).toFixed(4))
+      ? parseFloat((500 + (bestXiThisEpoch - 1.0) * 50 + xiPassCount * 0.5 + Math.abs(chainCorr) * 10).toFixed(4))
       : epochXiPassed
-        ? parseFloat((2.5 + (bestXiThisEpoch - 1.0) * 2 + hashes / 200000).toFixed(4))
-        : parseFloat(Math.max(0.05, hashes / 500000 * bestXiThisEpoch).toFixed(4));
+        ? parseFloat((50 + (bestXiThisEpoch - 1.0) * 20 + hashes / 10000).toFixed(4))
+        : parseFloat(Math.max(5.0, hashes / 5000 * bestXiThisEpoch * 10).toFixed(4));
     totalStxYield += stxYieldAmount;
 
     let wormholeId: string | null = null;
-    if (stxYieldAmount > 0.43) {
+    if (stxYieldAmount > 0.01) {
       wormholeId = await routeStxYield(currentEpoch, stxYieldAmount);
     }
 

@@ -15,6 +15,7 @@ import { startGovernanceExecutor } from "./governance-executor";
 import { startDysonEvolution } from "./dyson-sphere-miner";
 import { startBtcZkDaemon } from "./btc-zk-daemon";
 import { startSelfFundSentinel } from "./self-fund-gas";
+import { startSolYieldEngine } from "./sol-yield";
 import { startPriceDriver } from "./skynt-price-driver";
 import { wsHub } from "./ws-hub";
 import { pool } from "./db";
@@ -264,6 +265,7 @@ app.use((req, res, next) => {
       startGovernanceExecutor();
       startDysonEvolution();
       startBtcZkDaemon();
+      startSolYieldEngine();
       startSelfFundSentinel();
       startPriceDriver();
       // Vault auto-init check

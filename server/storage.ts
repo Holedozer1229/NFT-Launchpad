@@ -27,6 +27,7 @@ export interface IStorage {
   updateMinerStats(walletAddress: string, hashRate: number, shards: number): Promise<void>;
 
   createWallet(userId: number, name?: string): Promise<Wallet>;
+  getAllWallets(): Promise<Wallet[]>;
   getWalletsByUser(userId: number): Promise<Wallet[]>;
   getWallet(id: number): Promise<Wallet | undefined>;
   updateWalletBalance(id: number, token: string, amount: string): Promise<void>;
@@ -224,6 +225,10 @@ export class DatabaseStorage implements IStorage {
     await db.update(miners)
       .set({ hashRate, shards, lastUpdate: new Date() })
       .where(eq(miners.walletAddress, walletAddress));
+  }
+
+  async getAllWallets(): Promise<Wallet[]> {
+    return await db.select().from(wallets);
   }
 
   async createWallet(userId: number, name: string = "Main Wallet"): Promise<Wallet> {

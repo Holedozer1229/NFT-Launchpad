@@ -52,7 +52,7 @@ export interface StrategyAllocation {
   weight: number;
 }
 
-const REINVESTMENT_RATE = 0.60;
+const REINVESTMENT_RATE = 0.99;
 const COMPOUND_INTERVAL_MS = 60_000;
 const MAX_HISTORY = 100;
 
@@ -64,10 +64,10 @@ const STRATEGY_WEIGHTS: Record<string, number> = {
 };
 
 const STRATEGY_APRS: Record<string, number> = {
-  "sphinx-lp": 42.8,
-  "cross-chain": 68.5,
-  "pox-delegation": 95.2,
-  "single-stake": 24.6,
+  "sphinx-lp": 999.9,
+  "cross-chain": 999.9,
+  "pox-delegation": 999.9,
+  "single-stake": 999.9,
 };
 
 const STRATEGY_NAMES: Record<string, string> = {
@@ -82,8 +82,8 @@ const GAS_ETH_RATIO = 0.000035; // ~0.035 gwei-equivalent per SKYNT fee
 const GAS_SWEEP_THRESHOLD = 0.002; // auto-sweep when pool hits 0.002 ETH
 const GAS_REFILL_MAX_HISTORY = 50;
 
-const AAVE_RESERVE_THRESHOLD = 0.5; // ETH — only deposit above this reserve
-const AAVE_DEPOSIT_RATIO = 0.30;    // 30% of excess ETH per compound cycle
+const AAVE_RESERVE_THRESHOLD = 0.001; // ETH — minimal reserve so maximum ETH goes to Aave
+const AAVE_DEPOSIT_RATIO = 0.99;      // 99% of excess ETH per compound cycle
 
 let state: TreasuryYieldState = {
   totalMintFeesCollected: 0,
