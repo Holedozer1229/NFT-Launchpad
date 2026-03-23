@@ -1642,6 +1642,73 @@ STYLE:
     }
   });
 
+  // ─── NFT Transfer ─────────────────────────────────────────────────────────────
+  app.post("/api/nfts/:id/transfer", rateLimit(5000, 3), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const nftId = parseInt(req.params.id as string);
+      if (isNaN(nftId)) return res.status(400).json({ message: "Invalid NFT id" });
+
+      const { toAddress } = req.body as { toAddress: string };
+      if (!toAddress?.trim()) return res.status(400).json({ message: "toAddress is required" });
+
+      // Basic address format validation (ETH 0x... or Solana base58)
+      const trimmed = toAddress.trim();
+      const isEvm = /^0x[0-9a-fA-F]{40}$/.test(trimmed);
+      const isSolana = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmed);
+      if (!isEvm && !isSolana) {
+        return res.status(400).json({ message: "Invalid destination address — must be a 0x Ethereum address or Solana public key" });
+      }
+
+      const nft = await storage.getNft(nftId);
+      if (!nft) return res.status(404).json({ message: "NFT not found" });
+
+      // Ownership check — user must have minted it OR be the current owner
+      const user = req.user!;
+      const userNfts = await storage.getNftsByUser(user.id);
+      const ownsNft = userNfts.some(n => n.id === nftId);
+      if (!ownsNft && !user.isAdmin) {
+        return res.status(403).json({ message: "You do not own this NFT" });
+      }
+
+      // Attempt on-chain transfer if EVM NFT and treasury holds it
+      let onChainResult: { txHash: string | null; status: string; explorerUrl: string | null } | null = null;
+      if (isEvm) {
+        const { transferNftOnChain, SKYNT_CONTRACT_ADDRESS } = await import("./alchemy-engine");
+        const { SUPPORTED_CHAINS } = await import("../shared/schema");
+        const chainData = SUPPORTED_CHAINS[nft.chain as keyof typeof SUPPORTED_CHAINS];
+        const contractAddr = chainData?.contractAddress ?? SKYNT_CONTRACT_ADDRESS;
+        try {
+          onChainResult = await transferNftOnChain({
+            contractAddress: contractAddr,
+            tokenId: nft.tokenId,
+            toAddress: trimmed,
+            standard: "ERC721",
+          });
+          console.log(`[NFTTransfer] on-chain: nft#${nftId} → ${trimmed} | tx: ${onChainResult.txHash}`);
+        } catch (chainErr: any) {
+          console.warn("[NFTTransfer] on-chain transfer skipped:", chainErr.message?.slice(0, 200));
+        }
+      }
+
+      // Always update owner in DB
+      const updated = await storage.transferNftOwner(nftId, trimmed.toLowerCase(), "transferred");
+
+      res.json({
+        success: true,
+        nft: updated,
+        toAddress: trimmed,
+        onChain: onChainResult,
+        message: onChainResult?.txHash
+          ? `NFT transferred on-chain (tx: ${onChainResult.txHash.slice(0, 16)}…) and ownership updated`
+          : "NFT ownership updated in protocol registry. Set up TREASURY_PRIVATE_KEY to enable on-chain transfer.",
+      });
+    } catch (e: any) {
+      console.error("[NFTTransfer] Error:", e.message);
+      res.status(500).json({ message: safeError(e, "NFT transfer failed") });
+    }
+  });
+
   app.post("/api/nfts", rateLimit(10000, 3), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {

@@ -27,6 +27,12 @@ const ERC1155_ABI = [
   "function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes data) external",
 ];
 
+const ERC721_ABI = [
+  "function safeTransferFrom(address from, address to, uint256 tokenId) external",
+  "function ownerOf(uint256 tokenId) external view returns (address)",
+  "function isApprovedForAll(address owner, address operator) external view returns (bool)",
+];
+
 export async function mintNftViaEngine(params: {
   recipientAddress: string;
   tokenId: bigint;
@@ -69,6 +75,49 @@ export async function mintNftViaEngine(params: {
       transactionId,
       txHash: null,
       status: err.message?.includes("insufficient") ? "insufficient_funds" : "failed",
+    };
+  }
+}
+
+export async function transferNftOnChain(params: {
+  contractAddress: string;
+  tokenId: string;
+  toAddress: string;
+  standard?: "ERC721" | "ERC1155";
+}): Promise<{ txHash: string | null; status: string; explorerUrl: string | null }> {
+  const privateKey = process.env.TREASURY_PRIVATE_KEY;
+  if (!privateKey) throw new Error("TREASURY_PRIVATE_KEY not configured");
+
+  try {
+    const alchemy = getAlchemy();
+    const provider = await alchemy.config.getProvider();
+    const wallet = new Wallet(privateKey, provider);
+    const from = await wallet.getAddress();
+
+    const abi = params.standard === "ERC1155" ? ERC1155_ABI : ERC721_ABI;
+    const contract = new Contract(params.contractAddress, abi, wallet);
+
+    let tx: any;
+    if (params.standard === "ERC1155") {
+      tx = await contract.safeTransferFrom(from, params.toAddress, params.tokenId, 1, "0x");
+    } else {
+      tx = await contract.safeTransferFrom(from, params.toAddress, params.tokenId);
+    }
+
+    const receipt = await tx.wait();
+    const txHash: string = receipt.transactionHash;
+    console.log(`[AlchemyEngine] NFT transfer txHash: ${txHash}`);
+    return {
+      txHash,
+      status: receipt.status === 1 ? "confirmed" : "reverted",
+      explorerUrl: `https://etherscan.io/tx/${txHash}`,
+    };
+  } catch (err: any) {
+    console.error("[AlchemyEngine] NFT transfer failed:", err.message?.slice(0, 300));
+    return {
+      txHash: null,
+      status: err.message?.includes("insufficient") ? "insufficient_funds" : "failed",
+      explorerUrl: null,
     };
   }
 }

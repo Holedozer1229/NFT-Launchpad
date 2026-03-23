@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2, Search, Upload, CheckCircle2, AlertCircle, ArrowRight, Wallet, Lock } from "lucide-react";
+import { Eye, Sparkles, Shield, Gem, Flame, Zap, Star, Crown, Loader2, ExternalLink, Link2, ShoppingBag, Maximize2, Search, Upload, CheckCircle2, AlertCircle, ArrowRight, Wallet, Lock, Send, X, Copy } from "lucide-react";
 import { SUPPORTED_CHAINS, type ChainId } from "@shared/schema";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -111,6 +111,9 @@ export default function Gallery() {
   const [previewNft, setPreviewNft] = useState<NFTItem | null>(null);
   const [selectedForBulk, setSelectedForBulk] = useState<Set<number>>(new Set());
   const [sellerAddressInput, setSellerAddressInput] = useState("");
+  const [sendNftId, setSendNftId] = useState<number | null>(null);
+  const [sendToAddress, setSendToAddress] = useState("");
+  const [sendResult, setSendResult] = useState<{ txHash: string | null; explorerUrl: string | null; message: string } | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -132,6 +135,55 @@ export default function Gallery() {
     }
     return map;
   }, [zkCerts]);
+
+  // ─── Send NFT to external address ────────────────────────────────────────────
+  const sendValidation = useMemo(() => {
+    const v = sendToAddress.trim();
+    if (!v) return { ok: false, msg: "" };
+    const isEvm = /^0x[0-9a-fA-F]{40}$/.test(v);
+    const isSolana = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v);
+    if (isEvm || isSolana) return { ok: true, msg: "" };
+    return { ok: false, msg: "Enter a valid 0x Ethereum address or Solana public key" };
+  }, [sendToAddress]);
+
+  const sendNftMutation = useMutation({
+    mutationFn: async ({ nftId, toAddress }: { nftId: number; toAddress: string }) => {
+      const res = await apiRequest("POST", `/api/nfts/${nftId}/transfer`, { toAddress });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/nfts"] });
+      setSendResult({
+        txHash: data.onChain?.txHash ?? null,
+        explorerUrl: data.onChain?.explorerUrl ?? null,
+        message: data.message,
+      });
+      toast({ title: "NFT Sent", description: data.message });
+    },
+    onError: (e: any) => {
+      toast({ title: "Transfer Failed", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const handleSendNft = (e: React.MouseEvent, nftId: number) => {
+    e.stopPropagation();
+    if (sendNftId === nftId) {
+      setSendNftId(null);
+      setSendToAddress("");
+      setSendResult(null);
+    } else {
+      setSendNftId(nftId);
+      setSendToAddress("");
+      setSendResult(null);
+    }
+  };
+
+  const handleConfirmSend = (e: React.MouseEvent, nftId: number) => {
+    e.stopPropagation();
+    if (!sendValidation.ok || !sendToAddress.trim()) return;
+    sendNftMutation.mutate({ nftId, toAddress: sendToAddress.trim() });
+  };
 
   const handleListOnOpenSea = async (nftId: number) => {
     if (sellerAddressInput && !resolvedSellerAddress) return;
@@ -620,9 +672,100 @@ export default function Gallery() {
                     </div>
                   ) : null}
 
+                  {/* ── Send NFT ── */}
+                  {sendNftId === nft.id && sendResult ? (
+                    <div className="mt-1 rounded-lg border border-neon-green/30 bg-neon-green/5 p-3 space-y-2 text-[10px] font-mono">
+                      <div className="flex items-center gap-2 text-neon-green font-bold">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Transfer Recorded
+                      </div>
+                      <p className="text-muted-foreground leading-relaxed">{sendResult.message}</p>
+                      {sendResult.txHash && (
+                        <a
+                          href={sendResult.explorerUrl ?? `https://etherscan.io/tx/${sendResult.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-neon-cyan hover:underline"
+                          data-testid={`link-send-tx-${nft.id}`}
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          {sendResult.txHash.slice(0, 18)}…
+                        </a>
+                      )}
+                      <button
+                        onClick={e => { e.stopPropagation(); setSendNftId(null); setSendResult(null); setSendToAddress(""); }}
+                        className="text-muted-foreground hover:text-white transition-colors flex items-center gap-1 mt-1"
+                      >
+                        <X className="w-3 h-3" /> Dismiss
+                      </button>
+                    </div>
+                  ) : sendNftId === nft.id ? (
+                    <div
+                      className="mt-1 rounded-lg border border-neon-cyan/20 bg-neon-cyan/5 p-3 space-y-2"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-heading text-neon-cyan uppercase tracking-widest flex items-center gap-1.5">
+                          <Send className="w-3 h-3" /> Send NFT
+                        </span>
+                        <button
+                          onClick={e => { e.stopPropagation(); setSendNftId(null); setSendToAddress(""); }}
+                          className="text-muted-foreground hover:text-white transition-colors"
+                          data-testid={`button-close-send-${nft.id}`}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={sendToAddress}
+                        onChange={e => setSendToAddress(e.target.value)}
+                        placeholder="0x… or Solana address"
+                        className="w-full bg-black/40 border border-white/10 rounded-sm px-3 py-2 font-mono text-xs focus:outline-none focus:border-neon-cyan transition-colors placeholder:text-muted-foreground/40"
+                        data-testid={`input-send-address-${nft.id}`}
+                        autoFocus
+                      />
+                      {sendValidation.msg && (
+                        <p className="text-[9px] font-mono text-red-400 flex items-center gap-1">
+                          <AlertCircle className="w-2.5 h-2.5" /> {sendValidation.msg}
+                        </p>
+                      )}
+                      {sendValidation.ok && (
+                        <p className="text-[9px] font-mono text-neon-green flex items-center gap-1">
+                          <CheckCircle2 className="w-2.5 h-2.5" />
+                          {/^0x/.test(sendToAddress.trim()) ? "EVM address valid" : "Solana address valid"}
+                        </p>
+                      )}
+                      <button
+                        onClick={e => handleConfirmSend(e, nft.id)}
+                        disabled={!sendValidation.ok || sendNftMutation.isPending}
+                        className="w-full flex items-center justify-center gap-2 py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider bg-neon-cyan/15 border border-neon-cyan/40 text-neon-cyan hover:bg-neon-cyan/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        data-testid={`button-confirm-send-${nft.id}`}
+                      >
+                        {sendNftMutation.isPending && sendNftId === nft.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Send className="w-3.5 h-3.5" />
+                        )}
+                        {sendNftMutation.isPending && sendNftId === nft.id ? "Transferring…" : "Confirm Transfer"}
+                      </button>
+                      <p className="text-[9px] font-mono text-muted-foreground/50 text-center leading-tight">
+                        Ownership updated in protocol registry + on-chain ERC-721 transfer if funded.
+                      </p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={e => handleSendNft(e, nft.id)}
+                      className="flex items-center justify-center gap-2 w-full py-2 rounded-sm text-[10px] font-heading uppercase tracking-wider bg-white/5 border border-white/10 text-muted-foreground hover:bg-neon-cyan/10 hover:border-neon-cyan/30 hover:text-neon-cyan transition-all"
+                      data-testid={`button-send-nft-${nft.id}`}
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      Send to Address
+                    </button>
+                  )}
+
                   <div className="flex justify-between items-center text-[10px] font-mono text-muted-foreground/60 pt-2 border-t border-border/50">
                     <span>{nft.mintDate}</span>
-                    <span>{nft.owner}</span>
+                    <span className="truncate max-w-[120px]" title={nft.owner}>{nft.owner.slice(0,10)}…</span>
                   </div>
                 </div>
               </div>

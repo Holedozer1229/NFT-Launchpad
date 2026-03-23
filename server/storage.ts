@@ -66,6 +66,7 @@ export interface IStorage {
   createNft(nft: InsertNft): Promise<Nft>;
   updateNftStatus(id: number, status: string): Promise<void>;
   updateNftOpenSea(id: number, openseaUrl: string | null, openseaStatus: string, openseaListingId: string | null): Promise<void>;
+  transferNftOwner(id: number, newOwner: string, status?: string): Promise<Nft>;
 
   getBridgeTransactions(): Promise<BridgeTransaction[]>;
   createBridgeTransaction(tx: InsertBridgeTransaction): Promise<BridgeTransaction>;
@@ -424,6 +425,16 @@ export class DatabaseStorage implements IStorage {
 
   async updateNftOpenSea(id: number, openseaUrl: string | null, openseaStatus: string, openseaListingId: string | null): Promise<void> {
     await db.update(nfts).set({ openseaUrl, openseaStatus, openseaListingId }).where(eq(nfts.id, id));
+  }
+
+  async transferNftOwner(id: number, newOwner: string, status = "transferred"): Promise<Nft> {
+    const [updated] = await db
+      .update(nfts)
+      .set({ owner: newOwner.toLowerCase(), status })
+      .where(eq(nfts.id, id))
+      .returning();
+    if (!updated) throw new Error(`NFT ${id} not found`);
+    return updated;
   }
 
   async getBridgeTransactions(): Promise<BridgeTransaction[]> {
