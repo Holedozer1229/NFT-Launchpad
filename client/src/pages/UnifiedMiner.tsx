@@ -285,10 +285,10 @@ function GenesisBtcTab() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-mono text-xs text-muted-foreground uppercase tracking-wider">Merge Mining Chains</h3>
-          <Badge variant="outline" className="text-[10px] border-yellow-500/40 text-yellow-400">{activeCount} / {MERGE_MINING_CHAINS.length} active</Badge>
+          <Badge variant="outline" className="text-[10px] border-yellow-500/40 text-yellow-400">{activeCount} / {Object.keys(MERGE_MINING_CHAINS).length} active</Badge>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {MERGE_MINING_CHAINS.map((chain) => {
+          {Object.values(MERGE_MINING_CHAINS).map((chain) => {
             const cs = status?.mergeMining?.[chain.id];
             const color = CHAIN_NEON[chain.id] ?? NEON.cyan;
             return (
@@ -302,7 +302,7 @@ function GenesisBtcTab() {
                   <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
                     <div><span className="text-muted-foreground">Hash Rate</span><p style={{ color }}>{cs?.hashRate?.toFixed(0) ?? "0"} H/s</p></div>
                     <div><span className="text-muted-foreground">Blocks</span><p className="text-foreground">{cs?.blocksFound ?? 0}</p></div>
-                    <div><span className="text-muted-foreground">Reward/Block</span><p className="text-emerald-400">{chain.rewardPerBlock} ◈</p></div>
+                    <div><span className="text-muted-foreground">Reward Mult</span><p className="text-emerald-400">{chain.rewardMultiplier} ◈</p></div>
                     <div><span className="text-muted-foreground">Earned</span><p className="text-emerald-400">{(cs?.rewardsEarned ?? 0).toFixed(4)} ◈</p></div>
                   </div>
                   <Button size="sm" className="w-full h-7 text-[10px] font-heading" style={cs?.isActive ? { backgroundColor: "rgba(239,68,68,0.15)", borderColor: "rgba(239,68,68,0.4)", color: "#f87171" } : { backgroundColor: `${color}18`, borderColor: `${color}40`, color }} variant="outline" onClick={() => cs?.isActive ? stopChain.mutate(chain.id) : startChain.mutate(chain.id)} disabled={startChain.isPending || stopChain.isPending} data-testid={`button-chain-${chain.id}`}>{cs?.isActive ? "Stop Chain" : `Mine ${chain.name}`}</Button>
@@ -317,10 +317,10 @@ function GenesisBtcTab() {
       <div>
         <h3 className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-3">STX Cross-Chain Lending</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {STX_LENDING_TIERS.map((tier) => (
+          {Object.values(STX_LENDING_TIERS).map((tier) => (
             <Card key={tier.id} className={`border-border/50 bg-card/60 ${lendingStatus?.tierId === tier.id ? "border-orange-500/40" : ""}`} data-testid={`card-stx-tier-${tier.id}`}>
               <CardContent className="p-4 space-y-2">
-                <div className="flex items-center justify-between"><p className="font-heading text-sm text-orange-400">{tier.name}</p><Badge variant="outline" className="text-[9px] border-orange-500/30 text-orange-400">{tier.apr}% APR</Badge></div>
+                <div className="flex items-center justify-between"><p className="font-heading text-sm text-orange-400">{tier.name}</p><Badge variant="outline" className="text-[9px] border-orange-500/30 text-orange-400">{tier.aprPercent}% APR</Badge></div>
                 <p className="text-[10px] font-mono text-muted-foreground">{tier.lockDays}-day lock · PoX bonus: {tier.poxBonus}%</p>
                 <Button size="sm" className="w-full h-7 text-[10px] bg-orange-500/15 border border-orange-500/40 text-orange-400 hover:bg-orange-500/25" disabled={stakeSTX.isPending || lendingStatus?.tierId === tier.id} onClick={() => stakeSTX.mutate(tier.id)} data-testid={`button-stake-${tier.id}`}>{lendingStatus?.tierId === tier.id ? "STAKED" : `Stake 100 STX (${tier.id})`}</Button>
               </CardContent>
