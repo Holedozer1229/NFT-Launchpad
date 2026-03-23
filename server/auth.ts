@@ -19,6 +19,32 @@ import QRCode from "qrcode";
 const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET_KEY || "";
 const HCAPTCHA_VERIFY_URL = "https://api.hcaptcha.com/siteverify";
 
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
+const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
+
+function checkLoginLockout(username: string): { locked: boolean; remainingMs: number } {
+  const rec = loginAttempts.get(username.toLowerCase());
+  if (!rec) return { locked: false, remainingMs: 0 };
+  if (Date.now() < rec.lockedUntil) return { locked: true, remainingMs: rec.lockedUntil - Date.now() };
+  if (Date.now() >= rec.lockedUntil) loginAttempts.delete(username.toLowerCase());
+  return { locked: false, remainingMs: 0 };
+}
+
+function recordFailedLogin(username: string): void {
+  const key = username.toLowerCase();
+  const rec = loginAttempts.get(key) ?? { count: 0, lockedUntil: 0 };
+  rec.count += 1;
+  if (rec.count >= LOGIN_MAX_ATTEMPTS) {
+    rec.lockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
+  }
+  loginAttempts.set(key, rec);
+}
+
+function clearLoginAttempts(username: string): void {
+  loginAttempts.delete(username.toLowerCase());
+}
+
 async function verifyCaptcha(token: string): Promise<boolean> {
   if (!HCAPTCHA_SECRET) return true;
   try {
@@ -341,6 +367,14 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", rateLimit(60000, 10), async (req, res, next) => {
+    const username = req.body?.username ?? "";
+
+    const lockout = checkLoginLockout(username);
+    if (lockout.locked) {
+      const mins = Math.ceil(lockout.remainingMs / 60000);
+      return res.status(429).json({ message: `Account temporarily locked due to too many failed attempts. Try again in ${mins} minute${mins !== 1 ? "s" : ""}.` });
+    }
+
     if (HCAPTCHA_SECRET) {
       const { captchaToken } = req.body;
       if (!captchaToken) {
@@ -354,7 +388,15 @@ export function setupAuth(app: Express) {
 
     passport.authenticate("local", (err: any, user: User | false, info: any) => {
       if (err) return next(err);
-      if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      if (!user) {
+        recordFailedLogin(username);
+        const rec = loginAttempts.get(username.toLowerCase());
+        const remaining = rec ? Math.max(0, LOGIN_MAX_ATTEMPTS - rec.count) : LOGIN_MAX_ATTEMPTS - 1;
+        const msg = remaining <= 1
+          ? `Invalid credentials. ${remaining} attempt remaining before lockout.`
+          : info?.message || "Invalid credentials";
+        return res.status(401).json({ message: msg });
+      }
 
       if (user.mfaEnabled && user.mfaSecret) {
         const mfaToken = jwt.sign(
@@ -367,7 +409,7 @@ export function setupAuth(app: Express) {
 
       req.login(user, async (err: any) => {
         if (err) return next(err);
-        
+        clearLoginAttempts(username);
         try {
           const userWallets = await storage.getWalletsByUser(user.id);
           if (userWallets.length === 0) {
@@ -489,7 +531,7 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Signature verification failed. Please try again." });
       }
       if (!isValid) {
-        console.log(`[Auth] Wallet auth signature mismatch. Expected: ${addrStr}, Recovered: ${recoveredAddress}`);
+        console.warn("[Auth] Wallet auth signature mismatch — address did not match recovered signer");
         return res.status(401).json({ message: "Invalid signature" });
       }
 
@@ -602,7 +644,7 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Invalid signature. Please disconnect your wallet and try again." });
       }
       if (!isValid) {
-        console.log(`[Auth] Link wallet signature mismatch. Expected: ${normalized.slice(0, 10)}…, Recovered: ${recoveredAddress?.slice(0, 10)}…`);
+        console.warn("[Auth] Link wallet signature mismatch — signer address did not match requested wallet");
         return res.status(401).json({ message: "Signature verification failed. You must sign with the wallet you are linking." });
       }
 

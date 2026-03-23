@@ -119,6 +119,7 @@ let state: AaveYieldState = {
 };
 
 let pollInterval: ReturnType<typeof setInterval> | null = null;
+let _pollErrorCount = 0;
 
 async function getViemClients() {
   const { createPublicClient, createWalletClient, http, getAddress } = await import("viem");
@@ -311,7 +312,10 @@ async function pollAaveState(): Promise<void> {
       currentApr: state.currentApr,
     });
   } catch (err: any) {
-    console.warn("[Aave] pollAaveState error:", err?.message?.slice(0, 100));
+    _pollErrorCount++;
+    if (_pollErrorCount === 1 || _pollErrorCount % 10 === 0) {
+      console.warn(`[Aave] pollAaveState error (×${_pollErrorCount}):`, err?.message?.slice(0, 100));
+    }
   }
 }
 

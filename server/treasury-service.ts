@@ -171,7 +171,8 @@ type StacksBroadcastResponse =
 async function sendEvm(
   chain: string,
   toAddress: string,
-  amount: string
+  amount: string,
+  speedMultiplier = 1.0
 ): Promise<TreasurySendResult> {
   validateAddress(chain, toAddress);
   const privateKey = requireEnv("TREASURY_PRIVATE_KEY");

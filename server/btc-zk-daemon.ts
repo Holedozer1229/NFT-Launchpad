@@ -285,6 +285,7 @@ let _cachedBtcHeight = 0;
 let _cachedBtcHash = "";
 let _cachedBtcDifficulty = 0;
 let _btcCacheTime = 0;
+let _stxRecipientWarnLogged = false;
 const BTC_CACHE_TTL = 60_000;
 
 async function fetchRealBtcBlock(): Promise<{ height: number; hash: string; difficulty: number }> {
@@ -353,7 +354,10 @@ async function fetchMempoolFeeRate(): Promise<number> {
 async function routeStxYield(epochId: number, amount: number): Promise<string | null> {
   const recipient = process.env.STACKS_YIELD_RECIPIENT;
   if (!process.env.STACKS_TREASURY_KEY || !recipient) {
-    if (!recipient) console.warn("[BtcZkDaemon] STACKS_YIELD_RECIPIENT not set — set env secret to enable live STX yield routing");
+    if (!recipient && !_stxRecipientWarnLogged) {
+      _stxRecipientWarnLogged = true;
+      console.warn("[BtcZkDaemon] STACKS_YIELD_RECIPIENT not set — STX yield routing disabled (set env secret to enable)");
+    }
     return null;
   }
   try {
