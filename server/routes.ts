@@ -15,7 +15,7 @@ import { startMining, stopMining, getMiningStatus, getActiveMinerCount, activate
 import { startMergeMining, stopMergeMining, getMergeMiningStatus, getMergeMiningStatusMap, getAllMergeMiningStats, getBtcGenesisBlock, getRecentBlocks, getStxLendingState, stakeStxLending } from "./merge-miner";
 import { openWormhole, closeWormhole, initiateTransfer, getWormholeStatus, getWormholeTransfers, getUserTransfers, getNetworkWormholeStats } from "./zk-wormhole";
 import { computeQuantumBerryPhaseSnapshot, getPageCurveHistory, getActiveTunnels } from "./berry-phase-engine";
-import { generateRarityCertificate, verifyRarityCertificate, getUserCertificates, downloadCertificate } from "./rarity-proof-engine";
+import { generateRarityCertificate, generateRarityCertificateFree, verifyRarityCertificate, getUserCertificates, downloadCertificate } from "./rarity-proof-engine";
 import { STARSHIP_FLIGHT_SHOWCASES } from "@shared/schema";
 import { CHAIN_REGISTRY, EVM_CHAIN_KEYS, MAINNET_CHAIN_KEYS } from "./chain-registry";
 import { MERGE_MINING_CHAINS, STX_LENDING_TIERS, type MergeMiningChainId, type StxLendingTierId } from "@shared/schema";
@@ -1908,6 +1908,14 @@ STYLE:
 
       const nft = await storage.createNft(nftData);
 
+      // ── Auto-generate ZK Rarity Proof Certificate (included in mint, fee waived) ──
+      let zkCertificate: Awaited<ReturnType<typeof generateRarityCertificateFree>> | null = null;
+      try {
+        zkCertificate = await generateRarityCertificateFree(nft.id, req.user!.id);
+      } catch (certErr: any) {
+        console.warn("[ZkRarity] Auto-cert generation skipped:", certErr.message);
+      }
+
       if (supported) {
         listNftOnOpenSea({
           chain: chainId,
@@ -1932,6 +1940,7 @@ STYLE:
         ...nft,
         openseaUrl,
         openseaSupported: supported,
+        zkCertificate,
         engineMint: engineResult.transactionId ? {
           transactionId: engineResult.transactionId,
           txHash: engineResult.txHash || null,
@@ -4946,10 +4955,21 @@ STYLE:
         });
       }
 
+      // ── Auto-generate ZK Rarity Proof Certificate (included in mint, fee waived) ──
+      let zkCertificateFlight: Awaited<ReturnType<typeof generateRarityCertificateFree>> | null = null;
+      if (req.isAuthenticated() && req.user) {
+        try {
+          zkCertificateFlight = await generateRarityCertificateFree(nft.id, (req.user as any).id);
+        } catch (certErr: any) {
+          console.warn("[ZkRarity] Starship auto-cert skipped:", certErr.message);
+        }
+      }
+
       res.json({
         ...nft,
         openseaUrl,
         openseaSupported: supported,
+        zkCertificate: zkCertificateFlight,
         flight: {
           missionName: flight.missionName,
           vehicleName: flight.vehicleName,

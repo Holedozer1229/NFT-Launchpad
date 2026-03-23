@@ -479,8 +479,12 @@ export default function Gallery() {
                       <div className="flex items-center gap-1.5">
                         <span className={`text-[9px] font-mono ${rConf.color.split(" ")[0]}`}>{nft.rarity} | {nft.price}</span>
                         {zkCert && (
-                          <span className="flex items-center gap-0.5 text-[8px] font-mono text-neon-green bg-neon-green/10 border border-neon-green/20 rounded px-1 py-0.5" title={`ZK Rarity Proof: ${zkCert.certificateId}`} data-testid={`badge-zk-proof-${nft.id}`}>
-                            <Lock className="w-2 h-2" />ZK
+                          <span
+                            className="flex items-center gap-0.5 text-[8px] font-mono text-neon-green bg-neon-green/10 border border-neon-green/20 rounded px-1 py-0.5 cursor-default"
+                            title={`ZK Certified | Score: ${zkCert.rarityScore} | ${zkCert.rarityPercentile} | Φ: ${zkCert.phiBoost}× | ${zkCert.certificateId}`}
+                            data-testid={`badge-zk-proof-${nft.id}`}
+                          >
+                            <Lock className="w-2 h-2" />ZK·{zkCert.rarityPercentile}
                           </span>
                         )}
                       </div>
@@ -618,8 +622,13 @@ export default function Gallery() {
                       <span className="ml-1">{nft.rarity}</span>
                     </Badge>
                     {nftZkCert && (
-                      <Badge variant="outline" className="text-[9px] font-mono text-neon-green border-neon-green/40 bg-black/60 backdrop-blur-md gap-0.5" data-testid={`badge-zk-card-${nft.id}`} title={`ZK Rarity Proof: ${nftZkCert.certificateId}`}>
-                        <Lock className="w-2.5 h-2.5" />ZK Proof
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] font-mono text-neon-green border-neon-green/40 bg-black/60 backdrop-blur-md gap-0.5 cursor-default"
+                        data-testid={`badge-zk-card-${nft.id}`}
+                        title={`ZK Certified | Score: ${nftZkCert.rarityScore} | ${nftZkCert.rarityPercentile} percentile | Φ Boost: ${nftZkCert.phiBoost}× | ${nftZkCert.certificateId}`}
+                      >
+                        <Lock className="w-2.5 h-2.5" />ZK·{nftZkCert.rarityPercentile}
                       </Badge>
                     )}
                   </div>
