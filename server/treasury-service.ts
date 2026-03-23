@@ -51,6 +51,8 @@ async function withRetry<T>(
       return await fn();
     } catch (err) {
       lastErr = err;
+      // TreasuryErrors are structured/known failures — no point retrying
+      if (err instanceof TreasuryError) throw err;
       if (attempt < maxAttempts) {
         const delay = 500 * Math.pow(2, attempt - 1);
         console.warn(
@@ -261,13 +263,24 @@ async function sendSolana(
     if (lamports < 5000)
       throw new TreasuryError("AMOUNT_TOO_SMALL", "Amount below Solana minimum (0.000005 SOL)");
 
+    // Preflight: check treasury SOL balance before broadcasting to avoid
+    // "no record of a prior credit" simulation failures on unfunded wallets.
+    const FEE_LAMPORTS = 5000;
+    const senderBalance = await connection.getBalance(keypair.publicKey);
+    if (senderBalance < lamports + FEE_LAMPORTS) {
+      throw new TreasuryError(
+        "INSUFFICIENT_FUNDS",
+        `Treasury SOL balance too low: have ${(senderBalance / LAMPORTS_PER_SOL).toFixed(6)} SOL, ` +
+        `need ${((lamports + FEE_LAMPORTS) / LAMPORTS_PER_SOL).toFixed(6)} SOL (amount + fee)`
+      );
+    }
+
     const recipient = new PublicKey(toAddress);
     const tx = new Transaction().add(
       SystemProgram.transfer({ fromPubkey: keypair.publicKey, toPubkey: recipient, lamports })
     );
 
     const txHash = await sendAndConfirmTransaction(connection, tx, [keypair]);
-    const FEE_LAMPORTS = 5000;
     const fee = (FEE_LAMPORTS / LAMPORTS_PER_SOL).toFixed(9);
 
     console.log(`[TreasuryService] SOL ${amount} → ${toAddress} | tx: ${txHash}`);

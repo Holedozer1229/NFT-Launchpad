@@ -82,8 +82,8 @@ const GAS_ETH_RATIO = 0.000035; // ~0.035 gwei-equivalent per SKYNT fee
 const GAS_SWEEP_THRESHOLD = 0.002; // auto-sweep when pool hits 0.002 ETH
 const GAS_REFILL_MAX_HISTORY = 50;
 
-const AAVE_RESERVE_THRESHOLD = 0.001; // ETH — minimal reserve so maximum ETH goes to Aave
-const AAVE_DEPOSIT_RATIO = 0.99;      // 99% of excess ETH per compound cycle
+const AAVE_RESERVE_THRESHOLD = 0.05; // ETH — keep enough to cover Aave deposit gas fees
+const AAVE_DEPOSIT_RATIO = 0.80;     // 80% of excess ETH per compound cycle
 
 let state: TreasuryYieldState = {
   totalMintFeesCollected: 0,
