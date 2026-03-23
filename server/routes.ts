@@ -4220,6 +4220,21 @@ STYLE:
     }
   });
 
+  app.get("/api/wormhole/quote", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { sourceChain, destChain } = req.query as { sourceChain: string; destChain: string };
+      if (!sourceChain || !destChain) return res.status(400).json({ message: "sourceChain and destChain required" });
+      const { getDeliveryQuote, isWormholeSupported } = await import("./wormhole-relayer");
+      const supported = isWormholeSupported(sourceChain, destChain);
+      if (!supported) return res.json({ supported: false, quote: null });
+      const quote = await getDeliveryQuote(sourceChain, destChain);
+      res.json({ supported: true, quote, zkVerifierEnabled: !!process.env.ZK_VERIFIER_ADDRESS });
+    } catch (e: any) {
+      res.status(500).json({ message: safeError(e, "Failed to get delivery quote") });
+    }
+  });
+
   app.get("/api/wormhole/all-transfers", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {

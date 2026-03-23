@@ -5,40 +5,111 @@ import { getNetworkPerception } from "./iit-engine";
 import { db } from "./db";
 import { sql, eq, inArray } from "drizzle-orm";
 import { treasurySend } from "./treasury-service";
+import { sendCrossChain, isWormholeSupported } from "./wormhole-relayer";
 
 const CHAIN_NATIVE_TOKEN: Record<string, string> = {
-  ethereum: "ETH",
-  polygon: "MATIC",
+  ethereum:      "ETH",
+  polygon:       "MATIC",
   polygon_zkevm: "ETH",
-  arbitrum: "ETH",
-  base: "ETH",
-  zksync: "ETH",
-  dogecoin: "DOGE",
-  solana: "SOL",
-  stacks: "STX",
-  skynt: "SKYNT",
-  monero: "XMR",
+  arbitrum:      "ETH",
+  base:          "ETH",
+  zksync:        "ETH",
+  dogecoin:      "DOGE",
+  solana:        "SOL",
+  stacks:        "STX",
+  skynt:         "SKYNT",
+  monero:        "XMR",
+};
+
+// EVM token contract addresses.  SKYNT and standard stablecoins are resolved here;
+// ETH native transfers use the sentinel "NATIVE" value.
+const TOKEN_ADDRESS: Record<string, string> = {
+  SKYNT:  process.env.SKYNT_TOKEN_ADDRESS  ?? "0x0000000000000000000000000000000000000000",
+  USDC:   "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  // Ethereum mainnet USDC
+  USDT:   "0xdAC17F958D2ee523a2206206994597C13D831ec7",  // Ethereum mainnet USDT
+  WBTC:   "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+  ETH:    "NATIVE",
+  MATIC:  "NATIVE",
+  SOL:    "NATIVE",
+  STX:    "NATIVE",
+  DOGE:   "NATIVE",
+  XMR:    "NATIVE",
+};
+
+const TOKEN_DECIMALS: Record<string, number> = {
+  SKYNT: 18,
+  USDC:  6,
+  USDT:  6,
+  WBTC:  8,
+  ETH:   18,
+  MATIC: 18,
+  SOL:   9,
+  STX:   6,
+  DOGE:  8,
 };
 
 async function transmitCrossChain(
   transferId: number,
+  sourceChain: string,
+  destChain: string,
   recipientAddress: string,
   amount: string,
   token: string,
-  destChain: string
+  zkProofHash: string
 ): Promise<void> {
   const resolvedToken = token === "NATIVE" ? (CHAIN_NATIVE_TOKEN[destChain] ?? token) : token;
+  const tokenAddr     = TOKEN_ADDRESS[resolvedToken] ?? "NATIVE";
+  const tokenDecimals = TOKEN_DECIMALS[resolvedToken] ?? 18;
 
+  // ── Path A: EVM→EVM via Wormhole Relayer + ZK gate ──────────────────────────
+  if (isWormholeSupported(sourceChain, destChain)) {
+    console.log(`[ZK-Wormhole] Routing ${amount} ${resolvedToken} via Wormhole Relayer: ${sourceChain}→${destChain}`);
+    try {
+      const result = await sendCrossChain({
+        sourceChain,
+        destChain,
+        recipientAddress,
+        tokenAddress: tokenAddr,
+        tokenSymbol:  resolvedToken,
+        amount,
+        tokenDecimals,
+        zkProofHash,
+      });
+
+      if (result.success && result.txHash) {
+        await storage.updateZkWormholeTransferOnChain(transferId, result.txHash, result.explorerUrl, "broadcast");
+        console.log(`[ZK-Wormhole] Wormhole ${result.method} | zkVerified=${result.zkVerified} | quote=${result.deliveryQuote}wei | tx: ${result.txHash}`);
+        return;
+      }
+
+      // Wormhole failed — inspect error and decide whether to fallthrough or queue
+      const msg = result.error ?? "unknown";
+      const isFundingIssue =
+        msg.includes("INSUFFICIENT_FUNDS") ||
+        msg.includes("balance too low") ||
+        msg.includes("exceeds the balance") ||
+        msg.includes("insufficient") ||
+        msg.includes("not configured");
+
+      if (isFundingIssue) {
+        console.log(`[ZK-Wormhole] Wormhole funding shortfall on ${sourceChain} — queuing: ${msg.slice(0, 120)}`);
+        await storage.updateZkWormholeTransferOnChain(transferId, null, null, "pending_funding");
+        return;
+      }
+
+      console.warn(`[ZK-Wormhole] Wormhole relay failed (${msg.slice(0, 100)}) — falling back to treasury send`);
+    } catch (err: any) {
+      console.warn("[ZK-Wormhole] Wormhole relay threw — falling back:", err.message?.slice(0, 120));
+    }
+  }
+
+  // ── Path B: Non-EVM or Wormhole fallback — treasury direct send ──────────────
   try {
-    // All outbound signing goes through the Treasury Service — no user wallet is ever the signer
     const result = await treasurySend(destChain, recipientAddress, amount);
     await storage.updateZkWormholeTransferOnChain(transferId, result.txHash, result.explorerUrl, result.status);
-    console.log(`[ZK-Wormhole] Live transmit ${amount} ${resolvedToken} → ${recipientAddress} on ${destChain} | status: ${result.status} | tx: ${result.txHash}`);
+    console.log(`[ZK-Wormhole] Treasury transmit ${amount} ${resolvedToken} → ${recipientAddress} on ${destChain} | tx: ${result.txHash}`);
   } catch (err: any) {
     const msg: string = err?.message ?? String(err);
-    // Treasury funding issues are not protocol failures — the ZK proof completed
-    // successfully. Mark the on-chain leg as "pending_funding" so the protocol
-    // status stays "completed" and the user sees a clear, actionable message.
     const isFundingIssue =
       msg.includes("INSUFFICIENT_FUNDS") ||
       msg.includes("balance too low") ||
@@ -46,7 +117,7 @@ async function transmitCrossChain(
       msg.includes("not configured") ||
       msg.includes("failed after 3 attempts");
     if (isFundingIssue) {
-      console.log(`[ZK-Wormhole] Treasury funding required for ${destChain} transmit — transfer completed in protocol, on-chain leg queued: ${msg.slice(0, 120)}`);
+      console.log(`[ZK-Wormhole] Treasury funding required for ${destChain} — on-chain leg queued: ${msg.slice(0, 120)}`);
       await storage.updateZkWormholeTransferOnChain(transferId, null, null, "pending_funding");
     } else {
       console.error(`[ZK-Wormhole] Transmit error for ${destChain}:`, msg.slice(0, 200));
@@ -225,8 +296,15 @@ export async function initiateTransfer(
           }
 
           if (externalRecipient) {
-            transmitCrossChain(transfer.id, externalRecipient, netAmount.toFixed(6), token, destChainForTransmit)
-              .catch(err => console.error("[ZK-Wormhole] Transmit error:", err));
+            transmitCrossChain(
+              transfer.id,
+              wormhole.sourceChain,
+              destChainForTransmit,
+              externalRecipient,
+              netAmount.toFixed(6),
+              token,
+              zkProofHash
+            ).catch(err => console.error("[ZK-Wormhole] Transmit error:", err));
           }
         } catch (e) {
           console.error("[ZK-Wormhole] Transfer completion error:", e);
