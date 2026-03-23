@@ -1195,19 +1195,20 @@ STYLE:
   async function fetchLivePrices(): Promise<Record<string, number>> {
     try {
       const response = await fetch(
-        "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,blockstack&vs_currencies=usd",
+        "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,solana,blockstack&vs_currencies=usd",
         { signal: AbortSignal.timeout(5000) }
       );
       if (!response.ok) throw new Error("CoinGecko unavailable");
       const raw = await response.json();
       return {
         ETH: raw.ethereum?.usd || 3200,
+        SOL: raw.solana?.usd || 150,
         STX: raw.blockstack?.usd || 1.85,
         SKYNT: SKYNT_PRICE_USD,
       };
     } catch (err: any) {
       console.error("[fetchLivePrices] Failed to fetch live prices:", err.message);
-      return { ETH: 3200, STX: 1.85, SKYNT: SKYNT_PRICE_USD };
+      return { ETH: 3200, SOL: 150, STX: 1.85, SKYNT: SKYNT_PRICE_USD };
     }
   }
 
@@ -1221,7 +1222,7 @@ STYLE:
       const toToken = String(req.query.toToken || "ETH");
       const amount = parseFloat(String(req.query.amount || "0"));
 
-      if (!["SKYNT", "ETH", "STX"].includes(fromToken) || !["SKYNT", "ETH", "STX"].includes(toToken)) {
+      if (!["SKYNT", "ETH", "STX", "SOL"].includes(fromToken) || !["SKYNT", "ETH", "STX", "SOL"].includes(toToken)) {
         return res.status(400).json({ message: "Invalid token pair" });
       }
       if (fromToken === toToken) return res.status(400).json({ message: "Cannot swap same token" });
@@ -1260,7 +1261,7 @@ STYLE:
 
       const { fromToken, toToken, amount } = req.body;
       if (!fromToken || !toToken || !amount) return res.status(400).json({ message: "fromToken, toToken, and amount are required" });
-      if (!["SKYNT", "ETH", "STX"].includes(fromToken) || !["SKYNT", "ETH", "STX"].includes(toToken)) {
+      if (!["SKYNT", "ETH", "STX", "SOL"].includes(fromToken) || !["SKYNT", "ETH", "STX", "SOL"].includes(toToken)) {
         return res.status(400).json({ message: "Invalid token pair" });
       }
       if (fromToken === toToken) return res.status(400).json({ message: "Cannot swap same token" });
@@ -1285,7 +1286,7 @@ STYLE:
         return `${intPart}.${fracPart}`;
       }
 
-      const fromBalanceField = fromToken === "STX" ? "balanceStx" : fromToken === "ETH" ? "balanceEth" : "balanceSkynt";
+      const fromBalanceField = fromToken === "STX" ? "balanceStx" : fromToken === "ETH" ? "balanceEth" : fromToken === "SOL" ? "balanceSol" : "balanceSkynt";
       const fromCurrentStr = String(wallet[fromBalanceField as keyof typeof wallet] ?? "0");
       const fromCurrentUnits = swapToUnits(fromCurrentStr, fromToken);
       const fromInputUnits = swapToUnits(amount, fromToken);
@@ -1311,7 +1312,7 @@ STYLE:
       const feeUnits = (grossOutputUnits * 3n) / 1000n;
       const netOutputUnits = grossOutputUnits - feeUnits;
 
-      const toBalanceField = toToken === "STX" ? "balanceStx" : toToken === "ETH" ? "balanceEth" : "balanceSkynt";
+      const toBalanceField = toToken === "STX" ? "balanceStx" : toToken === "ETH" ? "balanceEth" : toToken === "SOL" ? "balanceSol" : "balanceSkynt";
       const toCurrentStr = String(wallet[toBalanceField as keyof typeof wallet] ?? "0");
       const toCurrentUnits = swapToUnits(toCurrentStr, toToken);
 

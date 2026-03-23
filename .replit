@@ -69,3 +69,6 @@ SKYNT_CONTRACT_ADDRESS = "0x22d3f06afB69e5FCFAa98C20009510dD11aF2517"
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[objectStorage]
+defaultBucketID = "replit-objstore-4e22bf71-e6ef-4835-a34f-a2c7f1f9afff"
