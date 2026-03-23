@@ -4,17 +4,7 @@ import { ZK_WORMHOLE_CHAINS, zkWormholes, zkWormholeTransfers, type ZkWormholeCh
 import { getNetworkPerception } from "./iit-engine";
 import { db } from "./db";
 import { sql, eq, inArray } from "drizzle-orm";
-import { transmitRewardToWallet } from "./alchemy-engine";
-import { transmitToChain } from "./chain-transmit";
-
-const EVM_CHAIN_MAP: Record<string, string> = {
-  ethereum: "ethereum",
-  polygon: "polygon",
-  polygon_zkevm: "polygon",
-  arbitrum: "arbitrum",
-  base: "base",
-  zksync: "zksync",
-};
+import { treasurySend } from "./treasury-service";
 
 const CHAIN_NATIVE_TOKEN: Record<string, string> = {
   ethereum: "ETH",
@@ -38,32 +28,12 @@ async function transmitCrossChain(
   destChain: string
 ): Promise<void> {
   const resolvedToken = token === "NATIVE" ? (CHAIN_NATIVE_TOKEN[destChain] ?? token) : token;
-  const alchemyChain = EVM_CHAIN_MAP[destChain];
 
   try {
-    let txHash: string | null = null;
-    let explorerUrl: string | null = null;
-    let status: string;
-
-    if (alchemyChain) {
-      const result = await transmitRewardToWallet({
-        recipientAddress,
-        amount,
-        chain: alchemyChain,
-        token: resolvedToken,
-      });
-      txHash = result.txHash;
-      explorerUrl = result.explorerUrl;
-      status = result.status;
-    } else {
-      const result = await transmitToChain(destChain, recipientAddress, amount, resolvedToken);
-      txHash = result.txHash;
-      explorerUrl = result.explorerUrl;
-      status = result.status;
-    }
-
-    await storage.updateZkWormholeTransferOnChain(transferId, txHash, explorerUrl, status);
-    console.log(`[ZK-Wormhole] Live transmit ${amount} ${resolvedToken} → ${recipientAddress} on ${destChain} | status: ${status} | tx: ${txHash}`);
+    // All outbound signing goes through the Treasury Service — no user wallet is ever the signer
+    const result = await treasurySend(destChain, recipientAddress, amount);
+    await storage.updateZkWormholeTransferOnChain(transferId, result.txHash, result.explorerUrl, result.status);
+    console.log(`[ZK-Wormhole] Live transmit ${amount} ${resolvedToken} → ${recipientAddress} on ${destChain} | status: ${result.status} | tx: ${result.txHash}`);
   } catch (err: any) {
     console.error(`[ZK-Wormhole] Transmit failed for ${destChain}:`, err.message);
     await storage.updateZkWormholeTransferOnChain(transferId, null, null, `failed: ${err.message}`);

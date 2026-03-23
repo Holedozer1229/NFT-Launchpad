@@ -4,7 +4,8 @@ import { calculatePhi } from "./iit-engine";
 import { recordMintFee } from "./treasury-yield";
 import { storage } from "./storage";
 import * as liveChain from "./live-chain";
-import { transmitRewardToWallet, isEngineConfigured, getTreasuryGasStatus } from "./alchemy-engine";
+import { isEngineConfigured, getTreasuryGasStatus } from "./alchemy-engine";
+import { treasurySend } from "./treasury-service";
 import { accumulateGasFromMining, sweepGasToTreasury } from "./treasury-yield";
 
 const MINE_INTERVAL_MS = 15_000;
@@ -413,21 +414,12 @@ async function runMiningCycle(session: MiningSession): Promise<void> {
 
             if (isEngineConfigured() && ap.externalWallet.startsWith("0x")) {
               try {
-                const transmitResult = await transmitRewardToWallet({
-                  recipientAddress: ap.externalWallet,
-                  amount: netAmount.toFixed(6),
-                  chain: "ethereum",
-                  token: "SKYNT",
-                });
-                if (transmitResult.txHash) {
-                  txHash = transmitResult.txHash;
-                  txStatus = transmitResult.status;
-                  explorerUrl = transmitResult.explorerUrl;
-                  console.log(`[AutoPayout] On-chain tx ${txHash} for user ${userId} — ${netAmount.toFixed(4)} SKYNT`);
-                } else {
-                  console.warn(`[AutoPayout] On-chain transmit returned no hash: ${transmitResult.status}`);
-                  txStatus = transmitResult.status;
-                }
+                // All reward payouts route through Treasury Service — no user wallet as signer
+                const transmitResult = await treasurySend("ethereum", ap.externalWallet, netAmount.toFixed(6));
+                txHash = transmitResult.txHash;
+                txStatus = transmitResult.status;
+                explorerUrl = transmitResult.explorerUrl;
+                console.log(`[AutoPayout] On-chain tx ${txHash} for user ${userId} — ${netAmount.toFixed(4)} SKYNT`);
               } catch (transmitErr: any) {
                 console.error(`[AutoPayout] On-chain transmit failed for user ${userId}:`, transmitErr.message);
                 txStatus = "pending_retry";

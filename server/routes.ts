@@ -20,7 +20,7 @@ import { MERGE_MINING_CHAINS, STX_LENDING_TIERS, type MergeMiningChainId, type S
 import { listNftOnOpenSea, fetchNftFromOpenSea, fetchCollectionNfts, getOpenSeaNftUrl, isOpenSeaSupported } from "./opensea";
 import * as liveChain from "./live-chain";
 import { dysonMiner } from "./dyson-sphere-miner";
-import { transmitEthereum, transmitStacks } from "./chain-transmit";
+import { treasurySend, validateRecipientAddress, TreasuryError } from "./treasury-service";
 import { requestGasCoverage, OIYE_GAS_ESTIMATES } from "./self-fund-gas";
 
 // Toy Hamiltonian constant
@@ -157,24 +157,28 @@ async function deployContractsForWallet(walletAddress: string, chain: string, wa
 const sendTokenSchema = z.object({
   toAddress: z.string().min(1, "Recipient address is required"),
   amount: z.string().refine((v) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0; }, "Amount must be a positive number"),
-  token: z.enum(["SKYNT", "STX", "ETH", "DOGE", "XMR"]).default("SKYNT"),
+  token: z.enum(["SKYNT", "STX", "ETH", "DOGE", "XMR", "SOL"]).default("SKYNT"),
 }).superRefine((data, ctx) => {
   const addr = data.toAddress;
   if (data.token === "ETH") {
     if (!/^0x[a-fA-F0-9]{40}$/.test(addr)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "ETH address must be 0x-prefixed 40-character hex" });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "ETH address must be a 0x-prefixed 40-character hex string" });
     }
   } else if (data.token === "STX") {
-    if (!/^S[A-Z0-9]{38,41}$/.test(addr)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "STX address must start with S followed by 38-41 alphanumeric characters (e.g. SP...)" });
+    if (!/^SP[A-Z0-9]{38,41}$/.test(addr)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "STX address must start with SP followed by 38-41 alphanumeric characters (mainnet)" });
     }
   } else if (data.token === "DOGE") {
     if (!/^D[a-zA-Z0-9]{24,33}$/.test(addr)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "DOGE address must start with D and be 25-34 characters" });
     }
   } else if (data.token === "XMR") {
-    if (addr.length < 95 || addr.length > 106) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "XMR address must be 95-106 characters" });
+    if ((addr.length !== 95 && addr.length !== 106) || (addr[0] !== "4" && addr[0] !== "8") || !/^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$/.test(addr)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "XMR address must be 95 or 106 base58 characters starting with '4' (standard) or '8' (subaddress)" });
+    }
+  } else if (data.token === "SOL") {
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(addr)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["toAddress"], message: "SOL address must be a 32-44 character base58 string" });
     }
   }
 });
@@ -1024,13 +1028,43 @@ STYLE:
       }
       const { toAddress, amount, token } = parsed.data;
 
-      const balanceField = token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
-      const currentBalance = parseFloat(wallet[balanceField]);
+      // Validate recipient address format (including EIP-55 checksum for ETH) before touching balances
+      const chain = token === "ETH" ? "ethereum" : token === "STX" ? "stacks" : token === "DOGE" ? "dogecoin" : token === "XMR" ? "monero" : token === "SOL" ? "solana" : "skynt";
+      if (chain !== "skynt") {
+        try {
+          validateRecipientAddress(chain, toAddress);
+        } catch (addrErr: any) {
+          return res.status(400).json({ message: addrErr.message });
+        }
+        // Additional EIP-55 checksum enforcement for ETH: mixed-case must be valid checksum
+        if (token === "ETH") {
+          const { isAddress } = await import("viem");
+          if (!isAddress(toAddress, { strict: true })) {
+            return res.status(400).json({ message: "ETH address has invalid EIP-55 checksum — use all-lowercase or a correctly checksummed address" });
+          }
+        }
+      }
+
+      // Balance field mapping: STX → balanceStx, ETH → balanceEth, all others → balanceSkynt
+      // DOGE/XMR/SOL are cross-chain assets tracked against the SKYNT balance field
+      const balanceField: "balanceStx" | "balanceEth" | "balanceSkynt" =
+        token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
+      const currentBalanceStr = wallet[balanceField];
+      const currentBalance = parseFloat(currentBalanceStr);
       const sendAmount = parseFloat(amount);
 
       if (sendAmount > currentBalance) {
         return res.status(400).json({ message: "Insufficient balance" });
       }
+
+      // Phase 1: Atomically reserve balance using optimistic locking (compare-and-swap).
+      // The DB update only succeeds if the balance hasn't changed since we read it,
+      // preventing concurrent double-spend.
+      const reserved = await storage.reserveWalletBalance(wallet.id, token, currentBalanceStr, sendAmount);
+      if (!reserved) {
+        return res.status(409).json({ message: "Balance changed concurrently — please retry" });
+      }
+      const reservedBalance = (currentBalance - sendAmount).toFixed(6);
 
       let txHash: string | null = null;
       let explorerUrl: string | null = null;
@@ -1043,25 +1077,26 @@ STYLE:
         networkFee = `${gasCoverage.ethUsed.toFixed(8)} ETH (OIYE)`;
       }
 
-      if (token === "ETH" || token === "STX") {
+      // Phase 2: Broadcast on-chain via Treasury Service (ETH, STX, DOGE, XMR, SOL)
+      if (token !== "SKYNT") {
         try {
-          const result = token === "ETH"
-            ? await transmitEthereum(toAddress, amount)
-            : await transmitStacks(toAddress, amount);
+          const result = await treasurySend(chain, toAddress, amount);
           txHash = result.txHash;
           explorerUrl = result.explorerUrl;
           networkFee = gasCoverage.covered
             ? `${gasCoverage.ethUsed.toFixed(8)} ETH (OIYE)`
-            : (result.networkFee ?? networkFee);
+            : (result.fee ?? networkFee);
           status = result.status;
+          // Phase 3 (success): reservation confirmed — balance stays decremented
         } catch (transmitError: any) {
+          // Phase 3 (failure): atomically release reservation — restore only if balance is still
+          // at the reserved value to prevent clobbering any concurrent successful transaction
+          await storage.releaseWalletBalance(wallet.id, token, reservedBalance, sendAmount);
           const msg = transmitError instanceof Error ? transmitError.message : "Chain transmit failed";
-          return res.status(400).json({ message: msg });
+          const code = transmitError instanceof TreasuryError ? transmitError.code : "TRANSMIT_ERROR";
+          return res.status(400).json({ message: msg, code });
         }
       }
-
-      const newBalance = (currentBalance - sendAmount).toString();
-      await storage.updateWalletBalance(wallet.id, token, newBalance);
 
       const transaction = await storage.createTransaction({
         walletId: wallet.id,
@@ -1076,7 +1111,7 @@ STYLE:
         networkFee,
       });
 
-      res.json({ transaction, newBalance, oiyeGasCovered: gasCoverage.covered, oiyeReserve: gasCoverage.reserve });
+      res.json({ transaction, newBalance: reservedBalance, oiyeGasCovered: gasCoverage.covered, oiyeReserve: gasCoverage.reserve });
     } catch (error: any) {
       res.status(500).json({ message: safeError(error, "Failed to send transaction") });
     }

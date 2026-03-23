@@ -30,6 +30,20 @@ export interface IStorage {
   getWalletsByUser(userId: number): Promise<Wallet[]>;
   getWallet(id: number): Promise<Wallet | undefined>;
   updateWalletBalance(id: number, token: string, amount: string): Promise<void>;
+  /**
+   * Atomically deduct `deductAmount` from the balance for `token` on wallet `id`,
+   * but only if the current balance equals `expectedBalance` (optimistic locking).
+   * Returns true if the update succeeded, false if the row was concurrently modified
+   * or the balance has changed (caller should re-read and retry or reject).
+   */
+  reserveWalletBalance(id: number, token: string, expectedBalance: string, deductAmount: number): Promise<boolean>;
+  /**
+   * Atomically restore a previously reserved balance.
+   * Only restores if the balance is currently equal to `reservedBalance` (the post-deduction
+   * value), preventing the rollback from clobbering a concurrent successful transaction.
+   * Returns true if the restore succeeded.
+   */
+  releaseWalletBalance(id: number, token: string, reservedBalance: string, restoreAmount: number): Promise<boolean>;
   consolidateWallets(userId: number): Promise<{ wallet: Wallet; deletedCount: number }>;
   createTransaction(tx: InsertWalletTransaction): Promise<WalletTransaction>;
   getTransactionsByWallet(walletId: number): Promise<WalletTransaction[]>;
@@ -226,6 +240,31 @@ export class DatabaseStorage implements IStorage {
   async updateWalletBalance(id: number, token: string, amount: string): Promise<void> {
     const field = token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
     await db.update(wallets).set({ [field]: amount }).where(eq(wallets.id, id));
+  }
+
+  async reserveWalletBalance(id: number, token: string, expectedBalance: string, deductAmount: number): Promise<boolean> {
+    const field: "balanceStx" | "balanceEth" | "balanceSkynt" =
+      token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
+    const newBalance = (parseFloat(expectedBalance) - deductAmount).toFixed(6);
+    const updated = await db
+      .update(wallets)
+      .set({ [field]: newBalance })
+      .where(and(eq(wallets.id, id), eq(wallets[field], expectedBalance)))
+      .returning({ id: wallets.id });
+    return updated.length > 0;
+  }
+
+  async releaseWalletBalance(id: number, token: string, reservedBalance: string, restoreAmount: number): Promise<boolean> {
+    const field: "balanceStx" | "balanceEth" | "balanceSkynt" =
+      token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
+    const restoredBalance = (parseFloat(reservedBalance) + restoreAmount).toFixed(6);
+    // Only restore if the balance is still at the reserved value — prevents clobbering concurrent txns
+    const updated = await db
+      .update(wallets)
+      .set({ [field]: restoredBalance })
+      .where(and(eq(wallets.id, id), eq(wallets[field], reservedBalance)))
+      .returning({ id: wallets.id });
+    return updated.length > 0;
   }
 
   async consolidateWallets(userId: number): Promise<{ wallet: Wallet; deletedCount: number }> {

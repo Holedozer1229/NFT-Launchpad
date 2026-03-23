@@ -271,7 +271,8 @@ export function getGasRefillPool(): { poolEth: number; threshold: number; autoEn
   };
 }
 
-// Sweeps accumulated ETH from the gas pool to the treasury wallet on-chain
+// Sweeps accumulated ETH from the gas pool to the treasury wallet on-chain.
+// Uses the Treasury Service — no user or admin wallet address is ever the signer.
 export async function sweepGasToTreasury(force = false): Promise<GasRefillRecord | null> {
   const poolEth = state.gasRefillPool;
   if (poolEth < GAS_SWEEP_THRESHOLD && !force) {
@@ -285,17 +286,12 @@ export async function sweepGasToTreasury(force = false): Promise<GasRefillRecord
   let record: GasRefillRecord;
 
   try {
-    const privateKey = process.env.TREASURY_PRIVATE_KEY;
     const treasuryAddress = process.env.TREASURY_WALLET_ADDRESS;
 
-    if (privateKey && treasuryAddress && process.env.ALCHEMY_API_KEY) {
-      const { transmitRewardToWallet } = await import("./alchemy-engine");
-      const result = await transmitRewardToWallet({
-        recipientAddress: treasuryAddress,
-        amount: sweepAmount.toFixed(8),
-        chain: "ethereum",
-        token: "ETH",
-      });
+    if (treasuryAddress && process.env.TREASURY_PRIVATE_KEY && process.env.ALCHEMY_API_KEY) {
+      // Route through Treasury Service — no user context, no admin personal wallet
+      const { treasurySend } = await import("./treasury-service");
+      const result = await treasurySend("ethereum", treasuryAddress, sweepAmount.toFixed(8));
       record = {
         timestamp: Date.now(),
         ethAmount: sweepAmount,
@@ -312,7 +308,7 @@ export async function sweepGasToTreasury(force = false): Promise<GasRefillRecord
         txHash: null,
         status: "pending",
       };
-      console.log(`[Gas Refill] Gas sweep queued: ${sweepAmount.toFixed(6)} ETH (pending engine authorization)`);
+      console.log(`[Gas Refill] Gas sweep queued: ${sweepAmount.toFixed(6)} ETH (treasury keys not configured)`);
     }
   } catch (err: any) {
     console.error("[Gas Refill] Sweep failed:", err.message);
@@ -322,7 +318,7 @@ export async function sweepGasToTreasury(force = false): Promise<GasRefillRecord
       ethAmount: sweepAmount,
       source: "mining-gas-accumulator",
       txHash: null,
-      status: "pending",
+      status: "failed",
     };
   }
 
