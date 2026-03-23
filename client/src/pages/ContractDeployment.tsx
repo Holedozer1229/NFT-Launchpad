@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -278,7 +278,7 @@ export default function ContractDeployment() {
                 borderColor: deployedChains.length > 0 ? `${NEON.green}33` : "rgba(255,255,255,0.1)",
                 background: deployedChains.length > 0 ? `${NEON.green}05` : "rgba(255,255,255,0.02)",
                 "--hover-color": `${NEON.cyan}55`,
-              } as any}
+              } as CSSProperties}
               data-testid={`contract-card-${contract.id}`}
             >
               <div className="flex items-center gap-2">

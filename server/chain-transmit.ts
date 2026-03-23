@@ -176,10 +176,12 @@ export async function transmitStacks(
   const response = await broadcastTransaction({ transaction: tx, network: STACKS_MAINNET });
 
   if ("error" in response && response.error) {
-    throw new Error(`Stacks broadcast error: ${response.error} — ${(response as any).reason ?? ""}`);
+    const reason = ("reason" in response ? String(response.reason) : "") || "";
+    throw new Error(`Stacks broadcast error: ${response.error}${reason ? ` — ${reason}` : ""}`);
   }
 
-  const txHash = (response as any).txid ?? (response as any).tx_id ?? String(response);
+  const broadcastOk = response as { txid: string };
+  const txHash = broadcastOk.txid ?? String(response);
   const STX_FEE_MICRO = 2000n;
   const networkFee = (Number(STX_FEE_MICRO) / STX_MICRO).toFixed(6);
   return {

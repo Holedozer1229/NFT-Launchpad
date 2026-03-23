@@ -67,7 +67,7 @@ function timeAgo(ts: number) {
 export default function PriceDriver() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const isAdmin = (user as any)?.isAdmin;
+  const isAdmin = user?.isAdmin;
   const { on } = useEngineStream();
 
   useEffect(() => {

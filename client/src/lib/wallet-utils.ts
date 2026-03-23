@@ -1,13 +1,19 @@
+declare global {
+  interface Window {
+    phantom?: { solana?: unknown };
+  }
+}
+
 export function isMobileDevice(): boolean {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
 export function hasPhantomExtension(): boolean {
-  return typeof window !== "undefined" && !!(window as any).phantom?.solana;
+  return typeof window !== "undefined" && !!window.phantom?.solana;
 }
 
 export function hasMetaMaskExtension(): boolean {
-  return typeof window !== "undefined" && !!(window as any).ethereum?.isMetaMask;
+  return typeof window !== "undefined" && !!(window.ethereum as { isMetaMask?: boolean } | undefined)?.isMetaMask;
 }
 
 export function getPhantomDeepLink(action: string = "connect"): string {

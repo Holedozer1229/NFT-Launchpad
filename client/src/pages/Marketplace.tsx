@@ -347,7 +347,7 @@ export default function Marketplace() {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)}>
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "browse" | "my-listings")}>
           <TabsList className="bg-black/50 border border-white/10">
             <TabsTrigger value="browse" className="font-heading tracking-wider text-xs data-[state=active]:bg-neon-cyan/20 data-[state=active]:text-neon-cyan" data-testid="tab-browse">
               <Store className="w-3 h-3 mr-1" /> BROWSE

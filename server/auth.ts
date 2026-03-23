@@ -100,9 +100,9 @@ export function jwtAuthMiddleware(req: Request, res: Response, next: NextFunctio
 
   storage.getUser(Number(payload.sub)).then((user) => {
     if (user) {
-      (req as any).user = user;
-      (req as any).isAuthenticated = () => true;
-      (req as any).jwtAuth = true;
+      req.user = user;
+      req.jwtAuth = true;
+      Object.assign(req, { isAuthenticated: () => true });
     }
     next();
   }).catch((err) => {

@@ -196,10 +196,10 @@ async function sentinelTick() {
 
       // Attempt real sweep if treasury key available
       try {
-        const alch = await import("./alchemy-engine") as any;
-        const sweepGasFromYield = alch.sweepGasFromYield;
-        if (typeof sweepGasFromYield === "function") {
-          const result = await sweepGasFromYield(fundAmount);
+        const alch = await import("./alchemy-engine");
+        const sweepFn = (alch as unknown as Record<string, unknown>).sweepGasFromYield;
+        if (typeof sweepFn === "function") {
+          const result = await (sweepFn as (amount: number) => Promise<{ txHash?: string }>)(fundAmount);
           if (result?.txHash) {
             event.txHash = result.txHash;
             event.status = "executed";

@@ -69,7 +69,7 @@ interface MiningSession {
   username: string;
   walletId: number;
   startedAt: number;
-  intervalHandle: ReturnType<typeof setInterval>;
+  intervalHandle: ReturnType<typeof setInterval> | null;
   stats: MiningStats;
   premiumPassExpiry: number;
   cycleRunning: boolean;
@@ -569,7 +569,7 @@ export async function startMining(userId: number, username: string): Promise<{ s
     username,
     walletId: wallet.id,
     startedAt: Date.now(),
-    intervalHandle: null as any,
+    intervalHandle: null,
     stats,
     premiumPassExpiry: 0,
     cycleRunning: false,
@@ -594,7 +594,7 @@ export function stopMining(userId: number): { success: boolean; message: string;
     return { success: true, message: "No active mining session" };
   }
 
-  clearInterval(session.intervalHandle);
+  clearInterval(session.intervalHandle ?? undefined);
   session.stats.isActive = false;
   session.stats.uptimeSeconds = Math.floor((Date.now() - session.stats.sessionStartedAt) / 1000);
 

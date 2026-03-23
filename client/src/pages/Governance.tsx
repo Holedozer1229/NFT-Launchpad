@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import {
   Vote, Shield, Zap, Clock, CheckCircle, XCircle, Minus, Loader2,
   TrendingUp, Lock, Coins, Server, Globe, Cpu, Activity, Hash,
@@ -138,7 +138,7 @@ function ProposalCard({ proposal, myVote, onVote, isPending }: {
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <span className="text-[9px] font-mono text-neon-green w-14">FOR {forPct.toFixed(0)}%</span>
-          <Progress value={forPct} className="h-1.5 flex-1 bg-white/5" style={{ "--progress-color": "hsl(145 100% 50%)" } as any} />
+          <Progress value={forPct} className="h-1.5 flex-1 bg-white/5" style={{ "--progress-color": "hsl(145 100% 50%)" } as CSSProperties} />
           <span className="text-[9px] font-mono text-neon-green w-8 text-right">{proposal.votesFor}</span>
         </div>
         <div className="flex items-center gap-3">

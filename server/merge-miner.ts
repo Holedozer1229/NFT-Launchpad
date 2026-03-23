@@ -142,7 +142,7 @@ async function runMergeMiningCycle(userId: number, chainId: MergeMiningChainId) 
       const target = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff") / BigInt(Math.max(1, RANDOMX_CONFIG.soloMiningDifficulty * 1000));
       blockFound = BigInt("0x" + blockHash) < target;
       
-    } else if (config.algorithm === "zkevm" || (config as any).algorithm === "zksync") {
+    } else if (config.algorithm === "zkevm" || config.algorithm === "zksync") {
       const proofSeed = `zk-proof-${chainId}-${seed}-${nonce}`;
       blockHash = createHash("sha256").update(proofSeed).digest("hex");
       blockFound = Math.random() < (1 / (stats.difficulty * 10));

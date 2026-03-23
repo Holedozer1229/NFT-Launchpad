@@ -1476,10 +1476,10 @@ STYLE:
     try {
       const parsed = insertNftSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json(parsed.error);
-      const nftData_ = parsed.data as any;
+      const nftData_ = parsed.data as InsertNft;
 
       // Deduct minting cost from user wallet (derived from RARITY_TIERS)
-      const rarity = nftData_.rarity as string;
+      const rarity = String(nftData_.rarity);
       const tier = RARITY_TIERS[rarity.toLowerCase() as RarityTier];
       if (!tier) return res.status(400).json({ message: "Invalid rarity tier" });
       const cost = parseFloat(tier.price);
@@ -1768,13 +1768,13 @@ STYLE:
         txHash: "0x" + randomBytes(32).toString("hex"),
       });
       if (!parsed.success) return res.status(400).json(parsed.error);
-      const bridgeData_ = parsed.data as any;
+      const bridgeData_ = parsed.data as InsertBridgeTransaction;
 
       // Apply bridge fee and deduct from wallet
-      const bridgeAmount = parseFloat(bridgeData_.amount);
+      const bridgeAmount = parseFloat(String(bridgeData_.amount));
       const fee = bridgeAmount * BRIDGE_FEE_BPS / 10000;
       const totalDeduction = bridgeAmount + fee;
-      const token = (bridgeData_.token || "SKYNT") as string;
+      const token = String(bridgeData_.token || "SKYNT");
       const tokenBalanceFields: Record<string, "balanceEth" | "balanceStx" | "balanceSkynt"> = {
         ETH: "balanceEth", STX: "balanceStx", SKYNT: "balanceSkynt",
       };
@@ -3179,7 +3179,7 @@ STYLE:
         difficultyTarget,
         expiresAt,
         status: "active",
-        createdBy: (req.user as any).username ?? "admin",
+        createdBy: req.user!.username ?? "admin",
       });
 
       res.status(201).json(challenge);
@@ -3430,8 +3430,8 @@ STYLE:
         wallet ? storage.getDeploymentsByWalletId(wallet.id).catch(() => []) : Promise.resolve([]),
         storage.getGameScoresByUser(user.id).catch(() => []),
         wallet ? storage.getTransactionsByWallet(wallet.id).catch(() => []) : Promise.resolve([]),
-        (user as any).walletAddress
-          ? liveChain.getWalletBalance((user as any).walletAddress, "ethereum").catch(() => null)
+        user.walletAddress
+          ? liveChain.getWalletBalance(user.walletAddress, "ethereum").catch(() => null)
           : Promise.resolve(null),
       ]);
 
@@ -3447,7 +3447,7 @@ STYLE:
           balanceStx: wallet.balanceStx,
           balanceEth: wallet.balanceEth,
           createdAt: wallet.createdAt,
-          externalWallet: (user as any).walletAddress || null,
+          externalWallet: user.walletAddress || null,
         } : null,
         tokens: {
           skynt: { balance: wallet?.balanceSkynt || "0", symbol: "SKYNT", protocol: "SKYNT Genesis" },
@@ -3616,7 +3616,7 @@ STYLE:
         return res.json([]);
       }
       
-      const { Alchemy, Network } = await import("alchemy-sdk");
+      const { Alchemy, Network, AssetTransfersCategory } = await import("alchemy-sdk");
       const alchemy = new Alchemy({
         apiKey: alchemyApiKey,
         network: Network.ETH_MAINNET,
@@ -3624,7 +3624,12 @@ STYLE:
       
       const txs = await alchemy.core.getAssetTransfers({
         fromAddress: TREASURY_WALLET,
-        category: ["external", "erc20", "erc721", "erc1155"] as any,
+        category: [
+          AssetTransfersCategory.EXTERNAL,
+          AssetTransfersCategory.ERC20,
+          AssetTransfersCategory.ERC721,
+          AssetTransfersCategory.ERC1155,
+        ],
         maxCount: 10,
       });
       
@@ -3674,7 +3679,7 @@ STYLE:
   app.post("/api/treasury/aave-deposit", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
-      const user = (req as any).user;
+      const user = req.user!;
       if (!user.isAdmin) return res.status(403).json({ message: "Admin only" });
       const { triggerAaveDeposit } = await import("./treasury-yield");
       const result = await triggerAaveDeposit();
@@ -3970,7 +3975,7 @@ STYLE:
   });
 
   app.post("/api/price-driver/trigger", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
       return res.status(403).json({ message: "Admin only" });
     }
     try {
@@ -3983,7 +3988,7 @@ STYLE:
   });
 
   app.post("/api/price-driver/start", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
       return res.status(403).json({ message: "Admin only" });
     }
     try {
@@ -3996,7 +4001,7 @@ STYLE:
   });
 
   app.post("/api/price-driver/stop", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
       return res.status(403).json({ message: "Admin only" });
     }
     try {
@@ -4009,7 +4014,7 @@ STYLE:
   });
 
   app.post("/api/price-driver/set-target", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
       return res.status(403).json({ message: "Admin only" });
     }
     const target = parseFloat(req.body?.targetPriceUsd);
@@ -4026,7 +4031,7 @@ STYLE:
   });
 
   app.get("/api/engine/console", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
       return res.status(403).json({ message: "Admin only" });
     }
     try {
@@ -4206,7 +4211,7 @@ STYLE:
         owner: walletAddress,
         price: tier.price,
         chain: chainId,
-        launchId: null as any,
+        launchId: null,
         openseaUrl,
         openseaStatus: supported ? "pending" : "unsupported",
       });
@@ -4343,7 +4348,7 @@ STYLE:
     try {
       const { nftId } = req.body as { nftId: number };
       if (!nftId) return res.status(400).json({ message: "nftId is required" });
-      const result = await generateRarityCertificate(nftId, (req.user as any).id);
+      const result = await generateRarityCertificate(nftId, req.user!.id);
       res.json(result);
     } catch (error: any) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Failed to generate certificate" });
@@ -4362,7 +4367,7 @@ STYLE:
   app.get("/api/rarity-proof/certificates", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const certs = await getUserCertificates((req.user as any).id);
+      const certs = await getUserCertificates(req.user!.id);
       res.json(certs);
     } catch (error: any) {
       res.status(500).json({ message: safeError(error, "Failed to fetch certificates") });
@@ -4372,7 +4377,7 @@ STYLE:
   app.get("/api/rarity-proof/download/:certificateId", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const cert = await downloadCertificate(req.params.certificateId, (req.user as any).id);
+      const cert = await downloadCertificate(req.params.certificateId, req.user!.id);
       res.json(cert);
     } catch (error: any) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Failed to download certificate" });
@@ -4811,7 +4816,7 @@ STYLE:
       const { db } = await import("./db");
       const { title, description, category, timelockHours, endsAt, executionPayload } = req.body;
       if (!title || !description) return res.status(400).json({ message: "title and description required" });
-      const userId = (req as any).user.id;
+      const userId = req.user!.id;
 
       // Validate price_driver_params proposals
       const ALLOWED_PD_KEYS = [
@@ -4867,7 +4872,7 @@ STYLE:
       const proposalId = parseInt(req.params.id);
       const { choice, reason } = req.body;
       if (!["for", "against", "abstain"].includes(choice)) return res.status(400).json({ message: "choice must be for/against/abstain" });
-      const userId = (req as any).user.id;
+      const userId = req.user!.id;
       const existing = await db.select().from(governanceVotes)
         .where(and(eq(governanceVotes.proposalId, proposalId), eq(governanceVotes.voterId, userId)));
       if (existing.length > 0) return res.status(409).json({ message: "Already voted on this proposal" });
@@ -4897,7 +4902,7 @@ STYLE:
       const { db } = await import("./db");
       const { eq, and } = await import("drizzle-orm");
       const proposalId = parseInt(req.params.id);
-      const userId = (req as any).user.id;
+      const userId = req.user!.id;
       const votes = await db.select().from(governanceVotes)
         .where(and(eq(governanceVotes.proposalId, proposalId), eq(governanceVotes.voterId, userId)));
       res.json(votes[0] || null);
@@ -4911,7 +4916,7 @@ STYLE:
       if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
       const { db } = await import("./db");
       const { eq } = await import("drizzle-orm");
-      const userId = (req as any).user.id;
+      const userId = req.user!.id;
       const votes = await db.select().from(governanceVotes).where(eq(governanceVotes.voterId, userId));
       res.json(votes);
     } catch (e: any) {
@@ -4943,7 +4948,7 @@ STYLE:
   app.post("/api/governance/execute/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
-      const user = (req as any).user;
+      const user = req.user!;
       if (!user.isAdmin) return res.status(403).json({ message: "Admin only" });
       const proposalId = parseInt(req.params.id);
       if (isNaN(proposalId)) return res.status(400).json({ message: "Invalid proposal ID" });
@@ -4980,7 +4985,7 @@ STYLE:
   app.post("/api/aave/deposit", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
-      const user = (req as any).user;
+      const user = req.user!;
       if (!user.isAdmin) return res.status(403).json({ message: "Admin only" });
       const amountEth = parseFloat(req.body.amountEth);
       if (isNaN(amountEth) || amountEth <= 0) return res.status(400).json({ message: "amountEth must be > 0" });
@@ -4995,7 +5000,7 @@ STYLE:
   app.post("/api/aave/withdraw", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
-      const user = (req as any).user;
+      const user = req.user!;
       if (!user.isAdmin) return res.status(403).json({ message: "Admin only" });
       const amountEth = parseFloat(req.body.amountEth);
       if (isNaN(amountEth) || amountEth <= 0) return res.status(400).json({ message: "amountEth must be > 0" });
@@ -5019,7 +5024,7 @@ STYLE:
         decimals: 8,
         rosettaVersion: "1.4.13",
         nodeVersion: "1.0.0",
-        blockHeight: (chainInfo as any).blockHeight ?? 0,
+        blockHeight: chainInfo.latestBlockHeight ?? 0,
         syncStatus: "synced",
         supportedOperations: ["TRANSFER", "NFT_MINT", "COINBASE"],
         constructionEndpoints: 8,
@@ -5034,7 +5039,7 @@ STYLE:
   // ==================== ENGINE STATUS (Admin) ====================
 
   app.get("/api/admin/engines/status", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
       return res.status(403).json({ message: "Admin only" });
     }
     try {
@@ -5143,7 +5148,7 @@ STYLE:
   // ==================== PROTOCOL SETTINGS (Admin) ====================
 
   app.get("/api/admin/settings", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
       return res.status(403).json({ message: "Admin only" });
     }
     try {
@@ -5162,16 +5167,16 @@ STYLE:
   });
 
   app.put("/api/admin/settings", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
       return res.status(403).json({ message: "Admin only" });
     }
     const { key, value } = req.body;
     if (!key || value === undefined || value === null) {
       return res.status(400).json({ message: "key and value required" });
     }
-    const updatedBy = (req.user as any)?.username || "admin";
+    const updatedBy = req.user?.username || "admin";
     try {
-      const userId2 = (req.user as any)?.id ?? null;
+      const userId2 = req.user?.id ?? null;
       const { pool } = await import("./db");
       await pool.query(
         `INSERT INTO protocol_settings (key, value, updated_by, user_id, updated_at)
@@ -5208,7 +5213,7 @@ STYLE:
   // ==================== ENGINE RESTART (Admin) ====================
 
   app.post("/api/admin/engines/:name/restart", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
       return res.status(403).json({ message: "Admin only" });
     }
     const { name } = req.params;
@@ -5291,7 +5296,7 @@ STYLE:
 
   // Stop individual engine (graceful stop, no restart)
   app.post("/api/admin/engines/:name/stop", async (req, res) => {
-    if (!req.isAuthenticated() || !(req.user as any)?.isAdmin) {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
       return res.status(403).json({ message: "Admin only" });
     }
     const { name } = req.params;
@@ -5383,7 +5388,7 @@ STYLE:
   app.get("/api/portfolio/me", async (req: any, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const userId = (req.user as any).id as number;
+      const userId = req.user!.id as number;
       const [wallets, nfts, user] = await Promise.all([
         storage.getWalletsByUser(userId),
         storage.getNftsByUser(userId),

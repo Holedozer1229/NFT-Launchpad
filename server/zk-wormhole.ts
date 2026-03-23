@@ -1,7 +1,7 @@
 import { storage } from "./storage";
 import { createHash, randomBytes } from "crypto";
 import { ZK_WORMHOLE_CHAINS, zkWormholes, zkWormholeTransfers, type ZkWormholeChainId } from "@shared/schema";
-import { qgMiner } from "./qg-miner-v8";
+import { getNetworkPerception } from "./iit-engine";
 import { db } from "./db";
 import { sql, eq, inArray } from "drizzle-orm";
 import { transmitRewardToWallet } from "./alchemy-engine";
@@ -92,10 +92,9 @@ function generateTxHash(): string {
 
 function getPhiBoost(): number {
   try {
-    const mineResult = (qgMiner as any).getLastResult?.() ?? null;
-    if (mineResult && typeof mineResult === "object" && "phiTotal" in mineResult) {
-      return Math.min(Math.exp(Number(mineResult.phiTotal) || 0), 2.0);
-    }
+    const perception = getNetworkPerception();
+    const phi = perception.currentPhi.phi;
+    if (phi > 0) return Math.min(Math.exp(phi), 2.0);
   } catch {}
   const basePhi = 0.3 + Math.random() * 0.7;
   return Math.min(Math.exp(basePhi), 2.0);
@@ -178,8 +177,8 @@ export async function initiateTransfer(
   if (wallets.length === 0) throw new Error("No wallet found");
   const wallet = wallets[0];
 
-  const balanceField = token === "SKYNT" ? "balanceSkynt" : token === "ETH" ? "balanceEth" : "balanceStx";
-  const currentBalance = parseFloat((wallet as any)[balanceField] || "0");
+  const balanceField = token === "SKYNT" ? "balanceSkynt" : token === "ETH" ? "balanceEth" : "balanceStx" as const;
+  const currentBalance = parseFloat((wallet[balanceField as keyof typeof wallet] as string) || "0");
   if (currentBalance < amountNum) throw new Error(`Insufficient ${token} balance`);
 
   const sourceConfig = ZK_WORMHOLE_CHAINS[wormhole.sourceChain as ZkWormholeChainId];
@@ -229,8 +228,8 @@ export async function initiateTransfer(
           const destWallets = await storage.getWalletsByUser(userId);
           if (destWallets.length > 0) {
             const destWallet = destWallets[0];
-            const destBalField = token === "SKYNT" ? "balanceSkynt" : token === "ETH" ? "balanceEth" : "balanceStx";
-            const destBal = parseFloat((destWallet as any)[destBalField] || "0");
+            const destBalField = token === "SKYNT" ? "balanceSkynt" : token === "ETH" ? "balanceEth" : "balanceStx" as const;
+            const destBal = parseFloat((destWallet[destBalField as keyof typeof destWallet] as string) || "0");
             const phiBoost = parseFloat(wormhole.phiBoost) || 1.0;
             const boostedAmount = netAmount * phiBoost;
             await storage.updateWalletBalance(

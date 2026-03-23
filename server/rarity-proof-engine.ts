@@ -1,7 +1,7 @@
 import { storage } from "./storage";
 import { createHash, randomBytes } from "crypto";
 import { RARITY_TIERS, RARITY_PROOF_FEE } from "@shared/schema";
-import { qgMiner } from "./qg-miner-v8";
+import { getNetworkPerception } from "./iit-engine";
 
 function generateCertificateId(): string {
   return "SKYNT-CERT-" + randomBytes(12).toString("hex").toUpperCase();
@@ -45,12 +45,11 @@ function getRarityPercentile(rarity: string): string {
 
 function getPhiBoost(): number {
   try {
-    const result = (qgMiner as any).getLastResult?.() ?? null;
-    if (result && typeof result === "object" && "phiTotal" in result) {
-      return Math.min(Math.exp(Number(result.phiTotal) || 0), 2.0);
-    }
+    const perception = getNetworkPerception();
+    const phi = perception.currentPhi.phi;
+    if (phi > 0) return Math.min(Math.exp(phi), 2.0);
   } catch {}
-  return 1.0; // neutral boost — IIT engine not yet ready
+  return 1.0;
 }
 
 export async function generateRarityCertificate(nftId: number, userId: number) {

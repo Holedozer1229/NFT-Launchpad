@@ -329,7 +329,7 @@ export const nfts = pgTable("nfts", {
 
 export const insertNftSchema = createInsertSchema(nfts).omit({ id: true } as any);
 export type Nft = typeof nfts.$inferSelect;
-export type InsertNft = z.infer<typeof insertNftSchema>;
+export type InsertNft = typeof nfts.$inferInsert;
 
 export const bridgeTransactions = pgTable("bridge_transactions", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -347,7 +347,7 @@ export const bridgeTransactions = pgTable("bridge_transactions", {
 
 export const insertBridgeTransactionSchema = createInsertSchema(bridgeTransactions).omit({ id: true, createdAt: true } as any);
 export type BridgeTransaction = typeof bridgeTransactions.$inferSelect;
-export type InsertBridgeTransaction = z.infer<typeof insertBridgeTransactionSchema>;
+export type InsertBridgeTransaction = typeof bridgeTransactions.$inferInsert;
 
 export const guardians = pgTable("guardians", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
