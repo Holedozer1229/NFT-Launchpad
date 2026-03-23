@@ -33,6 +33,7 @@ import {
   parseAbiParameters,
   type Hex,
   type Address,
+  type Chain,
 } from "viem";
 import { mainnet, polygon, arbitrum, base, optimism } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
@@ -80,7 +81,7 @@ const TOKEN_BRIDGE_ADDR: Record<string, Address> = {
 
 // ─── EVM chain viem objects ────────────────────────────────────────────────────
 
-const VIEM_CHAIN: Record<string, typeof mainnet> = {
+const VIEM_CHAIN: Record<string, Chain> = {
   ethereum: mainnet,
   polygon,
   arbitrum,
@@ -356,8 +357,10 @@ async function sendEthToSolanaViaWormholeSDK(
 
     // Lazy-import the official Wormhole TypeScript SDK (ESM)
     const { Wormhole, amount: whAmount, wormhole } = await import("@wormhole-foundation/sdk");
-    const evmPlatform = (await import("@wormhole-foundation/sdk-evm")).default;
-    const solanaPlatform = (await import("@wormhole-foundation/sdk-solana")).default;
+    const evmMod = await import("@wormhole-foundation/sdk-evm");
+    const evmPlatform: any = (evmMod as any).default ?? evmMod;
+    const solanaMod = await import("@wormhole-foundation/sdk-solana");
+    const solanaPlatform: any = (solanaMod as any).default ?? solanaMod;
 
     // Initialize Wormhole instance for mainnet with EVM + Solana platforms
     const wh = await wormhole("Mainnet", [evmPlatform, solanaPlatform]);
@@ -400,7 +403,7 @@ async function sendEthToSolanaViaWormholeSDK(
     const dstAddress = Wormhole.chainAddress("Solana", recipientSolAddr);
 
     // Build the automatic token transfer (Wormhole relayer pays for Solana redemption)
-    const xfer = await wh.tokenTransfer(
+    const xfer: any = await (wh as any).tokenTransfer(
       tokenId,
       BigInt(parseUnits(amount, TOKEN_DECIMALS[tokenSymbol] ?? 18).toString()),
       { chain: "Ethereum", address: Wormhole.chainAddress("Ethereum", account.address).address },
@@ -408,12 +411,18 @@ async function sendEthToSolanaViaWormholeSDK(
       true,   // automatic = true → relayer pays for Solana-side redemption (no SOL needed by recipient)
     );
 
-    // Get and log the delivery quote from the SDK
-    const quote = await xfer.quote();
-    console.log(`[WormholeRelayer] SDK quote: ${JSON.stringify(quote)}`);
+    // Get and log the delivery quote from the SDK (method name varies by SDK version)
+    let sdkQuote: any = null;
+    try {
+      sdkQuote = typeof xfer.quote === "function" ? await xfer.quote() :
+                 typeof xfer.getQuote === "function" ? await xfer.getQuote() : null;
+      console.log(`[WormholeRelayer] SDK quote: ${JSON.stringify(sdkQuote)}`);
+    } catch (qe) {
+      console.warn("[WormholeRelayer] Could not fetch SDK quote:", qe);
+    }
 
     // Initiate transfer on Ethereum
-    const srcTxids = await xfer.initiateTransfer(treasurySigner as any);
+    const srcTxids: string[] = await xfer.initiateTransfer(treasurySigner as any);
     const srcTxHash = srcTxids[srcTxids.length - 1] ?? null;
 
     console.log(`[WormholeRelayer] ETH→SOL SDK initiated | txHash: ${srcTxHash}`);
@@ -424,8 +433,8 @@ async function sendEthToSolanaViaWormholeSDK(
       explorerUrl: srcTxHash ? explorerTx("ethereum", srcTxHash) : null,
       method: "wh_sdk_eth_to_sol",
       zkVerified: true,
-      deliveryQuote: null,
-      wormholeSequence: xfer.transfer?.sequence?.toString() ?? null,
+      deliveryQuote: sdkQuote,
+      wormholeSequence: xfer.transfer?.sequence?.toString() ?? (xfer.transfer as any)?.seq?.toString() ?? null,
       error: null,
     };
   } catch (err: any) {

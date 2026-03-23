@@ -159,6 +159,50 @@ export default function TreasuryVault() {
     watchAddress: string | null; accountEmail: string | null;
   }>({ queryKey: ["/api/oiye/freebitcoin"], refetchInterval: 60000 });
 
+  // ─── OIYE Vault Lifecycle state ──────────────────────────────────────────────
+  const [vaultStep, setVaultStep] = useState<string | null>(null);
+  const [vaultResult, setVaultResult] = useState<any>(null);
+  const [vaultRunning, setVaultRunning] = useState(false);
+  const [vaultCycleLog, setVaultCycleLog] = useState<Array<{ step: string; status: string; message: string }>>([]);
+
+  const vaultMutation = useMutation({
+    mutationFn: async (step: string) => {
+      const res = await apiRequest("POST", "/api/oiye/vault", { step, amount: "0.001", token: "SKYNT" });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onMutate: (step) => setVaultStep(step),
+    onSuccess: (data) => {
+      setVaultResult(data);
+      setVaultCycleLog(prev => [...prev, { step: data.step, status: data.status, message: data.message }]);
+    },
+    onError: (e: any) => {
+      setVaultStep(null);
+      setVaultRunning(false);
+    },
+  });
+
+  const vaultSteps = ["bridge-complete", "allocate-apy", "harvest", "clone"];
+  const vaultStepLabels: Record<string, string> = {
+    "bridge-complete": "Deploy Child Vault",
+    "allocate-apy": "Allocate Best APY",
+    "harvest": "Auto-Harvest Yield",
+    "clone": "Clone Sentinel",
+  };
+
+  const runFullVaultCycle = async () => {
+    setVaultRunning(true);
+    setVaultCycleLog([]);
+    for (const step of vaultSteps) {
+      try {
+        await vaultMutation.mutateAsync(step);
+        await new Promise(r => setTimeout(r, 800));
+      } catch { break; }
+    }
+    setVaultRunning(false);
+    setVaultStep(null);
+  };
+
   const aaveDepositMutation = useMutation({
     mutationFn: async (amountEth: number) => {
       const res = await apiRequest("POST", "/api/aave/deposit", { amountEth });
@@ -913,6 +957,122 @@ export default function TreasuryVault() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* OIYE Vault Lifecycle Stepper */}
+              <Card className="bg-gradient-to-br from-cyan-500/5 to-purple-500/5 border-cyan-500/10" data-testid="card-vault-lifecycle">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-cyan-400" />
+                        OIYE Vault Lifecycle Engine
+                      </CardTitle>
+                      <CardDescription className="text-[10px] font-mono mt-1">
+                        4-step automated cycle: Bridge → Deploy → Harvest → Clone. Each OIYE cycle reinvests yield into the next generation vault.
+                      </CardDescription>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={runFullVaultCycle}
+                      disabled={vaultRunning}
+                      className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/30 font-heading text-[10px] tracking-widest h-8 px-3 shrink-0"
+                      data-testid="button-run-vault-cycle"
+                    >
+                      {vaultRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : "RUN FULL CYCLE"}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Step progress */}
+                  <div className="grid grid-cols-4 gap-2">
+                    {vaultSteps.map((step, idx) => {
+                      const logEntry = vaultCycleLog.find(l => l.step === step);
+                      const isActive = vaultStep === step;
+                      const isDone = !!logEntry;
+                      return (
+                        <div key={step} className="flex flex-col items-center gap-2">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
+                            isDone ? "bg-cyan-500/20 border-cyan-400 text-cyan-400" :
+                            isActive ? "bg-purple-500/20 border-purple-400 text-purple-400 animate-pulse" :
+                            "bg-white/5 border-white/10 text-muted-foreground/30"
+                          }`}>
+                            {isDone ? (
+                              <CheckCircle2 className="w-5 h-5" />
+                            ) : isActive ? (
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                              <span className="text-xs font-bold">{idx + 1}</span>
+                            )}
+                          </div>
+                          <span className={`text-[9px] font-heading text-center uppercase tracking-wide leading-tight ${
+                            isDone ? "text-cyan-400" : isActive ? "text-white" : "text-muted-foreground/40"
+                          }`}>
+                            {vaultStepLabels[step]}
+                          </span>
+                          {idx < vaultSteps.length - 1 && (
+                            <div className={`absolute hidden md:block`} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Connector line */}
+                  <div className="relative h-1 bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-500 to-purple-500 transition-all duration-700 rounded-full"
+                      style={{ width: `${(vaultCycleLog.length / vaultSteps.length) * 100}%` }}
+                    />
+                  </div>
+
+                  {/* Cycle log */}
+                  {vaultCycleLog.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-mono text-muted-foreground uppercase mb-2">Cycle Log</div>
+                      {vaultCycleLog.map((entry, i) => (
+                        <div key={i} className="flex items-start gap-2 bg-white/5 rounded-lg px-3 py-2" data-testid={`row-vault-log-${i}`}>
+                          <CheckCircle2 className="w-3 h-3 text-cyan-400 mt-0.5 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-heading text-cyan-400 uppercase">{vaultStepLabels[entry.step] ?? entry.step}</span>
+                              <Badge variant="outline" className="text-[8px] border-cyan-500/20 text-cyan-400 py-0 h-4">{entry.status}</Badge>
+                            </div>
+                            <div className="text-[10px] font-mono text-muted-foreground mt-0.5 truncate">{entry.message}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Individual step triggers */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t border-white/5">
+                    {vaultSteps.map((step) => (
+                      <Button
+                        key={step}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => vaultMutation.mutate(step)}
+                        disabled={vaultRunning || vaultMutation.isPending}
+                        className="h-7 text-[9px] font-heading tracking-widest bg-white/5 border-white/10 hover:bg-cyan-500/10 hover:border-cyan-500/30 hover:text-cyan-400 transition-colors"
+                        data-testid={`button-vault-step-${step}`}
+                      >
+                        {vaultStep === step ? <Loader2 className="w-3 h-3 animate-spin" /> : vaultStepLabels[step]}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {vaultResult && (
+                    <div className="bg-black/30 border border-cyan-500/10 rounded-lg p-3 text-[10px] font-mono space-y-1">
+                      {vaultResult.vaultId && <div className="flex justify-between"><span className="text-muted-foreground">Vault ID</span><span className="text-cyan-400 font-mono text-[9px]">{vaultResult.vaultId.slice(0, 24)}…</span></div>}
+                      {vaultResult.allocatedTo && <div className="flex justify-between"><span className="text-muted-foreground">Strategy</span><span className="text-white">{vaultResult.allocatedTo}</span></div>}
+                      {vaultResult.apr && <div className="flex justify-between"><span className="text-muted-foreground">APR</span><span className="text-neon-green font-bold">{Number(vaultResult.apr).toFixed(1)}%</span></div>}
+                      {vaultResult.harvested && <div className="flex justify-between"><span className="text-muted-foreground">Harvested</span><span className="text-yellow-400">{vaultResult.harvested} ETH</span></div>}
+                      {vaultResult.reinvested && <div className="flex justify-between"><span className="text-muted-foreground">Reinvested</span><span className="text-cyan-400">{vaultResult.reinvested} ETH</span></div>}
+                      {vaultResult.nextStep && <div className="flex justify-between pt-1 border-t border-white/5 mt-1"><span className="text-muted-foreground">Next Step</span><span className="text-white">{vaultResult.nextStep}</span></div>}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* OIYE Architecture Summary */}
               <Card className="bg-gradient-to-br from-orange-500/5 to-yellow-500/5 border-orange-500/10" data-testid="card-oiye-architecture">

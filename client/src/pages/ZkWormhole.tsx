@@ -19,8 +19,10 @@ import {
   ArrowRight,
   TrendingUp,
   History,
-  AlertTriangle
+  AlertTriangle,
+  Wallet
 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { ZK_WORMHOLE_CHAINS, type ZkWormholeChainId } from "@shared/schema";
@@ -72,6 +74,16 @@ export default function ZkWormhole() {
   const [selectedWormholeId, setSelectedWormholeId] = useState<string>("");
   const [transferStep, setTransferStep] = useState<number>(0);
   const [pendingTransferId, setPendingTransferId] = useState<string | null>(null);
+
+  // ─── Gasless Test Console state ───────────────────────────────────────────────
+  const [gaslessAmount, setGaslessAmount] = useState("0.001");
+  const [gaslessToken, setGaslessToken] = useState("ETH");
+  const [gaslessRecipient, setGaslessRecipient] = useState("");
+  const [gaslessStep, setGaslessStep] = useState(0);
+  const [gaslessResult, setGaslessResult] = useState<any>(null);
+  const [quoteResult, setQuoteResult] = useState<any>(null);
+  const [koraStep, setKoraStep] = useState(0);
+  const [koraResult, setKoraResult] = useState<any>(null);
 
   // Queries
   const { data: networkStats, isLoading: statsLoading } = useQuery<WormholeNetworkStats>({
@@ -154,6 +166,83 @@ export default function ZkWormhole() {
       toast({ title: "Transfer Failed", description: error.message, variant: "destructive" });
     }
   });
+
+  // ─── Gasless ETH→SOL mutation ─────────────────────────────────────────────────
+  const gaslessWhMutation = useMutation({
+    mutationFn: async (body: { sourceChain: string; destChain: string; token: string; amount: string; recipientAddress: string }) => {
+      const res = await apiRequest("POST", "/api/oiye/wh-transfer", body);
+      return res.json();
+    },
+    onMutate: () => {
+      setGaslessStep(1);
+      setGaslessResult(null);
+    },
+    onSuccess: (data) => {
+      setGaslessStep(5);
+      setGaslessResult(data);
+      haptic("transaction");
+      toast({ title: "Gasless Transfer Initiated", description: `TX: ${data.txHash ?? data.status}` });
+    },
+    onError: (e: any) => {
+      setGaslessStep(0);
+      toast({ title: "Gasless Transfer Error", description: e.message, variant: "destructive" });
+    },
+  });
+
+  // ─── Wormhole quote mutation ──────────────────────────────────────────────────
+  const quoteMutation = useMutation({
+    mutationFn: async (body: { sourceChain: string; destChain: string; token: string; amount: string }) => {
+      const res = await apiRequest("POST", "/api/wormhole/quote", body);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setQuoteResult(data);
+      setGaslessStep(1);
+      toast({ title: "Quote Fetched", description: `Delivery cost: ${data.deliveryCostUsd ?? data.deliveryCost ?? "fetching..."}` });
+    },
+    onError: (e: any) => {
+      toast({ title: "Quote Error", description: e.message, variant: "destructive" });
+    },
+  });
+
+  // ─── Kora relay mutation ──────────────────────────────────────────────────────
+  const koraMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/oiye/kora-relay", {
+        serializedTx: btoa("test-gasless-tx-" + Date.now()),
+        featureName: "zk-wormhole-gasless-test",
+      });
+      return res.json();
+    },
+    onMutate: () => {
+      setKoraStep(1);
+      setKoraResult(null);
+    },
+    onSuccess: (data) => {
+      setKoraStep(3);
+      setKoraResult(data);
+      haptic("success");
+      toast({ title: "Kora Relay Executed", description: data.message ?? data.status });
+    },
+    onError: (e: any) => {
+      setKoraStep(0);
+      toast({ title: "Kora Relay Error", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const gaslessStages = [
+    { label: "Fetch Quote", icon: TrendingUp },
+    { label: "ZK Proof Gate", icon: Shield },
+    { label: "SDK Sign & Relay", icon: Cpu },
+    { label: "On-chain Confirm", icon: Hash },
+    { label: "Wormhole Complete", icon: CheckCircle },
+  ];
+
+  const koraStages = [
+    { label: "Build Transaction", icon: Cpu },
+    { label: "Treasury Fee-Pay", icon: Zap },
+    { label: "Broadcast to Solana", icon: Globe },
+  ];
 
   const handleOpenWormhole = () => {
     if (sourceChain === destChain) {
@@ -538,6 +627,255 @@ export default function ZkWormhole() {
               </div>
             )}
           </div>
+        </div>
+      </section>
+
+      {/* Gasless Transfer Engine */}
+      <section className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Zap className="w-5 h-5 text-neon-green" />
+          <h2 className="text-xl font-heading font-bold text-white">Gasless Transfer Engine</h2>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
+            <span className="text-[10px] font-mono text-neon-green uppercase tracking-widest">Relayer Active</span>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* ETH → Solana Gasless Panel */}
+          <div className="cosmic-card cosmic-card-green p-6 space-y-5 relative overflow-hidden">
+            <div className="absolute top-0 right-0 px-3 py-1 bg-neon-green/10 border-l border-b border-neon-green/20 rounded-bl-lg">
+              <span className="text-[9px] font-mono text-neon-green uppercase tracking-widest">Wormhole SDK v2</span>
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="font-heading text-sm text-white flex items-center gap-2">
+                <Globe className="w-4 h-4 text-neon-green" />
+                ETH → Solana Gasless Bridge
+              </h3>
+              <p className="text-[10px] font-mono text-muted-foreground">
+                Wormhole automatic relayer covers Solana redemption. Recipient needs zero SOL.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-heading text-muted-foreground uppercase">Amount</label>
+                  <input
+                    type="number"
+                    value={gaslessAmount}
+                    onChange={e => setGaslessAmount(e.target.value)}
+                    placeholder="0.001"
+                    className="w-full bg-black/40 border border-white/10 rounded-sm p-2.5 font-mono text-sm focus:outline-none focus:border-neon-green transition-colors"
+                    data-testid="input-gasless-amount"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-heading text-muted-foreground uppercase">Token</label>
+                  <select
+                    value={gaslessToken}
+                    onChange={e => setGaslessToken(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-sm p-2.5 font-heading text-sm appearance-none focus:outline-none focus:border-neon-green transition-colors"
+                    data-testid="select-gasless-token"
+                  >
+                    <option value="ETH">ETH</option>
+                    <option value="SKYNT">SKYNT</option>
+                    <option value="USDC">USDC</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-heading text-muted-foreground uppercase">Solana Recipient Address</label>
+                <input
+                  type="text"
+                  value={gaslessRecipient}
+                  onChange={e => setGaslessRecipient(e.target.value)}
+                  placeholder="So1ana...pubkey"
+                  className="w-full bg-black/40 border border-white/10 rounded-sm p-2.5 font-mono text-xs focus:outline-none focus:border-neon-green transition-colors"
+                  data-testid="input-gasless-recipient"
+                />
+              </div>
+            </div>
+
+            {quoteResult && (
+              <div className="bg-neon-green/5 border border-neon-green/20 rounded-lg p-3 space-y-1.5 text-[10px] font-mono">
+                <div className="text-neon-green font-bold uppercase mb-1">SDK Quote</div>
+                {quoteResult.deliveryCost && <div className="flex justify-between"><span className="text-muted-foreground">Delivery Cost</span><span className="text-white">{quoteResult.deliveryCost} ETH</span></div>}
+                {quoteResult.deliveryCostUsd && <div className="flex justify-between"><span className="text-muted-foreground">USD Est.</span><span className="text-neon-green">${quoteResult.deliveryCostUsd}</span></div>}
+                {quoteResult.estimatedTime && <div className="flex justify-between"><span className="text-muted-foreground">Est. Time</span><span className="text-white">{quoteResult.estimatedTime}</span></div>}
+                {quoteResult.relayerFee && <div className="flex justify-between"><span className="text-muted-foreground">Relayer Fee</span><span className="text-neon-green">{quoteResult.relayerFee} ETH</span></div>}
+                {quoteResult.route && <div className="flex justify-between"><span className="text-muted-foreground">Route</span><span className="text-white">{quoteResult.route}</span></div>}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {gaslessStages.map((stage, idx) => {
+                const stageNum = idx + 1;
+                const done = gaslessStep > stageNum;
+                const active = gaslessStep === stageNum;
+                return (
+                  <div key={idx} className="flex items-center gap-3">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center border text-[10px] transition-all ${
+                      done ? "bg-neon-green/20 border-neon-green text-neon-green" :
+                      active ? "bg-neon-green/10 border-neon-green/60 text-neon-green animate-pulse" :
+                      "bg-white/5 border-white/10 text-muted-foreground/30"
+                    }`}>
+                      {done ? <CheckCircle className="w-3 h-3" /> : <stage.icon className="w-3 h-3" />}
+                    </div>
+                    <span className={`text-[10px] font-mono ${active ? "text-white" : done ? "text-neon-green" : "text-muted-foreground/40"}`}>
+                      {stage.label}
+                    </span>
+                    {active && <Loader2 className="w-3 h-3 animate-spin text-neon-green ml-auto" />}
+                  </div>
+                );
+              })}
+            </div>
+
+            {gaslessResult && (
+              <div className="bg-black/30 border border-neon-green/20 rounded-lg p-3 text-[10px] font-mono space-y-1">
+                <div className="text-neon-green font-bold">Transfer Result</div>
+                {gaslessResult.txHash && <div className="flex justify-between"><span className="text-muted-foreground">TX Hash</span><span className="text-white">{gaslessResult.txHash.slice(0,14)}…</span></div>}
+                {gaslessResult.status && <div className="flex justify-between"><span className="text-muted-foreground">Status</span><span className="text-neon-green">{gaslessResult.status}</span></div>}
+                {gaslessResult.message && <div className="text-muted-foreground mt-1">{gaslessResult.message}</div>}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => quoteMutation.mutate({ sourceChain: "ethereum", destChain: "solana", token: gaslessToken, amount: gaslessAmount })}
+                disabled={quoteMutation.isPending}
+                className="flex-1 bg-white/5 hover:bg-neon-green/10 text-white border border-white/10 hover:border-neon-green/40 font-heading text-[10px] tracking-widest h-9"
+                data-testid="button-get-quote"
+              >
+                {quoteMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "GET QUOTE"}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => gaslessWhMutation.mutate({
+                  sourceChain: "ethereum", destChain: "solana",
+                  token: gaslessToken, amount: gaslessAmount,
+                  recipientAddress: gaslessRecipient || "11111111111111111111111111111112",
+                })}
+                disabled={gaslessWhMutation.isPending || !gaslessAmount}
+                className="flex-1 bg-neon-green/20 hover:bg-neon-green/30 text-neon-green border border-neon-green/40 font-heading text-[10px] tracking-widest h-9"
+                data-testid="button-gasless-transfer"
+              >
+                {gaslessWhMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "GASLESS SEND"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Kora Gasless Relay Panel */}
+          <div className="cosmic-card cosmic-card-cyan p-6 space-y-5 relative overflow-hidden">
+            <div className="absolute top-0 right-0 px-3 py-1 bg-neon-cyan/10 border-l border-b border-neon-cyan/20 rounded-bl-lg">
+              <span className="text-[9px] font-mono text-neon-cyan uppercase tracking-widest">Kora Protocol</span>
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="font-heading text-sm text-white flex items-center gap-2">
+                <Cpu className="w-4 h-4 text-neon-cyan" />
+                Kora SOL Gasless Relay
+              </h3>
+              <p className="text-[10px] font-mono text-muted-foreground">
+                Treasury SOL keypair acts as fee-payer. Users broadcast Solana txns with zero SOL balance.
+              </p>
+            </div>
+
+            <div className="bg-black/20 border border-white/5 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-neon-cyan/10 flex items-center justify-center border border-neon-cyan/20">
+                  <Wallet className="w-4 h-4 text-neon-cyan" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-mono text-muted-foreground uppercase">Fee Payer</div>
+                  <div className="text-xs font-mono text-neon-cyan">Treasury SOL Keypair (SOLANA_TREASURY_KEY)</div>
+                </div>
+              </div>
+              <Separator className="bg-white/5" />
+              <div className="grid grid-cols-2 gap-3 text-[10px] font-mono">
+                <div>
+                  <div className="text-muted-foreground uppercase mb-0.5">Network</div>
+                  <div className="text-white">Solana Mainnet</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground uppercase mb-0.5">Gas Cost User</div>
+                  <div className="text-neon-green font-bold">0 SOL</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground uppercase mb-0.5">Relay Method</div>
+                  <div className="text-white">tx.feePayer inject</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground uppercase mb-0.5">Blockhash</div>
+                  <div className="text-white">Auto-refresh</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {koraStages.map((stage, idx) => {
+                const stageNum = idx + 1;
+                const done = koraStep > stageNum;
+                const active = koraStep === stageNum;
+                return (
+                  <div key={idx} className="flex items-center gap-3">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center border text-[10px] transition-all ${
+                      done ? "bg-neon-cyan/20 border-neon-cyan text-neon-cyan" :
+                      active ? "bg-neon-cyan/10 border-neon-cyan/60 text-neon-cyan animate-pulse" :
+                      "bg-white/5 border-white/10 text-muted-foreground/30"
+                    }`}>
+                      {done ? <CheckCircle className="w-3 h-3" /> : <stage.icon className="w-3 h-3" />}
+                    </div>
+                    <span className={`text-[10px] font-mono ${active ? "text-white" : done ? "text-neon-cyan" : "text-muted-foreground/40"}`}>
+                      {stage.label}
+                    </span>
+                    {active && <Loader2 className="w-3 h-3 animate-spin text-neon-cyan ml-auto" />}
+                  </div>
+                );
+              })}
+            </div>
+
+            {koraResult && (
+              <div className="bg-black/30 border border-neon-cyan/20 rounded-lg p-3 text-[10px] font-mono space-y-1">
+                <div className="text-neon-cyan font-bold">Relay Result</div>
+                {koraResult.signature && <div className="flex justify-between"><span className="text-muted-foreground">Signature</span><span className="text-white">{koraResult.signature.slice(0,14)}…</span></div>}
+                {koraResult.status && <div className="flex justify-between"><span className="text-muted-foreground">Status</span><span className="text-neon-cyan">{koraResult.status}</span></div>}
+                {koraResult.feePaidBy && <div className="flex justify-between"><span className="text-muted-foreground">Fee Paid By</span><span className="text-neon-green">{koraResult.feePaidBy}</span></div>}
+                {koraResult.message && <div className="text-muted-foreground mt-1">{koraResult.message}</div>}
+              </div>
+            )}
+
+            {koraStep === 0 && !koraResult && (
+              <div className="p-4 border border-dashed border-white/10 rounded-sm text-center">
+                <p className="text-[9px] font-mono text-muted-foreground/40 uppercase">Configure SOLANA_TREASURY_KEY secret to enable live relay</p>
+              </div>
+            )}
+
+            <Button
+              onClick={() => koraMutation.mutate()}
+              disabled={koraMutation.isPending}
+              className="w-full bg-neon-cyan/20 hover:bg-neon-cyan/30 text-neon-cyan border border-neon-cyan/40 font-heading tracking-widest h-10 text-[10px]"
+              data-testid="button-kora-relay"
+            >
+              {koraMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "TEST KORA GASLESS RELAY"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Architecture banner */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {[
+            { color: "text-neon-green", label: "ETH Gasless", desc: "Wormhole relayer network pays Solana redemption fees. User signs only on Ethereum." },
+            { color: "text-neon-cyan", label: "SOL Gasless (Kora)", desc: "Treasury SOL key injected as tx.feePayer. User needs zero SOL to transact." },
+            { color: "text-neon-magenta", label: "ZK Proof Gate", desc: "IZKVerifier.verifyProof() called on-chain before every bridge initiation." },
+          ].map(({ color, label, desc }) => (
+            <div key={label} className="bg-black/30 border border-white/5 rounded-lg p-3 space-y-1">
+              <div className={`text-[10px] font-heading font-bold uppercase ${color}`}>{label}</div>
+              <div className="text-[10px] font-mono text-muted-foreground">{desc}</div>
+            </div>
+          ))}
         </div>
       </section>
 
