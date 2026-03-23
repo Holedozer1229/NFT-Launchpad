@@ -2,6 +2,7 @@ import { db } from "./db";
 import { governanceProposals, protocolSettings } from "@shared/schema";
 import { eq, and, lte } from "drizzle-orm";
 import { wsHub } from "./ws-hub";
+import { createHash } from "crypto";
 
 interface ExecutionResult {
   proposalId: number;
@@ -44,6 +45,17 @@ async function executePriceDriverProposal(proposal: {
   }
 
   const newValue = String(payload.newValue);
+
+  // Verify payload integrity: recompute SHA-256 hash and compare with stored executionHash
+  if (proposal.existingExecutionHash) {
+    const canonical: Record<string, string> = { parameter: key, newValue };
+    if (payload.currentValue != null) canonical.currentValue = String(payload.currentValue);
+    const recomputedHash = createHash("sha256").update(JSON.stringify(canonical)).digest("hex").slice(0, 16);
+    if (recomputedHash !== proposal.existingExecutionHash) {
+      console.warn(`[GovernanceExecutor] GIP-${proposal.id}: payload hash mismatch (stored=${proposal.existingExecutionHash} recomputed=${recomputedHash}) — execution blocked`);
+      return null;
+    }
+  }
 
   // Read old value
   const existing = await db

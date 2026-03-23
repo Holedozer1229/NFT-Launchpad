@@ -143,7 +143,7 @@ async function getViemClients() {
   return { publicClient, walletClient, getAddress };
 }
 
-export async function fetchAaveApr(): Promise<number> {
+export async function getAaveApr(): Promise<number> {
   try {
     const { publicClient, getAddress } = await getViemClients();
     const reserveData = await publicClient.readContract({
@@ -152,11 +152,11 @@ export async function fetchAaveApr(): Promise<number> {
       functionName: "getReserveData",
       args: [getAddress(WETH_ADDRESS)],
     });
-    const liquidityRate = (reserveData as any).currentLiquidityRate as bigint;
+    const liquidityRate: bigint = reserveData.currentLiquidityRate;
     const aprFloat = Number(liquidityRate * 10000n / RAY) / 100;
     return Math.max(0, aprFloat);
   } catch (err: any) {
-    console.warn("[Aave] fetchAaveApr failed:", err?.message?.slice(0, 80));
+    console.warn("[Aave] getAaveApr failed:", err?.message?.slice(0, 80));
     return state.currentApr || 3.5;
   }
 }
@@ -171,7 +171,7 @@ export async function getAavePosition(treasuryAddress: string): Promise<{ aToken
       args: [getAddress(treasuryAddress as `0x${string}`)],
     });
     const aTokenBalance = Number(raw as bigint) / 1e18;
-    const apr = await fetchAaveApr();
+    const apr = await getAaveApr();
     const yieldEarned = aTokenBalance > state.depositedEth ? aTokenBalance - state.depositedEth : state.yieldEarned;
     return { aTokenBalance, depositedEth: state.depositedEth, yieldEarned, currentApr: apr };
   } catch (err: any) {
@@ -282,17 +282,24 @@ export async function withdrawFromAave(amountEth: number): Promise<{ success: bo
 
 async function pollAaveState(): Promise<void> {
   try {
-    const apr = await fetchAaveApr();
+    const apr = await getAaveApr();
     state.currentApr = apr;
 
     const treasuryAddr = process.env.TREASURY_WALLET_ADDRESS;
-    if (treasuryAddr && state.depositedEth > 0) {
+    if (treasuryAddr) {
+      // Always read on-chain aToken balance — do not gate on in-memory depositedEth
+      // so pre-existing on-chain positions are picked up after process restart
       const pos = await getAavePosition(treasuryAddr);
       state.aTokenBalance = pos.aTokenBalance;
-      if (pos.aTokenBalance > state.depositedEth) {
-        state.yieldEarned = pos.aTokenBalance - state.depositedEth;
-      }
       state.isActive = pos.aTokenBalance > 0;
+      if (state.isActive) {
+        // Sync depositedEth from on-chain balance if in-memory value is zero
+        // (handles restart case where state was wiped)
+        if (state.depositedEth === 0) state.depositedEth = pos.aTokenBalance;
+        if (pos.aTokenBalance > state.depositedEth) {
+          state.yieldEarned = pos.aTokenBalance - state.depositedEth;
+        }
+      }
     }
 
     state.lastUpdated = Date.now();

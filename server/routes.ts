@@ -4969,8 +4969,8 @@ STYLE:
 
   app.get("/api/aave/apr", async (_req, res) => {
     try {
-      const { fetchAaveApr } = await import("./aave-yield");
-      const apr = await fetchAaveApr();
+      const { getAaveApr } = await import("./aave-yield");
+      const apr = await getAaveApr();
       res.json({ apr, source: "aave-v3-mainnet", pool: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2" });
     } catch (e: any) {
       res.status(500).json({ message: safeError(e, "Internal server error") });
