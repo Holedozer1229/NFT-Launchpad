@@ -4,6 +4,19 @@
 Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
 
 ## Recent Changes
+- **Mar 2026**: **Production Hardening, EIP-1559 Transactions & Feature Completion**
+  - `server/treasury-service.ts`: All EVM sends now use EIP-1559 type-2 transactions (`maxFeePerGas`/`maxPriorityFeePerGas`) with automatic legacy fallback for chains that don't support it; `treasurySend` and `sendEvm` accept `speedMultiplier` (1×/1.5×/2×/3×)
+  - `server/chain-transmit.ts`: `transmitEthereum` upgraded to EIP-1559 type-2 transactions
+  - `server/routes.ts`: Send route parses `speedTier` (normal/fast/rapid/instant) from request body and passes resolved multiplier to `treasurySend`; `Cache-Control: max-age=30` on price-history, `max-age=60` on governance/proposals; `GET /api/admin/env-health` returns boolean presence of all 20+ secrets (values never exposed), admin-only
+  - `server/auth.ts`: `clearLoginAttempts(username)` called after successful login; signature mismatch logs sanitized (no partial wallet addresses)
+  - `server/aave-yield.ts`: `getAavePosition` guards against zero/empty treasury address; Aave poll errors throttled (logs first + every 10th)
+  - `server/btc-zk-daemon.ts`: `STACKS_YIELD_RECIPIENT` warning fires once only at startup (not every epoch)
+  - `client/src/components/PageErrorBoundary.tsx`: New class-component error boundary; resets on navigation via `key={location}` in parent
+  - `client/src/App.tsx`: All page routes wrapped in `PageErrorBoundary` — single broken page can't blank the entire app
+  - `client/src/components/SidebarLayout.tsx`: IIT Consciousness, Berry Phase, Rarity Proof, Public Lab moved to collapsible **ADVANCED** section with chevron toggle
+  - `client/src/pages/WalletPage.tsx`: Transaction speed selector (Normal/Fast/Rapid/Instant) in Send tab for ETH; passes `speedTier` to backend
+  - `client/src/pages/Admin.tsx`: New "Env Config" tab with `EnvHealthPanel` — displays all secret categories with SET/MISSING badges
+
 - **Mar 2026**: **Complete Refactor & Security Hardening**
   - `server/skynt-price-driver.ts`: Removed startup `console.log` that exposed target price and wallet configuration status to stdout
   - `server/index.ts`: Sanitized Vault startup logs — removed direct `TREASURY_PRIVATE_KEY` variable name from logs; now only reports `on-chain transmit: enabled/disabled`
