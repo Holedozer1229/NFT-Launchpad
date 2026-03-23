@@ -268,6 +268,7 @@ export const wallets = pgTable("wallets", {
   balanceStx: text("balance_stx").notNull().default("0"),
   balanceSkynt: text("balance_skynt").notNull().default("1000"),
   balanceEth: text("balance_eth").notNull().default("0"),
+  balanceSol: text("balance_sol").notNull().default("0"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

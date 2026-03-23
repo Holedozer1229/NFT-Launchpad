@@ -235,6 +235,7 @@ export class DatabaseStorage implements IStorage {
       balanceStx: "100",
       balanceSkynt: "1000",
       balanceEth: "0",
+      balanceSol: "0",
     } as any).returning();
     return wallet;
   }
@@ -249,13 +250,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateWalletBalance(id: number, token: string, amount: string): Promise<void> {
-    const field = token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
+    const field = token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : token === "SOL" ? "balanceSol" : "balanceSkynt";
     await db.update(wallets).set({ [field]: amount }).where(eq(wallets.id, id));
   }
 
   async reserveWalletBalance(id: number, token: string, expectedBalance: string, newBalance: string): Promise<boolean> {
-    const field: "balanceStx" | "balanceEth" | "balanceSkynt" =
-      token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
+    const field: "balanceStx" | "balanceEth" | "balanceSkynt" | "balanceSol" =
+      token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : token === "SOL" ? "balanceSol" : "balanceSkynt";
     // Atomic compare-and-swap: only update if balance is still at expectedBalance
     const updated = await db
       .update(wallets)
@@ -266,8 +267,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async releaseWalletBalance(id: number, token: string, reservedBalance: string, restoredBalance: string): Promise<boolean> {
-    const field: "balanceStx" | "balanceEth" | "balanceSkynt" =
-      token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
+    const field: "balanceStx" | "balanceEth" | "balanceSkynt" | "balanceSol" =
+      token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : token === "SOL" ? "balanceSol" : "balanceSkynt";
     // Only restore if balance is still at reservedBalance — prevents clobbering concurrent successful txns
     const updated = await db
       .update(wallets)
@@ -279,8 +280,8 @@ export class DatabaseStorage implements IStorage {
 
   async sendToken(walletId: number, token: string, expectedBalance: string, newBalance: string, txRecord: typeof walletTransactions.$inferInsert): Promise<WalletTransaction> {
     return await db.transaction(async (dbTx) => {
-      const field: "balanceStx" | "balanceEth" | "balanceSkynt" =
-        token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
+      const field: "balanceStx" | "balanceEth" | "balanceSkynt" | "balanceSol" =
+        token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : token === "SOL" ? "balanceSol" : "balanceSkynt";
       // CAS predicate: only update if balance is still at expectedBalance
       const updated = await dbTx
         .update(wallets)
@@ -297,10 +298,10 @@ export class DatabaseStorage implements IStorage {
 
   async swapTokens(walletId: number, fromToken: string, expectedFromBalance: string, newFromBalance: string, toToken: string, expectedToBalance: string, newToBalance: string, txRecord: typeof walletTransactions.$inferInsert): Promise<WalletTransaction> {
     return await db.transaction(async (dbTx) => {
-      const fromField: "balanceStx" | "balanceEth" | "balanceSkynt" =
-        fromToken === "STX" ? "balanceStx" : fromToken === "ETH" ? "balanceEth" : "balanceSkynt";
-      const toField: "balanceStx" | "balanceEth" | "balanceSkynt" =
-        toToken === "STX" ? "balanceStx" : toToken === "ETH" ? "balanceEth" : "balanceSkynt";
+      const fromField: "balanceStx" | "balanceEth" | "balanceSkynt" | "balanceSol" =
+        fromToken === "STX" ? "balanceStx" : fromToken === "ETH" ? "balanceEth" : fromToken === "SOL" ? "balanceSol" : "balanceSkynt";
+      const toField: "balanceStx" | "balanceEth" | "balanceSkynt" | "balanceSol" =
+        toToken === "STX" ? "balanceStx" : toToken === "ETH" ? "balanceEth" : toToken === "SOL" ? "balanceSol" : "balanceSkynt";
       // CAS on source balance
       const updatedFrom = await dbTx
         .update(wallets)

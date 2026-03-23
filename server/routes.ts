@@ -1083,10 +1083,9 @@ STYLE:
         }
       }
 
-      // Balance field mapping: STX → balanceStx, ETH → balanceEth, all others → balanceSkynt
-      // DOGE/XMR/SOL are cross-chain assets tracked against the SKYNT balance field
-      const balanceField: "balanceStx" | "balanceEth" | "balanceSkynt" =
-        token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : "balanceSkynt";
+      // Balance field mapping: STX → balanceStx, ETH → balanceEth, SOL → balanceSol, all others → balanceSkynt
+      const balanceField: "balanceStx" | "balanceEth" | "balanceSkynt" | "balanceSol" =
+        token === "STX" ? "balanceStx" : token === "ETH" ? "balanceEth" : token === "SOL" ? "balanceSol" : "balanceSkynt";
       const precision = token === "ETH" ? 100_000_000n : 1_000_000n;
       const digits = token === "ETH" ? 8 : 6;
 

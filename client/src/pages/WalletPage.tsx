@@ -44,6 +44,7 @@ interface SphinxWallet {
   balanceStx: string;
   balanceSkynt: string;
   balanceEth: string;
+  balanceSol: string;
   createdAt: string;
 }
 
@@ -66,6 +67,7 @@ const TOKEN_OPTIONS = [
   { symbol: "SKYNT", label: "SKYNT Token", color: "cyan", icon: "🦁" },
   { symbol: "STX", label: "Stacks", color: "orange", icon: "⟐" },
   { symbol: "ETH", label: "Ethereum", color: "magenta", icon: "⟠" },
+  { symbol: "SOL", label: "Solana", color: "violet", icon: "◎" },
 ];
 
 export default function WalletPage() {
@@ -234,6 +236,8 @@ export default function WalletPage() {
       if (!/^0x[a-fA-F0-9]{40}$/.test(value)) { setAddressError("Invalid ETH address (must start with 0x, 42 chars)"); return; }
     } else if (tok === "STX") {
       if (!/^S[A-Z0-9]{38,41}$/.test(value)) { setAddressError("Invalid STX address (must start with SP, SM, etc.)"); return; }
+    } else if (tok === "SOL") {
+      if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) { setAddressError("Invalid Solana address (base58, 32–44 characters)"); return; }
     }
     if (activeWallet && value.toLowerCase() === activeWallet.address.toLowerCase()) { setAddressError("Cannot send to your own wallet"); return; }
     setAddressError("");
@@ -322,6 +326,7 @@ export default function WalletPage() {
   const getBalance = (w: SphinxWallet, token: string) => {
     if (token === "STX") return parseFloat(w.balanceStx);
     if (token === "ETH") return parseFloat(w.balanceEth);
+    if (token === "SOL") return parseFloat(w.balanceSol ?? "0");
     return parseFloat(w.balanceSkynt);
   };
 
@@ -799,7 +804,7 @@ export default function WalletPage() {
                   <input
                     data-testid="input-send-to"
                     type="text"
-                    placeholder={sendToken === "STX" ? "SP... or SM..." : "0x..."}
+                    placeholder={sendToken === "STX" ? "SP... or SM..." : sendToken === "SOL" ? "Solana address (base58)..." : "0x..."}
                     value={sendTo}
                     onChange={(e) => { setSendTo(e.target.value); validateAddress(e.target.value); }}
                     className="w-full p-3 bg-black/40 border border-border rounded-sm font-mono text-sm focus:outline-none focus:border-primary/60 transition-colors placeholder:text-muted-foreground/40"
