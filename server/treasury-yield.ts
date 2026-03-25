@@ -1,5 +1,6 @@
 import { calculatePhi } from "./iit-engine";
 import { wsHub } from "./ws-hub";
+import { getTreasuryAddress } from "./treasury-vault";
 
 export interface MintFeeRecord {
   timestamp: number;
@@ -234,8 +235,8 @@ function syncAaveStateFromModule(): void {
 }
 
 export async function triggerAaveDeposit(): Promise<{ deposited: number; txHash: string | null }> {
-  const treasuryAddr = process.env.TREASURY_WALLET_ADDRESS;
-  if (!treasuryAddr) return { deposited: 0, txHash: null };
+  const treasuryAddr = getTreasuryAddress();
+  if (treasuryAddr === "0x0000000000000000000000000000000000000000") return { deposited: 0, txHash: null };
 
   try {
     const { createPublicClient, http, getAddress } = await import("viem");
@@ -339,9 +340,10 @@ export async function sweepGasToTreasury(force = false): Promise<GasRefillRecord
   let record: GasRefillRecord;
 
   try {
-    const treasuryAddress = process.env.TREASURY_WALLET_ADDRESS;
+    const treasuryAddress = getTreasuryAddress();
+    const isTreasuryConfigured = treasuryAddress !== "0x0000000000000000000000000000000000000000";
 
-    if (treasuryAddress && process.env.TREASURY_PRIVATE_KEY && process.env.ALCHEMY_API_KEY) {
+    if (isTreasuryConfigured && process.env.TREASURY_PRIVATE_KEY && process.env.ALCHEMY_API_KEY) {
       // Route through Treasury Service — no user context, no admin personal wallet
       const { treasurySend } = await import("./treasury-service");
       const result = await treasurySend("ethereum", treasuryAddress, sweepAmount.toFixed(8));

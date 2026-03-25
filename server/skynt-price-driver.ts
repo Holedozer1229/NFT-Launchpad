@@ -27,6 +27,7 @@ import {
 } from "viem";
 import { mainnet } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
+import { getTreasuryAddress, getTreasuryEthBalance as _vaultGetEthBalance } from "./treasury-vault";
 
 // ── Contract Addresses (Ethereum Mainnet) ──────────────────────────────────
 const WETH: Address          = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
@@ -34,9 +35,9 @@ const UNISWAP_QUOTER_V2: Address  = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e"
 const UNISWAP_ROUTER02: Address   = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
 const BURN_ADDRESS: Address       = "0x000000000000000000000000000000000000dEaD";
 
-// SKYNT token — env override or default contract address
+// SKYNT token — canonical address (env override supported)
 const SKYNT_ADDRESS: Address = (
-  process.env.SKYNT_CONTRACT_ADDRESS || "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20"
+  process.env.SKYNT_CONTRACT_ADDRESS || "0x22d3f06afB69e5FCFAa98C20009510dD11aF2517"
 ) as Address;
 
 // ── Engine Config ──────────────────────────────────────────────────────────
@@ -235,7 +236,11 @@ async function getOnChainPrice(ethAmountIn: bigint = parseEther("0.01")): Promis
       const [skyntOut] = result.result as [bigint, bigint, number, bigint];
       if (skyntOut > 0n) {
         const priceEth = parseFloat(formatEther(ethAmountIn)) / parseFloat(formatUnits(skyntOut, 18));
-        return { skyntOut, fee, priceEth };
+        // Ignore sub-microcent prices — pool exists but has no real liquidity or price discovery
+        // Threshold: 1e-7 ETH ≈ $0.0003 at ETH=$3000 — anything below is economically meaningless
+        if (priceEth >= 1e-7) {
+          return { skyntOut, fee, priceEth };
+        }
       }
     } catch {
       // try next fee tier
@@ -258,14 +263,55 @@ async function fetchEthPriceUsd(): Promise<number> {
   }
 }
 
-// ── Treasury ETH balance ───────────────────────────────────────────────────
-async function getTreasuryEthBalance(): Promise<number> {
-  const addr = process.env.TREASURY_WALLET_ADDRESS as Address | undefined;
-  if (!addr) return 0;
+// ── Fetch SKYNT price from CoinGecko by contract address (fallback) ────────
+async function fetchSkyntPriceFromCoinGecko(ethPriceUsd: number): Promise<{ priceEth: number; priceUsd: number; source: string } | null> {
   try {
-    const client = getPublicClient();
-    const balance = await client.getBalance({ address: addr });
-    return parseFloat(formatEther(balance));
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/simple/token_price/ethereum?contract_addresses=${SKYNT_ADDRESS}&vs_currencies=usd,eth`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const entry = data?.[SKYNT_ADDRESS.toLowerCase()];
+    if (!entry?.usd || !entry?.eth) return null;
+    return { priceEth: entry.eth, priceUsd: entry.usd, source: "coingecko" };
+  } catch {
+    return null;
+  }
+}
+
+// ── Fetch SKYNT price from Alchemy token price API (fallback) ─────────────
+async function fetchSkyntPriceFromAlchemy(ethPriceUsd: number): Promise<{ priceEth: number; priceUsd: number; source: string } | null> {
+  const alchemyKey = process.env.ALCHEMY_API_KEY;
+  if (!alchemyKey) return null;
+  try {
+    const res = await fetch(
+      `https://api.g.alchemy.com/prices/v1/${alchemyKey}/tokens/by-address`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          addresses: [{ network: "eth-mainnet", address: SKYNT_ADDRESS }],
+        }),
+        signal: AbortSignal.timeout(5000),
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const priceUsd = data?.data?.[0]?.prices?.[0]?.value;
+    if (!priceUsd || priceUsd === "0") return null;
+    const usd = parseFloat(priceUsd);
+    const eth = ethPriceUsd > 0 ? usd / ethPriceUsd : 0;
+    return { priceUsd: usd, priceEth: eth, source: "alchemy" };
+  } catch {
+    return null;
+  }
+}
+
+// ── Treasury ETH balance — delegates to central vault (no TREASURY_WALLET_ADDRESS needed) ──
+async function getTreasuryEthBalance(): Promise<number> {
+  try {
+    return await _vaultGetEthBalance();
   } catch {
     return 0;
   }
@@ -384,14 +430,34 @@ async function runEpoch(): Promise<void> {
   _state.currentEthPrice = ethPriceUsd;
 
   if (!quote) {
-    console.log(`[PriceDriver] Epoch ${epoch} — no SKYNT/WETH pool found on Uniswap v3. Skipping.`);
-    _state.pricePressureMode = "idle";
+    // No Uniswap v3 pool found — try fallback price oracles (CoinGecko, then Alchemy)
+    const fallbackPrice =
+      (await fetchSkyntPriceFromCoinGecko(ethPriceUsd)) ??
+      (await fetchSkyntPriceFromAlchemy(ethPriceUsd));
+
     const ethBalFallback = await getTreasuryEthBalance().catch(() => _state.treasuryEthBalance);
-    await savePriceSnapshot(0, 0, ethPriceUsd, 0, ethBalFallback, epoch, 0, 0);
-    wsHub.broadcast("price_driver:epoch", {
-      epoch, mode: "idle", priceUsd: 0, targetPriceUsd: _targetPriceUsd,
-      treasuryEthBalance: ethBalFallback, ethSpent: 0, skyntBought: 0, status: "no_pool",
-    });
+    _state.treasuryEthBalance = ethBalFallback;
+
+    if (fallbackPrice) {
+      _state.liveSkyntPriceEth = fallbackPrice.priceEth;
+      _state.liveSkyntPriceUsd = fallbackPrice.priceUsd;
+      _state.pricePressureMode = "idle"; // no pool = can't execute buybacks
+      console.log(`[PriceDriver] Epoch ${epoch} — no Uniswap v3 pool; price via ${fallbackPrice.source}: $${fallbackPrice.priceUsd.toFixed(4)} | treasury: ${ethBalFallback.toFixed(6)} ETH`);
+      await savePriceSnapshot(fallbackPrice.priceEth, fallbackPrice.priceUsd, ethPriceUsd, 0, ethBalFallback, epoch, 0, 0);
+      wsHub.broadcast("price_driver:epoch", {
+        epoch, mode: "idle", priceUsd: fallbackPrice.priceUsd, targetPriceUsd: _targetPriceUsd,
+        treasuryEthBalance: ethBalFallback, ethSpent: 0, skyntBought: 0,
+        status: "no_pool_fallback", priceSource: fallbackPrice.source,
+      });
+    } else {
+      _state.pricePressureMode = "idle";
+      console.log(`[PriceDriver] Epoch ${epoch} — no SKYNT/WETH pool and no fallback price available. Treasury: ${ethBalFallback.toFixed(6)} ETH`);
+      await savePriceSnapshot(0, 0, ethPriceUsd, 0, ethBalFallback, epoch, 0, 0);
+      wsHub.broadcast("price_driver:epoch", {
+        epoch, mode: "idle", priceUsd: 0, targetPriceUsd: _targetPriceUsd,
+        treasuryEthBalance: ethBalFallback, ethSpent: 0, skyntBought: 0, status: "no_pool",
+      });
+    }
     return;
   }
 
@@ -412,7 +478,12 @@ async function runEpoch(): Promise<void> {
   _state.pricePressureMode = mode;
 
   if (ethToSpend <= 0 || mode === "target_reached" || mode === "idle") {
-    console.log(`[PriceDriver] Epoch ${epoch} — mode=${mode}, no buy action needed`);
+    const reason = mode === "target_reached"
+      ? "price at/above target"
+      : ethBalance <= MIN_TREASURY_RESERVE
+        ? `no ETH available (treasury: ${ethBalance.toFixed(6)} ETH, reserve floor: ${MIN_TREASURY_RESERVE} ETH)`
+        : `mode=${mode}`;
+    console.log(`[PriceDriver] Epoch ${epoch} — no buyback: ${reason}`);
     await savePriceSnapshot(priceEth, priceUsd, ethPriceUsd, quote.fee, ethBalance, epoch, 0, 0);
     wsHub.broadcast("price_driver:epoch", {
       epoch, mode, priceUsd, targetPriceUsd: _targetPriceUsd,

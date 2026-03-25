@@ -290,8 +290,10 @@ async function pollAaveState(): Promise<void> {
     const apr = await getAaveApr();
     state.currentApr = apr;
 
-    const treasuryAddr = process.env.TREASURY_WALLET_ADDRESS;
-    if (treasuryAddr) {
+    const { getTreasuryAddress: _getTreasuryAddr } = await import("./treasury-vault");
+    const treasuryAddr = _getTreasuryAddr();
+    const isConfigured = treasuryAddr !== "0x0000000000000000000000000000000000000000";
+    if (isConfigured) {
       // Always read on-chain aToken balance — do not gate on in-memory depositedEth
       // so pre-existing on-chain positions are picked up after process restart
       const pos = await getAavePosition(treasuryAddr);

@@ -1,8 +1,10 @@
 import { Alchemy, Network, Utils, Wallet, Contract } from "alchemy-sdk";
+import { getTreasuryAddress } from "./treasury-vault";
 
 export const SKYNT_CONTRACT_ADDRESS = process.env.SKYNT_CONTRACT_ADDRESS || "0x22d3f06afB69e5FCFAa98C20009510dD11aF2517";
 const SKYNT_MINING_CONTRACT_ADDRESS = process.env.SKYNT_MINING_CONTRACT_ADDRESS || "";
-export const TREASURY_WALLET = process.env.TREASURY_WALLET_ADDRESS || "0x0000000000000000000000000000000000000000";
+/** @deprecated Use getTreasuryAddress() from treasury-vault instead. Kept for compatibility. */
+export const TREASURY_WALLET = getTreasuryAddress();
 
 const MIN_GAS_RESERVE_ETH = 0.005; // minimum ETH to keep as gas reserve
 
@@ -187,7 +189,9 @@ interface GasStatus {
 
 let _lastGasCheck: GasStatus | null = null;
 let _lastGasCheckTime = 0;
-const GAS_CHECK_TTL_MS = 30_000;
+let _lastGasWarnTime  = 0;
+const GAS_CHECK_TTL_MS   = 30_000;
+const GAS_WARN_TTL_MS    = 5 * 60_000; // only repeat CRITICAL console line every 5 min
 
 export async function getTreasuryGasStatus(): Promise<GasStatus> {
   const now = Date.now();
@@ -195,7 +199,8 @@ export async function getTreasuryGasStatus(): Promise<GasStatus> {
     return _lastGasCheck;
   }
 
-  const address = TREASURY_WALLET;
+  // Always call getTreasuryAddress() at runtime so the derived address is fresh
+  const address = getTreasuryAddress();
   const CRITICAL = 0.001;
 
   if (!process.env.ALCHEMY_API_KEY || !address || address === "0x0000000000000000000000000000000000000000") {
@@ -231,7 +236,8 @@ export async function getTreasuryGasStatus(): Promise<GasStatus> {
     };
     _lastGasCheck = status;
     _lastGasCheckTime = now;
-    if (!status.isHealthy) {
+    if (!status.isHealthy && now - _lastGasWarnTime > GAS_WARN_TTL_MS) {
+      _lastGasWarnTime = now;
       console.warn(`[Treasury Gas] ${status.message}`);
     }
     return status;

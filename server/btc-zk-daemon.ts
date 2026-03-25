@@ -1201,7 +1201,8 @@ async function runEpoch() {
       .digest("hex");
 
     // 8b. ECRECOVER proof — sign spectralHash with treasury key
-    const ecProof = buildECRecoverProof(spectralHash, process.env.TREASURY_WALLET_ADDRESS ?? "");
+    const { getTreasuryAddress: _vaultGetAddr } = await import("./treasury-vault");
+    const ecProof = buildECRecoverProof(spectralHash, _vaultGetAddr());
 
     // 9. STX yield routing — deterministic from real work (no randomness)
     // Tied to: bestXiThisEpoch (Valknut quality on live BTC data), xiPassCount,

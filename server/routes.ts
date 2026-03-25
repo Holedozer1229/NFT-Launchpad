@@ -4211,8 +4211,10 @@ STYLE:
     try {
       const addresses: Record<string, { address: string | null; configured: boolean; explorer: string | null; symbol: string; network: string }> = {};
 
-      // ETH / EVM — address stored directly in env
-      const ethAddr = process.env.TREASURY_WALLET_ADDRESS || process.env.TREASURY_ADDRESS || null;
+      // ETH / EVM — derived from TREASURY_PRIVATE_KEY via vault (no separate env var needed)
+      const { getTreasuryAddress: _vaultAddr } = await import("./treasury-vault");
+      const _derived = _vaultAddr();
+      const ethAddr = _derived !== "0x0000000000000000000000000000000000000000" ? _derived : null;
       addresses["ethereum"] = {
         symbol: "ETH",
         network: "Ethereum Mainnet",
