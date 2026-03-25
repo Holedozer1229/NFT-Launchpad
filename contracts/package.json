@@ -1,23 +1,23 @@
 {
-  "name": "sphinx-os-contracts",
-  "version": "1.0.0",
-  "description": "Sphinx OS Smart Contracts",
+  "name": "skynt-protocol-contracts",
+  "version": "2.0.0",
+  "description": "SKYNT Protocol Smart Contracts — ZK-EVM + Gasless Relay Suite",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy": "hardhat run scripts/deploy.js",
+    "deploy:forwarder": "hardhat run scripts/01_deploy_forwarder.js --network mainnet",
+    "deploy:verifier": "hardhat run scripts/02_deploy_verifier.js --network mainnet",
+    "deploy:zkevm": "hardhat run scripts/03_deploy_zkevm.js --network mainnet",
+    "deploy:all": "hardhat run scripts/04_deploy_all.js --network mainnet",
+    "deploy:sepolia": "hardhat run scripts/04_deploy_all.js --network sepolia",
     "verify": "hardhat verify"
   },
   "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.2.3",
-    "@nomiclabs/hardhat-etherscan": "^3.1.7",
-    "@nomiclabs/hardhat-waffle": "^2.0.6",
-    "hardhat": "^2.19.0",
-    "ethereum-waffle": "^4.0.10",
-    "ethers": "^5.7.2",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0",
     "chai": "^4.3.10"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^4.9.0"
+    "@openzeppelin/contracts": "^5.0.0"
   }
 }

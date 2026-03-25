@@ -6,7 +6,7 @@ import {
 import {
   Activity, Cpu, Box, DollarSign, Clock,
   ChevronUp, ChevronDown, Loader2, Zap, Brain, Pickaxe, Shield, TrendingUp, AlertCircle, RefreshCw,
-  Wallet, Coins, ArrowUpRight, Radio, Flame, ShieldCheck, Layers, Sparkles, Bitcoin, Link2
+  Wallet, Coins, ArrowUpRight, Radio, Flame, ShieldCheck, Layers, Sparkles, Bitcoin, Link2, Key, Rocket, Star, Globe
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useBalance } from "wagmi";
@@ -202,6 +202,20 @@ export default function Dashboard() {
   const { data: iitData } = useQuery<{ phi: number; level: string; networkNodes: number }>({
     queryKey: ["/api/iit/status"],
     refetchInterval: 30000,
+  });
+
+  const { data: zkEvmStats } = useQuery<{
+    batchCount: number; txCount: number; tvl: string; stateRoot: string; proofsVerified: number; tps: number;
+  }>({
+    queryKey: ["/api/zkevm/stats"],
+    refetchInterval: 30000,
+  });
+
+  const { data: gasCredits } = useQuery<{
+    credits: number; earned: number; spent: number; estimatedEthValue: string;
+  }>({
+    queryKey: ["/api/relay/gas-credits"],
+    refetchInterval: 20000,
   });
 
   const { data: treasuryData } = useQuery<{ totalFees: number; totalYieldGenerated: number; currentApr: number; strategies: any[] }>({
@@ -862,6 +876,76 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 bg-cyan-500/5 border border-cyan-500/15 rounded-sm px-3 py-2 text-[10px] font-mono text-muted-foreground" data-testid="cortex-insight-oiye-wormhole">
             <Radio className="w-3 h-3 text-neon-cyan shrink-0" />
             <span><span className="text-yellow-400 font-bold">{(protocol.oiye.btcBalance + protocol.oiye.freebitcoinDeposited).toFixed(8)} BTC</span> collected → OIYE seeding <span className="text-cyan-400 font-bold">{protocol.wormhole.activePortals}</span> Wormhole portals</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── ZK-EVM + Gas Credits Mission Strip ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="section-zkevm-relay">
+        <div className="cosmic-card cosmic-card-cyan p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="stat-label flex items-center gap-2">
+              <Zap className="w-4 h-4 text-neon-cyan" /> SKYNT ZK-EVM
+            </h3>
+            <span className={`w-2 h-2 rounded-full ${zkEvmStats ? "bg-neon-cyan animate-pulse" : "bg-muted-foreground"}`} />
+          </div>
+          {zkEvmStats ? (
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Batches", val: (zkEvmStats.batchCount ?? 0).toLocaleString(), color: "text-neon-cyan" },
+                { label: "Txs", val: (zkEvmStats.txCount ?? 0).toLocaleString(), color: "text-neon-green" },
+                { label: "Proofs", val: (zkEvmStats.proofsVerified ?? 0).toLocaleString(), color: "text-neon-magenta" },
+              ].map(({ label, val, color }) => (
+                <div key={label} className="text-center p-2 bg-black/30 border border-border/30 rounded-sm" data-testid={`zkevm-stat-${label.toLowerCase()}`}>
+                  <p className={`font-heading text-base ${color}`}>{val}</p>
+                  <p className="stat-label mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground font-mono">Connecting to ZK-EVM…</p>
+          )}
+          {zkEvmStats?.stateRoot && (
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-black/30 border border-border/20 rounded-sm">
+              <ShieldCheck className="w-3 h-3 text-neon-cyan shrink-0" />
+              <code className="text-[9px] font-mono text-muted-foreground truncate">{zkEvmStats.stateRoot}</code>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
+            <Globe className="w-3 h-3 text-neon-cyan" />
+            <span>Multi-chain ZK rollup • cross-chain monetization • EIP-2771 gasless relay</span>
+          </div>
+        </div>
+
+        <div className="cosmic-card cosmic-card-orange p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="stat-label flex items-center gap-2">
+              <Key className="w-4 h-4 text-neon-orange" /> Relay Gas Credits
+            </h3>
+            <a href="/wallet" className="text-[10px] font-heading text-neon-orange tracking-wider hover:underline">Manage →</a>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Available", val: (gasCredits?.credits ?? 0).toLocaleString(), color: "text-neon-orange" },
+              { label: "Earned", val: (gasCredits?.earned ?? 0).toLocaleString(), color: "text-neon-green" },
+              { label: "Spent", val: (gasCredits?.spent ?? 0).toLocaleString(), color: "text-plasma-red" },
+            ].map(({ label, val, color }) => (
+              <div key={label} className="text-center p-2 bg-black/30 border border-border/30 rounded-sm" data-testid={`relay-${label.toLowerCase()}`}>
+                <p className={`font-heading text-base ${color}`}>{val}</p>
+                <p className="stat-label mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-sm bg-neon-orange/5 border border-neon-orange/20">
+            <Flame className="w-3.5 h-3.5 text-neon-orange shrink-0" />
+            <div className="text-[10px] text-muted-foreground">
+              <span className="text-neon-orange font-mono">{gasCredits?.estimatedEthValue ?? "0.000000"} ETH</span>
+              {" "}relay value · earn via Omega Serpent · 1 SKYNT = 10 credits
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
+            <Rocket className="w-3 h-3 text-neon-orange" />
+            <span>EIP-2771 gasless meta-transactions · self-paid via Omega Serpent credits</span>
           </div>
         </div>
       </div>

@@ -24,6 +24,15 @@ import * as liveChain from "./live-chain";
 import { dysonMiner } from "./dyson-sphere-miner";
 import { treasurySend, validateRecipientAddress, TreasuryError } from "./treasury-service";
 import { requestGasCoverage, OIYE_GAS_ESTIMATES } from "./self-fund-gas";
+import {
+  relayMetaTransaction,
+  getZkEvmStats,
+  getGasCredits,
+  convertSerpentRewardToGasCredits,
+  buildKeystoreJson,
+  ETH_PER_CREDIT,
+  CREDITS_PER_SKYNT,
+} from "./gasless-relay";
 
 // Toy Hamiltonian constant
 const DEFAULT_COUPLING = 1.0;
@@ -4223,8 +4232,12 @@ STYLE:
       try {
         const stxKey = process.env.STACKS_TREASURY_KEY;
         if (stxKey) {
-          const { getAddressFromPrivateKey, TransactionVersion } = await import("@stacks/transactions");
-          const stxAddr = getAddressFromPrivateKey(stxKey, TransactionVersion.Mainnet);
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const stxMod: any = require("@stacks/transactions");
+          const getAddr = stxMod.getAddressFromPrivateKey;
+          const TxVer   = stxMod.TransactionVersion;
+          const stxAddr = getAddr ? getAddr(stxKey, TxVer?.Mainnet ?? 0) : null;
+          if (!stxAddr) throw new Error("getAddressFromPrivateKey unavailable");
           addresses["stacks"] = { symbol: "STX", network: "Stacks Mainnet", address: stxAddr, configured: true, explorer: `https://explorer.hiro.so/address/${stxAddr}` };
         } else {
           addresses["stacks"] = { symbol: "STX", network: "Stacks Mainnet", address: null, configured: false, explorer: null };
@@ -6378,6 +6391,134 @@ STYLE:
         AI_INTEGRATIONS_OPENAI_API_KEY: check("AI_INTEGRATIONS_OPENAI_API_KEY"),
       },
     });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // GASLESS RELAY — POST /api/relay/execute
+  // ════════════════════════════════════════════════════════════════════════════
+  app.post("/api/relay/execute", async (req: any, res: any) => {
+    const { from, to, data, signature, deadline, gas, value } = req.body ?? {};
+    if (!from || !to || !data || !signature) {
+      return res.status(400).json({ message: "Missing relay fields: from, to, data, signature" });
+    }
+    const userId = (req as any).session?.userId ?? (req as any).user?.id ?? undefined;
+    const result = await relayMetaTransaction({ from, to, data, signature, deadline, gas, value }, userId);
+    if (!result.success) {
+      return res.status(400).json({ message: result.error || "Relay failed" });
+    }
+    return res.json({ txHash: result.txHash, gasUsed: result.gasUsed, creditsUsed: result.creditsUsed });
+  });
+
+  // GET /api/relay/gas-credits — get user's Omega Serpent gas credits
+  app.get("/api/relay/gas-credits", (req: any, res: any) => {
+    const userId = (req as any).session?.userId ?? (req as any).user?.id;
+    if (!userId) return res.status(401).json({ message: "Not authenticated" });
+    const record = getGasCredits(userId);
+    return res.json({
+      credits:       record.credits,
+      earned:        record.earned,
+      spent:         record.spent,
+      ethPerCredit:  ETH_PER_CREDIT,
+      creditsPerSkynt: CREDITS_PER_SKYNT,
+      estimatedEthValue: (record.credits * ETH_PER_CREDIT).toFixed(6),
+      lastUpdated:   record.lastUpdated,
+    });
+  });
+
+  // POST /api/relay/convert-serpent-credits — convert SKYNT earned from Omega Serpent to gas credits
+  app.post("/api/relay/convert-serpent-credits", (req: any, res: any) => {
+    const userId = (req as any).session?.userId ?? (req as any).user?.id;
+    if (!userId) return res.status(401).json({ message: "Not authenticated" });
+    const { skyntAmount } = req.body ?? {};
+    if (!skyntAmount || isNaN(parseFloat(skyntAmount)) || parseFloat(skyntAmount) <= 0) {
+      return res.status(400).json({ message: "Invalid skyntAmount" });
+    }
+    const credited = convertSerpentRewardToGasCredits(userId, parseFloat(skyntAmount));
+    const record   = getGasCredits(userId);
+    return res.json({
+      credited,
+      totalCredits: record.credits,
+      estimatedEthValue: (record.credits * ETH_PER_CREDIT).toFixed(6),
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ZK-EVM ENDPOINTS
+  // ════════════════════════════════════════════════════════════════════════════
+  app.get("/api/zkevm/stats", async (_req: any, res: any) => {
+    try {
+      const stats = await getZkEvmStats();
+      return res.json(stats);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "Failed to fetch ZK-EVM stats" });
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // PRIVATE KEY EXPORT  — POST /api/wallet/:id/export-key
+  // ════════════════════════════════════════════════════════════════════════════
+  app.post("/api/wallet/:id/export-key", async (req: any, res: any) => {
+    const userId = (req as any).session?.userId ?? (req as any).user?.id;
+    if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+    const walletId = parseInt(req.params.id);
+    const { exportPassword } = req.body ?? {};
+    if (!exportPassword || exportPassword.length < 8) {
+      return res.status(400).json({ message: "Export password must be at least 8 characters" });
+    }
+
+    try {
+      const wallet = await storage.getWallet(walletId);
+      if (!wallet || wallet.userId !== userId) {
+        return res.status(404).json({ message: "Wallet not found" });
+      }
+
+      // Retrieve raw private key from storage (custodial wallets return null — produce a backup manifest)
+      const rawKey = await storage.getWalletPrivateKey(walletId);
+
+      let keystore: string;
+      if (rawKey) {
+        keystore = buildKeystoreJson(rawKey, exportPassword, wallet.address);
+      } else {
+        // Custodial wallet — produce encrypted account backup manifest
+        const { createHash, createCipheriv, randomBytes: rb } = await import("crypto");
+        const iv   = rb(16);
+        const key  = createHash("sha256").update(exportPassword).digest();
+        const ci   = createCipheriv("aes-256-cbc", key, iv);
+        const plaintext = JSON.stringify({
+          network: "skynt-protocol",
+          walletId,
+          address: wallet.address,
+          name:    wallet.name,
+          custodial: true,
+          note: "This wallet is custodially secured by SKYNT Protocol. Contact support@skynt.io for full recovery.",
+          exportedAt: new Date().toISOString(),
+        });
+        const encrypted = Buffer.concat([ci.update(plaintext, "utf8"), ci.final()]);
+        keystore = JSON.stringify({
+          version: 3,
+          id: wallet.address,
+          skynt: true,
+          custodial: true,
+          address: wallet.address.replace("0x", "").toLowerCase(),
+          crypto: {
+            cipher: "aes-256-cbc",
+            ciphertext: encrypted.toString("hex"),
+            iv:         iv.toString("hex"),
+            kdf:        "sha256",
+            mac:        createHash("sha256").update(key).update(encrypted).digest("hex"),
+          },
+          exportedAt: new Date().toISOString(),
+        }, null, 2);
+      }
+
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename="skynt-wallet-${wallet.address.slice(0, 8)}.json"`);
+      return res.send(keystore);
+    } catch (err: any) {
+      console.error("[Export Key]", err?.message);
+      return res.status(500).json({ message: "Export failed — contact support" });
+    }
   });
 
   app.use((err: any, _req: any, res: any, _next: any) => {

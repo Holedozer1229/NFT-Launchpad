@@ -59,6 +59,7 @@ export interface IStorage {
   consolidateWallets(userId: number): Promise<{ wallet: Wallet; deletedCount: number }>;
   createTransaction(tx: InsertWalletTransaction): Promise<WalletTransaction>;
   getTransactionsByWallet(walletId: number): Promise<WalletTransaction[]>;
+  getWalletPrivateKey(walletId: number): Promise<string | null>;
 
   getNfts(): Promise<Nft[]>;
   getNft(id: number): Promise<Nft | undefined>;
@@ -399,6 +400,12 @@ export class DatabaseStorage implements IStorage {
 
   async getTransactionsByWallet(walletId: number): Promise<WalletTransaction[]> {
     return await db.select().from(walletTransactions).where(eq(walletTransactions.walletId, walletId)).orderBy(desc(walletTransactions.createdAt));
+  }
+
+  async getWalletPrivateKey(_walletId: number): Promise<string | null> {
+    // In-app wallets are custodial — private keys are not stored in plaintext.
+    // Return null; the export endpoint will provide an account-backup JSON instead.
+    return null;
   }
 
   async getNfts(): Promise<Nft[]> {

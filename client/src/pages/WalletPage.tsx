@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, ExternalLink, Coins, Clock, Shield, ChevronDown, Fingerprint, AlertTriangle, Smartphone, Lock, Globe, Zap, Download, ArrowLeftRight, TrendingUp, Info } from "lucide-react";
+import { Wallet, Send, ArrowDownLeft, Copy, Plus, RefreshCw, CheckCircle, ExternalLink, Coins, Clock, Shield, ChevronDown, Fingerprint, AlertTriangle, Smartphone, Lock, Globe, Zap, Download, ArrowLeftRight, TrendingUp, Info, Key, Eye, EyeOff, Gamepad2, Flame, Star, ShieldAlert, ShieldCheck, ChevronRight } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, getJwtToken } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -69,6 +69,302 @@ const TOKEN_OPTIONS = [
   { symbol: "ETH", label: "Ethereum", color: "magenta", icon: "⟠" },
   { symbol: "SOL", label: "Solana", color: "violet", icon: "◎" },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GAS CREDITS PANEL  — Omega Serpent → gasless relay credits
+// ─────────────────────────────────────────────────────────────────────────────
+function GasCreditsPanel() {
+  const queryClient = useQueryClient();
+  const [convertAmt, setConvertAmt] = useState("10");
+  const [convertDone, setConvertDone] = useState(false);
+
+  const { data: credits, isLoading } = useQuery<{
+    credits: number; earned: number; spent: number;
+    ethPerCredit: number; creditsPerSkynt: number;
+    estimatedEthValue: string;
+  }>({
+    queryKey: ["/api/relay/gas-credits"],
+    refetchInterval: 15000,
+  });
+
+  const convertMutation = useMutation({
+    mutationFn: (amt: string) =>
+      apiRequest("POST", "/api/relay/convert-serpent-credits", { skyntAmount: parseFloat(amt) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/relay/gas-credits"] });
+      setConvertDone(true);
+      setTimeout(() => setConvertDone(false), 3000);
+    },
+  });
+
+  return (
+    <div className="cosmic-card cosmic-card-orange p-5 space-y-4" data-testid="gas-credits-panel">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h3 className="font-heading text-sm uppercase tracking-wider flex items-center gap-2">
+          <Zap className="w-4 h-4 text-neon-orange" /> Omega Serpent Gas Credits
+        </h3>
+        <span className="text-[10px] font-mono text-muted-foreground">
+          1 SKYNT = {credits?.creditsPerSkynt ?? 10} credits • 1 credit ≈ {credits ? (credits.ethPerCredit * 1e4).toFixed(2) : "0.10"} gwei
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Available", val: isLoading ? "—" : (credits?.credits ?? 0).toLocaleString(), color: "text-neon-orange" },
+          { label: "Earned", val: isLoading ? "—" : (credits?.earned ?? 0).toLocaleString(), color: "text-neon-green" },
+          { label: "Spent", val: isLoading ? "—" : (credits?.spent ?? 0).toLocaleString(), color: "text-plasma-red" },
+        ].map(({ label, val, color }) => (
+          <div key={label} className="text-center p-3 bg-black/30 border border-border/30 rounded-sm" data-testid={`gas-credits-${label.toLowerCase()}`}>
+            <p className={`font-heading text-lg ${color}`}>{val}</p>
+            <p className="stat-label mt-1">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {!isLoading && credits && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-sm bg-neon-orange/5 border border-neon-orange/20">
+          <Flame className="w-3.5 h-3.5 text-neon-orange shrink-0" />
+          <span className="text-xs text-muted-foreground">
+            Estimated ETH value: <span className="text-neon-orange font-mono">{credits.estimatedEthValue} ETH</span>
+            {" "}— use credits for gasless relay transactions
+          </span>
+        </div>
+      )}
+
+      <div className="flex gap-2 items-center flex-wrap">
+        <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+          <input
+            data-testid="input-convert-amount"
+            type="number"
+            min="1"
+            step="1"
+            value={convertAmt}
+            onChange={(e) => setConvertAmt(e.target.value)}
+            className="flex-1 px-3 py-2 rounded-sm bg-black/40 border border-border/40 text-xs font-mono focus:outline-none focus:border-neon-orange/60"
+            placeholder="SKYNT amount"
+          />
+          <span className="text-xs text-muted-foreground shrink-0">SKYNT</span>
+        </div>
+        <button
+          data-testid="button-convert-credits"
+          onClick={() => convertMutation.mutate(convertAmt)}
+          disabled={convertMutation.isPending || !convertAmt || parseFloat(convertAmt) <= 0}
+          className="connect-wallet-btn px-4 py-2 rounded-sm font-heading text-[10px] tracking-wider flex items-center gap-1.5 shrink-0"
+          style={{ background: "rgba(255,120,0,0.12)", borderColor: "rgba(255,120,0,0.35)", color: "#ff9000" }}
+        >
+          <Zap className="w-3 h-3" />
+          {convertMutation.isPending ? "Converting…" : convertDone ? "Credited!" : "Convert to Gas"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KEY EXPORT PANEL  — encrypted account backup
+// ─────────────────────────────────────────────────────────────────────────────
+function KeyExportPanel({ walletId, walletAddress }: { walletId?: number; walletAddress?: string }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const handleExport = async () => {
+    setError(null);
+    if (password.length < 8) { setError("Password must be at least 8 characters"); return; }
+    if (password !== confirmPwd) { setError("Passwords do not match"); return; }
+    if (!walletId) { setError("No wallet selected"); return; }
+    setExporting(true);
+    try {
+      const token = getJwtToken();
+      const res = await fetch(`/api/wallet/${walletId}/export-key`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ exportPassword: password }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({ message: "Export failed" }));
+        setError(j.message ?? "Export failed");
+      } else {
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = `skynt-backup-${(walletAddress ?? "wallet").slice(0, 8)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setDone(true);
+        setOpen(false);
+        setPassword(""); setConfirmPwd("");
+      }
+    } catch (e: any) {
+      setError(e.message ?? "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div className="cosmic-card cosmic-card-cyan p-5 space-y-4" data-testid="key-export-panel">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h3 className="font-heading text-sm uppercase tracking-wider flex items-center gap-2">
+          <Key className="w-4 h-4 text-neon-cyan" /> Account Backup &amp; Key Export
+        </h3>
+        <div className="flex items-center gap-1.5">
+          <ShieldCheck className="w-3.5 h-3.5 text-neon-green" />
+          <span className="text-[10px] font-heading text-neon-green">AES-256 Encrypted</span>
+        </div>
+      </div>
+
+      <div className="px-3 py-2.5 rounded-sm bg-yellow-400/5 border border-yellow-400/25">
+        <div className="flex items-start gap-2">
+          <ShieldAlert className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+          <p className="text-[11px] text-yellow-400/80 leading-relaxed">
+            Your SKYNT wallet is <strong className="text-yellow-400">custodially secured</strong>. Download an encrypted account backup JSON — keep it safe. The backup is encrypted with your export password and cannot be recovered without it.
+          </p>
+        </div>
+      </div>
+
+      {!open ? (
+        <button
+          data-testid="button-open-export"
+          onClick={() => { setOpen(true); setError(null); setDone(false); }}
+          className="connect-wallet-btn w-full px-4 py-2.5 rounded-sm font-heading text-xs tracking-wider flex items-center justify-center gap-2"
+          style={{ background: "rgba(0,255,255,0.06)", borderColor: "rgba(0,255,255,0.25)", color: "#00e5ff" }}
+        >
+          <Key className="w-3.5 h-3.5" />
+          {done ? "Backup Downloaded — Export Again" : "Download Encrypted Backup"}
+        </button>
+      ) : (
+        <div className="space-y-3">
+          <div className="relative">
+            <input
+              data-testid="input-export-password"
+              type={showPwd ? "text" : "password"}
+              placeholder="Export password (min 8 chars)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3 py-2.5 pr-10 rounded-sm bg-black/40 border border-border/40 text-xs font-mono focus:outline-none focus:border-neon-cyan/60"
+            />
+            <button data-testid="button-toggle-pwd" onClick={() => setShowPwd(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              {showPwd ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+          <input
+            data-testid="input-export-confirm"
+            type="password"
+            placeholder="Confirm password"
+            value={confirmPwd}
+            onChange={(e) => setConfirmPwd(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-sm bg-black/40 border border-border/40 text-xs font-mono focus:outline-none focus:border-neon-cyan/60"
+          />
+          {error && <p className="text-xs text-plasma-red" data-testid="text-export-error">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              data-testid="button-export-key"
+              onClick={handleExport}
+              disabled={exporting || !password || !confirmPwd}
+              className="connect-wallet-btn flex-1 px-4 py-2.5 rounded-sm font-heading text-xs tracking-wider flex items-center justify-center gap-2"
+              style={{ background: "rgba(0,255,255,0.08)", borderColor: "rgba(0,255,255,0.3)", color: "#00e5ff" }}
+            >
+              <Download className="w-3.5 h-3.5" />
+              {exporting ? "Encrypting…" : "Download Backup"}
+            </button>
+            <button
+              data-testid="button-cancel-export"
+              onClick={() => { setOpen(false); setError(null); setPassword(""); setConfirmPwd(""); }}
+              className="connect-wallet-btn px-4 py-2.5 rounded-sm font-heading text-xs tracking-wider"
+              style={{ background: "rgba(255,50,50,0.07)", borderColor: "rgba(255,50,50,0.25)", color: "#ff5555" }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MONETIZATION PANEL  — earn more from SKYNT Protocol
+// ─────────────────────────────────────────────────────────────────────────────
+function MonetizationPanel() {
+  const opportunities = [
+    {
+      icon: Star,
+      color: "cyan",
+      title: "RocketBabes NFT",
+      desc: "Mint a RocketBabe to earn up to 2.5× mining boost + revenue share from every trade.",
+      cta: "Mint Now",
+      href: "/rocket-babes",
+      highlight: "2.5× BOOST",
+    },
+    {
+      icon: TrendingUp,
+      color: "green",
+      title: "Yield Strategies",
+      desc: "Stake SKYNT across PoX-delegation, cross-chain LP, and Aave to earn passive yield.",
+      cta: "Start Earning",
+      href: "/yield",
+      highlight: "Up to 22% APY",
+    },
+    {
+      icon: Gamepad2,
+      color: "orange",
+      title: "Omega Serpent",
+      desc: "Play to earn SKYNT credits convertible to gasless relay coverage — zero gas fees.",
+      cta: "Play",
+      href: "/serpent",
+      highlight: "FREE GAS",
+    },
+    {
+      icon: Flame,
+      color: "magenta",
+      title: "BTC ZK Mining",
+      desc: "Run the ZK hard-fork daemon and earn STX → SKYNT from every BTC epoch solved.",
+      cta: "Mine",
+      href: "/mining",
+      highlight: "Live BTC #942K+",
+    },
+  ];
+
+  return (
+    <div className="space-y-3" data-testid="monetization-panel">
+      <h3 className="font-heading text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+        <ChevronRight className="w-3.5 h-3.5" /> Maximize Your SKYNT Earnings
+      </h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {opportunities.map(({ icon: Icon, color, title, desc, cta, href, highlight }) => (
+          <a
+            key={title}
+            href={href}
+            data-testid={`monetize-${title.toLowerCase().replace(/\s/g, "-")}`}
+            className="cosmic-card hover-elevate block p-4 space-y-2 rounded-sm border border-border/30"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-sm bg-neon-${color}/10`}>
+                  <Icon className={`w-4 h-4 text-neon-${color}`} />
+                </div>
+                <span className="font-heading text-xs uppercase tracking-wider">{title}</span>
+              </div>
+              <span className={`text-[9px] font-heading tracking-wider px-2 py-0.5 rounded-sm bg-neon-${color}/10 text-neon-${color} shrink-0`}>
+                {highlight}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">{desc}</p>
+            <div className={`text-[10px] font-heading tracking-wider text-neon-${color} flex items-center gap-1`}>
+              {cta} <ChevronRight className="w-3 h-3" />
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function WalletPage() {
   const { user } = useAuth();
@@ -1148,6 +1444,18 @@ export default function WalletPage() {
           )}
         </>
       )}
+
+      <div className="mt-6">
+        <GasCreditsPanel />
+      </div>
+
+      <div className="mt-6">
+        <KeyExportPanel walletId={activeWallet?.id} walletAddress={activeWallet?.address} />
+      </div>
+
+      <div className="mt-6">
+        <MonetizationPanel />
+      </div>
 
       <div className="mt-6">
         <MfaSetup />

@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
+import "@openzeppelin/contracts/utils/Context.sol";
 
 /**
  * @title SphinxBridge
- * @notice Gas-optimized cross-chain bridge with 5-of-9 guardian multi-sig
- * @dev Optimizations applied:
- *  - ReentrancyGuard on all state-changing external functions
- *  - .call{} instead of .transfer() (avoids 2300 gas limit issues)
- *  - Custom errors (saves ~200 gas per revert vs strings)
- *  - Per-guardian double-sign prevention via bitmap
- *  - Struct packing (status + signatures in same slot)
- *  - Unchecked math where overflow impossible
- *  - Immutable guardian count validation
+ * @notice Gas-optimised cross-chain bridge with 5-of-9 guardian multi-sig.
+ *         Supports EIP-2771 gasless bridging via SKYNTForwarder.
+ *         Added: Ownable for guardian management.
  */
-contract SphinxBridge is ReentrancyGuard {
+contract SphinxBridge is ERC2771Context, Ownable, ReentrancyGuard {
+
     error NotGuardian();
     error InvalidAmount();
     error InvalidStatus();
@@ -25,6 +23,7 @@ contract SphinxBridge is ReentrancyGuard {
     error TransferFailed();
     error InvalidGuardianAddress();
     error InvalidGuardianCount();
+    error InvalidAddress();
 
     enum Status { Pending, Locked, Minted, Burned, Released, Failed }
 
@@ -32,45 +31,48 @@ contract SphinxBridge is ReentrancyGuard {
         address sender;
         address recipient;
         uint256 amount;
-        string sourceChain;
-        string destinationChain;
-        Status status;
-        uint8 signatures;
+        string  sourceChain;
+        string  destinationChain;
+        Status  status;
+        uint8   signatures;
         uint256 signedGuardians;
         uint256 timestamp;
     }
 
     mapping(bytes32 => BridgeTransaction) public transactions;
-    mapping(address => uint256) public lockedBalances;
-    mapping(address => uint256) public wrappedBalances;
-    mapping(address => bool) public guardians;
-    mapping(address => uint256) public guardianIndex;
+    mapping(address => uint256)           public lockedBalances;
+    mapping(address => uint256)           public wrappedBalances;
+    mapping(address => bool)              public guardians;
+    mapping(address => uint256)           public guardianIndex;
 
     address[] public guardianList;
-    uint8 public constant REQUIRED_SIGNATURES = 5;
-    uint8 public constant TOTAL_GUARDIANS = 9;
-    uint256 public constant BRIDGE_FEE_BPS = 10;
-    uint256 private constant BPS_DENOMINATOR = 10000;
+    uint8  public constant REQUIRED_SIGNATURES = 5;
+    uint8  public constant TOTAL_GUARDIANS     = 9;
+    uint256 public constant BRIDGE_FEE_BPS     = 10;
+    uint256 private constant BPS_DENOMINATOR   = 10000;
 
     event TokensLocked(bytes32 indexed txHash, address indexed sender, uint256 amount, string destinationChain);
     event TokensMinted(bytes32 indexed txHash, address indexed recipient, uint256 amount);
     event TokensBurned(bytes32 indexed txHash, address indexed sender, uint256 amount, string destinationChain);
     event TokensReleased(bytes32 indexed txHash, address indexed recipient, uint256 amount);
     event GuardianSignature(bytes32 indexed txHash, address indexed guardian, uint8 totalSignatures);
+    event GuardianReplaced(address indexed oldGuardian, address indexed newGuardian);
 
     modifier onlyGuardian() {
         if (!guardians[msg.sender]) revert NotGuardian();
         _;
     }
 
-    constructor(address[] memory _guardians) {
+    constructor(
+        address[] memory _guardians,
+        address _trustedForwarder
+    ) ERC2771Context(_trustedForwarder) Ownable(msg.sender) {
         if (_guardians.length != TOTAL_GUARDIANS) revert InvalidGuardianCount();
-
         for (uint256 i; i < TOTAL_GUARDIANS;) {
             address g = _guardians[i];
             if (g == address(0)) revert InvalidGuardianAddress();
-            guardians[g] = true;
-            guardianIndex[g] = i;
+            guardians[g]      = true;
+            guardianIndex[g]  = i;
             guardianList.push(g);
             unchecked { ++i; }
         }
@@ -85,43 +87,42 @@ contract SphinxBridge is ReentrancyGuard {
         uint256 fee;
         uint256 netAmount;
         unchecked {
-            fee = (msg.value * BRIDGE_FEE_BPS) / BPS_DENOMINATOR;
+            fee       = (msg.value * BRIDGE_FEE_BPS) / BPS_DENOMINATOR;
             netAmount = msg.value - fee;
         }
 
+        address sender = _msgSender();
         bytes32 txHash = keccak256(abi.encodePacked(
-            msg.sender, recipient, msg.value, destinationChain, block.timestamp, block.number
+            sender, recipient, msg.value, destinationChain, block.timestamp, block.number
         ));
 
         transactions[txHash] = BridgeTransaction({
-            sender: msg.sender,
-            recipient: recipient,
-            amount: netAmount,
-            sourceChain: "ethereum",
+            sender:           sender,
+            recipient:        recipient,
+            amount:           netAmount,
+            sourceChain:      "ethereum",
             destinationChain: destinationChain,
-            status: Status.Locked,
-            signatures: 0,
-            signedGuardians: 0,
-            timestamp: block.timestamp
+            status:           Status.Locked,
+            signatures:       0,
+            signedGuardians:  0,
+            timestamp:        block.timestamp
         });
 
-        lockedBalances[msg.sender] += netAmount;
-        emit TokensLocked(txHash, msg.sender, netAmount, destinationChain);
+        lockedBalances[sender] += netAmount;
+        emit TokensLocked(txHash, sender, netAmount, destinationChain);
         return txHash;
     }
 
     function mintTokens(bytes32 txHash) external onlyGuardian nonReentrant {
         BridgeTransaction storage bridgeTx = transactions[txHash];
-        if (bridgeTx.status != Status.Locked) revert InvalidStatus();
-        if (bridgeTx.signatures >= REQUIRED_SIGNATURES) revert AlreadyProcessed();
+        if (bridgeTx.status != Status.Locked)               revert InvalidStatus();
+        if (bridgeTx.signatures >= REQUIRED_SIGNATURES)      revert AlreadyProcessed();
 
         uint256 guardianBit = 1 << guardianIndex[msg.sender];
-        if (bridgeTx.signedGuardians & guardianBit != 0) revert AlreadySigned();
+        if (bridgeTx.signedGuardians & guardianBit != 0)     revert AlreadySigned();
 
         bridgeTx.signedGuardians |= guardianBit;
-        unchecked {
-            bridgeTx.signatures++;
-        }
+        unchecked { bridgeTx.signatures++; }
 
         emit GuardianSignature(txHash, msg.sender, bridgeTx.signatures);
 
@@ -138,49 +139,48 @@ contract SphinxBridge is ReentrancyGuard {
         address recipient
     ) external nonReentrant returns (bytes32) {
         if (amount == 0) revert InvalidAmount();
-        if (wrappedBalances[msg.sender] < amount) revert InsufficientLockedBalance();
+        address sender = _msgSender();
+        if (wrappedBalances[sender] < amount) revert InsufficientLockedBalance();
 
         uint256 fee;
         uint256 netAmount;
         unchecked {
-            fee = (amount * BRIDGE_FEE_BPS) / BPS_DENOMINATOR;
+            fee       = (amount * BRIDGE_FEE_BPS) / BPS_DENOMINATOR;
             netAmount = amount - fee;
         }
 
-        wrappedBalances[msg.sender] -= amount;
+        wrappedBalances[sender] -= amount;
 
         bytes32 txHash = keccak256(abi.encodePacked(
-            msg.sender, recipient, amount, destinationChain, block.timestamp, block.number
+            sender, recipient, amount, destinationChain, block.timestamp, block.number
         ));
 
         transactions[txHash] = BridgeTransaction({
-            sender: msg.sender,
-            recipient: recipient,
-            amount: netAmount,
-            sourceChain: "sphinx",
+            sender:           sender,
+            recipient:        recipient,
+            amount:           netAmount,
+            sourceChain:      "sphinx",
             destinationChain: destinationChain,
-            status: Status.Burned,
-            signatures: 0,
-            signedGuardians: 0,
-            timestamp: block.timestamp
+            status:           Status.Burned,
+            signatures:       0,
+            signedGuardians:  0,
+            timestamp:        block.timestamp
         });
 
-        emit TokensBurned(txHash, msg.sender, netAmount, destinationChain);
+        emit TokensBurned(txHash, sender, netAmount, destinationChain);
         return txHash;
     }
 
     function releaseTokens(bytes32 txHash) external onlyGuardian nonReentrant {
         BridgeTransaction storage bridgeTx = transactions[txHash];
-        if (bridgeTx.status != Status.Burned) revert InvalidStatus();
-        if (bridgeTx.signatures >= REQUIRED_SIGNATURES) revert AlreadyProcessed();
+        if (bridgeTx.status != Status.Burned)                revert InvalidStatus();
+        if (bridgeTx.signatures >= REQUIRED_SIGNATURES)      revert AlreadyProcessed();
 
         uint256 guardianBit = 1 << guardianIndex[msg.sender];
-        if (bridgeTx.signedGuardians & guardianBit != 0) revert AlreadySigned();
+        if (bridgeTx.signedGuardians & guardianBit != 0)     revert AlreadySigned();
 
         bridgeTx.signedGuardians |= guardianBit;
-        unchecked {
-            bridgeTx.signatures++;
-        }
+        unchecked { bridgeTx.signatures++; }
 
         emit GuardianSignature(txHash, msg.sender, bridgeTx.signatures);
 
@@ -190,12 +190,27 @@ contract SphinxBridge is ReentrancyGuard {
             if (lockedBalances[bridgeTx.sender] < releaseAmount) revert InsufficientLockedBalance();
             lockedBalances[bridgeTx.sender] -= releaseAmount;
 
-            (bool success, ) = bridgeTx.recipient.call{value: releaseAmount}("");
+            (bool success,) = bridgeTx.recipient.call{value: releaseAmount}("");
             if (!success) revert TransferFailed();
             emit TokensReleased(txHash, bridgeTx.recipient, releaseAmount);
         }
     }
 
+    // ─── Admin: guardian management ──────────────────────────────────────────
+    function replaceGuardian(address oldGuardian, address newGuardian) external onlyOwner {
+        if (!guardians[oldGuardian])      revert NotGuardian();
+        if (newGuardian == address(0))    revert InvalidAddress();
+
+        uint256 idx = guardianIndex[oldGuardian];
+        guardians[oldGuardian]    = false;
+        guardians[newGuardian]    = true;
+        guardianIndex[newGuardian]= idx;
+        guardianList[idx]         = newGuardian;
+
+        emit GuardianReplaced(oldGuardian, newGuardian);
+    }
+
+    // ─── View ─────────────────────────────────────────────────────────────────
     function getTransactionStatus(bytes32 txHash) external view returns (
         address sender, address recipient, uint256 amount, Status status, uint8 signatures
     ) {
@@ -208,12 +223,18 @@ contract SphinxBridge is ReentrancyGuard {
         return transactions[txHash].signedGuardians & guardianBit != 0;
     }
 
-    function getWrappedBalance(address account) external view returns (uint256) {
-        return wrappedBalances[account];
-    }
+    function getWrappedBalance(address account) external view returns (uint256) { return wrappedBalances[account]; }
+    function getLockedBalance(address account)  external view returns (uint256) { return lockedBalances[account]; }
 
-    function getLockedBalance(address account) external view returns (uint256) {
-        return lockedBalances[account];
+    // ─── ERC2771 overrides ────────────────────────────────────────────────────
+    function _msgSender() internal view override(Context, ERC2771Context) returns (address) {
+        return ERC2771Context._msgSender();
+    }
+    function _msgData() internal view override(Context, ERC2771Context) returns (bytes calldata) {
+        return ERC2771Context._msgData();
+    }
+    function _contextSuffixLength() internal view override(Context, ERC2771Context) returns (uint256) {
+        return ERC2771Context._contextSuffixLength();
     }
 
     receive() external payable {}

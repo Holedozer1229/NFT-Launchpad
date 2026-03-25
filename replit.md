@@ -1,9 +1,36 @@
 # SKYNT Protocol — RocketBabesNFT Launchpad
 
 ## Overview
-Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC Genesis Mining, cross-chain bridge, and DeFi yield. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, and wallet integration via wagmi connectors (MetaMask SDK, Coinbase Wallet, Injected) + Alchemy SDK RPC.
+Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection, SphinxOS Oracle Minter, BTC ZK Hard-Fork Mining, cross-chain bridge, DeFi yield, ZK-EVM rollup, EIP-2771 gasless relay with Omega Serpent credits, and full governance. Sidebar navigation, cosmic/space theme with neon accents, JWT auth, wagmi connectors (MetaMask, Coinbase, Injected) + Alchemy SDK.
+
+**SKYNT Token:** `0x22d3f06afB69e5FCFAa98C20009510dD11aF2517`  
+**Treasury:** `0xD55dDb0f19DAc37cDb3c5c50d8A89EB177ecc6e0`
 
 ## Recent Changes
+
+- **Mar 2026**: **ASI Production Refactor — ZK-EVM + Gasless Relay + Wallet Security + Deploy Suite**
+  - **Gasless Relay Engine** (`server/gasless-relay.ts`): EIP-2771 meta-transaction relay using treasury wallet via Alchemy SDK. Omega Serpent SKYNT earnings convert to gas credits (1 SKYNT = 10 credits, 1 credit ≈ 0.0001 ETH). Up to 50 credits deducted per gasless tx. `buildKeystoreJson()` for encrypted key export.
+  - **New API Endpoints** in `server/routes.ts`:
+    - `POST /api/relay/execute` — submits EIP-712 ForwardRequests via treasury; deducts gas credits
+    - `GET /api/relay/gas-credits` — returns user's credits balance, earned, spent, ETH equivalent
+    - `POST /api/relay/convert-serpent-credits` — converts SKYNT Omega Serpent earnings to relay credits
+    - `GET /api/zkevm/stats` — live ZK-EVM batch count, tx count, proofs, state root
+    - `POST /api/wallet/:id/export-key` — AES-256 encrypted account backup JSON download
+  - **Storage**: Added `getWalletPrivateKey(walletId)` to `IStorage` interface + `DatabaseStorage`
+  - **WalletPage** (`client/src/pages/WalletPage.tsx`): Three new production panels:
+    - `GasCreditsPanel` — live Omega Serpent gas credits dashboard with SKYNT→credits conversion
+    - `KeyExportPanel` — AES-256 encrypted account backup download with password confirmation
+    - `MonetizationPanel` — 4 earn opportunities: RocketBabes mint, Yield, Omega Serpent, BTC Mining
+  - **Dashboard** (`client/src/pages/Dashboard.tsx`): New ZK-EVM + Relay Gas Credits section showing live batch/tx/proof counts, state root, and user credit balance
+  - **Contracts** (all upgraded to OZ v5):
+    - `contracts/solidity/SKYNTForwarder.sol` — EIP-2771 MinimalForwarder with SKYNT extensions
+    - `contracts/solidity/SKYNTZkEVM.sol` — Full ZK-rollup with multi-chain bridge, per-chain TVL, pending yield
+    - `contracts/solidity/RocketBabesNFT.sol` — Renamed from RocketGirlsNFT (name="RocketBabes", symbol="RKTBBS")
+    - All 8 consumer contracts: ERC2771Context + `_msgSender()` + `_contextSuffixLength()` overrides
+    - `contracts/scripts/04_deploy_all.js` — deploys all 8 contracts in order with Etherscan verify
+  - **TypeScript**: Fixed `TransactionVersion` import from `@stacks/transactions` using dynamic require; zero TS errors
+
+
 - **Mar 2026**: **Multi-chain Expansion — All Alchemy-Supported EVM Networks**
   - `server/chain-registry.ts`: New module — comprehensive registry of 93 EVM chain configurations (45 mainnets + 48 testnets) covering every Alchemy SDK–supported network. Each entry includes `alchemySlug`, `chainId`, `explorerUrl`, `name`, `mainnet`. Exports `CHAIN_REGISTRY`, `EVM_CHAIN_KEYS`, `MAINNET_CHAIN_KEYS`, `requireChain()`
   - `server/treasury-service.ts`: `sendEvm()` now resolves chain config from the registry — no more static 6-chain map. Gas estimation switched from viem `createPublicClient.estimateGas()` to ethers `provider.estimateGas()` (eliminates need for viem chain objects per network). `validateAddress()` now accepts any EVM chain key from the registry. All 93 EVM networks are now sendable
