@@ -122,13 +122,21 @@ contract SKYNTForwarder is EIP712, Ownable {
 
     // ─── Internal ─────────────────────────────────────────────────────────────
     /**
-     * @dev Accepts EITHER a user self-signature (recovered == request.from)
-     *      OR a treasury/relayer signature (recovered is an authorizedRelayer).
-     *      This enables the server-side self-signing relay pattern:
-     *        1. Client sends {from, to, data} with no signature.
-     *        2. Server builds ForwardRequest, signs with TREASURY_PRIVATE_KEY.
-     *        3. Server calls execute(). Forwarder recovers treasury address → authorizedRelayers[treasury] = true → accepted.
-     *        4. ERC2771Context appends request.from → target sees user as _msgSender().
+     * @dev Dual-signer validation — supports two distinct signature models:
+     *
+     *   Model A — User self-sign (standard EIP-2771):
+     *     `request.signature` is produced by `request.from`.
+     *     recovered == request.from → accepted.
+     *
+     *   Model B — Treasury/relayer self-sign (SKYNT gasless relay):
+     *     The server builds the ForwardRequest and signs it with TREASURY_PRIVATE_KEY.
+     *     The client never signs; the server authenticates the user via session + wallet
+     *     ownership checks before calling execute().
+     *     recovered == treasury address → authorizedRelayers[treasury] == true → accepted.
+     *     ERC2771Context then appends request.from to calldata so target contracts
+     *     see the user as _msgSender() even though the treasury signed the relay.
+     *
+     *   isTrusted is true if EITHER model is satisfied.
      */
     function _validate(ForwardRequestData calldata request)
         internal
@@ -146,7 +154,8 @@ contract SKYNTForwarder is EIP712, Ownable {
             keccak256(request.data)
         )));
         address recovered = ECDSA.recover(digest, request.signature);
-        // Accept user self-signature OR treasury/authorized-relayer signature
+        // Model A: user signed → recovered == request.from
+        // Model B: treasury/authorized relayer signed → authorizedRelayers[recovered]
         isTrusted = (recovered == request.from) || authorizedRelayers[recovered];
     }
 
