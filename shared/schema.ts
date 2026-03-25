@@ -514,7 +514,7 @@ export const STX_LENDING_TIERS = {
 
 export type StxLendingTierId = keyof typeof STX_LENDING_TIERS;
 
-export const SKYNT_CONTRACT_ADDRESS = "0xC5a47C9adaB637d1CAA791CCe193079d22C8cb20";
+export const SKYNT_CONTRACT_ADDRESS = "0x22d3f06afB69e5FCFAa98C20009510dD11aF2517";
 export const TREASURY_WALLET_ADDRESS = "0x7Fbe68677e63272ECB55355a6778fCee974d4895";
 
 export const ZK_BRIDGE_MINING_CHAINS = ["ethereum", "stacks", "dogecoin", "monero"] as const;

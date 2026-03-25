@@ -114,7 +114,7 @@ export default function Gallery() {
   const [sellerAddressInput, setSellerAddressInput] = useState("");
   const [sendNftId, setSendNftId] = useState<number | null>(null);
   const [sendToAddress, setSendToAddress] = useState("");
-  const [sendResult, setSendResult] = useState<{ txHash: string | null; explorerUrl: string | null; message: string } | null>(null);
+  const [sendResult, setSendResult] = useState<{ txHash: string | null; explorerUrl: string | null; message: string; requiresWalletAction?: boolean } | null>(null);
   const [stakeNftId, setStakeNftId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -161,8 +161,12 @@ export default function Gallery() {
         txHash: data.onChain?.txHash ?? null,
         explorerUrl: data.onChain?.explorerUrl ?? null,
         message: data.message,
+        requiresWalletAction: data.requiresWalletAction ?? false,
       });
-      toast({ title: "NFT Sent", description: data.message });
+      toast({
+        title: data.requiresWalletAction ? "Registry Updated" : "NFT Sent",
+        description: data.message,
+      });
     },
     onError: (e: any) => {
       toast({ title: "Transfer Failed", description: e.message, variant: "destructive" });
@@ -728,11 +732,27 @@ export default function Gallery() {
 
                   {/* ── Send NFT ── */}
                   {sendNftId === nft.id && sendResult ? (
-                    <div className="mt-1 rounded-lg border border-neon-green/30 bg-neon-green/5 p-3 space-y-2 text-[10px] font-mono">
-                      <div className="flex items-center gap-2 text-neon-green font-bold">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Transfer Recorded
+                    <div className={`mt-1 rounded-lg border p-3 space-y-2 text-[10px] font-mono ${
+                      sendResult.requiresWalletAction
+                        ? "border-amber-500/30 bg-amber-500/5"
+                        : "border-neon-green/30 bg-neon-green/5"
+                    }`}>
+                      <div className={`flex items-center gap-2 font-bold ${
+                        sendResult.requiresWalletAction ? "text-amber-400" : "text-neon-green"
+                      }`}>
+                        {sendResult.requiresWalletAction
+                          ? <><Wallet className="w-3.5 h-3.5" /> Sign from Your Wallet</>
+                          : <><CheckCircle2 className="w-3.5 h-3.5" /> Transfer Recorded</>
+                        }
                       </div>
                       <p className="text-muted-foreground leading-relaxed">{sendResult.message}</p>
+                      {sendResult.requiresWalletAction && (
+                        <p className="text-[9px] text-amber-400/70 leading-snug">
+                          Registry ownership updated. Open MetaMask or Coinbase Wallet and call
+                          <span className="font-bold text-amber-400"> transferFrom</span> on the
+                          ERC-721 contract to complete the on-chain transfer.
+                        </p>
+                      )}
                       {sendResult.txHash && (
                         <a
                           href={sendResult.explorerUrl ?? `https://etherscan.io/tx/${sendResult.txHash}`}

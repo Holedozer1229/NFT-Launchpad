@@ -1671,9 +1671,29 @@ STYLE:
         return res.status(403).json({ message: "You do not own this NFT" });
       }
 
-      // Attempt on-chain transfer if EVM NFT and treasury holds it
+      // Attempt on-chain transfer ONLY if treasury wallet is the current on-chain owner.
+      // If the user's external wallet holds the NFT, the treasury cannot sign a transfer —
+      // return requiresWalletAction so the frontend can prompt the user to sign themselves.
       let onChainResult: { txHash: string | null; status: string; explorerUrl: string | null } | null = null;
-      if (isEvm) {
+      const treasuryHoldsNft = isEvm &&
+        nft.owner &&
+        nft.owner.toLowerCase() === TREASURY_WALLET.toLowerCase();
+
+      if (isEvm && !treasuryHoldsNft) {
+        // NFT is held by the user's external wallet — treasury cannot sign this transfer
+        const updated = await storage.transferNftOwner(nftId, trimmed.toLowerCase(), "transferred");
+        console.log(`[NFTTransfer] registry-only: nft#${nftId} owner=${nft.owner} (not treasury) → ${trimmed}`);
+        return res.json({
+          success: true,
+          requiresWalletAction: true,
+          nft: updated,
+          toAddress: trimmed,
+          onChain: null,
+          message: "Ownership updated in protocol registry. This NFT is held in your external wallet — use your connected wallet (MetaMask / Coinbase) to sign the on-chain ERC-721 transfer directly.",
+        });
+      }
+
+      if (treasuryHoldsNft) {
         const { transferNftOnChain, SKYNT_CONTRACT_ADDRESS } = await import("./alchemy-engine");
         const { SUPPORTED_CHAINS } = await import("../shared/schema");
         const chainData = SUPPORTED_CHAINS[nft.chain as keyof typeof SUPPORTED_CHAINS];
@@ -1696,6 +1716,7 @@ STYLE:
 
       res.json({
         success: true,
+        requiresWalletAction: false,
         nft: updated,
         toAddress: trimmed,
         onChain: onChainResult,
@@ -1867,6 +1888,7 @@ STYLE:
       const mintGas = requestGasCoverage("nft_mint");
       const mintGasNote = mintGas.covered ? `${mintGas.ethUsed.toFixed(8)} ETH (OIYE)` : null;
 
+      const mintTxHash = "0x" + randomBytes(32).toString("hex");
       await storage.updateWalletBalance(wallet.id, "ETH", (currentEth - cost).toString());
       await storage.createTransaction({
         walletId: wallet.id,
@@ -1874,11 +1896,14 @@ STYLE:
         amount: cost.toString(),
         token: "ETH",
         status: "completed",
-        txHash: "0x" + randomBytes(32).toString("hex"),
+        txHash: mintTxHash,
         networkFee: mintGasNote,
       });
 
       const chainId = (nftData_.chain || "ethereum") as ChainId;
+      // ── Credit treasury fee pool (mint cost flows into yield + gas refill) ──
+      recordMintFee(cost, rarity, chainId, mintTxHash);
+      console.log(`[Treasury] Mint fee recorded: ${cost} ETH | rarity=${rarity} | chain=${chainId}`);
       const chainData = SUPPORTED_CHAINS[chainId];
       const contractAddr = chainData?.contractAddress || "0x0000000000000000000000000000000000000000";
       const tokenIdClean = nftData_.tokenId.replace(/\.\.\./g, "").replace("0x", "");
