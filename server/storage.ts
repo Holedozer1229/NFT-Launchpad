@@ -1,6 +1,6 @@
 import { launches, miners, users, wallets, walletTransactions, nfts, bridgeTransactions, guardians, yieldStrategies, yieldPositions, contractDeployments, gameScores, marketplaceListings, powChallenges, powSubmissions, zkWormholes, zkWormholeTransfers, rarityCertificates, rocketBabeModels, airdrops, airdropClaims, kycSubmissions, type RarityCertificate, type InsertRarityCertificate, type ZkWormhole, type InsertZkWormhole, type ZkWormholeTransfer, type InsertZkWormholeTransfer, type Launch, type InsertLaunch, type Miner, type InsertMiner, type User, type InsertUser, type Wallet, type InsertWallet, type WalletTransaction, type InsertWalletTransaction, type Nft, type InsertNft, type BridgeTransaction, type InsertBridgeTransaction, type Guardian, type InsertGuardian, type YieldStrategy, type InsertYieldStrategy, type YieldPosition, type InsertYieldPosition, type ContractDeployment, type InsertContractDeployment, type GameScore, type InsertGameScore, type MarketplaceListing, type InsertMarketplaceListing, type PowChallenge, type InsertPowChallenge, type PowSubmission, type InsertPowSubmission, type RocketBabeModel, type InsertRocketBabeModel, type Airdrop, type InsertAirdrop, type AirdropClaim, type InsertAirdropClaim, type KycSubmission, type InsertKycSubmission } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 function generateWalletAddress(): string {
@@ -64,6 +64,7 @@ export interface IStorage {
   getNfts(): Promise<Nft[]>;
   getNft(id: number): Promise<Nft | undefined>;
   getNftsByUser(userId: number): Promise<Nft[]>;
+  getNftsByOwnerAddresses(ownerAddresses: string[]): Promise<Nft[]>;
   createNft(nft: InsertNft): Promise<Nft>;
   updateNftStatus(id: number, status: string): Promise<void>;
   updateNftOpenSea(id: number, openseaUrl: string | null, openseaStatus: string, openseaListingId: string | null): Promise<void>;
@@ -416,6 +417,14 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(nfts).where(eq(nfts.mintedBy, userId)).orderBy(desc(nfts.id));
   }
 
+  async getNftsByOwnerAddresses(ownerAddresses: string[]): Promise<Nft[]> {
+    if (ownerAddresses.length === 0) return [];
+    const lowerAddresses = ownerAddresses.map(a => a.toLowerCase());
+    return await db.select().from(nfts)
+      .where(inArray(sql<string>`lower(${nfts.owner})`, lowerAddresses))
+      .orderBy(desc(nfts.id));
+  }
+
   async getNft(id: number): Promise<Nft | undefined> {
     const [nft] = await db.select().from(nfts).where(eq(nfts.id, id));
     return nft;
@@ -651,7 +660,9 @@ export class DatabaseStorage implements IStorage {
         .returning();
 
       if (listing.nftId) {
-        await tx.update(nfts).set({ status: "minted" }).where(eq(nfts.id, listing.nftId));
+        await tx.update(nfts)
+          .set({ status: "minted", owner: buyerWallet.address.toLowerCase() })
+          .where(eq(nfts.id, listing.nftId));
       }
 
       return { success: true, listing: updated, txHash };

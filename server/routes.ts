@@ -309,15 +309,14 @@ export async function registerRoutes(
     try {
       const user = req.user!;
       const userWallets = await storage.getWalletsByUser(user.id);
-      const nfts = await storage.getNfts(); 
-      
+
       let totalSkynt = 0;
       userWallets.forEach(w => {
         totalSkynt += parseFloat(w.balanceSkynt);
       });
 
-      const walletAddresses = new Set(userWallets.map(w => w.address.toLowerCase()));
-      const userNfts = nfts.filter(nft => walletAddresses.has(nft.owner.toLowerCase()));
+      const walletAddresses = userWallets.map(w => w.address.toLowerCase());
+      const userNfts = await storage.getNftsByOwnerAddresses(walletAddresses);
 
       let currentTier = 0;
 
@@ -1770,7 +1769,11 @@ STYLE:
       if (!nft) return res.status(404).json({ message: "NFT not found" });
 
       const user = req.user as Express.User;
-      const isOwner = nft.mintedBy === user.id || (req.user as any).isAdmin;
+      const userWalletsForStake = await storage.getWalletsByUser(user.id);
+      const userWalletAddrsForStake = new Set(userWalletsForStake.map(w => w.address.toLowerCase()));
+      const isOwner = nft.mintedBy === user.id ||
+        userWalletAddrsForStake.has(nft.owner?.toLowerCase() ?? "") ||
+        (req.user as any).isAdmin;
       if (!isOwner) return res.status(403).json({ message: "Not your NFT" });
 
       if (nft.status === "staked") return res.status(409).json({ message: "NFT already staked" });
@@ -1802,7 +1805,11 @@ STYLE:
       if (!nft) return res.status(404).json({ message: "NFT not found" });
 
       const user = req.user as Express.User;
-      const isOwner = nft.mintedBy === user.id || (req.user as any).isAdmin;
+      const userWalletsForUnstake = await storage.getWalletsByUser(user.id);
+      const userWalletAddrsForUnstake = new Set(userWalletsForUnstake.map(w => w.address.toLowerCase()));
+      const isOwner = nft.mintedBy === user.id ||
+        userWalletAddrsForUnstake.has(nft.owner?.toLowerCase() ?? "") ||
+        (req.user as any).isAdmin;
       if (!isOwner) return res.status(403).json({ message: "Not your NFT" });
 
       if (nft.status !== "staked") return res.status(409).json({ message: "NFT is not staked" });
@@ -2921,6 +2928,7 @@ STYLE:
       const scoreId = parseInt(req.params.id);
 
       const userWallets = await storage.getWalletsByUser(req.user!.id);
+      let balanceAfterFee = 0;
       if (userWallets.length > 0) {
         const wallet = userWallets[0];
         const currentSkynt = parseFloat(wallet.balanceSkynt);
@@ -2931,7 +2939,8 @@ STYLE:
             current: currentSkynt,
           });
         }
-        await storage.updateWalletBalance(wallet.id, "SKYNT", (currentSkynt - GAME_CLAIM_FEE).toString());
+        balanceAfterFee = currentSkynt - GAME_CLAIM_FEE;
+        await storage.updateWalletBalance(wallet.id, "SKYNT", balanceAfterFee.toString());
         recordMintFee(GAME_CLAIM_FEE, "game-claim", "SKYNT", `claim-fee-${Date.now()}-${req.user!.id}`);
       }
 
@@ -2944,7 +2953,7 @@ STYLE:
 
       if (bonusSkynt > 0 && userWallets.length > 0) {
         const wallet = userWallets[0];
-        const updatedSkynt = parseFloat(wallet.balanceSkynt) - GAME_CLAIM_FEE + bonusSkynt;
+        const updatedSkynt = balanceAfterFee + bonusSkynt;
         await storage.updateWalletBalance(wallet.id, "SKYNT", Math.max(0, updatedSkynt).toString());
       }
 
@@ -6225,11 +6234,12 @@ STYLE:
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = req.user!.id as number;
-      const [wallets, nfts, user] = await Promise.all([
+      const [wallets, user] = await Promise.all([
         storage.getWalletsByUser(userId),
-        storage.getNftsByUser(userId),
         storage.getUser(userId),
       ]);
+      const walletAddrs = wallets.map(w => w.address.toLowerCase());
+      const nfts = await storage.getNftsByOwnerAddresses(walletAddrs);
 
       const { getTreasuryYieldState } = await import("./treasury-yield");
       const yieldState = getTreasuryYieldState();
