@@ -112,11 +112,14 @@ contract ECDSAVerifier is Ownable {
         // Flatten b 2×2 → uint256[4] for type hash
         uint256[4] memory bFlat = [b[0][0], b[0][1], b[1][0], b[1][1]];
 
+        // EIP-712 array encoding: keccak256(abi.encode(element0, element1, ...))
+        // abi.encode on a fixed uint256[n] gives the same bytes as abi.encode
+        // of each element individually — this matches ethers.js / viem signing.
         bytes32 structHash = keccak256(abi.encode(
             ZK_PROOF_TYPE_HASH,
-            keccak256(abi.encodePacked(a)),
-            keccak256(abi.encodePacked(bFlat)),
-            keccak256(abi.encodePacked(c)),
+            keccak256(abi.encode(a[0], a[1])),
+            keccak256(abi.encode(bFlat[0], bFlat[1], bFlat[2], bFlat[3])),
+            keccak256(abi.encode(c[0], c[1])),
             inputsHash
         ));
         bytes32 digest = _hashTyped(structHash);
@@ -141,6 +144,8 @@ contract ECDSAVerifier is Ownable {
 
     /**
      * @notice Build the EIP-712 digest for off-chain treasury signing of a ZK proof.
+     *         Returns the same digest that verifyProof() checks — use this in the SDK
+     *         to build the payload before calling wallet.signTypedData().
      */
     function buildProofDigest(
         uint256[2]    memory a,
@@ -148,13 +153,14 @@ contract ECDSAVerifier is Ownable {
         uint256[2]    memory c,
         uint256[]     memory publicInputs
     ) external view returns (bytes32) {
+        // publicInputs is dynamic — hash the packed encoding (inputsHash is bytes32 in the type)
         bytes32 inputsHash = keccak256(abi.encodePacked(publicInputs));
         uint256[4] memory bFlat = [b[0][0], b[0][1], b[1][0], b[1][1]];
         bytes32 structHash = keccak256(abi.encode(
             ZK_PROOF_TYPE_HASH,
-            keccak256(abi.encodePacked(a)),
-            keccak256(abi.encodePacked(bFlat)),
-            keccak256(abi.encodePacked(c)),
+            keccak256(abi.encode(a[0], a[1])),
+            keccak256(abi.encode(bFlat[0], bFlat[1], bFlat[2], bFlat[3])),
+            keccak256(abi.encode(c[0], c[1])),
             inputsHash
         ));
         return _hashTyped(structHash);

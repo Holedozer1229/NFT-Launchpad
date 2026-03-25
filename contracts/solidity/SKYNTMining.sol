@@ -149,23 +149,8 @@ contract SKYNTMining is ERC2771Context, Ownable, ReentrancyGuard {
     }
 
     // ─── Quantum Genesis Primitives ───────────────────────────────────────────
-    // These functions are the on-chain anchors for the off-chain Valknut Quantum
-    // PoW daemon (btc-zk-daemon.ts / SKYNTMining.sol v3).
-    //
-    // Purpose: any third-party verifier can call these view functions to confirm
-    // that a submitted mining nonce was seeded from the canonical Valknut genesis
-    // constants, preventing spoofed seeds in the challenge→nonce pipeline.
-    //
-    //   getGenesis32()   — 32-bit seed for standard Valknut xi gate (no feedback)
-    //   getGenesis36()   — 36-bit seed with 4-bit quantum feedback nibble (1000₂)
-    //   feedbackLoop()   — XOR gate toggling the quantum feedback bit (0x08) on a
-    //                      5-byte session extranonce; mirrors btc-zk-daemon SESSION_EXTRANONCE1
-    //   getGenesisSeed() — keccak256(genesis32 || challengeNumber || difficulty):
-    //                      binds the genesis constant to the current mining epoch
-    //                      so off-chain nonce candidates are verifiably correct.
-    //
-    // These are pure/view helpers with no state side-effects; they cannot break
-    // any existing mining or governance logic.
+    // Pure/view helpers that mirror the off-chain Valknut PoW daemon genesis seeds.
+    // Verifiers call these to confirm mining nonces were seeded from canonical values.
 
     /// @notice Returns 32-bit Binary Genesis as binary string (Valknut seed, no feedback)
     function getGenesis32() external pure returns (string memory) {
