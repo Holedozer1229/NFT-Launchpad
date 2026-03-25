@@ -120,9 +120,15 @@ const FORWARD_REQUEST_TYPE = [
 /**
  * Self-signing gasless relay: treasury builds + signs the EIP-712 ForwardRequest.
  *
- * No user signature needed. The treasury is an authorized relayer on SKYNTForwarder,
- * so the forwarder accepts the treasury signature while still appending `request.from`
- * to calldata — target contracts see the user as _msgSender() via ERC2771Context.
+ * Authorization model (enforced in /api/relay/execute BEFORE calling this fn):
+ *  1. Caller must have an authenticated session (401 otherwise).
+ *  2. `request.from` must be an address owned by that authenticated user (403 otherwise).
+ *  3. Treasury then signs the ForwardRequest as an authorized relayer.
+ *
+ * Because of (1) and (2) the treasury signature only ever relays transactions where
+ * `from` is proven to be the caller's own wallet — impersonation is impossible at
+ * the transport layer.  SKYNTForwarder appends `request.from` to calldata so target
+ * contracts still see the user as _msgSender() via ERC2771Context.
  *
  * Omega Serpent gas credits further subsidise the relay fee in-protocol.
  */

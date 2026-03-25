@@ -6396,13 +6396,32 @@ STYLE:
   // ════════════════════════════════════════════════════════════════════════════
   // GASLESS RELAY — POST /api/relay/execute
   // Accepts only {from, to, data}. Treasury builds + signs the ForwardRequest.
+  // Security: authenticated session required; `from` must match the user's wallet.
   // ════════════════════════════════════════════════════════════════════════════
   app.post("/api/relay/execute", async (req: any, res: any) => {
     const { from, to, data } = req.body ?? {};
     if (!from || !to || !data) {
       return res.status(400).json({ message: "Missing relay fields: from, to, data" });
     }
-    const userId = (req as any).session?.userId ?? (req as any).user?.id ?? undefined;
+
+    // ── Auth: require an authenticated session ────────────────────────────────
+    const userId: number | undefined = (req as any).session?.userId ?? (req as any).user?.id ?? undefined;
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required for gasless relay" });
+    }
+
+    // ── Ownership: `from` must match one of the authenticated user's wallets ──
+    // Prevents any authenticated user from impersonating another address.
+    const userWallets = await storage.getWalletsByUser(userId);
+    const ownsFromAddress = userWallets.some(
+      (w) => w.address.toLowerCase() === from.toLowerCase()
+    );
+    if (!ownsFromAddress) {
+      return res.status(403).json({
+        message: "Relay `from` address does not match any wallet owned by the authenticated user",
+      });
+    }
+
     const result = await relayMetaTransaction({ from, to, data }, userId);
     if (!result.success) {
       return res.status(400).json({ message: result.error || "Relay failed" });
