@@ -97,7 +97,7 @@ contract ZkWormhole is ERC2771Context, ReentrancyGuard, Ownable {
     }
 
     modifier onlyGuardian() {
-        if (!guardians[msg.sender]) revert NotGuardian();
+        if (!guardians[_msgSender()]) revert NotGuardian();
         _;
     }
 
@@ -202,13 +202,14 @@ contract ZkWormhole is ERC2771Context, ReentrancyGuard, Ownable {
         WormholeTransfer storage transfer = transfers[transferId];
         if (transfer.status != TransferStatus.Pending) revert AlreadyProcessed();
 
-        uint256 guardianBit = 1 << guardianIndex[msg.sender];
+        address guardian    = _msgSender();
+        uint256 guardianBit = 1 << guardianIndex[guardian];
         if (transfer.signedGuardians & guardianBit != 0) revert AlreadySigned();
 
         transfer.signedGuardians |= guardianBit;
         unchecked { transfer.guardianSigs++; }
 
-        emit TransferApproved(transferId, msg.sender, transfer.guardianSigs);
+        emit TransferApproved(transferId, guardian, transfer.guardianSigs);
 
         if (transfer.guardianSigs >= REQUIRED_SIGNATURES) {
             _completeTransfer(transferId);

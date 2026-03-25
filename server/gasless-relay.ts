@@ -242,51 +242,56 @@ function _consumeGasCredits(userId: number, max: number): number {
   return consumed;
 }
 
-// ─── Private Key Export (encrypted keystore) ──────────────────────────────────
+// ─── Private Key Export (Ethereum Keystore v3 format) ─────────────────────────
 
 /**
- * Generates a download-safe encrypted keystore JSON for the wallet's private key.
- * In production the DB stores the encrypted private key; this wraps it with an
- * additional user-supplied export password using AES-256-GCM via Web Crypto.
+ * Generates an Ethereum Keystore v3–compatible JSON for the wallet's private key.
  *
- * @param rawPrivateKey  raw hex private key from the DB (already encrypted at rest)
- * @param exportPassword user-supplied export password
- * @param address        public wallet address
+ * Encryption scheme:
+ *   KDF:    scrypt  (N=8192, r=8, p=1, dklen=32) — same params as MetaMask export
+ *   Cipher: AES-128-CTR using derivedKey[0:16] as key and a random 16-byte IV
+ *   MAC:    SHA-256(derivedKey[16:32] || ciphertext)
+ *
+ * The output is compatible with any web3 wallet that supports keystore v3 import.
+ *
+ * @param rawPrivateKey  32-byte hex private key (with or without 0x prefix)
+ * @param exportPassword user-supplied export password for the KDF
+ * @param address        public wallet address (for the keystore "address" field)
  */
 export function buildKeystoreJson(rawPrivateKey: string, exportPassword: string, address: string): string {
-  // Derive a 256-bit key from the password using PBKDF2-like approach
-  const salt    = randomBytes(32).toString("hex");
-  const iv      = randomBytes(16).toString("hex");
-  const derived = createHash("sha256")
-    .update(exportPassword + salt)
-    .digest("hex");
+  const { scryptSync, createCipheriv } = require("crypto") as typeof import("crypto");
 
-  // XOR-encrypt the private key with the derived key (for browser compatibility)
-  // Production: use WebCrypto AES-GCM
-  const pkBuf      = Buffer.from(rawPrivateKey.replace("0x", ""), "hex");
-  const keyBuf     = Buffer.from(derived, "hex");
-  const encrypted  = Buffer.alloc(pkBuf.length);
-  for (let i = 0; i < pkBuf.length; i++) {
-    encrypted[i] = pkBuf[i] ^ keyBuf[i % keyBuf.length];
-  }
+  const salt = randomBytes(32);
+  const iv   = randomBytes(16);
 
+  // Scrypt KDF — derives 32 bytes; first 16 = cipher key, last 16 = MAC key material
+  const N = 8192, r = 8, p = 1, dklen = 32;
+  const derivedKey = scryptSync(exportPassword, salt, dklen, { N, r, p }) as Buffer;
+
+  // AES-128-CTR encryption (Ethereum keystore v3 standard cipher)
+  const encKey     = derivedKey.slice(0, 16);
+  const cipher     = createCipheriv("aes-128-ctr", encKey, iv);
+  const pkBytes    = Buffer.from(rawPrivateKey.replace(/^0x/, ""), "hex");
+  const ciphertext = Buffer.concat([cipher.update(pkBytes), cipher.final()]);
+
+  // MAC: SHA-256(derivedKey[16:32] || ciphertext)
   const mac = createHash("sha256")
-    .update(derived + encrypted.toString("hex"))
+    .update(Buffer.concat([derivedKey.slice(16, 32), ciphertext]))
     .digest("hex");
 
   return JSON.stringify({
-    version: 3,
-    id: randomBytes(16).toString("hex"),
-    address: address.replace("0x", "").toLowerCase(),
+    version:  3,
+    id:       randomBytes(16).toString("hex"),
+    address:  address.replace(/^0x/, "").toLowerCase(),
     crypto: {
-      cipher:     "aes-128-cbc",
-      ciphertext: encrypted.toString("hex"),
-      cipherparams: { iv },
-      kdf:        "skynt-pbkdf2",
-      kdfparams:  { dklen: 32, salt, c: 262144, prf: "hmac-sha256" },
+      cipher:       "aes-128-ctr",
+      ciphertext:   ciphertext.toString("hex"),
+      cipherparams: { iv: iv.toString("hex") },
+      kdf:          "scrypt",
+      kdfparams:    { dklen, salt: salt.toString("hex"), n: N, r, p },
       mac,
     },
-    protocol: "SKYNT",
+    protocol:  "SKYNT",
     createdAt: new Date().toISOString(),
   }, null, 2);
 }
