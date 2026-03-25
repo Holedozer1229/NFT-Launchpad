@@ -5,18 +5,19 @@ import {
 } from "recharts";
 import {
   Activity, Cpu, Box, DollarSign, Clock,
-  ChevronUp, ChevronDown, Loader2, Zap, Brain, Pickaxe, Shield, TrendingUp, AlertCircle, RefreshCw,
-  Wallet, Coins, ArrowUpRight, Radio, Flame, ShieldCheck, Layers, Sparkles, Bitcoin, Link2, Key, Rocket, Star, Globe
+  ChevronUp, ChevronDown, Loader2, Zap, Brain, Pickaxe, TrendingUp, AlertCircle, RefreshCw,
+  Wallet, ArrowUpRight, Radio, Flame, ShieldCheck, Layers, Sparkles, Bitcoin, Link2, Key, Rocket, Globe
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useBalance } from "wagmi";
 import { ResonanceDrop } from "@/components/ResonanceDrop";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useEngineStream, type EngineEvent } from "@/hooks/use-engine-stream";
 import { useProtocol } from "@/lib/ProtocolContext";
+import { useAuth } from "@/hooks/use-auth";
 
 interface MempoolStats {
   mempoolSize: number;
@@ -62,28 +63,29 @@ interface MinerData {
 interface StatCardProps {
   label: string;
   value: string;
-  change: number;
+  change?: number;
   icon: React.ReactNode;
   accent: string;
   loading?: boolean;
+  hideChange?: boolean;
 }
 
-function StatCard({ label, value, change, icon, accent, loading, error, onRetry, index = 0 }: StatCardProps & { error?: boolean, onRetry?: () => void, index?: number }) {
+function StatCard({ label, value, change = 0, icon, accent, loading, error, onRetry, index = 0, hideChange = false }: StatCardProps & { error?: boolean, onRetry?: () => void, index?: number }) {
   const positive = change >= 0;
 
   if (error) {
     return (
-      <div 
-        className={`cosmic-card cosmic-card-red p-5 page-enter`} 
+      <div
+        className="cosmic-card cosmic-card-red p-5 page-enter"
         style={{ animationDelay: `${index * 100}ms` }}
         data-testid={`stat-card-error-${label.toLowerCase().replace(/\s/g, "-")}`}
       >
         <div className="flex flex-col items-center justify-center space-y-3 h-full min-h-[100px]">
           <AlertCircle className="w-8 h-8 text-plasma-red animate-pulse" style={{ filter: "drop-shadow(0 0 6px hsl(0 100% 60% / 0.6))" }} />
           <span className="text-xs font-mono text-plasma-red/80 tracking-wider uppercase">Failed to load {label}</span>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onRetry}
             className="h-7 text-[10px] hover:bg-plasma-red/10 text-plasma-red border border-plasma-red/20 font-heading tracking-widest"
           >
@@ -95,8 +97,8 @@ function StatCard({ label, value, change, icon, accent, loading, error, onRetry,
   }
 
   return (
-    <div 
-      className={`cosmic-card cosmic-card-${accent} p-5 page-enter`} 
+    <div
+      className={`cosmic-card cosmic-card-${accent} p-5 page-enter`}
       style={{ animationDelay: `${index * 100}ms` }}
       data-testid={`stat-card-${label.toLowerCase().replace(/\s/g, "-")}`}
     >
@@ -111,10 +113,13 @@ function StatCard({ label, value, change, icon, accent, loading, error, onRetry,
         </div>
         <div className={`p-2 rounded-sm bg-neon-${accent}/10 ml-2`}>{icon}</div>
       </div>
-      <div className={`stat-change ${positive ? "positive" : "negative"} flex items-center gap-1 mt-2`}>
-        {positive ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-        {Math.abs(change).toFixed(1)}% from last epoch
-      </div>
+      {!hideChange && (
+        <div className={`stat-change ${positive ? "positive" : "negative"} flex items-center gap-1 mt-2`}>
+          {positive ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {Math.abs(change).toFixed(1)}% from last epoch
+        </div>
+      )}
+      {hideChange && <div className="mt-2 h-4" />}
     </div>
   );
 }
@@ -169,6 +174,7 @@ export default function Dashboard() {
   const feedRef = useRef<HTMLDivElement>(null);
   const { protocol, isLoading: protocolLoading, refetch: refetchProtocol } = useProtocol();
   const { address: walletAddress, isConnected: walletConnected } = useAccount();
+  const { user } = useAuth();
   const { data: ethBalance } = useBalance({
     address: walletAddress as `0x${string}` | undefined,
     query: { enabled: walletConnected && !!walletAddress, refetchInterval: 30000 },
@@ -238,6 +244,22 @@ export default function Dashboard() {
     refetchInterval: 15000,
   });
 
+  const { data: portfolioMe } = useQuery<{
+    totalSkynt: number;
+    totalEth: number;
+    nftCount: number;
+    yieldPositionCount?: number;
+    totalYieldEarned?: number;
+  }>({
+    queryKey: ["/api/portfolio/me"],
+    refetchInterval: 60000,
+  });
+
+  const { data: yieldPositions } = useQuery<{ positions: any[] }>({
+    queryKey: ["/api/yield/positions"],
+    refetchInterval: 60000,
+  });
+
   useEffect(() => {
     const interval = setInterval(() => setUptimeSeconds(prev => prev + 1), 1000);
     return () => clearInterval(interval);
@@ -285,16 +307,67 @@ export default function Dashboard() {
     ? Math.max(0, Math.floor(((retargetDate.getTime() - Date.now()) % 86400000) / 3600000))
     : 0;
 
+  const activeYieldCount = yieldPositions?.positions?.length ?? 0;
+  const skyntBalance = portfolioMe?.totalSkynt ?? 0;
+  const nftCount = portfolioMe?.nftCount ?? 0;
+
   return (
     <div className="space-y-6 p-2 sm:p-6" data-testid="dashboard-page">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl sm:text-2xl font-heading tracking-widest neon-glow-cyan" data-testid="text-dashboard-title">
-          Dashboard
-        </h1>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-heading tracking-widest neon-glow-cyan" data-testid="text-dashboard-title">
+            {user ? `Welcome, ${user.username}` : "Dashboard"}
+          </h1>
+          <p className="text-[10px] font-mono text-muted-foreground mt-0.5">SKYNT Protocol — Command Center</p>
+        </div>
         <span className="text-[10px] sm:text-xs font-mono text-muted-foreground" data-testid="text-live-indicator">
           <Activity className="w-3 h-3 inline mr-1 text-neon-green animate-pulse" />
           LIVE — mempool.space
         </span>
+      </div>
+
+      {/* ── Personal Stats Strip ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="personal-stats-strip">
+        <div className="cosmic-card p-3 flex items-center gap-3" data-testid="personal-skynt-balance">
+          <div className="p-2 rounded-sm bg-neon-cyan/10 shrink-0">
+            <Wallet className="w-4 h-4 text-neon-cyan" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider">SKYNT Balance</p>
+            <p className="font-heading text-sm text-neon-cyan truncate">
+              {skyntBalance > 0 ? skyntBalance.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}
+            </p>
+          </div>
+        </div>
+        <div className="cosmic-card p-3 flex items-center gap-3" data-testid="personal-nft-count">
+          <div className="p-2 rounded-sm bg-neon-purple/10 shrink-0">
+            <Sparkles className="w-4 h-4 text-neon-purple" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider">NFTs Owned</p>
+            <p className="font-heading text-sm text-neon-purple">{nftCount > 0 ? nftCount : "—"}</p>
+          </div>
+        </div>
+        <div className="cosmic-card p-3 flex items-center gap-3" data-testid="personal-yield-positions">
+          <div className="p-2 rounded-sm bg-neon-green/10 shrink-0">
+            <TrendingUp className="w-4 h-4 text-neon-green" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider">Yield Positions</p>
+            <p className="font-heading text-sm text-neon-green">{activeYieldCount > 0 ? activeYieldCount : "—"}</p>
+          </div>
+        </div>
+        <div className="cosmic-card p-3 flex items-center gap-3" data-testid="personal-mining-status">
+          <div className={`p-2 rounded-sm shrink-0 ${protocol.mining.isRunning ? "bg-neon-orange/10" : "bg-white/5"}`}>
+            <Pickaxe className={`w-4 h-4 ${protocol.mining.isRunning ? "text-neon-orange animate-pulse" : "text-muted-foreground"}`} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider">ZK Miner</p>
+            <p className={`font-heading text-sm ${protocol.mining.isRunning ? "text-neon-orange" : "text-muted-foreground"}`}>
+              {protocol.mining.isRunning ? "Active" : "Idle"}
+            </p>
+          </div>
+        </div>
       </div>
 
       {walletConnected && walletAddress ? (
@@ -396,10 +469,10 @@ export default function Dashboard() {
         <StatCard
           label="Uptime"
           value={formatUptime()}
-          change={0}
           icon={<Clock className="w-5 h-5 text-neon-magenta" />}
           accent="magenta"
           index={3}
+          hideChange
         />
       </div>
 
@@ -954,9 +1027,9 @@ export default function Dashboard() {
       <div className="cosmic-card p-5" data-testid="card-uniswap-guide">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-neon-violet" />
+            <Layers className="w-4 h-4 text-neon-purple" />
             <h3 className="font-heading text-sm font-semibold text-foreground">List SKYNT on Uniswap V3</h3>
-            <Badge variant="outline" className="text-[10px] border-neon-violet/30 text-neon-violet no-default-hover-elevate">
+            <Badge variant="outline" className="text-[10px] border-neon-purple/30 text-neon-purple no-default-hover-elevate">
               Not Listed
             </Badge>
           </div>
@@ -966,7 +1039,7 @@ export default function Dashboard() {
             rel="noopener noreferrer"
             data-testid="link-uniswap-pool"
           >
-            <Button size="sm" variant="outline" className="border-neon-violet/30 text-neon-violet text-xs gap-1.5">
+            <Button size="sm" variant="outline" className="border-neon-purple/30 text-neon-purple text-xs gap-1.5">
               <ArrowUpRight className="w-3.5 h-3.5" /> Open Uniswap
             </Button>
           </a>
@@ -994,7 +1067,7 @@ export default function Dashboard() {
             "Copy the pool address and share it — pool is now live on-chain",
           ].map((step, i) => (
             <li key={i} className="flex items-start gap-2">
-              <span className="text-neon-violet shrink-0 font-bold">{i + 1}.</span>
+              <span className="text-neon-purple shrink-0 font-bold">{i + 1}.</span>
               <span>{step}</span>
             </li>
           ))}
