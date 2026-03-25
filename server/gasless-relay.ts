@@ -29,12 +29,12 @@ function getAlchemy(): Alchemy {
   return _alchemy;
 }
 
-function getTreasuryWallet(): Wallet {
+async function getTreasuryWallet(): Promise<Wallet> {
   if (!_wallet) {
     const key = process.env.TREASURY_PRIVATE_KEY;
     if (!key) throw new Error("TREASURY_PRIVATE_KEY not configured");
-    const provider = getAlchemy().config.getProvider();
-    _wallet = new Wallet(key, provider as any);
+    const provider = await getAlchemy().config.getProvider();
+    _wallet = new Wallet(key, provider);
   }
   return _wallet;
 }
@@ -142,9 +142,9 @@ export async function relayMetaTransaction(
   }
 
   try {
-    const wallet    = getTreasuryWallet();
+    const wallet    = await getTreasuryWallet();
     const provider  = await getAlchemy().config.getProvider();
-    const forwarder = new Contract(forwarderAddr, FORWARDER_ABI, wallet as any);
+    const forwarder = new Contract(forwarderAddr, FORWARDER_ABI, wallet);
 
     // ── 1. Read current nonce for `from` from the forwarder contract
     const nonce    = BigInt(await forwarder.nonces(request.from));
@@ -171,7 +171,8 @@ export async function relayMetaTransaction(
     };
 
     // ── 3. Treasury signs the ForwardRequest (authorized relayer pattern)
-    const signature = await (wallet as any).signTypedData(domain, types, message);
+    // ethers v5 exposes EIP-712 signing as _signTypedData (prefixed underscore).
+    const signature = await wallet._signTypedData(domain, types, message);
 
     // ── 4. Submit treasury-signed request to forwarder.execute()
     const reqData = {
@@ -231,9 +232,8 @@ export async function getZkEvmStats(): Promise<ZkEvmStats> {
   }
 
   try {
-    const provider = getAlchemy().config.getProvider();
-    const wallet   = getTreasuryWallet();
-    const zkevm    = new Contract(zkEvmAddr, ZKEVM_ABI, wallet as any);
+    const wallet = await getTreasuryWallet();
+    const zkevm  = new Contract(zkEvmAddr, ZKEVM_ABI, wallet);
     const stats    = await zkevm.getProtocolStats();
 
     return {
