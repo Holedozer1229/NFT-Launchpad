@@ -51,16 +51,22 @@ export interface TripleStackPoXState {
   network: "mainnet" | "testnet";
   currentCycle: number;
   enrolledCycle: number;
-  sbtcBalance: number;       // micro-sBTC on-chain balance
-  totalSbtcClaimed: number;  // lifetime sBTC rewards claimed (micro-sBTC)
-  totalSbtcBridged: number;  // lifetime sBTC bridged to Solana
-  totalOiyeDeposited: number;// lifetime OIYE Quantum Sentinel deposits
-  lastCycleYield: number;    // sBTC yield from most recent claim cycle
-  yieldFactor: number;       // normalized [0,1] — fused into Valknut ξ_yield
-  poxCycleEndBlock: number;  // block at which current enrollment expires
+  sbtcBalance: number;           // micro-sBTC on-chain balance
+  totalSbtcClaimed: number;      // lifetime sBTC rewards claimed (micro-sBTC)
+  totalSbtcBridged: number;      // lifetime sBTC bridged to Solana
+  totalOiyeDeposited: number;    // lifetime OIYE Quantum Sentinel deposits
+  totalStxConvertedToSbtc: number; // lifetime STX yield recycled into sBTC
+  lastCycleYield: number;        // sBTC yield from most recent claim cycle
+  yieldFactor: number;           // normalized [0,1] — fused into Valknut ξ_yield
+  poxCycleEndBlock: number;      // block at which current enrollment expires
   wormholeVaaId: string | null;
   lastRunAt: Date | null;
   lastError: string | null;
+  // derived display helpers
+  sbtcBalanceBtc: number;        // sbtcBalance in full BTC units
+  totalClaimedBtc: number;
+  totalBridgedBtc: number;
+  totalOiyeBtc: number;
 }
 
 export interface DaemonStatus {
@@ -657,6 +663,11 @@ interface PoXCycleInfo {
   blocksRemaining: number;
 }
 
+// 1 STX ≈ 850 μsBTC at BTC=$100k, STX=$0.85 — used for mining yield recycling
+const STX_TO_USBTC_RATE = 850;
+// Fraction of each mining epoch's STX yield that is recycled into sBTC for enrollment
+const POX_STX_ALLOCATION = 0.05;
+
 class TripleStackPoXEngine {
   private network: "mainnet" | "testnet";
   private hiroApi: string;
@@ -665,6 +676,7 @@ class TripleStackPoXEngine {
   private totalSbtcClaimed = 0;
   private totalSbtcBridged = 0;
   private totalOiyeDeposited = 0;
+  private totalStxConvertedToSbtc = 0; // lifetime STX yield converted to sBTC
   private lastCycleYield = 0;
   private yieldFactor = 0;          // [0,1] — injected into Valknut ξ_yield
   private poxCycleEndBlock = 0;
@@ -827,12 +839,40 @@ class TripleStackPoXEngine {
     return solanaTx;
   }
 
+  // ─── Self-reinforcing accumulation from mining epochs ─────────────────────
+  // Called by runEpoch after each BTC mining epoch. Converts a fraction of the
+  // epoch's STX yield to sBTC at the current approximate rate, feeding it back
+  // into the sBTC balance for the next Dual Stacking enrollment.
+  //
+  // Loop: BTC mining → STX yield → 5% converted to sBTC → enrolled in PoX →
+  //       staking rewards → Wormhole → OIYE → higher yieldFactor → better
+  //       Valknut ξ_yield → higher Xi pass rate → more mining epochs
+  accumulateFromMining(stxYield: number): number {
+    const stxAllocated = stxYield * POX_STX_ALLOCATION;
+    const usbtcGain    = Math.round(stxAllocated * STX_TO_USBTC_RATE);
+    if (usbtcGain <= 0) return 0;
+
+    this.sbtcBalance += usbtcGain;
+    this.totalStxConvertedToSbtc += stxAllocated;
+    this.yieldFactor = this.computeYieldFactor();
+
+    console.log(
+      `[PoXEngine] Mining recycle: ${stxAllocated.toFixed(4)} STX → ${usbtcGain} μsBTC | `
+      + `sBTC balance: ${this.sbtcBalance} μsBTC | ξ_yield: ${this.yieldFactor.toFixed(4)}`
+    );
+    return usbtcGain;
+  }
+
   // ─── Yield Factor computation ──────────────────────────────────────────────
   // Normalized [0,1] based on lifetime yield activity. Feeds into Valknut ξ_yield.
-  // Higher staking activity → higher yield factor → easier xi gate passage.
+  // Higher staking / accumulation → higher yield factor → easier xi gate passage.
   private computeYieldFactor(): number {
-    const SCALE = 10_000_000; // 0.1 sBTC in μsBTC → approaches 1.0
-    const raw = Math.min(1.0, (this.totalOiyeDeposited + this.totalSbtcClaimed) / SCALE);
+    // Include both OIYE deposits and mining-recycled sBTC in the growth signal
+    const OIYE_SCALE   = 10_000_000; // 0.1 sBTC → significant OIYE activity
+    const MINING_SCALE = 500_000;    // 0.005 sBTC of mining recycling → meaningful
+    const oiyeRaw   = Math.min(1.0, (this.totalOiyeDeposited + this.totalSbtcClaimed) / OIYE_SCALE);
+    const miningRaw = Math.min(1.0, this.sbtcBalance / MINING_SCALE);
+    const raw = Math.min(1.0, (oiyeRaw * 0.7) + (miningRaw * 0.3));
     // Sigmoid-smooth: bias toward meaningful yield
     return parseFloat((1 / (1 + Math.exp(-10 * (raw - 0.3)))).toFixed(6));
   }
@@ -910,20 +950,26 @@ class TripleStackPoXEngine {
 
   getState(): TripleStackPoXState {
     return {
-      active:             this.intervalHandle !== null,
-      network:            this.network,
-      currentCycle:       this.currentCycle,
-      enrolledCycle:      this.enrolledCycle,
-      sbtcBalance:        this.sbtcBalance,
-      totalSbtcClaimed:   this.totalSbtcClaimed,
-      totalSbtcBridged:   this.totalSbtcBridged,
-      totalOiyeDeposited: this.totalOiyeDeposited,
-      lastCycleYield:     this.lastCycleYield,
-      yieldFactor:        this.yieldFactor,
-      poxCycleEndBlock:   this.poxCycleEndBlock,
-      wormholeVaaId:      this.wormholeVaaId,
-      lastRunAt:          this.lastRunAt,
-      lastError:          this.lastError,
+      active:                    this.intervalHandle !== null,
+      network:                   this.network,
+      currentCycle:              this.currentCycle,
+      enrolledCycle:             this.enrolledCycle,
+      sbtcBalance:               this.sbtcBalance,
+      totalSbtcClaimed:          this.totalSbtcClaimed,
+      totalSbtcBridged:          this.totalSbtcBridged,
+      totalOiyeDeposited:        this.totalOiyeDeposited,
+      totalStxConvertedToSbtc:   this.totalStxConvertedToSbtc,
+      lastCycleYield:            this.lastCycleYield,
+      yieldFactor:               this.yieldFactor,
+      poxCycleEndBlock:          this.poxCycleEndBlock,
+      wormholeVaaId:             this.wormholeVaaId,
+      lastRunAt:                 this.lastRunAt,
+      lastError:                 this.lastError,
+      // Derived BTC-unit helpers for display
+      sbtcBalanceBtc:   this.sbtcBalance   / 1e8,
+      totalClaimedBtc:  this.totalSbtcClaimed  / 1e8,
+      totalBridgedBtc:  this.totalSbtcBridged  / 1e8,
+      totalOiyeBtc:     this.totalOiyeDeposited / 1e8,
     };
   }
 }
@@ -1213,6 +1259,11 @@ async function runEpoch() {
         ? parseFloat((50 + (bestXiThisEpoch - 1.0) * 20 + hashes / 10000).toFixed(4))
         : parseFloat(Math.max(5.0, hashes / 5000 * bestXiThisEpoch * 10).toFixed(4));
     totalStxYield += stxYieldAmount;
+
+    // ── Self-reinforcing loop: recycle 5% of STX yield → sBTC → PoX enrollment
+    // This grows the sbtcBalance between PoX engine cycles, raising ξ_yield
+    // continuously so mining quality improves as protocol activity compounds.
+    poxEngine.accumulateFromMining(stxYieldAmount);
 
     let wormholeId: string | null = null;
     if (stxYieldAmount > 0.01) {

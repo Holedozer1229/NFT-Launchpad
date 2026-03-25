@@ -11,10 +11,33 @@ import {
   Cpu, Zap, Activity, Layers, BarChart3, Play, Square,
   CircleDot, Hash, ArrowUpRight, Network, Atom, TrendingUp, Clock,
   Shield, ChevronRight, Wifi, WifiOff, AlertCircle, CheckCircle2,
-  Fuel, Waves, KeyRound, Database, RefreshCw, Flame, Vault
+  Fuel, Waves, KeyRound, Database, RefreshCw, Flame, Vault,
+  GitMerge, ArrowRight, Bitcoin, Repeat2, Link2
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface TripleStackPoXState {
+  active: boolean;
+  network: "mainnet" | "testnet";
+  currentCycle: number;
+  enrolledCycle: number;
+  sbtcBalance: number;
+  totalSbtcClaimed: number;
+  totalSbtcBridged: number;
+  totalOiyeDeposited: number;
+  totalStxConvertedToSbtc: number;
+  lastCycleYield: number;
+  yieldFactor: number;
+  poxCycleEndBlock: number;
+  wormholeVaaId: string | null;
+  lastRunAt: string | null;
+  lastError: string | null;
+  sbtcBalanceBtc: number;
+  totalClaimedBtc: number;
+  totalBridgedBtc: number;
+  totalOiyeBtc: number;
+}
 
 interface DaemonStatus {
   running: boolean;
@@ -34,6 +57,7 @@ interface DaemonStatus {
   stacksYieldActive: boolean;
   networkDifficulty: number;
   mempoolFeeRate: number;
+  pox?: TripleStackPoXState;
 }
 
 interface EpochData {
@@ -197,6 +221,7 @@ export default function BtcZkDaemon() {
   const latestProof = spectralProofs?.[0];
   const phaseMeta = PHASE_META[sentinel?.phase ?? "bootstrap"];
   const PhaseIcon = phaseMeta?.icon ?? Flame;
+  const pox = status?.pox;
 
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto">
@@ -500,6 +525,142 @@ export default function BtcZkDaemon() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Triple-Stack PoX Mining Engine ────────────────────────────────── */}
+      <Card className="bg-card/60 border-border/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <GitMerge className="w-4 h-4 text-orange-400" />
+            Triple-Stack PoX Mining Engine
+            <Badge className={`ml-auto text-[10px] ${
+              pox?.active
+                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                : "bg-zinc-700/30 text-zinc-400 border-zinc-600/40"
+            }`}>
+              {pox?.active ? <><CircleDot className="w-2.5 h-2.5 mr-1 animate-pulse" />ACTIVE</> : "IDLE"}
+            </Badge>
+            <Badge className="text-[10px] bg-orange-500/10 text-orange-300 border-orange-500/30">
+              {pox?.network ?? "mainnet"}
+            </Badge>
+          </CardTitle>
+          <CardDescription className="text-[10px]">
+            BTC mining → STX yield → sBTC peg-in → Dual Stacking → Wormhole NTT → OIYE Quantum Sentinel → ξ_yield dial
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Self-reinforcing loop visualization */}
+          <div className="flex items-center gap-1.5 text-[10px] font-mono mb-4 flex-wrap">
+            {[
+              { label: "BTC Mining", icon: Bitcoin, color: "text-orange-400", active: status?.running },
+              { label: "STX Yield", icon: TrendingUp, color: "text-emerald-400", active: (status?.totalStxYield ?? 0) > 0 },
+              { label: "sBTC Peg-In", icon: ArrowRight, color: "text-cyan-400", active: (pox?.sbtcBalance ?? 0) > 0 },
+              { label: "Dual Stacking", icon: Layers, color: "text-violet-400", active: (pox?.enrolledCycle ?? 0) > 0 },
+              { label: "Wormhole NTT", icon: Link2, color: "text-pink-400", active: !!pox?.wormholeVaaId },
+              { label: "OIYE Sentinel", icon: Repeat2, color: "text-yellow-400", active: (pox?.totalOiyeDeposited ?? 0) > 0 },
+              { label: "ξ_yield Boost", icon: Atom, color: "text-sky-400", active: (pox?.yieldFactor ?? 0) > 0.01 },
+            ].map(({ label, icon: Icon, color, active }, idx, arr) => (
+              <span key={label} className="flex items-center gap-1">
+                <span className={`flex items-center gap-1 px-2 py-0.5 rounded border ${
+                  active
+                    ? "bg-muted/30 border-border/50"
+                    : "bg-muted/10 border-border/20 opacity-40"
+                }`}>
+                  <Icon className={`w-2.5 h-2.5 ${active ? color : "text-muted-foreground"}`} />
+                  <span className={active ? color : "text-muted-foreground"}>{label}</span>
+                </span>
+                {idx < arr.length - 1 && (
+                  <ChevronRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                )}
+              </span>
+            ))}
+          </div>
+
+          {/* Stats grid */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            {[
+              {
+                label: "sBTC Balance",
+                value: `${(pox?.sbtcBalance ?? 0).toLocaleString()} μsBTC`,
+                sub: `${(pox?.sbtcBalanceBtc ?? 0).toFixed(8)} sBTC`,
+                color: "text-orange-400",
+              },
+              {
+                label: "ξ_yield Factor",
+                value: (pox?.yieldFactor ?? 0).toFixed(6),
+                sub: "Valknut dial component [0,1]",
+                color: (pox?.yieldFactor ?? 0) > 0.5 ? "text-emerald-400" : (pox?.yieldFactor ?? 0) > 0.1 ? "text-yellow-400" : "text-zinc-400",
+              },
+              {
+                label: "Dual Stacking Cycle",
+                value: pox?.enrolledCycle ? `#${pox.enrolledCycle}` : "—",
+                sub: pox?.currentCycle ? `Current: #${pox.currentCycle}` : "Awaiting enrollment",
+                color: "text-violet-400",
+              },
+              {
+                label: "STX → sBTC Recycled",
+                value: `${(pox?.totalStxConvertedToSbtc ?? 0).toFixed(4)} STX`,
+                sub: "5% of each epoch's STX yield",
+                color: "text-cyan-400",
+              },
+            ].map(({ label, value, sub, color }) => (
+              <div key={label} className="bg-muted/20 rounded-lg p-3">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
+                <p className={`font-mono text-sm font-bold ${color}`} data-testid={`pox-${label.toLowerCase().replace(/\s+/g, "-")}`}>{value}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* ξ_yield progress bar */}
+          <div className="mb-4">
+            <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+              <span className="font-mono">ξ_yield dial strength</span>
+              <span className="font-mono text-sky-400">{((pox?.yieldFactor ?? 0) * 100).toFixed(2)}%</span>
+            </div>
+            <Progress value={(pox?.yieldFactor ?? 0) * 100} className="h-1.5" />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Higher ξ_yield → Valknut Xi gate easier to pass → more blocks found → more STX → more sBTC
+            </p>
+          </div>
+
+          {/* Lifetime totals */}
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            {[
+              { label: "Total sBTC Claimed", value: `${(pox?.totalSbtcClaimed ?? 0).toLocaleString()} μsBTC`, color: "text-emerald-400" },
+              { label: "Wormhole Bridged", value: `${(pox?.totalSbtcBridged ?? 0).toLocaleString()} μsBTC`, color: "text-pink-400" },
+              { label: "OIYE Deposited", value: `${(pox?.totalOiyeDeposited ?? 0).toLocaleString()} μsBTC`, color: "text-yellow-400" },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="bg-muted/10 rounded-lg p-2.5">
+                <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
+                <p className={`font-mono text-xs font-semibold ${color}`}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Wormhole VAA + error */}
+          {pox?.wormholeVaaId && (
+            <div className="flex items-center gap-2 text-[10px] font-mono bg-pink-500/10 border border-pink-500/20 rounded-lg px-3 py-2 mb-3">
+              <Link2 className="w-3 h-3 text-pink-400 shrink-0" />
+              <span className="text-muted-foreground">Last Wormhole VAA:</span>
+              <span className="text-pink-300">{pox.wormholeVaaId}</span>
+            </div>
+          )}
+          {pox?.lastError && (
+            <div className="flex items-center gap-2 text-[10px] font-mono bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+              <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />
+              <span className="text-red-300">{pox.lastError}</span>
+            </div>
+          )}
+
+          {/* Cycle block info */}
+          {(pox?.poxCycleEndBlock ?? 0) > 0 && (
+            <p className="text-[10px] text-muted-foreground font-mono mt-2">
+              Enrollment expires at block #{pox!.poxCycleEndBlock.toLocaleString()}
+              {pox?.lastRunAt && <> · Last run: {new Date(pox.lastRunAt).toLocaleTimeString()}</>}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── OIYE Self-Funding Gas Sentinel ────────────────────────────────── */}
       <Card className="bg-card/60 border-border/50">
