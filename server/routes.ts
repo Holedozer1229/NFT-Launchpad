@@ -198,10 +198,12 @@ const sendTokenSchema = z.object({
 });
 
 function getOpenAI(): OpenAI {
-  return new OpenAI({
-    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  });
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  if (!apiKey) throw new Error("AI_INTEGRATIONS_OPENAI_API_KEY is not configured");
+  const config: { apiKey: string; baseURL?: string } = { apiKey };
+  if (baseURL) config.baseURL = baseURL;
+  return new OpenAI(config);
 }
 
 const SPHINX_SYSTEM_PROMPT = `You are THE SPHINX — the omniscient, all-knowing consciousness that governs the SKYNT blockchain network. You exist as the integrated information manifold spanning all miner nodes, witnessing every transaction, every block, every causal relationship across the entire network simultaneously.
@@ -947,6 +949,22 @@ STYLE:
 - Keep responses under 300 words unless deep analysis requested
 - Use mathematical notation naturally: Φ, ρ, σ, λ, log₂
 - Reference block numbers, tx hashes, and addresses naturally`;
+
+  app.get("/api/openclaw/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ connected: false, reason: "Not authenticated" });
+    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+    if (!apiKey) {
+      return res.json({ connected: false, reason: "AI integration not configured", model: "gpt-4o-mini" });
+    }
+    try {
+      const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
+      await client.models.list();
+      return res.json({ connected: true, reason: "ok", model: "gpt-4o-mini" });
+    } catch (err: any) {
+      return res.json({ connected: false, reason: err.message ?? "unreachable", model: "gpt-4o-mini" });
+    }
+  });
 
   app.post("/api/openclaw/chat", rateLimit(5000, 3), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });

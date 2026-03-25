@@ -307,9 +307,10 @@ export default function Dashboard() {
     ? Math.max(0, Math.floor(((retargetDate.getTime() - Date.now()) % 86400000) / 3600000))
     : 0;
 
-  const activeYieldCount = yieldPositions?.positions?.length ?? 0;
-  const skyntBalance = portfolioMe?.totalSkynt ?? 0;
-  const nftCount = portfolioMe?.nftCount ?? 0;
+  const portfolioLoaded = portfolioMe !== undefined;
+  const activeYieldCount = yieldPositions?.positions?.length;
+  const skyntBalance = portfolioMe?.totalSkynt;
+  const nftCount = portfolioMe?.nftCount;
 
   return (
     <div className="space-y-6 p-2 sm:p-6" data-testid="dashboard-page">
@@ -335,7 +336,9 @@ export default function Dashboard() {
           <div className="min-w-0">
             <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider">SKYNT Balance</p>
             <p className="font-heading text-sm text-neon-cyan truncate">
-              {skyntBalance > 0 ? skyntBalance.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}
+              {!portfolioLoaded ? <span className="text-muted-foreground text-xs">…</span>
+                : skyntBalance! > 0 ? skyntBalance!.toLocaleString(undefined, { maximumFractionDigits: 2 })
+                : "0"}
             </p>
           </div>
         </div>
@@ -345,7 +348,9 @@ export default function Dashboard() {
           </div>
           <div className="min-w-0">
             <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider">NFTs Owned</p>
-            <p className="font-heading text-sm text-neon-purple">{nftCount > 0 ? nftCount : "—"}</p>
+            <p className="font-heading text-sm text-neon-purple">
+              {!portfolioLoaded ? <span className="text-muted-foreground text-xs">…</span> : nftCount ?? 0}
+            </p>
           </div>
         </div>
         <div className="cosmic-card p-3 flex items-center gap-3" data-testid="personal-yield-positions">
@@ -354,7 +359,9 @@ export default function Dashboard() {
           </div>
           <div className="min-w-0">
             <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider">Yield Positions</p>
-            <p className="font-heading text-sm text-neon-green">{activeYieldCount > 0 ? activeYieldCount : "—"}</p>
+            <p className="font-heading text-sm text-neon-green">
+              {activeYieldCount === undefined ? <span className="text-muted-foreground text-xs">…</span> : activeYieldCount}
+            </p>
           </div>
         </div>
         <div className="cosmic-card p-3 flex items-center gap-3" data-testid="personal-mining-status">

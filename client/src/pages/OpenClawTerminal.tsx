@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Terminal, Send, Loader2, Trash2, Copy, ChevronDown } from "lucide-react";
+import { Terminal, Send, Loader2, Trash2, Copy, ChevronDown, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 
 interface Message {
   role: "user" | "assistant";
@@ -41,6 +42,18 @@ export default function OpenClawTerminal() {
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
+
+  const { data: statusData, isLoading: statusLoading } = useQuery<{
+    connected: boolean;
+    reason: string;
+    model: string;
+  }>({
+    queryKey: ["/api/openclaw/status"],
+    refetchInterval: 30000,
+    retry: false,
+  });
+
+  const aiConnected = !statusLoading && statusData?.connected === true;
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -205,10 +218,19 @@ export default function OpenClawTerminal() {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1 font-mono text-[10px] text-emerald-400/60">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            CONNECTED
-          </span>
+          {statusLoading ? (
+            <span className="flex items-center gap-1 font-mono text-[10px] text-emerald-400/40">
+              <Loader2 className="w-2.5 h-2.5 animate-spin" /> CHECKING
+            </span>
+          ) : aiConnected ? (
+            <span className="flex items-center gap-1 font-mono text-[10px] text-emerald-400/70" data-testid="status-connected">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> CONNECTED
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 font-mono text-[10px] text-red-400/70" data-testid="status-disconnected">
+              <WifiOff className="w-2.5 h-2.5" /> OFFLINE
+            </span>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -220,6 +242,17 @@ export default function OpenClawTerminal() {
           </Button>
         </div>
       </div>
+
+      {!statusLoading && !aiConnected && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border-b border-red-500/20 font-mono text-[10px] text-red-400" data-testid="banner-offline">
+          <WifiOff className="w-3 h-3 shrink-0" />
+          <span>
+            OPENCLAW AI connection unavailable
+            {statusData?.reason && statusData.reason !== "unreachable" ? ` — ${statusData.reason}` : ""}
+            . The interface is active but AI responses are disabled.
+          </span>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto bg-black/80 backdrop-blur-sm p-4 font-mono text-sm space-y-4 scrollbar-thin scrollbar-thumb-emerald-500/20">
         {messages.length === 0 && (
@@ -291,14 +324,14 @@ export default function OpenClawTerminal() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isStreaming ? "Processing..." : "Enter command..."}
-            disabled={isStreaming}
-            className="flex-1 bg-transparent border-none outline-none font-mono text-sm text-emerald-300 placeholder:text-emerald-400/30 caret-emerald-400"
+            placeholder={isStreaming ? "Processing..." : !aiConnected ? "AI offline — connection unavailable" : "Enter command..."}
+            disabled={isStreaming || !aiConnected}
+            className="flex-1 bg-transparent border-none outline-none font-mono text-sm text-emerald-300 placeholder:text-emerald-400/30 caret-emerald-400 disabled:opacity-40"
             data-testid="input-terminal"
           />
           <Button
             onClick={sendMessage}
-            disabled={!input.trim() || isStreaming}
+            disabled={!input.trim() || isStreaming || !aiConnected}
             size="sm"
             className="h-7 px-3 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30"
             data-testid="button-send"
