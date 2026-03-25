@@ -164,8 +164,8 @@ function SkyYieldTab() {
   const { on } = useEngineStream();
   useEffect(() => { if (stats) setLocal(stats); }, [stats]);
   useEffect(() => on("miner:block_found", () => { qc.invalidateQueries({ queryKey: ["/api/mining/status"] }); haptic("mining-block"); }), [on, qc]);
-  const start = useMutation({ mutationFn: () => apiRequest("POST", "/api/mining/start").then(r => r.json()), onSuccess: (d: any) => { localStorage.setItem("skynt_mining_started", "1"); qc.invalidateQueries({ queryKey: ["/api/mining/status"] }); toast({ title: "Mining Started", description: "Earning SKYNT automatically" }); if (d.stats) setLocal(d.stats); } });
-  const stop = useMutation({ mutationFn: () => apiRequest("POST", "/api/mining/stop").then(r => r.json()), onSuccess: (d: any) => { localStorage.removeItem("skynt_mining_started"); qc.invalidateQueries({ queryKey: ["/api/mining/status"] }); const earned = d.stats?.totalSkyntEarned?.toFixed(4) || "0"; toast({ title: "Mining Stopped", description: `Total earned: ${earned} SKYNT` }); if (d.stats) setLocal(d.stats); } });
+  const start = useMutation({ mutationFn: () => apiRequest("POST", "/api/mining/start").then(r => r.json()), onSuccess: (d: any) => { localStorage.setItem("skynt_mining_started", "1"); qc.invalidateQueries({ queryKey: ["/api/mining/status"] }); toast({ title: "Mining Started", description: "Earning SKYNT automatically" }); if (d.stats) setLocal(d.stats); }, onError: (e: any) => { toast({ title: "Mining failed to start", description: e.message, variant: "destructive" }); } });
+  const stop = useMutation({ mutationFn: () => apiRequest("POST", "/api/mining/stop").then(r => r.json()), onSuccess: (d: any) => { localStorage.removeItem("skynt_mining_started"); qc.invalidateQueries({ queryKey: ["/api/mining/status"] }); const earned = d.stats?.totalSkyntEarned?.toFixed(4) || "0"; toast({ title: "Mining Stopped", description: `Total earned: ${earned} SKYNT` }); if (d.stats) setLocal(d.stats); }, onError: (e: any) => { toast({ title: "Mining failed to stop", description: e.message, variant: "destructive" }); } });
   const active = local?.isActive || stats?.isActive || false;
   const s = local || stats;
   return (
@@ -260,8 +260,8 @@ function GenesisBtcTab() {
   const { data: lendingStatus } = useQuery<{ stakedAmount: number; tierId: string | null; yieldEarned: number }>({ queryKey: ["/api/stx-lending/status"], refetchInterval: 10000 });
   const { data: ethBlock } = useQuery<{ number: number; hash: string; timestamp: number; transactionCount: number }>({ queryKey: ["/api/chain/ethereum/block/latest"], refetchInterval: 12000 });
 
-  const startChain = useMutation({ mutationFn: (chainId: string) => apiRequest("POST", "/api/merge-mine/start", { chainId }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/merge-mine/status"] }); toast({ title: "Merge mining started" }); haptic("success"); } });
-  const stopChain = useMutation({ mutationFn: (chainId: string) => apiRequest("POST", "/api/merge-mine/stop", { chainId }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/merge-mine/status"] }); toast({ title: "Chain mining stopped" }); } });
+  const startChain = useMutation({ mutationFn: (chainId: string) => apiRequest("POST", "/api/merge-mine/start", { chain: chainId }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/merge-mine/status"] }); toast({ title: "Merge mining started" }); haptic("success"); }, onError: (e: any) => { toast({ title: "Start failed", description: e.message, variant: "destructive" }); } });
+  const stopChain = useMutation({ mutationFn: (chainId: string) => apiRequest("POST", "/api/merge-mine/stop", { chain: chainId }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/merge-mine/status"] }); toast({ title: "Chain mining stopped" }); }, onError: (e: any) => { toast({ title: "Stop failed", description: e.message, variant: "destructive" }); } });
   const stakeSTX = useMutation({ mutationFn: (tierId: string) => apiRequest("POST", "/api/stx-lending/stake", { tierId, amount: 100 }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/stx-lending/status"] }); toast({ title: "STX Staked" }); haptic("success"); } });
 
   const activeCount = Object.values(status?.mergeMining ?? {}).filter((v: any) => v.isActive).length;
@@ -710,12 +710,17 @@ export default function UnifiedMiner() {
   const chainCount = Object.values(mergeStatus?.mergeMining ?? {}).filter((v: any) => v.isActive).length;
   const allRunning = skyActive && chainCount >= 3;
 
+  const ALL_CHAIN_IDS = Object.keys(MERGE_MINING_CHAINS) as (keyof typeof MERGE_MINING_CHAINS)[];
+
   const startAll = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/mining/start");
-      for (const id of ["auxpow_btc", "eth_merge", "zk_rollup", "stx_pox"]) {
-        await apiRequest("POST", "/api/merge-mine/start", { chainId: id });
-      }
+      // Start SKYNT background miner first (tolerates "already active" as success)
+      const skyRes = await fetch("/api/mining/start", { method: "POST", headers: { "Content-Type": "application/json", ...( localStorage.getItem("skynt_jwt") ? { Authorization: `Bearer ${localStorage.getItem("skynt_jwt")}` } : {} ) }, credentials: "include" });
+      if (!skyRes.ok && skyRes.status !== 400) throw new Error(`Mining start failed: ${skyRes.status}`);
+      // Start all merge-mining chains in parallel
+      await Promise.all(ALL_CHAIN_IDS.map(id =>
+        fetch("/api/merge-mine/start", { method: "POST", headers: { "Content-Type": "application/json", ...( localStorage.getItem("skynt_jwt") ? { Authorization: `Bearer ${localStorage.getItem("skynt_jwt")}` } : {} ) }, credentials: "include", body: JSON.stringify({ chain: id }) })
+      ));
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mining/status"] });
@@ -723,19 +728,25 @@ export default function UnifiedMiner() {
       toast({ title: "All Chains Activated", description: "IIT Φ is driving all miners simultaneously" });
       haptic("success");
     },
+    onError: (e: any) => {
+      toast({ title: "Could not start all chains", description: e.message, variant: "destructive" });
+    },
   });
 
   const stopAll = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/mining/stop");
-      for (const id of ["auxpow_btc", "eth_merge", "zk_rollup", "stx_pox"]) {
-        await apiRequest("POST", "/api/merge-mine/stop", { chainId: id });
-      }
+      await fetch("/api/mining/stop", { method: "POST", headers: { "Content-Type": "application/json", ...( localStorage.getItem("skynt_jwt") ? { Authorization: `Bearer ${localStorage.getItem("skynt_jwt")}` } : {} ) }, credentials: "include" });
+      await Promise.all(ALL_CHAIN_IDS.map(id =>
+        fetch("/api/merge-mine/stop", { method: "POST", headers: { "Content-Type": "application/json", ...( localStorage.getItem("skynt_jwt") ? { Authorization: `Bearer ${localStorage.getItem("skynt_jwt")}` } : {} ) }, credentials: "include", body: JSON.stringify({ chain: id }) })
+      ));
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mining/status"] });
       qc.invalidateQueries({ queryKey: ["/api/merge-mine/status"] });
       toast({ title: "All Chains Stopped" });
+    },
+    onError: (e: any) => {
+      toast({ title: "Stop failed", description: e.message, variant: "destructive" });
     },
   });
 
