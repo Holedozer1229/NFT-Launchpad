@@ -8,6 +8,12 @@ Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection
 
 ## Recent Changes
 
+- **Mar 2026**: **Production Polish — Branding corrections & 404 page**
+  - `client/src/components/TermsGate.tsx`: Replaced wrong "Flight Manifest Agreement / SpaceX / NASA" with proper SKYNT Protocol Mint Agreement (7 sections: ownership, regulatory risk, smart contract risk, etc.)
+  - `client/src/components/LegalFooter.tsx`: Replaced "MissionMint / GALACTIC REGISTRY / SpaceX/NASA non-affiliation" with SKYNT-branded footer including token address and risk disclosure
+  - `client/src/components/LaunchChecklist.tsx`: Replaced "Flight Plan Filed / Mission Patch Reveal" with live SKYNT mainnet status items (contract deployed, IIT engine, bridge, OpenSea, governance, liquidity pool) driven by live API queries
+  - `client/src/pages/not-found.tsx`: Replaced generic boilerplate 404 with SKYNT-themed "Signal Lost" page (cosmic-bg, neon accents, "Return to Hub" link — removed dev-only "Did you forget to add the page to the router?" message)
+
 - **Mar 2026**: **Security — CVE fix for `bigint-buffer` (GHSA-3gc7-fjrx-p6mg)**
   - `bigint-buffer@1.1.5` (transitive via `@wormhole-foundation/sdk-solana` → `@solana/spl-token` → `@solana/buffer-layout-utils`) contained a critical native buffer-overflow CVE with no upstream fix (no newer version exists).
   - **Fix applied at two layers:**
