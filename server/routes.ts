@@ -4722,6 +4722,38 @@ STYLE:
     }
   });
 
+  // BTC payout address (user-configured, overrides BTC_PAYOUT_ADDRESS env var)
+  app.get("/api/btc-zk-daemon/payout-address", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { getConfiguredBtcPayoutAddress } = await import("./btc-zk-daemon");
+      res.json({ address: getConfiguredBtcPayoutAddress() });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/btc-zk-daemon/payout-address", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { address } = req.body as { address?: string };
+      const addr = (address ?? "").trim();
+      if (addr) {
+        // Validate: Legacy P2PKH (1...), P2SH (3...), or native SegWit bech32 (bc1...)
+        const legacy = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/;
+        const bech32 = /^bc1[a-z0-9]{6,87}$/i;
+        if (!legacy.test(addr) && !bech32.test(addr)) {
+          return res.status(400).json({ message: "Invalid Bitcoin address — must be a valid mainnet Legacy (1…), P2SH (3…), or SegWit (bc1…) address" });
+        }
+      }
+      const { setBtcPayoutAddress } = await import("./btc-zk-daemon");
+      setBtcPayoutAddress(addr);
+      res.json({ success: true, address: addr });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Self-funding gas sentinel (OIYE Bootstrap Engine)
   app.get("/api/self-fund/status", async (_req, res) => {
     try {

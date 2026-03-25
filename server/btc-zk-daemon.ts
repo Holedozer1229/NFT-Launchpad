@@ -1174,6 +1174,11 @@ let lastEpochData: BtcZkEpoch | null = null;
 let currentHashRate = 0;
 let currentZkSyncBlock = "0x0";
 
+// ── User-configured BTC payout address (overrides BTC_PAYOUT_ADDRESS env var) ─
+let _userBtcPayoutAddress = "";
+export function setBtcPayoutAddress(addr: string): void { _userBtcPayoutAddress = addr; }
+export function getConfiguredBtcPayoutAddress(): string { return _userBtcPayoutAddress || process.env.BTC_PAYOUT_ADDRESS || ""; }
+
 // Extended metrics
 let _bestXiAllTime = 0;
 let _hashRateHistory: number[] = [];
@@ -1223,7 +1228,7 @@ async function runEpoch() {
     }
 
     // 3. Resolve BTC payout address + fetch mempool txids in parallel
-    const btcPayoutAddress = process.env.BTC_PAYOUT_ADDRESS ?? "";
+    const btcPayoutAddress = getConfiguredBtcPayoutAddress();
     if (!btcPayoutAddress && currentEpoch === 1) {
       console.warn("[BtcZkDaemon] BTC_PAYOUT_ADDRESS not set — coinbase output will use OP_RETURN burn. Set this env secret to receive block rewards.");
     }

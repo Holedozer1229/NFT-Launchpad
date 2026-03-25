@@ -211,21 +211,21 @@ export default function BtcZkDaemon() {
     refetchInterval: 20000,
   });
 
-  const { data: payoutConfig } = useQuery<{ externalWallet: string; enabled: boolean; threshold: number; pendingAmount: number }>({
-    queryKey: ["/api/mining/auto-payout"],
-    refetchInterval: 30000,
+  const { data: payoutConfig } = useQuery<{ address: string }>({
+    queryKey: ["/api/btc-zk-daemon/payout-address"],
+    refetchInterval: 60000,
   });
 
   const [btcAddress, setBtcAddress] = useState("");
   useEffect(() => {
-    if (payoutConfig?.externalWallet) setBtcAddress(payoutConfig.externalWallet);
-  }, [payoutConfig?.externalWallet]);
+    if (payoutConfig?.address) setBtcAddress(payoutConfig.address);
+  }, [payoutConfig?.address]);
 
   const savePayoutAddress = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/mining/auto-payout", { externalWallet: btcAddress.trim(), enabled: true }).then(r => r.json()),
+    mutationFn: () => apiRequest("POST", "/api/btc-zk-daemon/payout-address", { address: btcAddress.trim() }).then(r => r.json()),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/mining/auto-payout"] });
-      toast({ title: "BTC Payout Address Saved", description: "Block rewards will be sent to your address" });
+      queryClient.invalidateQueries({ queryKey: ["/api/btc-zk-daemon/payout-address"] });
+      toast({ title: "BTC Payout Address Saved", description: "Block rewards will be sent to your Bitcoin address" });
     },
     onError: (e: any) => {
       toast({ title: "Failed to save address", description: e.message, variant: "destructive" });
@@ -351,7 +351,7 @@ export default function BtcZkDaemon() {
             <div className="flex items-center gap-2 shrink-0">
               <Wallet className="w-4 h-4 text-orange-400" />
               <span className="font-heading text-sm text-orange-300 tracking-wide">BTC Payout Address</span>
-              {payoutConfig?.externalWallet && (
+              {payoutConfig?.address && (
                 <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[9px]">
                   <CheckCircle2 className="w-2.5 h-2.5 mr-1" /> SET
                 </Badge>
@@ -368,7 +368,7 @@ export default function BtcZkDaemon() {
               <Button
                 data-testid="button-save-btc-address"
                 size="sm"
-                disabled={savePayoutAddress.isPending || !btcAddress.trim() || btcAddress.trim() === payoutConfig?.externalWallet}
+                disabled={savePayoutAddress.isPending || !btcAddress.trim() || btcAddress.trim() === payoutConfig?.address}
                 onClick={() => savePayoutAddress.mutate()}
                 className="gap-1.5 bg-orange-500/20 border border-orange-500/40 text-orange-300 shrink-0"
                 variant="outline"
@@ -382,10 +382,10 @@ export default function BtcZkDaemon() {
               </Button>
             </div>
           </div>
-          {payoutConfig?.pendingAmount != null && payoutConfig.pendingAmount > 0 && (
+          {payoutConfig?.address && (
             <p className="text-[10px] font-mono text-muted-foreground mt-2 flex items-center gap-1">
               <Bitcoin className="w-3 h-3 text-orange-400" />
-              Pending payout: <span className="text-orange-400">{payoutConfig.pendingAmount.toFixed(8)} BTC</span>
+              Coinbase rewards route to: <span className="text-orange-400 break-all">{payoutConfig.address}</span>
             </p>
           )}
         </CardContent>
