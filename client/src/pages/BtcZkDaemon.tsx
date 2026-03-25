@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -12,7 +13,7 @@ import {
   CircleDot, Hash, ArrowUpRight, Network, Atom, TrendingUp, Clock,
   Shield, ChevronRight, Wifi, WifiOff, AlertCircle, CheckCircle2,
   Fuel, Waves, KeyRound, Database, RefreshCw, Flame, Vault,
-  GitMerge, ArrowRight, Bitcoin, Repeat2, Link2, Timer
+  GitMerge, ArrowRight, Bitcoin, Repeat2, Link2, Timer, Save, Wallet
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartTooltip,
@@ -210,6 +211,27 @@ export default function BtcZkDaemon() {
     refetchInterval: 20000,
   });
 
+  const { data: payoutConfig } = useQuery<{ externalWallet: string; enabled: boolean; threshold: number; pendingAmount: number }>({
+    queryKey: ["/api/mining/auto-payout"],
+    refetchInterval: 30000,
+  });
+
+  const [btcAddress, setBtcAddress] = useState("");
+  useEffect(() => {
+    if (payoutConfig?.externalWallet) setBtcAddress(payoutConfig.externalWallet);
+  }, [payoutConfig?.externalWallet]);
+
+  const savePayoutAddress = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/mining/auto-payout", { externalWallet: btcAddress.trim(), enabled: true }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/mining/auto-payout"] });
+      toast({ title: "BTC Payout Address Saved", description: "Block rewards will be sent to your address" });
+    },
+    onError: (e: any) => {
+      toast({ title: "Failed to save address", description: e.message, variant: "destructive" });
+    },
+  });
+
   const startMut = useMutation({
     mutationFn: () => apiRequest("POST", "/api/btc-zk-daemon/start"),
     onSuccess: () => {
@@ -321,6 +343,53 @@ export default function BtcZkDaemon() {
           <Fuel className="w-3 h-3 mr-1" /> Gas Self-Fund {sentinel?.isHealthy ? "HEALTHY" : sentinel?.isCritical ? "CRITICAL" : "LOW"}
         </Badge>
       </div>
+
+      {/* ── BTC Payout Address ─────────────────────────────────────────────── */}
+      <Card className="bg-card/60 border-orange-500/20">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-2 shrink-0">
+              <Wallet className="w-4 h-4 text-orange-400" />
+              <span className="font-heading text-sm text-orange-300 tracking-wide">BTC Payout Address</span>
+              {payoutConfig?.externalWallet && (
+                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[9px]">
+                  <CheckCircle2 className="w-2.5 h-2.5 mr-1" /> SET
+                </Badge>
+              )}
+            </div>
+            <div className="flex-1 flex gap-2">
+              <Input
+                data-testid="input-btc-payout-address"
+                placeholder="bc1q… or 1… or 3… — your Bitcoin address for block rewards"
+                value={btcAddress}
+                onChange={e => setBtcAddress(e.target.value)}
+                className="font-mono text-xs bg-background/60 border-orange-500/30 focus-visible:ring-orange-500/40 flex-1"
+              />
+              <Button
+                data-testid="button-save-btc-address"
+                size="sm"
+                disabled={savePayoutAddress.isPending || !btcAddress.trim() || btcAddress.trim() === payoutConfig?.externalWallet}
+                onClick={() => savePayoutAddress.mutate()}
+                className="gap-1.5 bg-orange-500/20 border border-orange-500/40 text-orange-300 shrink-0"
+                variant="outline"
+              >
+                {savePayoutAddress.isPending ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5" />
+                )}
+                Save
+              </Button>
+            </div>
+          </div>
+          {payoutConfig?.pendingAmount != null && payoutConfig.pendingAmount > 0 && (
+            <p className="text-[10px] font-mono text-muted-foreground mt-2 flex items-center gap-1">
+              <Bitcoin className="w-3 h-3 text-orange-400" />
+              Pending payout: <span className="text-orange-400">{payoutConfig.pendingAmount.toFixed(8)} BTC</span>
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── Last Epoch + Quantum Gaps ──────────────────────────────────────── */}
       <div className="grid lg:grid-cols-2 gap-6">
