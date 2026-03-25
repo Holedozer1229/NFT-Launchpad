@@ -48,6 +48,7 @@ const UnifiedAIWidget = lazy(() => import("@/components/UnifiedAIWidget").then(m
 const AdminEngines = lazy(() => import("@/pages/AdminEngines"));
 const Portfolio = lazy(() => import("@/pages/Portfolio"));
 const BuybackFeed = lazy(() => import("@/pages/BuybackFeed"));
+const DefiTrader = lazy(() => import("@/pages/DefiTrader"));
 
 function RequireAdmin({ children, testId = "admin-denied" }: { children: ReactNode; testId?: string }) {
   const { user } = useAuth();

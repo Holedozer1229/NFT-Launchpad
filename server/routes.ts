@@ -6623,6 +6623,80 @@ STYLE:
     }
   });
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // LIVE DEFI TRADING — /api/defi/*
+  // Real-time yield scanning via DeFiLlama + Paraswap swap quotes
+  // ════════════════════════════════════════════════════════════════════════════
+  app.get("/api/defi/opportunities", async (req: any, res) => {
+    try {
+      const { getDeFiScannerState } = await import("./defi-scanner");
+      const s = getDeFiScannerState();
+      const chain = req.query.chain as string | undefined;
+      const stableOnly = req.query.stableOnly === "true";
+      let opps = s.topOpportunities;
+      if (chain && chain !== "all") opps = opps.filter(o => o.chain.toLowerCase() === chain.toLowerCase());
+      if (stableOnly) opps = opps.filter(o => o.stablecoin);
+      res.json({
+        opportunities: opps,
+        lastUpdated: s.lastUpdated,
+        bestApy: s.bestApy,
+        totalTracked: s.totalTracked,
+        chains: Object.keys(s.chainBreakdown),
+        isScanning: s.isRunning,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/defi/prices", async (_req, res) => {
+    try {
+      const { fetchLiveTokenPrices } = await import("./defi-scanner");
+      const prices = await fetchLiveTokenPrices(["ETH", "MATIC", "BNB", "USDC", "USDT", "WBTC", "ARB", "AAVE", "UNI", "CAKE"]);
+      res.json({ prices, updatedAt: Date.now() });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/defi/swap-quote", async (req: any, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { fromToken, toToken, amount, chainId } = req.query;
+      if (!fromToken || !toToken || !amount) {
+        return res.status(400).json({ message: "fromToken, toToken, amount are required" });
+      }
+      const { getSwapQuote } = await import("./defi-scanner");
+      const cid = parseInt(chainId as string ?? "137");
+      const quote = await getSwapQuote(
+        fromToken as string,
+        toToken as string,
+        amount as string,
+        cid
+      );
+      if (!quote) return res.status(503).json({ message: "Quote unavailable — DEX may be down" });
+      res.json(quote);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/defi/rescan", async (req: any, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { getDeFiScannerState } = await import("./defi-scanner");
+      const state = getDeFiScannerState();
+      if (state.isRunning) {
+        return res.json({ message: "Scan already in progress", lastUpdated: state.lastUpdated });
+      }
+      const { startDeFiScanner } = await import("./defi-scanner");
+      startDeFiScanner();
+      res.json({ message: "Rescan triggered" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.use((err: any, _req: any, res: any, _next: any) => {
     console.error("[Global Error Handler]", err?.message || err);
     if (!res.headersSent) {

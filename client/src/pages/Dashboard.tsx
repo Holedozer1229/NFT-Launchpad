@@ -6,7 +6,7 @@ import {
 import {
   Activity, Cpu, Box, DollarSign, Clock,
   ChevronUp, ChevronDown, Loader2, Zap, Brain, Pickaxe, TrendingUp, AlertCircle, RefreshCw,
-  Wallet, ArrowUpRight, Radio, Flame, ShieldCheck, Layers, Sparkles, Bitcoin, Link2, Key, Rocket, Globe
+  Wallet, ArrowUpRight, Radio, Flame, Shield, ShieldCheck, Layers, Sparkles, Bitcoin, Link2, Key, Rocket, Globe
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useBalance } from "wagmi";

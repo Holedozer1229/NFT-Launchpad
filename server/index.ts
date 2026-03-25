@@ -272,6 +272,7 @@ app.use((req, res, next) => {
       startPriceDriver();
       startBtcDustSweeper();
       startFreebitcoinMonitor();
+      import("./defi-scanner").then(({ startDeFiScanner }) => startDeFiScanner()).catch(e => console.error("[DeFiScanner] startup failed:", e.message));
       // Vault auto-init check
       const vaultReady = !!process.env.TREASURY_PRIVATE_KEY;
       log(`[Vault] Treasury engine initialized — on-chain transmit: ${vaultReady ? "enabled" : "disabled (read-only)"}`);
