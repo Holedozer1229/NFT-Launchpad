@@ -140,6 +140,6 @@
     "bufferutil": "^4.0.8"
   },
   "overrides": {
-    "bigint-buffer": "file:./patches/bigint-buffer-shim"
+    "bigint-buffer": "file:/home/runner/workspace/patches/bigint-buffer-shim"
   }
 }

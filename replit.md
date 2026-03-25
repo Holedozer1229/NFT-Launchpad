@@ -8,6 +8,14 @@ Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection
 
 ## Recent Changes
 
+- **Mar 2026**: **Security — CVE fix for `bigint-buffer` (GHSA-3gc7-fjrx-p6mg)**
+  - `bigint-buffer@1.1.5` (transitive via `@wormhole-foundation/sdk-solana` → `@solana/spl-token` → `@solana/buffer-layout-utils`) contained a critical native buffer-overflow CVE with no upstream fix (no newer version exists).
+  - **Fix applied at two layers:**
+    1. `patches/bigint-buffer-shim/` — a pure-JS replacement package (no native bindings) implementing the same `toBigIntBE/LE` / `toBufferBE/LE` API.
+    2. `node_modules/@solana/buffer-layout-utils/lib/cjs/bigint.js` — patched to inline the pure-JS BigInt functions directly, so `bigint-buffer` is never loaded at runtime even if the shim symlink is unavailable.
+  - `package.json` `overrides` field redirects `bigint-buffer` to the local shim for npm-level resolution.
+  - `npm audit` may still flag based on package name pattern matching; the underlying native vulnerability is fully eliminated.
+
 - **Mar 2026**: **ASI Production Refactor — ZK-EVM + Gasless Relay + Wallet Security + Deploy Suite**
   - **Gasless Relay Engine** (`server/gasless-relay.ts`): EIP-2771 meta-transaction relay using treasury wallet via Alchemy SDK. Omega Serpent SKYNT earnings convert to gas credits (1 SKYNT = 10 credits, 1 credit ≈ 0.0001 ETH). Up to 50 credits deducted per gasless tx. `buildKeystoreJson()` for encrypted key export.
   - **New API Endpoints** in `server/routes.ts`:
