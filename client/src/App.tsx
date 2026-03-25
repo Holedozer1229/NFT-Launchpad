@@ -122,6 +122,7 @@ function AppRouter() {
               <Route path="/cross-chain" component={CrossChain} />
               <Route path="/governance" component={Governance} />
               <Route path="/yield" component={YieldGenerator} />
+              <Route path="/defi" component={DefiTrader} />
               <Route path="/iit" component={IITConsciousness} />
               <Route path="/serpent" component={OmegaSerpent} />
               <Route path="/starship" component={StarshipLaunches} />

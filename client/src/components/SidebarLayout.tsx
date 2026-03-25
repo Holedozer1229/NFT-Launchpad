@@ -31,6 +31,7 @@ const navGroups = [
       { path: "/mining", label: "Mining Hub", icon: Pickaxe, adminOnly: false },
       { path: "/btc-pox", label: "BTC PoX Miner", icon: Bitcoin, adminOnly: false },
       { path: "/yield", label: "Yield", icon: TrendingUp, adminOnly: false },
+      { path: "/defi", label: "DeFi Trader", icon: BarChart3, adminOnly: false },
       { path: "/serpent", label: "Omega Serpent", icon: Gamepad2, adminOnly: false },
       { path: "/openclaw", label: "ClawdBot", icon: Hash, adminOnly: false },
     ]
@@ -95,6 +96,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/btc-zk-daemon": "BTC PoX Miner | SKYNT Protocol",
   "/dyson-sphere": "Mining Hub | SKYNT Protocol",
   "/yield": "Yield Generator | SKYNT Protocol",
+  "/defi": "DeFi Trader | SKYNT Protocol",
   "/serpent": "Omega Serpent | SKYNT Protocol",
   "/openclaw": "ClawdBot Terminal | SKYNT Protocol",
   "/cross-chain": "Cross-Chain Portal | SKYNT Protocol",
