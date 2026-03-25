@@ -31,13 +31,13 @@ const StarshipLaunches = lazy(() => import("@/pages/StarshipLaunches"));
 const PublicLab = lazy(() => import("@/pages/PublicLab"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 // GenesisMiner, BtcZkDaemon, DysonSphereMiner are now unified under UnifiedMiner
+const BtcPoXMiner = lazy(() => import("@/pages/BtcPoXMiner"));
 const ZkWormhole = lazy(() => import("@/pages/ZkWormhole"));
 const RarityProofEngine = lazy(() => import("@/pages/RarityProofEngine"));
 const P2PNetworkPage = lazy(() => import("@/pages/P2PNetwork"));
 const RocketBabesNFT = lazy(() => import("@/pages/RocketBabesNFT"));
 const ContractDeployment = lazy(() => import("@/pages/ContractDeployment"));
 const TreasuryVault = lazy(() => import("@/pages/TreasuryVault"));
-const QuantumBerryPhase = lazy(() => import("@/pages/QuantumBerryPhase"));
 const OpenClawTerminal = lazy(() => import("@/pages/OpenClawTerminal"));
 const AirdropPage = lazy(() => import("@/pages/Airdrop"));
 const KYCPage = lazy(() => import("@/pages/KYC"));
@@ -122,13 +122,14 @@ function AppRouter() {
               <Route path="/governance" component={Governance} />
               <Route path="/yield" component={YieldGenerator} />
               <Route path="/iit" component={IITConsciousness} />
-              <Route path="/berry-phase" component={QuantumBerryPhase} />
               <Route path="/serpent" component={OmegaSerpent} />
               <Route path="/starship" component={StarshipLaunches} />
               <Route path="/mining" component={UnifiedMiner} />
+              <Route path="/btc-pox" component={BtcPoXMiner} />
               <Route path="/genesis-miner"><Redirect to="/mining" /></Route>
-              <Route path="/btc-zk-daemon"><Redirect to="/mining" /></Route>
+              <Route path="/btc-zk-daemon"><Redirect to="/btc-pox" /></Route>
               <Route path="/dyson-sphere"><Redirect to="/mining" /></Route>
+              <Route path="/berry-phase"><Redirect to="/mining" /></Route>
               <Route path="/wormhole" component={ZkWormhole} />
               <Route path="/rarity-proof" component={RarityProofEngine} />
               <Route path="/p2p-network" component={P2PNetworkPage} />

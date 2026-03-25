@@ -8,6 +8,12 @@ Multi-page NFT minting protocol featuring RocketBabesNFT cosmic model collection
 
 ## Recent Changes
 
+- **Mar 2026**: **Miner Consolidation — BTC PoX + IIT Multi-Chain Hub**
+  - **`BtcPoXMiner.tsx`** (`/btc-pox`): Dedicated standalone BTC Proof-of-Transfer page consolidating all Bitcoin-specific mining — AuxPoW, Triple-Stack PoX, STX yield routing, Spectral PoW / ECRECOVER proofs, OIYE Self-Funding Gas Sentinel. Re-exports `BtcZkDaemon.tsx` with updated header ("BTC PoX Miner" · "Bitcoin Proof-of-Transfer · AuxPoW · Triple-Stack PoX · Stacks Yield · Self-Funding Gas").
+  - **`UnifiedMiner.tsx`** (`/mining`): Complete rewrite as **IIT Φ Multi-Chain Mining Hub**. IIT Φ panel at top with live Φ score driving all chain boosts simultaneously + "START ALL / STOP ALL" button that activates every miner engine at once. 4 tabs: SKYNT YIELD (background PoW) · MULTI-CHAIN (genesis BTC merge mining + STX lending) · DYSON SPHERE (Valknut v9 canvas + spectral lattice) · BERRY PHASE (new — page curve, entanglement pairs, quantum tunnels, Φ total). Removed BTC ZK tab (moved to dedicated `/btc-pox`).
+  - **Routing**: `/btc-pox` → BtcPoXMiner (new); `/btc-zk-daemon` → redirects to `/btc-pox`; `/berry-phase` → redirects to `/mining` (merged into Mining Hub).
+  - **Sidebar**: "BTC PoX Miner" entry added to EARN group at `/btc-pox` (Bitcoin icon); "Berry Phase" removed from ADVANCED (now in Mining Hub).
+
 - **Mar 2026**: **Production Polish — Branding corrections & 404 page**
   - `client/src/components/TermsGate.tsx`: Replaced wrong "Flight Manifest Agreement / SpaceX / NASA" with proper SKYNT Protocol Mint Agreement (7 sections: ownership, regulatory risk, smart contract risk, etc.)
   - `client/src/components/LegalFooter.tsx`: Replaced "MissionMint / GALACTIC REGISTRY / SpaceX/NASA non-affiliation" with SKYNT-branded footer including token address and risk disclosure

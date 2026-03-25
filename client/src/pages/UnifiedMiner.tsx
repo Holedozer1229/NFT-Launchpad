@@ -361,119 +361,147 @@ function GenesisBtcTab() {
   );
 }
 
-// ─── TAB 3: BTC ZK DAEMON ─────────────────────────────────────────────────────
+// ─── TAB 3: BERRY PHASE ────────────────────────────────────────────────────────
 
-interface DaemonStatus { running: boolean; epoch: number; uptime: number; blocksFound: number; totalStxYield: number; hashRate: number; bestXi: number; epochWinRate: number; xiPassRate: number; networkDifficulty: number; mempoolFeeRate: number; moneroIntegrated: boolean; stacksYieldActive: boolean; lastEpoch: any | null }
-interface SentinelStatus { running: boolean; phase: string; gasReserveEth: number; totalYieldAllocated: number; totalEthFunded: number; sentinelTriggers: number; isHealthy: boolean; isCritical: boolean; projectedRunwayEpochs: number; fundingEvents: any[] }
+interface BerryPhaseState { phase: number; phasePi: string; geometricAmplitude: number; cycleCount: number; holonomyClass: string }
+interface PageCurvePoint { timestamp: number; entropy: number; subsystemSize: number; maxEntropy: number; scrambled: boolean }
+interface EntanglementPair { id: string; blockA: number; blockB: number; concurrence: number; bellState: string; fidelity: number; erBridgeActive: boolean; tunnelStrength: number }
+interface TunnelState { id: string; sourceBlock: number; targetBlock: number; tunnelPhase: number; transmissionCoeff: number; reflectionCoeff: number; eprFidelity: number; wormholeMetric: number; active: boolean }
+interface BerrySnapshot { berryPhase: BerryPhaseState; pageCurve: PageCurvePoint[]; entanglementPairs: EntanglementPair[]; blockShares: any[]; tunnels: TunnelState[]; phiTotal: number; qgScore: number; holoScore: number; temporalDepth: number; networkCoherence: number; timestamp: number }
 
-function XiBadge({ xi, passed }: { xi: number; passed: boolean }) {
-  const c = passed ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" : Math.abs(xi - 1) < 0.05 ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/40" : "bg-red-500/20 text-red-300 border-red-500/40";
-  return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-mono ${c}`}>{passed ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}ξ={xi.toFixed(4)}</span>;
-}
+function BerryPhaseTab() {
+  const { data: snap, isLoading } = useQuery<BerrySnapshot>({ queryKey: ["/api/berry-phase/snapshot"], refetchInterval: 12000 });
+  const { data: tunnels } = useQuery<TunnelState[]>({ queryKey: ["/api/berry-phase/tunnels"], refetchInterval: 8000 });
+  const bp = snap?.berryPhase;
+  const pairs = snap?.entanglementPairs ?? [];
+  const curve = snap?.pageCurve ?? [];
+  const activeTunnels = (tunnels ?? snap?.tunnels ?? []).filter(t => t.active);
 
-function BtcZkTab() {
-  const { toast } = useToast(); const qc = useQueryClient();
-  const { data: status, isLoading } = useQuery<DaemonStatus>({ queryKey: ["/api/btc-zk-daemon/status"], refetchInterval: 8000 });
-  const { data: epochs } = useQuery<any[]>({ queryKey: ["/api/btc-zk-daemon/epochs"], refetchInterval: 15000 });
-  const { data: sentinel } = useQuery<SentinelStatus>({ queryKey: ["/api/self-fund/status"], refetchInterval: 10000 });
-  const { on } = useEngineStream();
-  useEffect(() => on("btc_zk:epoch_result", () => { qc.invalidateQueries({ queryKey: ["/api/btc-zk-daemon/status"] }); qc.invalidateQueries({ queryKey: ["/api/btc-zk-daemon/epochs"] }); }), [on, qc]);
-  const startMut = useMutation({ mutationFn: () => apiRequest("POST", "/api/btc-zk-daemon/start"), onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/btc-zk-daemon/status"] }); toast({ title: "BTC ZK Daemon started", description: "Valknut v9 AuxPoW active" }); haptic("success"); } });
-  const stopMut = useMutation({ mutationFn: () => apiRequest("POST", "/api/btc-zk-daemon/stop"), onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/btc-zk-daemon/status"] }); toast({ title: "Daemon stopped" }); } });
-  const last = status?.lastEpoch;
-  const phaseMeta = PHASE_META[sentinel?.phase ?? "bootstrap"] ?? PHASE_META.bootstrap;
-  const PhaseIcon = phaseMeta.icon;
+  const phiPct = Math.min(100, ((snap?.phiTotal ?? 0) / 4) * 100);
+  const coherencePct = Math.min(100, ((snap?.networkCoherence ?? 0)) * 100);
+
   return (
     <div className="space-y-5">
-      {/* Status + Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/40 flex items-center justify-center"><Cpu className="w-5 h-5 text-orange-400" /></div>
-          <div><p className="font-heading text-lg font-bold">BTC AuxPoW ZK Miner</p><p className="text-[10px] font-mono text-muted-foreground">Monero RandomX → Bitcoin AuxPoW → zkSync Era → Self-Funding Gas</p></div>
-        </div>
-        <div className="flex items-center gap-3">
-          {status?.running ? <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 gap-1.5"><CircleDot className="w-3 h-3 animate-pulse" />LIVE</Badge> : <Badge className="bg-zinc-700/40 text-zinc-400 border border-zinc-600/40 gap-1.5"><CircleDot className="w-3 h-3" />OFFLINE</Badge>}
-          <Button data-testid="btn-daemon-toggle" onClick={() => status?.running ? stopMut.mutate() : startMut.mutate()} disabled={startMut.isPending || stopMut.isPending || isLoading} variant={status?.running ? "destructive" : "default"} size="sm" className="gap-2">{status?.running ? <><Square className="w-3.5 h-3.5" />Stop Daemon</> : <><Play className="w-3.5 h-3.5" />Start Daemon</>}</Button>
-        </div>
-      </div>
-
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+      {/* Header metrics */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
         {[
-          ["Epoch", status?.epoch ?? 0, Hash, "text-violet-400"],
-          ["Blocks", status?.blocksFound ?? 0, Zap, "text-yellow-400"],
-          ["Hash Rate", `${((status?.hashRate ?? 0) / 1000).toFixed(1)}k H/s`, Activity, "text-sky-400"],
-          ["Best ξ", (status?.bestXi ?? 0).toFixed(4), Atom, "text-pink-400"],
-          ["ξ Pass %", `${((status?.xiPassRate ?? 0) * 100).toFixed(0)}%`, Shield, "text-emerald-400"],
-          ["Net Diff", `${((status?.networkDifficulty ?? 0) / 1e12).toFixed(1)}T`, Network, "text-orange-400"],
-          ["Fee Rate", `${status?.mempoolFeeRate ?? 0} s/vB`, Fuel, "text-cyan-400"],
-          ["STX Yield", (status?.totalStxYield ?? 0).toFixed(2), TrendingUp, "text-green-400"],
-        ].map(([l, v, Icon, c]: any) => (
-          <Card key={l} className="bg-card/60 border-border/50"><CardContent className="p-3"><div className="flex items-center gap-1.5 mb-1"><Icon className={`w-3.5 h-3.5 ${c}`} /><span className="text-[9px] text-muted-foreground uppercase">{l}</span></div><p className={`font-mono text-sm font-bold ${c}`} data-testid={`stat-${String(l).toLowerCase().replace(/\s/g, "-")}`}>{v}</p></CardContent></Card>
+          { label: "Berry Phase", value: bp ? `${bp.phase.toFixed(4)}π` : "—", sub: bp?.holonomyClass ?? "—", color: "text-violet-400" },
+          { label: "Φ Total", value: snap ? snap.phiTotal.toFixed(3) : "—", sub: "IIT consciousness", color: "text-pink-400" },
+          { label: "QG Score", value: snap ? snap.qgScore.toFixed(4) : "—", sub: "Quantum gravity", color: "text-cyan-400" },
+          { label: "Holo Score", value: snap ? snap.holoScore.toFixed(4) : "—", sub: "Holographic", color: "text-emerald-400" },
+          { label: "Coherence", value: snap ? `${(snap.networkCoherence * 100).toFixed(1)}%` : "—", sub: "Network", color: "text-orange-400" },
+        ].map(({ label, value, sub, color }) => (
+          <Card key={label} className="bg-card/60 border-border/50">
+            <CardContent className="p-3">
+              <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
+              <p className={`font-mono text-sm font-bold ${color}`} data-testid={`berry-${label.toLowerCase().replace(/\s/g, "-")}`}>{value}</p>
+              <p className="text-[9px] text-muted-foreground mt-0.5">{sub}</p>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
-      {/* Integration badges */}
-      <div className="flex flex-wrap gap-2">
-        <Badge className={status?.moneroIntegrated ? "bg-orange-500/20 text-orange-300 border-orange-500/40" : "bg-zinc-700/30 text-zinc-500 border-zinc-600/40"}>{status?.moneroIntegrated ? <Wifi className="w-3 h-3 mr-1" /> : <WifiOff className="w-3 h-3 mr-1" />}Monero RandomX {status?.moneroIntegrated ? "LIVE" : "Simulated"}</Badge>
-        <Badge className="bg-violet-500/20 text-violet-300 border-violet-500/40"><Zap className="w-3 h-3 mr-1" />zkSync Era Anchor</Badge>
-        <Badge className={status?.stacksYieldActive ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" : "bg-zinc-700/30 text-zinc-500 border-zinc-600/40"}>{status?.stacksYieldActive ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <AlertCircle className="w-3 h-3 mr-1" />}STX Yield {status?.stacksYieldActive ? "ACTIVE" : "KEY NEEDED"}</Badge>
+      {/* Φ + Coherence bars */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Card className="bg-card/60 border-violet-500/20">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono text-muted-foreground">IIT Φ Integrated</span>
+              <span className="font-mono text-xs text-violet-400 font-bold">{snap?.phiTotal.toFixed(3) ?? "0.000"}</span>
+            </div>
+            <Progress value={phiPct} className="h-2" />
+            <p className="text-[9px] font-mono text-muted-foreground">Berry geometric amplitude: {bp?.geometricAmplitude?.toFixed(4) ?? "—"} · Cycles: {bp?.cycleCount ?? 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/60 border-cyan-500/20">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono text-muted-foreground">Network Coherence</span>
+              <span className="font-mono text-xs text-cyan-400 font-bold">{coherencePct.toFixed(1)}%</span>
+            </div>
+            <Progress value={coherencePct} className="h-2" />
+            <p className="text-[9px] font-mono text-muted-foreground">Temporal depth: {snap?.temporalDepth ?? 0} · Phase: {bp?.phasePi ?? "—"}</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Last epoch + Sentinel side by side */}
+      {/* Page curve + entanglement */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Last epoch */}
-        {last && (
-          <Card className="border-border/50 bg-card/60" data-testid="card-last-epoch">
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-mono flex items-center gap-2"><Hash className="w-4 h-4 text-violet-400" />Last Epoch #{last.epoch}<XiBadge xi={last.valknutXi} passed={last.xiPassed} /></CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
-                {[["Chain Corr", last.chainCorr?.toFixed(4)], ["Lattice Corr", last.latticeCorr?.toFixed(4)], ["Berry Phase", last.berryPhase?.toFixed(4)], ["Dyson Factor", last.dysonFactor?.toFixed(4)], ["Spec Cube", last.specCube?.toFixed(4)], ["Q-Fibonacci", last.qFib?.toFixed(4)]].map(([l, v]) => <div key={l}><p className="text-muted-foreground">{l}</p><p className="text-foreground">{v}</p></div>)}
+        {/* Page curve timeline */}
+        <Card className="bg-card/60 border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-mono flex items-center gap-2">
+              <Waves className="w-4 h-4 text-pink-400" />Page Curve
+              {curve.some(p => p.scrambled) && <Badge className="text-[9px] bg-orange-500/20 text-orange-400 border-orange-500/40">SCRAMBLED</Badge>}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {curve.length ? (
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {curve.slice(-12).map((pt, i) => (
+                  <div key={i} className="flex items-center gap-3 text-[10px] font-mono">
+                    <span className="text-muted-foreground w-8">{pt.subsystemSize}</span>
+                    <div className="flex-1 bg-muted/20 rounded-full h-1.5 overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, (pt.entropy / Math.max(pt.maxEntropy, 0.01)) * 100)}%`, background: pt.scrambled ? "#f97316" : "#a855f7" }} />
+                    </div>
+                    <span className={pt.scrambled ? "text-orange-400" : "text-violet-400"}>{pt.entropy.toFixed(3)}</span>
+                  </div>
+                ))}
               </div>
-              <div className="p-2 bg-muted/30 rounded text-[9px] font-mono"><p className="text-muted-foreground mb-0.5">AuxPoW Hash</p><p className="text-foreground break-all">{short(last.auxpowHash, 32)}</p></div>
-              <div className="flex items-center gap-3 text-[9px] font-mono text-muted-foreground"><span>BTC #{last.btcBlockHeight}</span><span>STX yield: {last.stxYieldRouted?.toFixed(4)}</span><Badge className={`text-[9px] ${last.status === "found" ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-700/20 text-zinc-400"}`}>{last.status}</Badge></div>
-            </CardContent>
-          </Card>
-        )}
+            ) : <p className="text-[10px] font-mono text-muted-foreground text-center py-6">Awaiting page curve data…</p>}
+          </CardContent>
+        </Card>
 
-        {/* OIYE Sentinel */}
-        {sentinel && (
-          <Card className={`border ${sentinel.isCritical ? "border-red-500/40" : "border-violet-500/20"} bg-card/60`} data-testid="card-sentinel">
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-mono flex items-center gap-2"><PhaseIcon className={`w-4 h-4 ${phaseMeta.color}`} />OIYE Gas Sentinel<Badge className={`ml-auto text-[9px] ${phaseMeta.color} border border-current/30 bg-current/10`}>{phaseMeta.label}</Badge></CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-3 text-[10px] font-mono">
-                {[["Gas Reserve", `${sentinel.gasReserveEth?.toFixed(8)} ETH`, sentinel.isCritical ? "text-red-400" : "text-emerald-400"], ["ETH Funded", `${sentinel.totalEthFunded?.toFixed(8)} ETH`, "text-cyan-400"], ["STX Allocated", sentinel.totalYieldAllocated?.toFixed(4), "text-orange-400"], ["Triggers", String(sentinel.sentinelTriggers), "text-foreground"]].map(([l, v, c]) => <div key={l}><p className="text-muted-foreground mb-0.5">{l}</p><p className={`font-bold ${c}`}>{v}</p></div>)}
+        {/* Entanglement pairs */}
+        <Card className="bg-card/60 border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-mono flex items-center gap-2">
+              <Network className="w-4 h-4 text-cyan-400" />Entanglement Pairs
+              <Badge className="ml-auto text-[9px] bg-cyan-500/20 text-cyan-400 border-cyan-500/40">{pairs.filter(p => p.erBridgeActive).length} ER bridges</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pairs.length ? (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {pairs.slice(0, 8).map(pair => (
+                  <div key={pair.id} className={`flex items-center gap-2 p-2 rounded-lg border text-[10px] font-mono ${pair.erBridgeActive ? "border-cyan-500/30 bg-cyan-500/5" : "border-border/30 bg-muted/10"}`} data-testid={`pair-${pair.id}`}>
+                    <span className="text-muted-foreground">#{pair.blockA}↔#{pair.blockB}</span>
+                    <span className={pair.erBridgeActive ? "text-cyan-400" : "text-muted-foreground"}>C={pair.concurrence.toFixed(3)}</span>
+                    <span className="text-violet-400">F={pair.fidelity.toFixed(3)}</span>
+                    <Badge className={`ml-auto text-[9px] ${pair.erBridgeActive ? "bg-cyan-500/20 text-cyan-300" : "bg-zinc-700/30 text-zinc-500"}`}>{pair.bellState}</Badge>
+                  </div>
+                ))}
               </div>
-              {sentinel.isCritical && <div className="flex items-center gap-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-[10px] font-mono"><AlertCircle className="w-3.5 h-3.5 shrink-0" />CRITICAL: Gas reserve exhausted — bootstrap more STX yield</div>}
-              <div className="text-[9px] font-mono text-muted-foreground">Runway: {sentinel.projectedRunwayEpochs ?? 0} epochs</div>
-            </CardContent>
-          </Card>
-        )}
+            ) : <p className="text-[10px] font-mono text-muted-foreground text-center py-6">No entanglement pairs</p>}
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Recent epochs */}
-      {epochs && epochs.length > 0 && (
-        <Card className="border-border/50 bg-card/50">
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-mono flex items-center gap-2"><Layers className="w-4 h-4 text-violet-400" />Epoch History</CardTitle></CardHeader>
+      {/* Active tunnels */}
+      {activeTunnels.length > 0 && (
+        <Card className="bg-card/60 border-emerald-500/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-mono flex items-center gap-2">
+              <ArrowUpRight className="w-4 h-4 text-emerald-400" />Active Quantum Tunnels
+              <Badge className="ml-auto text-[9px] bg-emerald-500/20 text-emerald-400 border-emerald-500/40">{activeTunnels.length} live</Badge>
+            </CardTitle>
+          </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader><TableRow className="border-border/30"><TableHead className="text-[10px]">Epoch</TableHead><TableHead className="text-[10px]">ξ</TableHead><TableHead className="text-[10px]">BTC Block</TableHead><TableHead className="text-[10px]">Chain Corr</TableHead><TableHead className="text-[10px]">STX Yield</TableHead><TableHead className="text-[10px]">Status</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {epochs.slice(0, 8).map((ep: any) => (
-                  <TableRow key={ep.epoch} className="border-border/20" data-testid={`row-epoch-${ep.epoch}`}>
-                    <TableCell className="text-[10px] font-mono text-violet-400">#{ep.epoch}</TableCell>
-                    <TableCell><XiBadge xi={ep.valknutXi ?? 0} passed={ep.xiPassed ?? false} /></TableCell>
-                    <TableCell className="text-[10px] font-mono text-muted-foreground">#{ep.btcBlockHeight}</TableCell>
-                    <TableCell className="text-[10px] font-mono text-foreground">{ep.chainCorr?.toFixed(4)}</TableCell>
-                    <TableCell className="text-[10px] font-mono text-orange-400">{ep.stxYieldRouted?.toFixed(4)}</TableCell>
-                    <TableCell><Badge className={`text-[9px] ${ep.status === "found" ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-700/20 text-zinc-400"}`}>{ep.status}</Badge></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="space-y-2">
+              {activeTunnels.slice(0, 6).map(t => (
+                <div key={t.id} className="grid grid-cols-4 gap-2 text-[10px] font-mono p-2 rounded bg-muted/20">
+                  <span className="text-muted-foreground">#{t.sourceBlock}→#{t.targetBlock}</span>
+                  <span className="text-emerald-400">T={t.transmissionCoeff.toFixed(3)}</span>
+                  <span className="text-violet-400">EPR={t.eprFidelity.toFixed(3)}</span>
+                  <span className="text-cyan-400">WH={t.wormholeMetric.toFixed(3)}</span>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
+
+      {isLoading && <p className="text-[10px] font-mono text-muted-foreground text-center py-4">Loading Berry Phase data…</p>}
     </div>
   );
 }
@@ -598,33 +626,72 @@ function DysonSphereTab() {
   );
 }
 
-// ─── Unified Header Strip ──────────────────────────────────────────────────────
+// ─── IIT Φ Control Panel ──────────────────────────────────────────────────────
 
-function MinerHeaderStrip() {
+interface IITPhiData { phi: number; systemState: string; phiBoost: number; nodeCount: number; activeLinks: number }
+
+function IITPhiPanel({ onStartAll, onStopAll, allRunning }: { onStartAll: () => void; onStopAll: () => void; allRunning: boolean }) {
+  const { data: iit } = useQuery<IITPhiData>({ queryKey: ["/api/iit/phi"], refetchInterval: 6000 });
   const { data: miningStats } = useQuery<MiningStats>({ queryKey: ["/api/mining/status"], refetchInterval: 8000 });
-  const { data: daemonStatus } = useQuery<DaemonStatus>({ queryKey: ["/api/btc-zk-daemon/status"], refetchInterval: 15000 });
   const { data: dysonState } = useQuery<DysonState>({ queryKey: ["/api/dyson/state"], refetchInterval: 30000 });
-  const { data: network } = useQuery<{ activeMiners: number }>({ queryKey: ["/api/mining/network"], refetchInterval: 30000 });
+  const { data: berrySnap } = useQuery<BerrySnapshot>({ queryKey: ["/api/berry-phase/snapshot"], refetchInterval: 15000 });
+  const { data: mergeStatus } = useQuery<{ mergeMining: Record<string, any> }>({ queryKey: ["/api/merge-mine/status"], refetchInterval: 10000 });
   const { connected } = useEngineStream();
-  const stats = [
-    { label: "SKYNT Earned", value: `${(miningStats?.totalSkyntEarned ?? 0).toFixed(4)} ◈`, color: "text-emerald-400" },
-    { label: "Hash Rate", value: `${miningStats?.hashRate ?? 0} H/s`, color: "text-cyan-400" },
-    { label: "BTC Epoch", value: `#${daemonStatus?.epoch ?? 0}`, color: "text-orange-400" },
-    { label: "Best ξ", value: (daemonStatus?.bestXi ?? 0).toFixed(4), color: "text-pink-400" },
-    { label: "Dyson Boost", value: `${(dysonState?.hashRateBoost ?? 1).toFixed(2)}x`, color: "text-violet-400" },
-    { label: "Active Miners", value: String(network?.activeMiners ?? 0), color: "text-yellow-400" },
-  ];
+
+  const phi = iit?.phi ?? 0;
+  const phiBoost = iit?.phiBoost ?? miningStats?.currentPhiBoost ?? 1;
+  const dysonBoost = dysonState?.hashRateBoost ?? 1;
+  const combinedBoost = phiBoost * dysonBoost;
+  const activeChains = Object.values(mergeStatus?.mergeMining ?? {}).filter((v: any) => v.isActive).length;
+  const berryPhi = berrySnap?.phiTotal ?? 0;
+  const phiPct = Math.min(100, (phi / 4) * 100);
+
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3 rounded-xl border border-border/50 bg-card/40">
-      {stats.map(({ label, value, color }) => (
-        <div key={label} className="flex items-center gap-2">
-          <span className="text-[9px] font-mono text-muted-foreground uppercase">{label}</span>
-          <span className={`font-mono text-xs font-bold ${color}`}>{value}</span>
+    <div className={`rounded-xl border transition-all duration-500 ${allRunning ? "border-violet-500/50 bg-violet-500/5 shadow-[0_0_30px_rgba(168,85,247,0.1)]" : "border-border/50 bg-card/40"}`} data-testid="iit-phi-panel">
+      <div className="px-5 py-3 flex flex-wrap items-center gap-4">
+        {/* Φ display */}
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${phi > 2 ? "border-violet-400 bg-violet-500/20 shadow-[0_0_12px_rgba(168,85,247,0.4)]" : phi > 1 ? "border-pink-400 bg-pink-500/10" : "border-border bg-muted/20"}`}>
+            <Atom className={`w-5 h-5 ${phi > 2 ? "text-violet-400" : phi > 1 ? "text-pink-400" : "text-muted-foreground"}`} />
+          </div>
+          <div>
+            <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest">IIT Φ</p>
+            <p className={`font-mono text-xl font-bold leading-none ${phi > 2 ? "text-violet-400" : phi > 1 ? "text-pink-400" : "text-muted-foreground"}`} data-testid="iit-phi-value">{phi.toFixed(4)}</p>
+          </div>
         </div>
-      ))}
-      <div className="ml-auto flex items-center gap-1.5 text-[9px] font-mono">
-        <div className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-400 animate-pulse" : "bg-zinc-600"}`} />
-        <span className="text-muted-foreground">{connected ? "WS LIVE" : "WS OFF"}</span>
+
+        {/* Φ bar */}
+        <div className="flex-1 min-w-[140px]">
+          <div className="flex justify-between text-[9px] font-mono text-muted-foreground mb-1">
+            <span>Consciousness level</span>
+            <span className={phi > 2 ? "text-violet-400" : "text-muted-foreground"}>{phiPct.toFixed(0)}%</span>
+          </div>
+          <Progress value={phiPct} className="h-1.5" />
+        </div>
+
+        {/* Key metrics */}
+        {[
+          { label: "Combined Boost", value: `${combinedBoost.toFixed(2)}x`, color: "text-emerald-400" },
+          { label: "Berry Φ", value: berryPhi.toFixed(3), color: "text-pink-400" },
+          { label: "Active Chains", value: `${activeChains} chains`, color: "text-cyan-400" },
+          { label: "SKYNT/cycle", value: `${(miningStats?.totalSkyntEarned ?? 0).toFixed(2)} ◈`, color: "text-yellow-400" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-mono text-muted-foreground uppercase">{label}</span>
+            <span className={`font-mono text-xs font-bold ${color}`}>{value}</span>
+          </div>
+        ))}
+
+        {/* WS + All-chain controls */}
+        <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center gap-1.5 text-[9px] font-mono mr-2">
+            <div className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-400 animate-pulse" : "bg-zinc-600"}`} />
+            <span className="text-muted-foreground">{connected ? "WS LIVE" : "WS OFF"}</span>
+          </div>
+          <Button size="sm" onClick={allRunning ? onStopAll : onStartAll} className={`h-8 px-4 text-[11px] font-heading tracking-wider gap-1.5 ${allRunning ? "bg-red-500/20 border border-red-500/40 text-red-400" : "bg-violet-500/20 border border-violet-500/40 text-violet-400"}`} data-testid="button-all-chains-toggle">
+            {allRunning ? <><PowerOff className="w-3.5 h-3.5" />STOP ALL</> : <><Power className="w-3.5 h-3.5" />START ALL</>}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -633,43 +700,87 @@ function MinerHeaderStrip() {
 // ─── Main UnifiedMiner Page ────────────────────────────────────────────────────
 
 export default function UnifiedMiner() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: miningStatus } = useQuery<MiningStats>({ queryKey: ["/api/mining/status"], refetchInterval: 8000 });
+  const { data: mergeStatus } = useQuery<{ mergeMining: Record<string, any> }>({ queryKey: ["/api/merge-mine/status"], refetchInterval: 8000 });
+
+  const skyActive = miningStatus?.isActive ?? false;
+  const chainCount = Object.values(mergeStatus?.mergeMining ?? {}).filter((v: any) => v.isActive).length;
+  const allRunning = skyActive && chainCount >= 3;
+
+  const startAll = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/mining/start");
+      for (const id of ["auxpow_btc", "eth_merge", "zk_rollup", "stx_pox"]) {
+        await apiRequest("POST", "/api/merge-mine/start", { chainId: id });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mining/status"] });
+      qc.invalidateQueries({ queryKey: ["/api/merge-mine/status"] });
+      toast({ title: "All Chains Activated", description: "IIT Φ is driving all miners simultaneously" });
+      haptic("success");
+    },
+  });
+
+  const stopAll = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/mining/stop");
+      for (const id of ["auxpow_btc", "eth_merge", "zk_rollup", "stx_pox"]) {
+        await apiRequest("POST", "/api/merge-mine/stop", { chainId: id });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mining/status"] });
+      qc.invalidateQueries({ queryKey: ["/api/merge-mine/status"] });
+      toast({ title: "All Chains Stopped" });
+    },
+  });
+
   return (
     <div className="space-y-6 p-4 lg:p-6 max-w-7xl mx-auto">
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-violet-500/20 border border-cyan-500/30 flex items-center justify-center">
-            <Pickaxe className="w-6 h-6 text-cyan-400" />
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-cyan-500/20 border border-violet-500/30 flex items-center justify-center">
+            <Atom className="w-6 h-6 text-violet-400" />
           </div>
           <div>
-            <h1 className="font-heading text-2xl font-bold text-foreground">SKYNT Mining Hub</h1>
-            <p className="text-xs text-muted-foreground font-mono">Unified engine — SKYNT Yield · Genesis BTC · BTC ZK Daemon · Dyson Sphere</p>
+            <h1 className="font-heading text-2xl font-bold text-foreground">IIT Multi-Chain Mining Hub</h1>
+            <p className="text-xs text-muted-foreground font-mono">IIT Φ consciousness drives all chains simultaneously · SKYNT · Genesis · Dyson · Berry Phase</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 gap-1.5"><Zap className="w-3 h-3" />4 Engines</Badge>
-          <Badge className="bg-violet-500/20 text-violet-300 border border-violet-500/40 gap-1.5"><Network className="w-3 h-3" />Multi-Chain</Badge>
+          <Badge className="bg-violet-500/20 text-violet-300 border border-violet-500/40 gap-1.5"><Atom className="w-3 h-3" />IIT Φ Powered</Badge>
+          <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 gap-1.5"><Network className="w-3 h-3" />5 Engines</Badge>
           <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 gap-1.5"><Activity className="w-3 h-3" />Real-Time WS</Badge>
         </div>
       </div>
 
-      {/* Live stats strip */}
-      <MinerHeaderStrip />
+      {/* IIT Φ Control Panel */}
+      <IITPhiPanel
+        allRunning={allRunning}
+        onStartAll={() => startAll.mutate()}
+        onStopAll={() => stopAll.mutate()}
+      />
 
       {/* Engine tabs */}
       <Tabs defaultValue="yield" className="space-y-5">
         <TabsList className="grid grid-cols-4 w-full h-10" data-testid="mining-tabs">
           <TabsTrigger value="yield" className="text-[11px] gap-1.5 font-heading" data-testid="tab-yield"><Pickaxe className="w-3.5 h-3.5" />SKYNT YIELD</TabsTrigger>
-          <TabsTrigger value="genesis" className="text-[11px] gap-1.5 font-heading" data-testid="tab-genesis"><Coins className="w-3.5 h-3.5" />GENESIS BTC</TabsTrigger>
-          <TabsTrigger value="btczk" className="text-[11px] gap-1.5 font-heading" data-testid="tab-btczk"><Cpu className="w-3.5 h-3.5" />BTC ZK</TabsTrigger>
-          <TabsTrigger value="dyson" className="text-[11px] gap-1.5 font-heading" data-testid="tab-dyson"><Atom className="w-3.5 h-3.5" />DYSON SPHERE</TabsTrigger>
+          <TabsTrigger value="genesis" className="text-[11px] gap-1.5 font-heading" data-testid="tab-genesis"><Coins className="w-3.5 h-3.5" />MULTI-CHAIN</TabsTrigger>
+          <TabsTrigger value="dyson" className="text-[11px] gap-1.5 font-heading" data-testid="tab-dyson"><Orbit className="w-3.5 h-3.5" />DYSON SPHERE</TabsTrigger>
+          <TabsTrigger value="berry" className="text-[11px] gap-1.5 font-heading" data-testid="tab-berry"><Waves className="w-3.5 h-3.5" />BERRY PHASE</TabsTrigger>
         </TabsList>
 
         <TabsContent value="yield"><SkyYieldTab /></TabsContent>
         <TabsContent value="genesis"><GenesisBtcTab /></TabsContent>
-        <TabsContent value="btczk"><BtcZkTab /></TabsContent>
         <TabsContent value="dyson"><DysonSphereTab /></TabsContent>
+        <TabsContent value="berry"><BerryPhaseTab /></TabsContent>
       </Tabs>
     </div>
   );
 }
+

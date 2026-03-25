@@ -242,9 +242,9 @@ export default function BtcZkDaemon() {
             <Cpu className="w-5 h-5 text-orange-400" />
           </div>
           <div>
-            <h1 className="font-heading text-2xl font-bold text-foreground">BTC AuxPoW ZK Miner</h1>
+            <h1 className="font-heading text-2xl font-bold text-foreground">BTC PoX Miner</h1>
             <p className="text-xs text-muted-foreground font-mono">
-              Monero RandomX → Bitcoin AuxPoW → zkSync Era → Spectral PoW → Self-Funding Gas
+              Bitcoin Proof-of-Transfer · AuxPoW · Triple-Stack PoX · Stacks Yield · Self-Funding Gas
             </p>
           </div>
         </div>
