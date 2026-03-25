@@ -121,6 +121,15 @@ contract SKYNTForwarder is EIP712, Ownable {
     }
 
     // ─── Internal ─────────────────────────────────────────────────────────────
+    /**
+     * @dev Accepts EITHER a user self-signature (recovered == request.from)
+     *      OR a treasury/relayer signature (recovered is an authorizedRelayer).
+     *      This enables the server-side self-signing relay pattern:
+     *        1. Client sends {from, to, data} with no signature.
+     *        2. Server builds ForwardRequest, signs with TREASURY_PRIVATE_KEY.
+     *        3. Server calls execute(). Forwarder recovers treasury address → authorizedRelayers[treasury] = true → accepted.
+     *        4. ERC2771Context appends request.from → target sees user as _msgSender().
+     */
     function _validate(ForwardRequestData calldata request)
         internal
         view
@@ -137,7 +146,8 @@ contract SKYNTForwarder is EIP712, Ownable {
             keccak256(request.data)
         )));
         address recovered = ECDSA.recover(digest, request.signature);
-        isTrusted = recovered == request.from;
+        // Accept user self-signature OR treasury/authorized-relayer signature
+        isTrusted = (recovered == request.from) || authorizedRelayers[recovered];
     }
 
     // ─── Funding ──────────────────────────────────────────────────────────────

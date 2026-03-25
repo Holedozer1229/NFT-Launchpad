@@ -1,9 +1,15 @@
 /**
- * SKYNT Protocol — Gasless Relay Engine
+ * SKYNT Protocol — Self-Signing Gasless Relay Engine
  *
- * Users sign EIP-712 ForwardRequests; this module submits them via the treasury
- * wallet so users pay zero gas. Gas credits earned in Omega Serpent can subsidise
- * relay fees in-protocol.
+ * Server-side self-signing relay pattern:
+ *   1. Client sends only {from, to, data} — no signature required.
+ *   2. This module builds the EIP-712 ForwardRequest (nonce, deadline, gas).
+ *   3. The treasury wallet signs with TREASURY_PRIVATE_KEY.
+ *   4. The treasury-signed request is submitted to SKYNTForwarder.execute().
+ *   5. The forwarder accepts the treasury signature (authorizedRelayers[treasury]=true),
+ *      appends `from` to calldata so target contracts see the user as _msgSender().
+ *
+ * Gas credits earned in Omega Serpent subsidise the relay fee in-protocol.
  */
 
 import { Alchemy, Network, Wallet, Contract, Utils } from "alchemy-sdk";
@@ -69,21 +75,21 @@ const MAX_CREDITS_PER_TX = 50;        // max credits consumed per relayed tx
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
+/**
+ * Minimal relay request — the server builds and signs the ForwardRequest.
+ * The client sends only the intent; no EIP-712 signature is required from the user.
+ */
 export interface RelayRequest {
-  from:      string;
-  to:        string;
-  data:      string;
-  signature: string;
-  deadline?: number;
-  gas?:      string;
-  value?:    string;
+  from: string;   // user's wallet address (will be _msgSender() in target contracts)
+  to:   string;   // target contract address
+  data: string;   // ABI-encoded calldata for the target function
 }
 
 export interface RelayResult {
-  success:  boolean;
-  txHash?:  string;
-  error?:   string;
-  gasUsed?: string;
+  success:      boolean;
+  txHash?:      string;
+  error?:       string;
+  gasUsed?:     string;
   creditsUsed?: number;
 }
 
@@ -97,11 +103,28 @@ export interface ZkEvmStats {
   contractAddress:   string;
 }
 
+// ─── EIP-712 types for ForwardRequest (must match SKYNTForwarder TYPEHASH) ────
+
+const FORWARD_REQUEST_TYPE = [
+  { name: "from",     type: "address" },
+  { name: "to",       type: "address" },
+  { name: "value",    type: "uint256" },
+  { name: "gas",      type: "uint256" },
+  { name: "nonce",    type: "uint256" },
+  { name: "deadline", type: "uint48"  },
+  { name: "data",     type: "bytes"   },
+] as const;
+
 // ─── Relay Functions ──────────────────────────────────────────────────────────
 
 /**
- * Relay a user-signed EIP-712 ForwardRequest.
- * Treasury pays gas. Omega Serpent gas credits reduce platform fee charged.
+ * Self-signing gasless relay: treasury builds + signs the EIP-712 ForwardRequest.
+ *
+ * No user signature needed. The treasury is an authorized relayer on SKYNTForwarder,
+ * so the forwarder accepts the treasury signature while still appending `request.from`
+ * to calldata — target contracts see the user as _msgSender() via ERC2771Context.
+ *
+ * Omega Serpent gas credits further subsidise the relay fee in-protocol.
  */
 export async function relayMetaTransaction(
   request: RelayRequest,
@@ -113,29 +136,47 @@ export async function relayMetaTransaction(
   }
 
   try {
-    const wallet   = getTreasuryWallet();
-    const provider = getAlchemy().config.getProvider();
+    const wallet    = getTreasuryWallet();
+    const provider  = await getAlchemy().config.getProvider();
     const forwarder = new Contract(forwarderAddr, FORWARDER_ABI, wallet as any);
 
-    const deadline = request.deadline ?? Math.floor(Date.now() / 1000) + 3600;
-    const gas      = request.gas    ?? "200000";
-    const value    = request.value  ?? "0";
+    // ── 1. Read current nonce for `from` from the forwarder contract
+    const nonce    = BigInt(await forwarder.nonces(request.from));
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3_600); // 1h expiry
+    const gas      = 300_000n;
 
-    const reqData = {
+    // ── 2. Build the EIP-712 typed message
+    const network = await provider.getNetwork();
+    const domain = {
+      name:              "SKYNTForwarder",
+      version:           "1",
+      chainId:           Number(network.chainId),
+      verifyingContract: forwarderAddr,
+    };
+    const types = { ForwardRequest: FORWARD_REQUEST_TYPE };
+    const message = {
       from:     request.from,
       to:       request.to,
-      value:    BigInt(value),
-      gas:      BigInt(gas),
-      deadline: BigInt(deadline),
+      value:    0n,
+      gas,
+      nonce,
+      deadline,
       data:     request.data,
-      signature:request.signature,
     };
 
-    // Verify signature before spending gas
-    const isValid = await forwarder.verify(reqData);
-    if (!isValid) {
-      return { success: false, error: "Invalid user signature" };
-    }
+    // ── 3. Treasury signs the ForwardRequest (authorized relayer pattern)
+    const signature = await (wallet as any).signTypedData(domain, types, message);
+
+    // ── 4. Submit treasury-signed request to forwarder.execute()
+    const reqData = {
+      from:      request.from,
+      to:        request.to,
+      value:     0n,
+      gas,
+      deadline,
+      data:      request.data,
+      signature,
+    };
 
     // Deduct Omega Serpent gas credits if user has them
     let creditsUsed = 0;
@@ -143,20 +184,25 @@ export async function relayMetaTransaction(
       creditsUsed = _consumeGasCredits(userId, MAX_CREDITS_PER_TX);
     }
 
-    const tx = await forwarder.execute(reqData, { gasLimit: BigInt(300_000) });
+    const tx      = await forwarder.execute(reqData, { gasLimit: 350_000n });
     const receipt = await tx.wait();
 
+    console.log(
+      `[GaslessRelay] Relayed tx | from=${request.from} to=${request.to.slice(0,10)}... ` +
+      `nonce=${nonce} | txHash=${receipt.transactionHash} | credits=${creditsUsed}`
+    );
+
     return {
-      success:  true,
-      txHash:   receipt.transactionHash,
-      gasUsed:  receipt.gasUsed?.toString(),
+      success:     true,
+      txHash:      receipt.transactionHash,
+      gasUsed:     receipt.gasUsed?.toString(),
       creditsUsed,
     };
   } catch (err: any) {
     console.error("[GaslessRelay] execute failed:", err?.message);
     return {
       success: false,
-      error: err?.shortMessage ?? err?.message ?? "Relay failed",
+      error:   err?.shortMessage ?? err?.message ?? "Relay failed",
     };
   }
 }
