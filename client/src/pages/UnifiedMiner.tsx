@@ -20,7 +20,7 @@ import {
   ChevronDown, ChevronUp, CheckCircle2, AlertCircle, Atom, Radio,
   Layers, GitBranch, Orbit, Network, Shield, CircleDot, ArrowUpRight,
   Fuel, Waves, Database, RefreshCw, Flame, Vault, Trophy, Terminal,
-  Wifi, WifiOff, Star, Crown, Bell, Download
+  Wifi, WifiOff, Star, Crown, Bell, Download, CircleOff, Copy, Check
 } from "lucide-react";
 import { MERGE_MINING_CHAINS, STX_LENDING_TIERS, type MergeMiningChainId, type StxLendingTierId } from "@shared/schema";
 
@@ -697,6 +697,248 @@ function IITPhiPanel({ onStartAll, onStopAll, allRunning }: { onStartAll: () => 
   );
 }
 
+// ─── TAB 5: MONERO (Real RandomX · MoneroOcean Stratum) ───────────────────────
+
+interface XmrStatus {
+  connected: boolean;
+  pool: string;
+  wallet: string;
+  address: string;
+  hashrate: number;
+  sharesSubmitted: number;
+  sharesAccepted: number;
+  sharesRejected: number;
+  currentDifficulty: number;
+  currentHeight: number;
+  currentJobId: string;
+  seedHash: string;
+  uptime: number;
+  estimatedXmrPerDay: number;
+  lastShareTime: number | null;
+  error: string | null;
+}
+
+function MoneroTab() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [copied, setCopied] = useState(false);
+
+  const { data: xmr, isLoading } = useQuery<XmrStatus>({
+    queryKey: ["/api/xmr/status"],
+    refetchInterval: 3000,
+  });
+
+  const startMining = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/xmr/start").then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/xmr/status"] }); toast({ title: "XMR Mining Started", description: "Connecting to MoneroOcean…" }); },
+    onError: (e: any) => toast({ title: "Start failed", description: e.message, variant: "destructive" }),
+  });
+
+  const stopMining = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/xmr/stop").then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/xmr/status"] }); toast({ title: "XMR Mining Stopped" }); },
+    onError: (e: any) => toast({ title: "Stop failed", description: e.message, variant: "destructive" }),
+  });
+
+  function copyAddress() {
+    const addr = xmr?.address ?? "";
+    navigator.clipboard.writeText(addr).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function fmtHash(hr: number) {
+    if (hr >= 1000) return `${(hr / 1000).toFixed(2)} KH/s`;
+    return `${hr} H/s`;
+  }
+
+  function fmtUptime2(sec: number) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+
+  const connected   = xmr?.connected ?? false;
+  const hasJob      = !!xmr?.currentJobId;
+  const shareRate   = xmr && xmr.sharesSubmitted > 0
+    ? Math.round((xmr.sharesAccepted / xmr.sharesSubmitted) * 100)
+    : 100;
+
+  return (
+    <div className="space-y-4">
+      {/* Status header */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${connected ? "bg-orange-500/20 border border-orange-500/30" : "bg-muted/40 border border-border/40"}`}>
+                <CircleDot className={`w-5 h-5 ${connected ? "text-orange-400" : "text-muted-foreground/40"}`} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-heading text-sm font-bold">Monero RandomX Miner</span>
+                  {connected ? (
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] gap-1"><Wifi className="w-3 h-3" />CONNECTED</Badge>
+                  ) : (
+                    <Badge className="bg-zinc-500/20 text-zinc-400 border-zinc-500/30 text-[10px] gap-1"><WifiOff className="w-3 h-3" />OFFLINE</Badge>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                  gulf.moneroocean.stream:10128 · randomx.js WASM · rx/0
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                data-testid="button-xmr-start"
+                className="gap-1.5 text-[11px] border-orange-500/40 text-orange-400"
+                onClick={() => startMining.mutate()}
+                disabled={startMining.isPending || connected}
+              >
+                <Play className="w-3.5 h-3.5" />START
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                data-testid="button-xmr-stop"
+                className="gap-1.5 text-[11px] border-red-500/40 text-red-400"
+                onClick={() => stopMining.mutate()}
+                disabled={stopMining.isPending || !connected}
+              >
+                <Square className="w-3.5 h-3.5" />STOP
+              </Button>
+            </div>
+          </div>
+
+          {xmr?.error && (
+            <div className="mt-3 flex items-center gap-2 text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="font-mono">{xmr.error}</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Hashrate",       value: isLoading ? "…" : fmtHash(xmr?.hashrate ?? 0),                 color: "text-orange-400",   icon: <Hash className="w-3.5 h-3.5" />,      testid: "xmr-hashrate" },
+          { label: "Shares",         value: isLoading ? "…" : `${xmr?.sharesAccepted ?? 0}/${xmr?.sharesSubmitted ?? 0}`, color: "text-emerald-400", icon: <CheckCircle2 className="w-3.5 h-3.5" />, testid: "xmr-shares" },
+          { label: "Difficulty",     value: isLoading ? "…" : (xmr?.currentDifficulty ?? 0).toLocaleString(), color: "text-cyan-400",   icon: <Zap className="w-3.5 h-3.5" />,       testid: "xmr-difficulty" },
+          { label: "XMR/Day (est.)", value: isLoading ? "…" : (xmr?.estimatedXmrPerDay ?? 0).toFixed(8),  color: "text-yellow-400",   icon: <TrendingUp className="w-3.5 h-3.5" />, testid: "xmr-perday" },
+        ].map(s => (
+          <Card key={s.label}>
+            <CardContent className="p-3">
+              <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+                {s.icon}
+                <span className="text-[10px] uppercase tracking-wider font-heading">{s.label}</span>
+              </div>
+              <p className={`text-lg font-bold font-mono ${s.color}`} data-testid={s.testid}>{s.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Job info + uptime */}
+      {xmr && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-heading">Current Job</p>
+              <div className="space-y-2 text-[11px] font-mono">
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Job ID</span>
+                  <span className="text-foreground truncate max-w-[160px]" data-testid="xmr-jobid">{xmr.currentJobId || "—"}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Block Height</span>
+                  <span className="text-cyan-400" data-testid="xmr-height">{xmr.currentHeight > 0 ? `#${xmr.currentHeight.toLocaleString()}` : "—"}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Seed Hash</span>
+                  <span className="text-muted-foreground/70 truncate max-w-[160px]">{xmr.seedHash ? xmr.seedHash.slice(0, 16) + "…" : "—"}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Acceptance</span>
+                  <span className={shareRate >= 90 ? "text-emerald-400" : "text-yellow-400"}>{shareRate}%</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-heading">Session Info</p>
+              <div className="space-y-2 text-[11px] font-mono">
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Uptime</span>
+                  <span className="text-foreground">{fmtUptime2(xmr.uptime)}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Last Share</span>
+                  <span className="text-foreground">{xmr.lastShareTime ? new Date(xmr.lastShareTime).toLocaleTimeString() : "—"}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Rejected</span>
+                  <span className={xmr.sharesRejected > 0 ? "text-red-400" : "text-emerald-400"}>{xmr.sharesRejected}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Algorithm</span>
+                  <span className="text-orange-400">rx/0 (RandomX)</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Wallet address */}
+      <Card>
+        <CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-heading mb-2">XMR Wallet Address</p>
+          <div className="flex items-center gap-2 bg-muted/30 rounded-md px-3 py-2 border border-border/40">
+            <p className="text-[11px] font-mono text-muted-foreground flex-1 break-all" data-testid="xmr-address">
+              {xmr?.address ?? "4AneteRiAaiS6MiKbic85Cd23dpfSmjfAWVj9WVn1mNZLVrw9FfqvpiWAtVAXf98MS6oKChyWWQ4jRgaMiEsA9hYLmonMKA"}
+            </p>
+            <Button size="icon" variant="ghost" data-testid="button-copy-xmr-address" onClick={copyAddress} className="flex-shrink-0">
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2">Mining payouts go directly to MoneroOcean. Minimum payout: 0.003 XMR. View stats at <span className="text-orange-400">moneroocean.stream</span>.</p>
+        </CardContent>
+      </Card>
+
+      {/* Pool info */}
+      <Card>
+        <CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-heading mb-3">Pool Configuration</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px] font-mono">
+            {[
+              { label: "Pool",      value: "MoneroOcean",            color: "text-orange-400" },
+              { label: "Host",      value: "gulf.moneroocean.stream", color: "text-foreground" },
+              { label: "Port",      value: "10128 (auto-diff)",      color: "text-cyan-400"   },
+              { label: "TLS",       value: "No (plain TCP)",          color: "text-muted-foreground" },
+              { label: "Algorithm", value: "RandomX (rx/0)",          color: "text-orange-400" },
+              { label: "Engine",    value: "randomx.js WASM",         color: "text-violet-400" },
+            ].map(row => (
+              <div key={row.label} className="bg-muted/20 rounded-md p-2">
+                <p className="text-muted-foreground text-[10px] mb-0.5">{row.label}</p>
+                <p className={row.color}>{row.value}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Main UnifiedMiner Page ────────────────────────────────────────────────────
 
 export default function UnifiedMiner() {
@@ -779,17 +1021,19 @@ export default function UnifiedMiner() {
 
       {/* Engine tabs */}
       <Tabs defaultValue="yield" className="space-y-5">
-        <TabsList className="grid grid-cols-4 w-full h-10" data-testid="mining-tabs">
-          <TabsTrigger value="yield" className="text-[11px] gap-1.5 font-heading" data-testid="tab-yield"><Pickaxe className="w-3.5 h-3.5" />SKYNT YIELD</TabsTrigger>
-          <TabsTrigger value="genesis" className="text-[11px] gap-1.5 font-heading" data-testid="tab-genesis"><Coins className="w-3.5 h-3.5" />MULTI-CHAIN</TabsTrigger>
-          <TabsTrigger value="dyson" className="text-[11px] gap-1.5 font-heading" data-testid="tab-dyson"><Orbit className="w-3.5 h-3.5" />DYSON SPHERE</TabsTrigger>
-          <TabsTrigger value="berry" className="text-[11px] gap-1.5 font-heading" data-testid="tab-berry"><Waves className="w-3.5 h-3.5" />BERRY PHASE</TabsTrigger>
+        <TabsList className="grid grid-cols-5 w-full h-10" data-testid="mining-tabs">
+          <TabsTrigger value="yield"   className="text-[10px] gap-1 font-heading" data-testid="tab-yield"><Pickaxe className="w-3 h-3" />SKYNT</TabsTrigger>
+          <TabsTrigger value="genesis" className="text-[10px] gap-1 font-heading" data-testid="tab-genesis"><Coins className="w-3 h-3" />MULTI-CHAIN</TabsTrigger>
+          <TabsTrigger value="dyson"   className="text-[10px] gap-1 font-heading" data-testid="tab-dyson"><Orbit className="w-3 h-3" />DYSON</TabsTrigger>
+          <TabsTrigger value="berry"   className="text-[10px] gap-1 font-heading" data-testid="tab-berry"><Waves className="w-3 h-3" />BERRY</TabsTrigger>
+          <TabsTrigger value="monero"  className="text-[10px] gap-1 font-heading" data-testid="tab-monero"><CircleDot className="w-3 h-3" />MONERO</TabsTrigger>
         </TabsList>
 
         <TabsContent value="yield"><SkyYieldTab /></TabsContent>
         <TabsContent value="genesis"><GenesisBtcTab /></TabsContent>
         <TabsContent value="dyson"><DysonSphereTab /></TabsContent>
         <TabsContent value="berry"><BerryPhaseTab /></TabsContent>
+        <TabsContent value="monero"><MoneroTab /></TabsContent>
       </Tabs>
     </div>
   );

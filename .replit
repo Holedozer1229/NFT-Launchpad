@@ -65,6 +65,7 @@ expertMode = true
 [userenv.shared]
 TREASURY_WALLET_ADDRESS = "0xD55dDb0f19DAc37cDb3c5c50d8A89EB177ecc6e0"
 SKYNT_CONTRACT_ADDRESS = "0x22d3f06afB69e5FCFAa98C20009510dD11aF2517"
+MONERO_TREASURY_ADDRESS = "4AneteRiAaiS6MiKbic85Cd23dpfSmjfAWVj9WVn1mNZLVrw9FfqvpiWAtVAXf98MS6oKChyWWQ4jRgaMiEsA9hYLmonMKA"
 
 [postMerge]
 path = "scripts/post-merge.sh"

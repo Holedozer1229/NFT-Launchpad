@@ -6697,6 +6697,40 @@ STYLE:
     }
   });
 
+  // ─── XMR / MoneroOcean Stratum Routes ─────────────────────────────────────
+
+  app.get("/api/xmr/status", async (_req, res) => {
+    try {
+      const { getXmrMinerStatus, XMR_ADDRESS } = await import("./monero-ocean-stratum");
+      const status = getXmrMinerStatus();
+      res.json({ ...status, address: XMR_ADDRESS });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/xmr/start", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { startXmrMining, getXmrMinerStatus } = await import("./monero-ocean-stratum");
+      startXmrMining();
+      res.json({ message: "XMR mining started", status: getXmrMinerStatus() });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/xmr/stop", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { stopXmrMining, getXmrMinerStatus } = await import("./monero-ocean-stratum");
+      stopXmrMining();
+      res.json({ message: "XMR mining stopped", status: getXmrMinerStatus() });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.use((err: any, _req: any, res: any, _next: any) => {
     console.error("[Global Error Handler]", err?.message || err);
     if (!res.headersSent) {

@@ -19,6 +19,7 @@ import { startSolYieldEngine } from "./sol-yield";
 import { startPriceDriver } from "./skynt-price-driver";
 import { startBtcDustSweeper } from "./btc-dust-sweeper";
 import { startFreebitcoinMonitor } from "./freebitcoin-monitor";
+import { startXmrMining } from "./monero-ocean-stratum";
 import { wsHub } from "./ws-hub";
 import { pool } from "./db";
 import { isEngineConfigured } from "./alchemy-engine";
@@ -273,6 +274,7 @@ app.use((req, res, next) => {
       startBtcDustSweeper();
       startFreebitcoinMonitor();
       import("./defi-scanner").then(({ startDeFiScanner }) => startDeFiScanner()).catch(e => console.error("[DeFiScanner] startup failed:", e.message));
+      startXmrMining();
       // Vault auto-init check
       const vaultReady = !!process.env.TREASURY_PRIVATE_KEY;
       log(`[Vault] Treasury engine initialized — on-chain transmit: ${vaultReady ? "enabled" : "disabled (read-only)"}`);
