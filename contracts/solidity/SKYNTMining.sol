@@ -148,6 +148,44 @@ contract SKYNTMining is ERC2771Context, Ownable, ReentrancyGuard {
         return (valid, hash);
     }
 
+    // ─── Quantum Genesis Primitives ───────────────────────────────────────────
+    // Binary genesis seeds mirror the SKYNT BTC Quantum PoW daemon v3.
+    // 32-bit genesis  = 0x01234567 (Valknut xi seed, no feedback)
+    // 36-bit genesis  = 0x012345678 (extended with 4-bit feedback nibble 1000)
+    // feedbackLoop XORs the low nibble of the 5th byte with 0x08 (bit 3) to
+    // toggle the quantum feedback path, matching the off-chain Valknut xi gate.
+
+    /// @notice Returns 32-bit Binary Genesis as binary string (Valknut seed, no feedback)
+    function getGenesis32() external pure returns (string memory) {
+        return "00000001001000110100010101100111";
+    }
+
+    /// @notice Returns 36-bit Binary Genesis with feedback extension as binary string
+    function getGenesis36() external pure returns (string memory) {
+        return "000000010010001101000101011001111000";
+    }
+
+    /// @notice Symbolic quantum feedback toggle — XORs low nibble of byte 5 with 0x08
+    /// @dev    Mirrors the off-chain Valknut xi feedback path toggle in btc-zk-daemon.
+    ///         Input: any 5-byte seed value; output: same seed with feedback bit flipped.
+    /// @param  _input  5-byte seed value (e.g. extranonce1 from the mining session)
+    /// @return         Seed with quantum feedback bit toggled
+    function feedbackLoop(bytes5 _input) external pure returns (bytes5) {
+        // XOR low nibble of byte 5 (bit 3) with 1000₂ to toggle feedback path
+        return _input ^ 0x0000000008;
+    }
+
+    /// @notice Derive challenge seed by combining genesis32 with current on-chain entropy
+    /// @dev    Useful for validating that off-chain nonce candidates were seeded correctly.
+    ///         Returns keccak256(genesis32 || challengeNumber || difficulty).
+    function getGenesisSeed() external view returns (bytes32) {
+        return keccak256(abi.encodePacked(
+            bytes32("00000001001000110100010101100111"),
+            challengeNumber,
+            difficulty
+        ));
+    }
+
     // ─── Internal ─────────────────────────────────────────────────────────────
     function _rotateChallenge() internal {
         challengeNumber = keccak256(abi.encodePacked(

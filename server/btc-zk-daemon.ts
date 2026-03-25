@@ -239,34 +239,257 @@ function xiValknutV9(baseKey: Buffer, nonce: number): {
   return { xi, specCube, berry, qFib, dyson };
 }
 
-// ─── BTC AuxPoW Block Construction ──────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// PROPER BITCOIN BLOCK CONSTRUCTION — Merkle Tree + Coinbase + Quantum PoW
+// ═════════════════════════════════════════════════════════════════════════════
 
 let btcBlockHeight = 880_000;
 
-function buildBtcCoinbaseData(epoch: number, zkSyncAnchor: string, extraNonce2: string): Buffer {
-  const coinbaseTxt = `SKYNT-AUXPOW-EPOCH:${epoch}:ZK:${zkSyncAnchor.slice(0, 16)}:EN2:${extraNonce2.slice(0, 8)}`;
-  return Buffer.from(coinbaseTxt, "utf8");
+// ── Double-SHA256 (Bitcoin standard hash) ────────────────────────────────────
+function dsha256(data: Buffer): Buffer {
+  return createHash("sha256").update(createHash("sha256").update(data).digest()).digest();
 }
 
-function buildAuxPowBlockHeader(
-  prevHash: string,
-  merkleRoot: string,
-  timestamp: number,
-  difficulty: number,
-  nonce: number
-): Buffer {
-  const version = Buffer.alloc(4); version.writeUInt32LE(0x20000000);
-  const prev = Buffer.from(prevHash.padEnd(64, "0").slice(0, 64), "hex");
-  const merkle = Buffer.from(merkleRoot.padEnd(64, "0").slice(0, 64), "hex");
-  const time = Buffer.alloc(4); time.writeUInt32LE(Math.floor(timestamp / 1000));
-  const bits = Buffer.alloc(4); bits.writeUInt32LE(Math.floor(difficulty));
-  const nonceB = Buffer.alloc(4); nonceB.writeUInt32BE(nonce & 0xffffffff);
-  return Buffer.concat([version, prev, merkle, time, bits, nonceB]);
+// ── Block subsidy in satoshis (halvings every 210,000 blocks) ────────────────
+function btcSubsidySats(height: number): bigint {
+  const halvings = Math.floor(height / 210_000);
+  if (halvings >= 64) return 0n;
+  return 5_000_000_000n >> BigInt(halvings); // 50 BTC * 1e8 >> halvings
 }
 
-function hashBtcHeader(header: Buffer): string {
-  return createHash("sha256").update(createHash("sha256").update(header).digest()).digest("hex");
+// ── Bitcoin varint encoding ───────────────────────────────────────────────────
+function encodeVarint(n: number): Buffer {
+  if (n < 0xfd) return Buffer.from([n]);
+  if (n <= 0xffff) { const b = Buffer.alloc(3); b[0] = 0xfd; b.writeUInt16LE(n, 1); return b; }
+  if (n <= 0xffffffff) { const b = Buffer.alloc(5); b[0] = 0xfe; b.writeUInt32LE(n, 1); return b; }
+  const b = Buffer.alloc(9); b[0] = 0xff; b.writeBigUInt64LE(BigInt(n), 1); return b;
 }
+
+// ── BIP34 block height push (little-endian, minimal encoding) ────────────────
+function encodeBip34Height(height: number): Buffer {
+  if (height === 0) return Buffer.from([0x01, 0x00]);
+  const bytes: number[] = [];
+  let val = height;
+  while (val > 0) { bytes.push(val & 0xff); val >>>= 8; }
+  if (bytes[bytes.length - 1] & 0x80) bytes.push(0x00); // no sign-bit ambiguity
+  return Buffer.from([bytes.length, ...bytes]);
+}
+
+// ── Base58Check decode (P2PKH / P2SH addresses) ───────────────────────────────
+const B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function base58CheckDecode(str: string): Buffer {
+  let n = 0n;
+  for (const ch of str) {
+    const i = B58_ALPHABET.indexOf(ch);
+    if (i < 0) throw new Error(`Invalid base58 char: ${ch}`);
+    n = n * 58n + BigInt(i);
+  }
+  let hex = n.toString(16);
+  if (hex.length % 2) hex = "0" + hex;
+  let leadingBytes = 0;
+  for (const ch of str) { if (ch === "1") leadingBytes++; else break; }
+  const payload = Buffer.concat([Buffer.alloc(leadingBytes), Buffer.from(hex, "hex")]);
+  const body = payload.slice(0, -4);
+  const check = payload.slice(-4);
+  const h = dsha256(body);
+  if (!h.slice(0, 4).equals(check)) throw new Error("Base58Check checksum mismatch");
+  return body.slice(1); // strip version byte → 20-byte hash160
+}
+
+// ── Bech32 / Bech32m decode (P2WPKH, P2WSH, P2TR) ───────────────────────────
+const BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+function bech32Decode(addr: string): { version: number; program: Buffer } {
+  const lower = addr.toLowerCase();
+  const sep = lower.lastIndexOf("1");
+  if (sep < 1) throw new Error("No bech32 separator");
+  const data: number[] = [];
+  for (const ch of lower.slice(sep + 1)) {
+    const idx = BECH32_CHARSET.indexOf(ch);
+    if (idx < 0) throw new Error(`Invalid bech32 char: ${ch}`);
+    data.push(idx);
+  }
+  const version = data[0];
+  // Convert 5-bit groups to 8-bit bytes (strip witness version + checksum)
+  const values = data.slice(1, -6);
+  let acc = 0, bits = 0;
+  const result: number[] = [];
+  for (const v of values) {
+    acc = (acc << 5) | v; bits += 5;
+    while (bits >= 8) { bits -= 8; result.push((acc >> bits) & 0xff); }
+  }
+  return { version, program: Buffer.from(result) };
+}
+
+// ── Build scriptPubKey from a Bitcoin payout address ─────────────────────────
+function addressToScriptPubKey(address: string): Buffer {
+  const addr = address.trim();
+  if (!addr) throw new Error("Empty BTC payout address");
+
+  // P2PKH — mainnet "1…"
+  if (/^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(addr)) {
+    const hash160 = base58CheckDecode(addr);
+    return Buffer.from([0x76, 0xa9, 0x14, ...hash160, 0x88, 0xac]);
+  }
+  // P2SH — mainnet "3…"
+  if (/^3[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(addr)) {
+    const hash160 = base58CheckDecode(addr);
+    return Buffer.from([0xa9, 0x14, ...hash160, 0x87]);
+  }
+  // Bech32 / Bech32m — "bc1…"
+  if (/^bc1[a-z0-9]{6,87}$/i.test(addr)) {
+    const { version, program } = bech32Decode(addr);
+    const opcode = version === 0 ? 0x00 : 0x50 + version; // OP_0 or OP_n
+    return Buffer.concat([Buffer.from([opcode, program.length]), program]);
+  }
+  throw new Error(`Unsupported BTC address format: ${addr}`);
+}
+
+// ── Build a complete, properly serialized Bitcoin coinbase transaction ─────────
+interface CoinbaseTxParams {
+  blockHeight: number;
+  extraNonce1: Buffer; // 4 bytes, fixed per mining session
+  extraNonce2: Buffer; // 4 bytes, varies per chunk to explore Merkle space
+  zkAnchor: string;   // ZK-sync anchor hash (hex)
+  epoch: number;
+  payoutAddress: string;
+  feeSats?: bigint;
+}
+
+function buildCoinbaseTx(p: CoinbaseTxParams): Buffer {
+  const { blockHeight, extraNonce1, extraNonce2, zkAnchor, epoch, payoutAddress, feeSats = 0n } = p;
+
+  // ── CoinbaseScript (BIP34 height + protocol marker + extranonces + ZK anchor)
+  const heightPush = encodeBip34Height(blockHeight + 1); // +1 = next block
+  const protoMarker = Buffer.from(`/SKYNT-QPoW-v3:${epoch}/`);
+  const zkBytes    = Buffer.from(zkAnchor.replace(/[^0-9a-fA-F]/g, "0").padEnd(16, "0").slice(0, 16), "hex");
+  const coinbaseScript = Buffer.concat([heightPush, extraNonce1, extraNonce2, protoMarker, zkBytes]);
+
+  // ── Input (coinbase: all-zero prevout hash + 0xFFFFFFFF index + sequence)
+  const prevHash  = Buffer.alloc(32, 0x00);
+  const prevIndex = Buffer.alloc(4, 0xff);
+  const seqBuf    = Buffer.alloc(4, 0xff);
+  const scriptLen = encodeVarint(coinbaseScript.length);
+  const input = Buffer.concat([prevHash, prevIndex, scriptLen, coinbaseScript, seqBuf]);
+
+  // ── Output (block subsidy + fees → payout scriptPubKey)
+  const subsidySats = btcSubsidySats(blockHeight) + feeSats;
+  const valueBuf = Buffer.alloc(8);
+  valueBuf.writeBigUInt64LE(subsidySats);
+
+  let spk: Buffer;
+  try {
+    spk = addressToScriptPubKey(payoutAddress);
+  } catch {
+    // Fallback: OP_RETURN burns the subsidy (safe degradation)
+    const tag = Buffer.from("SKYNT-QPOW");
+    spk = Buffer.concat([Buffer.from([0x6a, tag.length]), tag]);
+  }
+  const output = Buffer.concat([valueBuf, encodeVarint(spk.length), spk]);
+
+  // ── Assemble: version + inputs + outputs + locktime
+  const versionBuf  = Buffer.alloc(4); versionBuf.writeUInt32LE(1);
+  const locktimeBuf = Buffer.alloc(4, 0x00);
+  return Buffer.concat([versionBuf, encodeVarint(1), input, encodeVarint(1), output, locktimeBuf]);
+}
+
+// ── Compute txid (internal byte order = dsha256 reversed) ─────────────────────
+function computeTxid(txBytes: Buffer): Buffer {
+  return dsha256(txBytes).reverse(); // internal LE order for Merkle tree
+}
+
+// ── Build proper Bitcoin Merkle tree ─────────────────────────────────────────
+// txids: array of 32-byte Buffers in INTERNAL (little-endian) byte order
+function buildMerkleRoot(txids: Buffer[]): Buffer {
+  if (txids.length === 0) return Buffer.alloc(32);
+  let level: Buffer[] = txids.map(t => Buffer.from(t) as Buffer);
+  while (level.length > 1) {
+    const next: Buffer[] = [];
+    for (let i = 0; i < level.length; i += 2) {
+      const left  = level[i];
+      const right = (i + 1 < level.length) ? level[i + 1] : level[i]; // duplicate last if odd
+      next.push(dsha256(Buffer.concat([left, right])) as Buffer);
+    }
+    level = next;
+  }
+  return level[0]; // 32-byte Merkle root in internal byte order
+}
+
+// ── Convert difficulty to compact bits format ─────────────────────────────────
+function difficultyToBits(difficulty: number): number {
+  // max_target = 0x00000000FFFF0000...0000 (bitcoin genesis target, bits=0x1d00ffff)
+  const MAX_TARGET = BigInt("0x00000000FFFF0000000000000000000000000000000000000000000000000000");
+  const target = MAX_TARGET / BigInt(Math.max(1, Math.floor(difficulty)));
+  const hex = target.toString(16).padStart(64, "0");
+  // Find first non-zero byte to determine exponent
+  let exp = 32;
+  for (let i = 0; i < 32; i++) {
+    if (parseInt(hex.slice(i * 2, i * 2 + 2), 16) !== 0) { exp = 32 - i; break; }
+  }
+  const mantissaStart = (32 - exp) * 2;
+  let mantissa = parseInt(hex.slice(mantissaStart, mantissaStart + 6), 16);
+  if (mantissa & 0x800000) { mantissa >>= 8; exp++; } // avoid sign bit
+  return ((exp & 0xff) << 24) | (mantissa & 0x7fffff);
+}
+
+// ── Build 80-byte standard Bitcoin block header ───────────────────────────────
+function buildBlockHeader(opts: {
+  version: number;
+  prevHash: string;      // display (big-endian) hex
+  merkleRootHex: string; // display (big-endian) hex
+  timestamp: number;     // Unix seconds
+  bits: number;          // compact target
+  nonce: number;
+}): Buffer {
+  const versionBuf = Buffer.alloc(4); versionBuf.writeUInt32LE(opts.version);
+  // Bitcoin stores hashes internally in reversed byte order
+  const prevBuf    = Buffer.from(opts.prevHash.padEnd(64, "0").slice(0, 64), "hex").reverse();
+  const merkleBuf  = Buffer.from(opts.merkleRootHex.padEnd(64, "0").slice(0, 64), "hex");
+  // merkleRootHex is already in internal (LE) order from buildMerkleRoot; no reverse needed
+  const timeBuf    = Buffer.alloc(4); timeBuf.writeUInt32LE(opts.timestamp);
+  const bitsBuf    = Buffer.alloc(4); bitsBuf.writeUInt32LE(opts.bits >>> 0);
+  const nonceBuf   = Buffer.alloc(4); nonceBuf.writeUInt32LE(opts.nonce >>> 0);
+  return Buffer.concat([versionBuf, prevBuf, merkleBuf, timeBuf, bitsBuf, nonceBuf]);
+}
+
+// ── Block hash in display big-endian order ────────────────────────────────────
+function hashBlockHeader(header: Buffer): string {
+  return dsha256(header).reverse().toString("hex");
+}
+
+// ── Mempool txid cache (fetched from mempool.space) ───────────────────────────
+let _mempoolTxids: Buffer[] = [];
+let _mempoolTxidCacheTime = 0;
+const MEMPOOL_TXID_TTL = 60_000; // refresh every 60s
+
+async function fetchMempoolTxids(maxTxs = 30): Promise<Buffer[]> {
+  const now = Date.now();
+  if (_mempoolTxids.length > 0 && now - _mempoolTxidCacheTime < MEMPOOL_TXID_TTL) {
+    return _mempoolTxids;
+  }
+  try {
+    const res = await fetch("https://mempool.space/api/mempool/txids", {
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) throw new Error(`mempool txids ${res.status}`);
+    const all: string[] = await res.json();
+    // Take a spread across the mempool for representativeness
+    const step = Math.max(1, Math.floor(all.length / maxTxs));
+    const selected = all.filter((_, i) => i % step === 0).slice(0, maxTxs);
+    // Convert display-order txids → internal (little-endian) byte order for Merkle
+    _mempoolTxids = selected.map(txid =>
+      Buffer.from(txid, "hex").reverse()
+    );
+    _mempoolTxidCacheTime = now;
+    console.log(`[BtcZkDaemon] Mempool txids refreshed — ${_mempoolTxids.length} txs selected from ${all.length} pending`);
+    return _mempoolTxids;
+  } catch (err: any) {
+    console.warn(`[BtcZkDaemon] Mempool txid fetch failed (${err.message}) — using cached (${_mempoolTxids.length})`);
+    return _mempoolTxids;
+  }
+}
+
+// ── Fixed extranonce1 per daemon session (identifies this miner) ──────────────
+const SESSION_EXTRANONCE1 = randomBytes(4);
 
 // ─── Monero RandomX Seed Hash ─────────────────────────────────────────────────
 
@@ -387,58 +610,115 @@ interface MiningResult {
   hashes: number;
   bestXiThisEpoch: number;
   xiPassCount: number;
+  coinbaseTxid: string;   // txid of the coinbase (hex, display order)
+  merkleRootHex: string;  // Merkle root of mined block (hex, internal order)
+  payoutAddress: string;  // BTC address paid in coinbase output
+  subsidySats: string;    // block subsidy + fees in satoshis
 }
 
+// ─── Quantum-gated Bitcoin block miner ────────────────────────────────────────
+// Novel PoW: standard BTC dsha256 block hash + Valknut Xi quantum spectral gate.
+// A candidate solution must BOTH pass the xi gate AND meet the difficulty target.
+// Per-chunk: extranonce2 rotates → new coinbase TX → new Merkle root → new header space.
+// Per-nonce: xi computed fresh (nonce folded into baseKey) for per-hash quantum gating.
 async function mineChunked(
   baseKey: Buffer,
   prevHash: string,
   zkSyncAnchor: string,
   epoch: number,
-  difficulty: number
+  blockHeight: number,
+  difficulty: number,
+  payoutAddress: string,
+  mempoolTxids: Buffer[]
 ): Promise<MiningResult> {
-  const targetBig = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff") / BigInt(difficulty);
+  // compact bits target from difficulty
+  const bits = difficultyToBits(difficulty);
+
+  // Compute numeric target from bits for hash comparison
+  const exp     = (bits >>> 24) & 0xff;
+  const mantissa = bits & 0x7fffff;
+  const targetBig = BigInt(mantissa) * (1n << BigInt(8 * (exp - 3)));
+
   let auxpowHash: string | null = null;
   let auxpowNonce: number | null = null;
   let blockFound = false;
   let hashes = 0;
   let bestXiThisEpoch = 0;
   let xiPassCount = 0;
+  let lastCoinbaseTxid = "";
+  let lastMerkleRoot = "";
+
+  const timestamp = Math.floor(Date.now() / 1000);
 
   for (let chunkStart = 0; chunkStart < NONCES_PER_EPOCH && !blockFound; chunkStart += CHUNK_SIZE) {
-    // Vary extranonce2 per chunk to explore a different merkle space
-    const extraNonce2 = randomBytes(4).toString("hex");
-    const coinbase = buildBtcCoinbaseData(epoch, zkSyncAnchor, extraNonce2);
-    const merkleRoot = createHash("sha256")
-      .update(coinbase)
-      .update(Buffer.from(extraNonce2, "hex"))
-      .digest("hex");
+    // ── New extranonce2 per chunk → new coinbase → new Merkle root → new header space
+    const extraNonce2 = randomBytes(4);
+
+    const coinbaseTx = buildCoinbaseTx({
+      blockHeight,
+      extraNonce1: SESSION_EXTRANONCE1,
+      extraNonce2,
+      zkAnchor: zkSyncAnchor,
+      epoch,
+      payoutAddress,
+    });
+
+    const coinbaseTxidBuf = computeTxid(coinbaseTx); // 32 bytes, internal LE order
+    lastCoinbaseTxid = Buffer.from(coinbaseTxidBuf).reverse().toString("hex"); // display BE
+
+    // Build Merkle tree: coinbase first, then real mempool txids
+    const allTxids = [coinbaseTxidBuf, ...mempoolTxids];
+    const merkleRootBuf = buildMerkleRoot(allTxids);
+    lastMerkleRoot = merkleRootBuf.toString("hex"); // internal order (as stored in header)
 
     for (let i = 0; i < CHUNK_SIZE && !blockFound; i++) {
       const nonce = chunkStart + i;
-      // Per-nonce Valknut xi — nonce folded into baseKey
-      const { xi, specCube, berry, qFib, dyson } = xiValknutV9(baseKey, nonce);
+
+      // ── Quantum Valknut Xi gate — per-nonce, nonce folded into baseKey
+      const { xi } = xiValknutV9(baseKey, nonce);
       const xiPassed = Math.abs(xi - 1.0) <= XI_TOLERANCE;
 
       if (xi > bestXiThisEpoch) bestXiThisEpoch = xi;
       if (xiPassed) xiPassCount++;
 
-      const header = buildAuxPowBlockHeader(prevHash, merkleRoot, Date.now(), difficulty, nonce);
-      const hash = hashBtcHeader(header);
+      // ── Standard 80-byte Bitcoin block header + dsha256
+      const header = buildBlockHeader({
+        version: 0x20000000,
+        prevHash,
+        merkleRootHex: lastMerkleRoot,
+        timestamp,
+        bits,
+        nonce,
+      });
+      const blockHash = hashBlockHeader(header); // display big-endian hex
       hashes++;
 
-      if (xiPassed && BigInt("0x" + hash) < targetBig) {
-        auxpowHash = hash;
+      // ── Quantum-gated difficulty check: xi gate MUST pass before hash target check
+      if (xiPassed && BigInt("0x" + blockHash) < targetBig) {
+        auxpowHash = blockHash;
         auxpowNonce = nonce;
         blockFound = true;
-        console.log(`[BtcZkDaemon] ⛏ AUXPOW BLOCK FOUND! epoch=${epoch} nonce=${nonce} hash=${hash.slice(0, 16)} xi=${xi.toFixed(4)}`);
+        const subsidy = btcSubsidySats(blockHeight);
+        console.log(
+          `[BtcZkDaemon] *** QUANTUM BLOCK FOUND! epoch=${epoch} nonce=${nonce} ` +
+          `hash=${blockHash.slice(0, 16)}... xi=${xi.toFixed(4)} ` +
+          `merkle=${lastMerkleRoot.slice(0, 16)}... ` +
+          `payout=${payoutAddress} subsidy=${Number(subsidy) / 1e8}BTC`
+        );
       }
     }
 
-    // Yield to event loop between chunks to avoid blocking
     await yieldToEventLoop();
   }
 
-  return { auxpowHash, auxpowNonce, blockFound, hashes, bestXiThisEpoch, xiPassCount };
+  const subsidy = btcSubsidySats(blockHeight);
+  return {
+    auxpowHash, auxpowNonce, blockFound, hashes, bestXiThisEpoch, xiPassCount,
+    coinbaseTxid: lastCoinbaseTxid,
+    merkleRootHex: lastMerkleRoot,
+    payoutAddress,
+    subsidySats: subsidy.toString(),
+  };
 }
 
 // ─── Daemon State ─────────────────────────────────────────────────────────────
@@ -501,12 +781,38 @@ async function runEpoch() {
       currentZkSyncBlock = zkSyncAnchor;
     }
 
-    // 3. Build Monero seed from real BTC header
-    const initialCoinbase = buildBtcCoinbaseData(currentEpoch, zkSyncAnchor, "00000000");
-    const seedHeader = buildAuxPowBlockHeader(prevHash, createHash("sha256").update(initialCoinbase).digest("hex"), Date.now(), 1 << 18, 0);
+    // 3. Resolve BTC payout address + fetch mempool txids in parallel
+    const btcPayoutAddress = process.env.BTC_PAYOUT_ADDRESS ?? "";
+    if (!btcPayoutAddress && currentEpoch === 1) {
+      console.warn("[BtcZkDaemon] BTC_PAYOUT_ADDRESS not set — coinbase output will use OP_RETURN burn. Set this env secret to receive block rewards.");
+    }
+
+    const [mempoolTxids] = await Promise.all([
+      fetchMempoolTxids(30),
+    ]);
+
+    // 4. Build Monero seed from a proper coinbase + block header (epoch seed)
+    const seedCoinbaseTx = buildCoinbaseTx({
+      blockHeight: btcBlock.height,
+      extraNonce1: SESSION_EXTRANONCE1,
+      extraNonce2: Buffer.alloc(4, 0),
+      zkAnchor: zkSyncAnchor,
+      epoch: currentEpoch,
+      payoutAddress: btcPayoutAddress,
+    });
+    const seedCoinbaseTxid = computeTxid(seedCoinbaseTx);
+    const seedMerkleRoot = buildMerkleRoot([seedCoinbaseTxid, ...mempoolTxids]);
+    const seedHeader = buildBlockHeader({
+      version: 0x20000000,
+      prevHash,
+      merkleRootHex: seedMerkleRoot.toString("hex"),
+      timestamp: Math.floor(Date.now() / 1000),
+      bits: difficultyToBits(1 << 18),
+      nonce: 0,
+    });
     const moneroSeedHash = buildMoneroSeedHash(seedHeader, currentEpoch);
 
-    // 4. Build base key for per-nonce Valknut evaluation
+    // 5. Build base key for per-nonce Valknut quantum evaluation
     const baseKey = Buffer.from(
       createHash("sha256")
         .update(moneroSeedHash)
@@ -515,10 +821,14 @@ async function runEpoch() {
         .digest()
     );
 
-    // 5. Chunked mining with per-nonce Valknut xi
+    // 6. Quantum-gated chunked mining — proper Merkle tree + coinbase per chunk
     const difficulty = 1 << 14;
-    const { auxpowHash, auxpowNonce, blockFound, hashes, bestXiThisEpoch, xiPassCount } =
-      await mineChunked(baseKey, prevHash, zkSyncAnchor, currentEpoch, difficulty);
+    const { auxpowHash, auxpowNonce, blockFound, hashes, bestXiThisEpoch, xiPassCount,
+            coinbaseTxid: epochCoinbaseTxid, merkleRootHex: epochMerkleRoot } =
+      await mineChunked(
+        baseKey, prevHash, zkSyncAnchor, currentEpoch, btcBlock.height,
+        difficulty, btcPayoutAddress, mempoolTxids
+      );
 
     const elapsed = (Date.now() - epochStart) / 1000;
     currentHashRate = Math.round(hashes / elapsed);
@@ -592,7 +902,7 @@ async function runEpoch() {
       xiPassed: epochXiPassed,
       btcBlockHeight,
       btcPrevHash: prevHash.slice(0, 64),
-      btcMerkleRoot: createHash("sha256").update(initialCoinbase).digest("hex"),
+      btcMerkleRoot: epochMerkleRoot.slice(0, 64),
       moneroSeedHash,
       zkSyncAnchor: zkSyncAnchor.slice(0, 64),
       auxpowHash: auxpowHash ? auxpowHash.slice(0, 64) : null,
@@ -696,7 +1006,8 @@ export function startBtcZkDaemon(): void {
   if (daemonRunning) return;
   daemonRunning = true;
   daemonStartTime = Date.now();
-  console.log("[BtcZkDaemon] Starting BTC AuxPoW ZK Miner Daemon v2 — 5000-nonce per-nonce Valknut xi + mempool feed");
+  const payoutAddr = process.env.BTC_PAYOUT_ADDRESS ?? "(not set — will use OP_RETURN)";
+  console.log(`[BtcZkDaemon] Starting BTC Quantum PoW Miner v3 — Valknut Xi gate + real Merkle tree + proper coinbase | payout: ${payoutAddr}`);
   runEpoch();
   daemonInterval = setInterval(runEpoch, 45_000);
 }
