@@ -138,5 +138,8 @@
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
+  },
+  "overrides": {
+    "bigint-buffer": "file:./patches/bigint-buffer-shim"
   }
 }
