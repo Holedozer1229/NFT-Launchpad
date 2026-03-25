@@ -1,0 +1,46 @@
+Dual Stacking Mechanics on Stacks (as of March 2026)
+Dual Stacking is a non-consensus mechanism introduced in late 2025 that enables participants to earn BTC-denominated rewards (paid in sBTC) by combining holdings of sBTC (the 1:1 Bitcoin-backed asset on Stacks) with optional STX stacking. It builds upon Stacks’ existing Proof-of-Transfer (PoX) consensus without altering Bitcoin L1 or introducing new trust assumptions. The design aligns incentives between Bitcoin holders (earning yield on BTC) and STX stackers (boosting rewards while supporting network security).
+Core Purpose and Innovation
+Dual Stacking allows Bitcoin to function as “productive capital” on Stacks while preserving self-custody and Bitcoin finality.
+	•	BTC holders mint sBTC and earn base BTC rewards.
+	•	STX stackers can pair their locked STX with sBTC to apply a multiplier (up to 10×) on those BTC rewards.
+	•	Rewards remain denominated in sBTC (redeemable 1:1 for native BTC on Bitcoin L1 at any time).
+It operates in parallel with standard STX stacking and does not change PoX mechanics.
+How Dual Stacking Works
+1. Mint sBTC (Peg-In from Bitcoin L1)
+	•	Users send native BTC to a dynamically generated peg-in address controlled by the decentralized signer set (selected from active Stackers).
+	•	Once confirmed on Bitcoin, an equivalent amount of sBTC is minted on Stacks (1:1 backing, fully auditable).
+	•	Minimum enrollment threshold is very low (e.g., 0.0001 sBTC ≈ 10,000 sats).
+2. Enroll in Dual Stacking
+	•	Users enroll via the official Dual Stacking web app (app.stacks.co) or compatible wallets (e.g., Leather, Hiro, Xverse).
+	•	sBTC holdings are tracked across cycles.
+3. Optional STX Stacking for Boost
+	•	Users lock (stack) STX for the same cycle period (~2 weeks, aligned with ~2,100 Bitcoin blocks).
+	•	The boost is calculated using a curve that rewards balanced participation rather than extreme concentration: Weight formula (simplified from the smart contract): ( w_i = \frac{B_i \cdot (1 + M \cdot \sqrt{r_i})}{n} ) where:
+	◦	( B_i ): User’s average sBTC balance across snapshots in the cycle.
+	◦	( r_i ): Ratio of stacked STX to sBTC (capped at 1 for fairness).
+	◦	( M ): Yield boost multiplier (default 9, enabling up to 10× total).
+	◦	( n ): Normalization factor across participants.
+	•	Higher STX commitment relative to sBTC increases the multiplier on BTC rewards.
+4. Reward Distribution
+	•	Rewards are calculated using periodic snapshots during each cycle.
+	•	Base rewards come from PoX BTC commitments (miners transfer BTC to Stackers).
+	•	Boosted rewards are distributed in sBTC at the end of the cycle.
+	•	Users can simultaneously deploy sBTC into Stacks DeFi protocols (e.g., Zest lending, Bitflow liquidity) while still earning Dual Stacking rewards.
+5. Peg-Out (Redeem sBTC for BTC on Bitcoin L1)
+	•	Initiate withdrawal on Stacks; signers coordinate and broadcast a BTC transaction on L1.
+	•	sBTC is burned upon confirmation; any excess fee buffer is refunded.
+Cycle Structure
+	•	Cycles last approximately 2 weeks.
+	•	Rewards are distributed periodically within the cycle via snapshots.
+	•	Stacking commitments are locked for the full cycle.
+Benefits and Use Cases
+	•	BTC Holders: Earn real BTC yield on their Bitcoin without selling or losing custody.
+	•	STX Stackers: Amplify their BTC rewards through pairing.
+	•	DeFi Composability: sBTC can be used in lending, DEX liquidity, or other protocols while Dual Stacking rewards continue.
+	•	Security: Inherits Bitcoin finality; signer set is decentralized and economically incentivized.
+	•	Reported Yields: Base rewards ~5–9% APY in BTC terms; with maximum STX boost and DeFi incentives, effective yields can reach significantly higher levels depending on participation and market conditions.
+Integration Relevance to OIYE Quantum Sentinel
+sBTC from Dual Stacking provides a Bitcoin-secured, yield-bearing inflow that can be bridged via Wormhole NTT (with optional Boundless zk-consensus for privacy) to Solana. Once on Solana, it feeds child vaults, participates in the Quantum PvP Arena for optimal APY allocation, and supports gasless operations via Kora. This creates a powerful loop: Bitcoin mining economics → Dual Stacking BTC rewards → private cross-chain transfer → autonomous OIYE yield compounding and self-replication.
+Dual Stacking represents one of the most elegant mechanisms for making Bitcoin productive while maintaining strong alignment with Bitcoin L1 security.
+If you require a step-by-step guide to participate in Dual Stacking, code examples for bridging sBTC rewards into the OIYE Factory, or updates to the Sentinel bot to monitor and route Dual Stacking inflows, please specify the next focus area.

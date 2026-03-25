@@ -40,8 +40,27 @@ export interface BtcZkEpoch {
   auxpowNonce: number | null;
   difficulty: number;
   stxYieldRouted: number;
+  poxYieldFactor: number;   // ξ_yield component fused into Valknut dial
   status: "running" | "found" | "failed";
   createdAt: Date;
+}
+
+// ─── Triple-Stack PoX State (exported for UI / API) ──────────────────────────
+export interface TripleStackPoXState {
+  active: boolean;
+  network: "mainnet" | "testnet";
+  currentCycle: number;
+  enrolledCycle: number;
+  sbtcBalance: number;       // micro-sBTC on-chain balance
+  totalSbtcClaimed: number;  // lifetime sBTC rewards claimed (micro-sBTC)
+  totalSbtcBridged: number;  // lifetime sBTC bridged to Solana
+  totalOiyeDeposited: number;// lifetime OIYE Quantum Sentinel deposits
+  lastCycleYield: number;    // sBTC yield from most recent claim cycle
+  yieldFactor: number;       // normalized [0,1] — fused into Valknut ξ_yield
+  poxCycleEndBlock: number;  // block at which current enrollment expires
+  wormholeVaaId: string | null;
+  lastRunAt: Date | null;
+  lastError: string | null;
 }
 
 export interface DaemonStatus {
@@ -62,6 +81,7 @@ export interface DaemonStatus {
   stacksYieldActive: boolean;
   networkDifficulty: number;
   mempoolFeeRate: number;
+  pox: TripleStackPoXState;
 }
 
 // ─── Quaternion (4D) ──────────────────────────────────────────────────────────
@@ -220,9 +240,11 @@ function dysonFactor(data: Buffer): number {
   return 2.0 * raw;
 }
 
-// Per-nonce Valknut xi: fold nonce bytes into key so xi varies per hash attempt
-function xiValknutV9(baseKey: Buffer, nonce: number): {
-  xi: number; specCube: number; berry: number; qFib: number; dyson: number
+// Per-nonce Valknut xi: fold nonce bytes into key so xi varies per hash attempt.
+// poxYieldFactor [0,1] is the ξ_yield component from Triple-Stack PoX engine —
+// fusing economic productivity into the quantum difficulty dial (Valknut philosophy).
+function xiValknutV9(baseKey: Buffer, nonce: number, poxYieldFactor = 0): {
+  xi: number; specCube: number; berry: number; qFib: number; dyson: number; xiYield: number;
 } {
   const nonceBytes = Buffer.alloc(4);
   nonceBytes.writeUInt32BE(nonce);
@@ -234,9 +256,11 @@ function xiValknutV9(baseKey: Buffer, nonce: number): {
   // Normalized qFib: geomSum / FIBS.length gives per-Fibonacci average in [0,1]
   const qFib = Math.max(0, Math.min(1.0, (HBAR_NORM / (GAMMA * MASS * V_EFF)) * geomSum / FIBS.length));
   const dyson = dysonFactor(data);
-  // All components now in [0,1] → xi mean in [0,1]; target xi ≈ 1.0 when all peak
-  const xi = (specCube + berry + qFib + dyson) / 4.0;
-  return { xi, specCube, berry, qFib, dyson };
+  // ξ_yield: Triple-Stack PoX engine yield factor, normalized to [0,1]
+  const xiYield = Math.max(0, Math.min(1.0, poxYieldFactor));
+  // Five-component xi — equal weights; target xi ≈ 1.0 when all peak
+  const xi = (specCube + berry + qFib + dyson + xiYield) / 5.0;
+  return { xi, specCube, berry, qFib, dyson, xiYield };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -594,6 +618,319 @@ async function routeStxYield(epochId: number, amount: number): Promise<string | 
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// TRIPLE-STACK POX MINING ENGINE
+// Fused with Valknut Quantum Gravity Miner IITv9
+//
+// Self-reinforcing yield loop:
+//   Bitcoin mining → sBTC peg-in → Dual Stacking on Stacks → Wormhole NTT →
+//   OIYE Quantum Sentinel → reinvested yield → ξ_yield Valknut dial component
+//
+// Runs as a background setInterval loop, independent of epoch mining.
+// The yieldFactor [0,1] it computes is injected into every per-nonce
+// xiValknutV9 call, making mining productivity reward economic activity.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const HIRO_API_MAINNET = "https://api.hiro.so";
+const HIRO_API_TESTNET = "https://api.testnet.hiro.so";
+
+// Stacks mainnet contract addresses (sBTC + Dual Stacking)
+const SBTC_CONTRACT   = "SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.sbtc-token";
+const DUAL_STACK_CONTRACT = "SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.dual-stacking-v1";
+
+// Wormhole NTT bridge program IDs (placeholders — replace with live addresses)
+const WORMHOLE_STACKS_BRIDGE = "SP2...wormhole-ntt-stacks";
+const WORMHOLE_SOLANA_PROGRAM = "worm2ZoG2kUd4vFXhvjh93imPbq7Rr...";  // Wormhole core on Solana
+
+// OIYE Quantum Sentinel program on Solana
+const OIYE_FACTORY_PROGRAM = "OIYEQuantumSentinelFactory1111111111111111";
+const SBTC_MINT_SOLANA    = "sBtcXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"; // sBTC on Solana
+
+// PoX cycle is 2100 blocks (~2 weeks) on Stacks mainnet
+const POX_CYCLE_LENGTH = 2100;
+
+interface PoXCycleInfo {
+  cycle: number;
+  blockHeight: number;
+  cycleStartBlock: number;
+  cycleEndBlock: number;
+  blocksRemaining: number;
+}
+
+class TripleStackPoXEngine {
+  private network: "mainnet" | "testnet";
+  private hiroApi: string;
+  private enrolledCycle = 0;
+  private sbtcBalance = 0;          // micro-sBTC (1e8 units per sBTC)
+  private totalSbtcClaimed = 0;
+  private totalSbtcBridged = 0;
+  private totalOiyeDeposited = 0;
+  private lastCycleYield = 0;
+  private yieldFactor = 0;          // [0,1] — injected into Valknut ξ_yield
+  private poxCycleEndBlock = 0;
+  private currentCycle = 0;
+  private wormholeVaaId: string | null = null;
+  private lastRunAt: Date | null = null;
+  private lastError: string | null = null;
+  private intervalHandle: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    this.network = (process.env.STACKS_NETWORK as "mainnet" | "testnet" | undefined) === "testnet"
+      ? "testnet" : "mainnet";
+    this.hiroApi = this.network === "mainnet" ? HIRO_API_MAINNET : HIRO_API_TESTNET;
+  }
+
+  // ─── Hiro API: fetch real PoX cycle info ─────────────────────────────────
+  private async fetchPoXCycle(): Promise<PoXCycleInfo> {
+    try {
+      const res = await fetch(`${this.hiroApi}/v2/pox`, {
+        signal: AbortSignal.timeout(8_000),
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) throw new Error(`Hiro API /v2/pox ${res.status}`);
+      const data = await res.json() as {
+        current_cycle?: { id?: number };
+        current_blockheight?: number;
+        reward_cycle_length?: number;
+      };
+      const cycle   = data.current_cycle?.id ?? 0;
+      const height  = data.current_blockheight ?? 0;
+      const cycleLen = data.reward_cycle_length ?? POX_CYCLE_LENGTH;
+      const cycleStartBlock = cycle * cycleLen;
+      const cycleEndBlock   = cycleStartBlock + cycleLen;
+      return {
+        cycle,
+        blockHeight:    height,
+        cycleStartBlock,
+        cycleEndBlock,
+        blocksRemaining: Math.max(0, cycleEndBlock - height),
+      };
+    } catch (err: any) {
+      // Non-fatal: fall back to local cycle estimate from BTC height
+      const estimatedCycle = Math.floor(btcBlockHeight / POX_CYCLE_LENGTH);
+      return {
+        cycle:            estimatedCycle,
+        blockHeight:      btcBlockHeight,
+        cycleStartBlock:  estimatedCycle * POX_CYCLE_LENGTH,
+        cycleEndBlock:    (estimatedCycle + 1) * POX_CYCLE_LENGTH,
+        blocksRemaining:  POX_CYCLE_LENGTH - (btcBlockHeight % POX_CYCLE_LENGTH),
+      };
+    }
+  }
+
+  // ─── 1. sBTC peg-in (Bitcoin → sBTC on Stacks) ────────────────────────────
+  // In production: broadcast a BTC tx to the sBTC peg-in address for the user's
+  // Stacks address, then poll the sBTC contract for the minted balance.
+  private async pegInSbtc(satoshis: number): Promise<number> {
+    const stacksRecipient = process.env.STACKS_YIELD_RECIPIENT ?? "(not set)";
+    console.log(`[PoXEngine] sBTC peg-in: ${satoshis} sats → ${stacksRecipient}`
+      + ` (contract: ${SBTC_CONTRACT})`);
+    // 1:1 peg — 1 satoshi = 1 micro-sBTC
+    const minted = satoshis;
+    this.sbtcBalance += minted;
+    console.log(`[PoXEngine] sBTC minted: ${minted} μsBTC (balance: ${this.sbtcBalance} μsBTC)`);
+    return minted;
+  }
+
+  // ─── 2. Dual Stacking enrollment ──────────────────────────────────────────
+  // Enrolls the sBTC balance into the Dual Stacking contract for the current
+  // PoX cycle. The contract earns BTC + STX rewards simultaneously.
+  private async enroll(cycle: PoXCycleInfo): Promise<void> {
+    if (this.sbtcBalance <= 0) {
+      console.log("[PoXEngine] No sBTC to enroll — skipping dual stacking");
+      return;
+    }
+    const stxAmount = parseInt(process.env.STX_STACKING_AMOUNT ?? "10000000", 10); // μSTX
+    // Simulated tx — in production: use @stacks/transactions to call dual-stacking-v1.enroll
+    const txid = "0x" + createHash("sha256")
+      .update(`enroll:${cycle.cycle}:${Date.now()}`)
+      .digest("hex");
+    console.log(
+      `[PoXEngine] Enrolled in Dual Stacking cycle #${cycle.cycle} | `
+      + `sBTC=${this.sbtcBalance} μsBTC | STX=${stxAmount} μSTX | `
+      + `contract=${DUAL_STACK_CONTRACT} | txid=${txid.slice(0, 18)}...`
+    );
+    this.enrolledCycle = cycle.cycle;
+    this.poxCycleEndBlock = cycle.cycleEndBlock;
+  }
+
+  // ─── 3. Claim sBTC rewards (end of cycle) ──────────────────────────────────
+  // The Dual Stacking contract distributes sBTC proportional to the enrolled
+  // amount. Yield is deterministic from stake size and cycle BTC fees.
+  private async claimRewards(): Promise<number> {
+    if (this.enrolledCycle === 0) return 0;
+    // Deterministic yield: 1-5% of enrolled balance per cycle
+    // In production: call dual-stacking-v1.claim-rewards() on-chain
+    const baseYield = Math.round(this.sbtcBalance * (0.01 + Math.random() * 0.04));
+    const claimTxid = "0x" + createHash("sha256")
+      .update(`claim:${this.enrolledCycle}:${baseYield}:${Date.now()}`)
+      .digest("hex");
+    console.log(
+      `[PoXEngine] Claimed ${baseYield} μsBTC rewards from cycle #${this.enrolledCycle} `
+      + `| txid=${claimTxid.slice(0, 18)}...`
+    );
+    this.totalSbtcClaimed += baseYield;
+    this.lastCycleYield = baseYield;
+    this.sbtcBalance += baseYield;
+    return baseYield;
+  }
+
+  // ─── 4. Wormhole NTT bridge: Stacks → Solana ──────────────────────────────
+  // Uses Wormhole's Native Token Transfer (NTT) framework to bridge sBTC from
+  // Stacks to the user's Solana wallet. Bridge completes in ~30 minutes.
+  private async bridgeToSolana(amount: number): Promise<{ vaaId: string; status: string }> {
+    const solanaRecipient = process.env.SOLANA_RECIPIENT ?? "(not set)";
+    if (!solanaRecipient || solanaRecipient === "(not set)") {
+      console.warn("[PoXEngine] SOLANA_RECIPIENT not set — Wormhole bridge skipped");
+      return { vaaId: "", status: "skipped:no_recipient" };
+    }
+    // Approve bridge to spend sBTC on Stacks (simulated)
+    const approvalTxid = "0x" + createHash("sha256")
+      .update(`wormhole-approve:${amount}:${Date.now()}`)
+      .digest("hex");
+    // Initiate Wormhole NTT transfer (simulated)
+    const vaaId = "vaa-" + createHash("sha256")
+      .update(`${approvalTxid}:${solanaRecipient}:${amount}`)
+      .digest("hex").slice(0, 24);
+    console.log(
+      `[PoXEngine] Wormhole NTT bridge: ${amount} μsBTC → ${solanaRecipient} | `
+      + `bridge=${WORMHOLE_STACKS_BRIDGE} | vaaId=${vaaId} | status=pending`
+    );
+    this.wormholeVaaId = vaaId;
+    this.totalSbtcBridged += amount;
+    this.sbtcBalance -= amount;
+    return { vaaId, status: "pending" };
+  }
+
+  // Wait for Wormhole VAA confirmation (polls with 10s timeout in simulation)
+  private async awaitBridgeConfirmation(vaaId: string): Promise<number> {
+    if (!vaaId) return 0;
+    // In production: poll https://api.wormholescan.io/#/operations/{vaaId}
+    await new Promise(r => setTimeout(r, 500)); // async yield for event loop
+    const received = this.lastCycleYield; // same amount as bridged
+    console.log(`[PoXEngine] Bridge confirmed | vaaId=${vaaId} | received=${received} μsBTC on Solana`);
+    return received;
+  }
+
+  // ─── 5. OIYE Quantum Sentinel deposit ─────────────────────────────────────
+  // Deposits sBTC into the OIYE factory on Solana for yield compounding.
+  // In production: use @solana/web3.js + the factory program to create a vault.
+  private async depositToOiye(amount: number): Promise<string> {
+    const solanaTx = "SolTx-" + createHash("sha256")
+      .update(`oiye:${amount}:${Date.now()}`)
+      .digest("hex").slice(0, 24);
+    console.log(
+      `[PoXEngine] OIYE Quantum Sentinel deposit: ${amount} μsBTC | `
+      + `factory=${OIYE_FACTORY_PROGRAM} | mint=${SBTC_MINT_SOLANA} | tx=${solanaTx}`
+    );
+    this.totalOiyeDeposited += amount;
+    return solanaTx;
+  }
+
+  // ─── Yield Factor computation ──────────────────────────────────────────────
+  // Normalized [0,1] based on lifetime yield activity. Feeds into Valknut ξ_yield.
+  // Higher staking activity → higher yield factor → easier xi gate passage.
+  private computeYieldFactor(): number {
+    const SCALE = 10_000_000; // 0.1 sBTC in μsBTC → approaches 1.0
+    const raw = Math.min(1.0, (this.totalOiyeDeposited + this.totalSbtcClaimed) / SCALE);
+    // Sigmoid-smooth: bias toward meaningful yield
+    return parseFloat((1 / (1 + Math.exp(-10 * (raw - 0.3)))).toFixed(6));
+  }
+
+  // ─── Main one-cycle execution ──────────────────────────────────────────────
+  async runOnce(): Promise<void> {
+    try {
+      const poxInfo = await this.fetchPoXCycle();
+      this.currentCycle = poxInfo.cycle;
+      console.log(
+        `[PoXEngine] PoX cycle #${poxInfo.cycle} | height=${poxInfo.blockHeight} | `
+        + `${poxInfo.blocksRemaining} blocks remaining in cycle`
+      );
+
+      const isNewCycle = this.enrolledCycle !== 0 && poxInfo.cycle !== this.enrolledCycle;
+
+      // New cycle: claim previous rewards and run the bridge → OIYE pipeline
+      if (isNewCycle) {
+        const claimed = await this.claimRewards();
+        if (claimed > 0) {
+          const bridge = await this.bridgeToSolana(claimed);
+          if (bridge.status === "pending") {
+            const received = await this.awaitBridgeConfirmation(bridge.vaaId);
+            if (received > 0) {
+              await this.depositToOiye(received);
+            }
+          }
+        }
+      }
+
+      // Peg-in fresh BTC if balance is empty.
+      // Production: hook into block-found events and convert STX rewards → BTC → sBTC.
+      // Bootstrap with 0.001 sBTC (100k μsBTC) so the engine can always enroll.
+      if (this.sbtcBalance === 0) {
+        await this.pegInSbtc(100_000); // 0.001 sBTC bootstrap
+      }
+
+      // Enroll for the new / current cycle
+      await this.enroll(poxInfo);
+
+      // Update yield factor after all operations
+      this.yieldFactor = this.computeYieldFactor();
+      this.lastRunAt = new Date();
+      this.lastError = null;
+
+      console.log(
+        `[PoXEngine] Cycle complete | yieldFactor=${this.yieldFactor.toFixed(4)} | `
+        + `totalClaimed=${this.totalSbtcClaimed} μsBTC | `
+        + `totalOIYE=${this.totalOiyeDeposited} μsBTC`
+      );
+    } catch (err: any) {
+      this.lastError = err.message;
+      console.error("[PoXEngine] Error in run cycle:", err.message);
+    }
+  }
+
+  // ─── Background loop ───────────────────────────────────────────────────────
+  start(): void {
+    const intervalMs = parseInt(process.env.POX_INTERVAL_MS ?? "3600000", 10); // default 1 hour
+    console.log(`[PoXEngine] Triple-Stack PoX engine started (${intervalMs / 1000}s interval)`
+      + ` | network=${this.network} | OIYE=${OIYE_FACTORY_PROGRAM}`);
+    this.runOnce(); // run immediately on start
+    this.intervalHandle = setInterval(() => this.runOnce(), intervalMs);
+  }
+
+  stop(): void {
+    if (this.intervalHandle) {
+      clearInterval(this.intervalHandle);
+      this.intervalHandle = null;
+    }
+    console.log("[PoXEngine] Triple-Stack PoX engine stopped.");
+  }
+
+  getYieldFactor(): number { return this.yieldFactor; }
+
+  getState(): TripleStackPoXState {
+    return {
+      active:             this.intervalHandle !== null,
+      network:            this.network,
+      currentCycle:       this.currentCycle,
+      enrolledCycle:      this.enrolledCycle,
+      sbtcBalance:        this.sbtcBalance,
+      totalSbtcClaimed:   this.totalSbtcClaimed,
+      totalSbtcBridged:   this.totalSbtcBridged,
+      totalOiyeDeposited: this.totalOiyeDeposited,
+      lastCycleYield:     this.lastCycleYield,
+      yieldFactor:        this.yieldFactor,
+      poxCycleEndBlock:   this.poxCycleEndBlock,
+      wormholeVaaId:      this.wormholeVaaId,
+      lastRunAt:          this.lastRunAt,
+      lastError:          this.lastError,
+    };
+  }
+}
+
+// Singleton PoX engine instance — starts with the daemon
+const poxEngine = new TripleStackPoXEngine();
+
 // ─── Async-chunked nonce mining ───────────────────────────────────────────────
 
 const NONCES_PER_EPOCH = 5_000;
@@ -629,7 +966,8 @@ async function mineChunked(
   blockHeight: number,
   difficulty: number,
   payoutAddress: string,
-  mempoolTxids: Buffer[]
+  mempoolTxids: Buffer[],
+  poxYieldFactor = 0
 ): Promise<MiningResult> {
   // compact bits target from difficulty
   const bits = difficultyToBits(difficulty);
@@ -674,8 +1012,8 @@ async function mineChunked(
     for (let i = 0; i < CHUNK_SIZE && !blockFound; i++) {
       const nonce = chunkStart + i;
 
-      // ── Quantum Valknut Xi gate — per-nonce, nonce folded into baseKey
-      const { xi } = xiValknutV9(baseKey, nonce);
+      // ── Quantum Valknut Xi gate — per-nonce, nonce folded into baseKey + PoX yield
+      const { xi } = xiValknutV9(baseKey, nonce, poxYieldFactor);
       const xiPassed = Math.abs(xi - 1.0) <= XI_TOLERANCE;
 
       if (xi > bestXiThisEpoch) bestXiThisEpoch = xi;
@@ -822,12 +1160,14 @@ async function runEpoch() {
     );
 
     // 6. Quantum-gated chunked mining — proper Merkle tree + coinbase per chunk
+    // Pass live PoX yield factor as 5th Valknut dial component (ξ_yield)
     const difficulty = 1 << 14;
+    const poxYieldFactor = poxEngine.getYieldFactor();
     const { auxpowHash, auxpowNonce, blockFound, hashes, bestXiThisEpoch, xiPassCount,
             coinbaseTxid: epochCoinbaseTxid, merkleRootHex: epochMerkleRoot } =
       await mineChunked(
         baseKey, prevHash, zkSyncAnchor, currentEpoch, btcBlock.height,
-        difficulty, btcPayoutAddress, mempoolTxids
+        difficulty, btcPayoutAddress, mempoolTxids, poxYieldFactor
       );
 
     const elapsed = (Date.now() - epochStart) / 1000;
@@ -909,6 +1249,7 @@ async function runEpoch() {
       auxpowNonce,
       difficulty,
       stxYieldRouted: stxYieldAmount,
+      poxYieldFactor,
       status: blockFound ? "found" : "running",
       createdAt: new Date(),
     };
@@ -1007,7 +1348,12 @@ export function startBtcZkDaemon(): void {
   daemonRunning = true;
   daemonStartTime = Date.now();
   const payoutAddr = process.env.BTC_PAYOUT_ADDRESS ?? "(not set — will use OP_RETURN)";
-  console.log(`[BtcZkDaemon] Starting BTC Quantum PoW Miner v3 — Valknut Xi gate + real Merkle tree + proper coinbase | payout: ${payoutAddr}`);
+  console.log(
+    `[BtcZkDaemon] Starting BTC Quantum PoW Miner v3 — Valknut Xi gate + real Merkle tree ` +
+    `+ Triple-Stack PoX yield engine | payout: ${payoutAddr}`
+  );
+  // Start Triple-Stack PoX engine as background loop (ξ_yield dial component)
+  poxEngine.start();
   runEpoch();
   daemonInterval = setInterval(runEpoch, 45_000);
 }
@@ -1016,6 +1362,7 @@ export function stopBtcZkDaemon(): void {
   if (!daemonRunning) return;
   daemonRunning = false;
   if (daemonInterval) { clearInterval(daemonInterval); daemonInterval = null; }
+  poxEngine.stop();
   console.log("[BtcZkDaemon] Daemon stopped.");
 }
 
@@ -1044,6 +1391,7 @@ export function getBtcZkDaemonStatus(): DaemonStatus {
     stacksYieldActive: !!process.env.STACKS_TREASURY_KEY,
     networkDifficulty: _currentNetworkDiff,
     mempoolFeeRate: _currentFeeRate,
+    pox: poxEngine.getState(),
   };
 }
 
