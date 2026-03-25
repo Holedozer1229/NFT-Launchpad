@@ -21,6 +21,19 @@ const AAVE_V3_POOL = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
 const WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 const AWETH_ADDRESS = "0x4d5F47FA6A74756f5Bc1Ce69C2A86E93B74bB12F";
 
+// Rate-limit identical Aave error logs to once per 10 minutes
+const AAVE_ERR_INTERVAL_MS = 10 * 60_000;
+let _lastAaveErrLogAt = 0;
+let _lastAaveErrMsg = "";
+function logAaveWarn(msg: string) {
+  const now = Date.now();
+  if (msg !== _lastAaveErrMsg || now - _lastAaveErrLogAt > AAVE_ERR_INTERVAL_MS) {
+    console.warn("[Aave]", msg);
+    _lastAaveErrLogAt = now;
+    _lastAaveErrMsg = msg;
+  }
+}
+
 const WETH_ABI = [
   {
     name: "deposit",
@@ -157,7 +170,7 @@ export async function getAaveApr(): Promise<number> {
     const aprFloat = Number(liquidityRate * 10000n / RAY) / 100;
     return Math.max(0, aprFloat);
   } catch (err: any) {
-    console.warn("[Aave] getAaveApr failed:", err?.message?.slice(0, 80));
+    logAaveWarn(`getAaveApr failed: ${err?.message?.slice(0, 80)}`);
     return state.currentApr || 3.5;
   }
 }
@@ -180,7 +193,7 @@ export async function getAavePosition(treasuryAddress: string): Promise<{ aToken
     const yieldEarned = aTokenBalance > state.depositedEth ? aTokenBalance - state.depositedEth : state.yieldEarned;
     return { aTokenBalance, depositedEth: state.depositedEth, yieldEarned, currentApr: apr };
   } catch (err: any) {
-    console.warn("[Aave] getAavePosition failed:", err?.message?.slice(0, 80));
+    logAaveWarn(`getAavePosition failed: ${err?.message?.slice(0, 80)}`);
     return { aTokenBalance: state.aTokenBalance, depositedEth: state.depositedEth, yieldEarned: state.yieldEarned, currentApr: state.currentApr };
   }
 }

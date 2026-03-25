@@ -11,6 +11,7 @@ import SidebarLayout from "@/components/SidebarLayout";
 import AuthPage from "@/pages/AuthPage";
 import PageTransition from "@/components/PageTransition";
 import OfflineBanner from "@/components/OfflineBanner";
+import { WsStatusBanner } from "@/components/WsStatusBanner";
 import { Loader2, ShieldAlert } from "lucide-react";
 
 const MintNFT = lazy(() => import("@/pages/MintNFT"));
@@ -171,6 +172,7 @@ function App() {
           <ProtocolProvider>
             <TooltipProvider>
               <OfflineBanner />
+              <WsStatusBanner />
               <Toaster />
               <AppRouter />
             </TooltipProvider>

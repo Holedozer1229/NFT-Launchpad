@@ -950,6 +950,61 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* ── Uniswap V3 Pool Setup Guide ────────────────────────────────────── */}
+      <div className="cosmic-card p-5" data-testid="card-uniswap-guide">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-neon-violet" />
+            <h3 className="font-heading text-sm font-semibold text-foreground">List SKYNT on Uniswap V3</h3>
+            <Badge variant="outline" className="text-[10px] border-neon-violet/30 text-neon-violet no-default-hover-elevate">
+              Not Listed
+            </Badge>
+          </div>
+          <a
+            href="https://app.uniswap.org/add/ETH/0x22d3f06afB69e5FCFAa98C20009510dD11aF2517/3000"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="link-uniswap-pool"
+          >
+            <Button size="sm" variant="outline" className="border-neon-violet/30 text-neon-violet text-xs gap-1.5">
+              <ArrowUpRight className="w-3.5 h-3.5" /> Open Uniswap
+            </Button>
+          </a>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          {[
+            { label: "SKYNT Token", value: "0x22d3f0…aF2517", color: "text-neon-cyan", testId: "skynt-address" },
+            { label: "Pair With", value: "WETH (Ethereum)", color: "text-neon-green", testId: "pair-token" },
+            { label: "Fee Tier", value: "0.3% (Standard)", color: "text-neon-orange", testId: "fee-tier" },
+            { label: "Network", value: "Ethereum Mainnet", color: "text-foreground", testId: "network" },
+          ].map(({ label, value, color, testId }) => (
+            <div key={label} className="bg-black/30 border border-white/5 rounded p-2.5">
+              <p className="stat-label mb-0.5">{label}</p>
+              <p className={`font-mono text-xs font-semibold ${color}`} data-testid={`uniswap-${testId}`}>{value}</p>
+            </div>
+          ))}
+        </div>
+        <ol className="text-[10px] text-muted-foreground font-mono space-y-1 list-none">
+          {[
+            "Go to app.uniswap.org → Pool → New Position",
+            "Select token: paste SKYNT address 0x22d3f06afB69e5FCFAa98C20009510dD11aF2517",
+            "Select paired token: WETH · Fee tier: 0.3%",
+            "Set initial price range and deposit ratio (e.g. full range for maximum liquidity)",
+            "Approve SKYNT + ETH spend, then confirm Add Liquidity",
+            "Copy the pool address and share it — pool is now live on-chain",
+          ].map((step, i) => (
+            <li key={i} className="flex items-start gap-2">
+              <span className="text-neon-violet shrink-0 font-bold">{i + 1}.</span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="text-[10px] text-muted-foreground/60 font-mono mt-3">
+          Full SKYNT contract: <code className="text-neon-cyan">0x22d3f06afB69e5FCFAa98C20009510dD11aF2517</code>
+          {" "}· Treasury: <code className="text-neon-orange">0xD55dDb0f19DAc37cDb3c5c50d8A89EB177ecc6e0</code>
+        </p>
+      </div>
+
       <div className="cosmic-card p-5" data-testid="table-miners">
         <h3 className="stat-label mb-4">Active Miners</h3>
         <div className="overflow-x-auto -mx-2 px-2">

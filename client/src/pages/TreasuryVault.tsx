@@ -348,6 +348,108 @@ export default function TreasuryVault() {
         </div>
       </div>
 
+      {/* ── Fund Treasury Panel ──────────────────────────────────────────────── */}
+      <Card className="bg-card/60 border-border/50" data-testid="card-fund-treasury">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Fuel className="w-4 h-4 text-orange-400" /> Fund Treasury
+            {walletInfo?.gasStatus && (
+              <Badge
+                variant="outline"
+                className={`ml-auto text-[10px] ${
+                  walletInfo.gasStatus.isHealthy
+                    ? "border-emerald-500/30 text-emerald-400"
+                    : walletInfo.gasStatus.isCritical
+                    ? "border-red-500/30 text-red-400"
+                    : "border-yellow-500/30 text-yellow-400"
+                }`}
+              >
+                {walletInfo.gasStatus.isHealthy ? "Healthy" : walletInfo.gasStatus.isCritical ? "Critical" : "Low"}
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription className="text-[10px]">
+            Send ETH to the treasury address to enable buybacks, gasless relay, and protocol operations
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* Address + copy */}
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono mb-1.5">Treasury Address</p>
+              <div className="flex items-center gap-2 bg-black/40 border border-border/30 rounded-lg px-3 py-2.5">
+                <code className="text-xs text-orange-400 font-mono truncate flex-1" data-testid="text-treasury-address">
+                  {treasuryAddress}
+                </code>
+                <button
+                  onClick={() => copyToClipboard(treasuryAddress)}
+                  className="text-muted-foreground hover:text-orange-400 transition-colors shrink-0"
+                  data-testid="button-copy-treasury"
+                  title="Copy treasury address"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex items-center gap-3 mt-2">
+                <a
+                  href={`https://etherscan.io/address/${treasuryAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-muted-foreground hover:text-orange-400 flex items-center gap-1 transition-colors"
+                  data-testid="link-etherscan-treasury"
+                >
+                  <ExternalLink className="w-3 h-3" /> View on Etherscan
+                </a>
+                <span className="text-[10px] text-muted-foreground">·</span>
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  Balance:{" "}
+                  <span className={`font-bold ${
+                    (walletInfo?.gasStatus?.ethBalanceFloat ?? 0) >= 0.01
+                      ? "text-emerald-400"
+                      : (walletInfo?.gasStatus?.ethBalanceFloat ?? 0) >= 0.001
+                      ? "text-yellow-400"
+                      : "text-red-400"
+                  }`} data-testid="text-eth-balance">
+                    {walletInfo?.gasStatus?.ethBalance ?? "0.000000"} ETH
+                  </span>
+                </span>
+              </div>
+            </div>
+            {/* ETH tier table */}
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono mb-1.5">Recommended Funding Tiers</p>
+              <div className="space-y-1.5">
+                {[
+                  { amount: "0.001 ETH", label: "Minimum — enables token buybacks", color: "text-yellow-400", threshold: 0.001 },
+                  { amount: "0.005 ETH", label: "Standard — activates gasless relay", color: "text-orange-400", threshold: 0.005 },
+                  { amount: "0.01 ETH",  label: "Healthy — full protocol operation", color: "text-emerald-400", threshold: 0.01 },
+                ].map(({ amount, label, color, threshold }) => {
+                  const balance = walletInfo?.gasStatus?.ethBalanceFloat ?? 0;
+                  const met = balance >= threshold;
+                  return (
+                    <div
+                      key={amount}
+                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded border text-[10px] font-mono ${
+                        met
+                          ? "bg-emerald-500/10 border-emerald-500/20"
+                          : "bg-muted/20 border-border/30"
+                      }`}
+                      data-testid={`tier-${amount.replace(/\s/g, "")}`}
+                    >
+                      {met
+                        ? <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                        : <AlertCircle className="w-3 h-3 text-muted-foreground shrink-0" />}
+                      <span className={`font-bold ${color}`}>{amount}</span>
+                      <span className="text-muted-foreground">{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid md:grid-cols-3 gap-6">
         <Card className="cosmic-card cosmic-card-cyan border-none" data-testid="card-treasury-status">
           <CardHeader className="pb-2">

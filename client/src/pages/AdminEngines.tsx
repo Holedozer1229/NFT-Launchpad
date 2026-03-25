@@ -229,9 +229,16 @@ export default function AdminEngines() {
   const rows = settingsData?.rows ?? [];
   const engines = statusData?.engines ?? [];
 
-  const runningCount = engines.filter(e => e.running).length;
-  const totalCount   = engines.length;
-  const totalErrors  = engines.reduce((s, e) => s + e.errorCount, 0);
+  const runningCount  = engines.filter(e => e.running).length;
+  const totalCount    = engines.length;
+  const totalErrors   = engines.reduce((s, e) => s + e.errorCount, 0);
+  const STALE_MS      = 5 * 60_000; // 5 minutes
+  const now           = Date.now();
+  const staleEngines  = engines.filter(e => e.running && e.lastActivity !== null && (now - e.lastActivity) > STALE_MS);
+  const criticalCount = engines.filter(e => !e.running).length;
+  const healthPct     = totalCount > 0
+    ? Math.round(((runningCount - staleEngines.length * 0.5) / totalCount) * 100)
+    : 0;
 
   return (
     <div className="min-h-screen p-6 space-y-8 max-w-5xl mx-auto">
@@ -278,6 +285,67 @@ export default function AdminEngines() {
           </Button>
         </div>
       </div>
+
+      {/* ── System Health Summary ──────────────────────────────────────────── */}
+      {!statusLoading && engines.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            {
+              label: "System Health",
+              value: `${Math.max(0, healthPct)}%`,
+              color: healthPct >= 80 ? "text-emerald-400" : healthPct >= 50 ? "text-yellow-400" : "text-red-400",
+              bg: healthPct >= 80 ? "bg-emerald-500/10 border-emerald-500/20" : healthPct >= 50 ? "bg-yellow-500/10 border-yellow-500/20" : "bg-red-500/10 border-red-500/20",
+              testId: "health-pct",
+            },
+            {
+              label: "Running",
+              value: `${runningCount} / ${totalCount}`,
+              color: runningCount === totalCount ? "text-emerald-400" : "text-yellow-400",
+              bg: "bg-card/40 border-border/30",
+              testId: "running-count",
+            },
+            {
+              label: "Stale (>5 min)",
+              value: staleEngines.length === 0 ? "None" : `${staleEngines.length} engine${staleEngines.length !== 1 ? "s" : ""}`,
+              color: staleEngines.length === 0 ? "text-emerald-400" : "text-yellow-400",
+              bg: staleEngines.length > 0 ? "bg-yellow-500/10 border-yellow-500/20" : "bg-card/40 border-border/30",
+              testId: "stale-count",
+            },
+            {
+              label: "Total Errors",
+              value: totalErrors === 0 ? "None" : `${totalErrors}`,
+              color: totalErrors === 0 ? "text-emerald-400" : "text-red-400",
+              bg: totalErrors > 0 ? "bg-red-500/10 border-red-500/20" : "bg-card/40 border-border/30",
+              testId: "total-errors",
+            },
+          ].map(({ label, value, color, bg, testId }) => (
+            <div key={label} className={`rounded-lg p-3 border ${bg}`} data-testid={testId}>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono mb-1">{label}</p>
+              <p className={`font-mono text-sm font-bold ${color}`}>{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Critical alert banner */}
+      {!statusLoading && criticalCount >= 2 && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-mono" data-testid="critical-banner">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>
+            <strong>{criticalCount} engines stopped</strong> — protocol is partially degraded. Restart stopped engines to restore full operation.
+          </span>
+        </div>
+      )}
+
+      {/* Stale detection notice */}
+      {!statusLoading && staleEngines.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-xs font-mono" data-testid="stale-banner">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+          <span>
+            {staleEngines.map(e => e.label).join(", ")} {staleEngines.length === 1 ? "appears" : "appear"} stale — running but no activity in the last 5 minutes.
+          </span>
+        </div>
+      )}
 
       {/* Live Engine Status Grid */}
       <div>

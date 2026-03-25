@@ -12,8 +12,12 @@ import {
   CircleDot, Hash, ArrowUpRight, Network, Atom, TrendingUp, Clock,
   Shield, ChevronRight, Wifi, WifiOff, AlertCircle, CheckCircle2,
   Fuel, Waves, KeyRound, Database, RefreshCw, Flame, Vault,
-  GitMerge, ArrowRight, Bitcoin, Repeat2, Link2
+  GitMerge, ArrowRight, Bitcoin, Repeat2, Link2, Timer
 } from "lucide-react";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartTooltip,
+  ResponsiveContainer, ReferenceLine, Legend
+} from "recharts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,9 +31,13 @@ interface TripleStackPoXState {
   totalSbtcBridged: number;
   totalOiyeDeposited: number;
   totalStxConvertedToSbtc: number;
+  miningEpochCount: number;
+  liveStxBtcRate: number;
   lastCycleYield: number;
   yieldFactor: number;
   poxCycleEndBlock: number;
+  blocksRemaining: number;
+  blocksRemainingHours: number;
   wormholeVaaId: string | null;
   lastRunAt: string | null;
   lastError: string | null;
@@ -81,6 +89,7 @@ interface EpochData {
   auxpowNonce: number | null;
   difficulty: number;
   stxYieldRouted: number;
+  poxYieldFactor?: number;
   status: "running" | "found" | "failed";
   createdAt: string;
 }
@@ -652,11 +661,50 @@ export default function BtcZkDaemon() {
             </div>
           )}
 
-          {/* Cycle block info */}
+          {/* Cycle metadata: countdown + live rate */}
+          <div className="mt-3 grid sm:grid-cols-3 gap-3">
+            {(pox?.blocksRemaining ?? 0) > 0 && (
+              <div className="bg-muted/20 rounded-lg p-2.5 flex items-center gap-2">
+                <Timer className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Cycle Ends In</p>
+                  <p className="font-mono text-xs font-bold text-violet-400" data-testid="pox-blocks-remaining">
+                    {pox!.blocksRemaining.toLocaleString()} blocks
+                    {" "}·{" "}
+                    {pox!.blocksRemainingHours >= 24
+                      ? `${Math.floor(pox!.blocksRemainingHours / 24)}d ${Math.round(pox!.blocksRemainingHours % 24)}h`
+                      : `${pox!.blocksRemainingHours}h`}
+                  </p>
+                </div>
+              </div>
+            )}
+            {(pox?.liveStxBtcRate ?? 0) > 0 && (
+              <div className="bg-muted/20 rounded-lg p-2.5 flex items-center gap-2">
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Live STX Rate</p>
+                  <p className="font-mono text-xs font-bold text-emerald-400" data-testid="pox-live-rate">
+                    {(pox!.liveStxBtcRate).toFixed(0)} μsBTC/STX
+                  </p>
+                </div>
+              </div>
+            )}
+            {(pox?.miningEpochCount ?? 0) > 0 && (
+              <div className="bg-muted/20 rounded-lg p-2.5 flex items-center gap-2">
+                <Repeat2 className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Mining Epochs</p>
+                  <p className="font-mono text-xs font-bold text-orange-400" data-testid="pox-epoch-count">
+                    {pox!.miningEpochCount} recycled
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
           {(pox?.poxCycleEndBlock ?? 0) > 0 && (
             <p className="text-[10px] text-muted-foreground font-mono mt-2">
               Enrollment expires at block #{pox!.poxCycleEndBlock.toLocaleString()}
-              {pox?.lastRunAt && <> · Last run: {new Date(pox.lastRunAt).toLocaleTimeString()}</>}
+              {pox?.lastRunAt && <> · Last PoX run: {new Date(pox.lastRunAt).toLocaleTimeString()}</>}
             </p>
           )}
         </CardContent>
@@ -766,6 +814,45 @@ export default function BtcZkDaemon() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Xi + ξ_yield Trend Chart ──────────────────────────────────────── */}
+      {epochs && epochs.length > 1 && (
+        <Card className="bg-card/60 border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-sky-400" /> Valknut Xi + ξ_yield Trend
+            </CardTitle>
+            <CardDescription className="text-[10px]">
+              ξ_best (orange) and PoX ξ_yield factor (cyan) over the last {Math.min(epochs.length, 40)} epochs
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart
+                data={[...epochs].reverse().slice(0, 40).map(e => ({
+                  epoch: `#${e.epoch}`,
+                  xi: parseFloat(e.valknutXi.toFixed(4)),
+                  yf: parseFloat(((e.poxYieldFactor ?? 0)).toFixed(4)),
+                  passed: e.xiPassed,
+                }))}
+                margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="epoch" tick={{ fontSize: 9, fill: "#888" }} interval="preserveStartEnd" />
+                <YAxis domain={[0, 1]} tick={{ fontSize: 9, fill: "#888" }} />
+                <RechartTooltip
+                  contentStyle={{ background: "rgba(10,10,20,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, fontSize: 11 }}
+                  formatter={(val: number, name: string) => [val.toFixed(4), name === "xi" ? "ξ_best" : "ξ_yield"]}
+                />
+                <ReferenceLine y={1} stroke="rgba(251,146,60,0.25)" strokeDasharray="4 2" label={{ value: "Xi=1.0 target", fontSize: 9, fill: "rgba(251,146,60,0.5)", position: "insideTopRight" }} />
+                <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} formatter={(v) => v === "xi" ? "ξ_best (Valknut)" : "ξ_yield (PoX factor)"} />
+                <Line type="monotone" dataKey="xi" stroke="#fb923c" strokeWidth={1.5} dot={false} name="xi" />
+                <Line type="monotone" dataKey="yf" stroke="#38bdf8" strokeWidth={1.5} dot={false} name="yf" strokeDasharray="4 2" />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Spectral Proof History ─────────────────────────────────────────── */}
       <Card className="bg-card/60 border-border/50">
