@@ -1142,6 +1142,7 @@ STYLE:
           return res.status(409).json({ message: "Balance changed concurrently — please retry" });
         }
         // Phase 2: Broadcast on-chain via Treasury Service
+        let queued = false;
         try {
           const result = await treasurySend(chain, toAddress, amount, speedMultiplier);
           txHash = result.txHash;
@@ -1151,13 +1152,23 @@ STYLE:
             : (result.fee ?? networkFee);
           status = result.status;
         } catch (transmitError: any) {
-          // Transmit failed: restore the reserved balance atomically (only if still at reserved value)
-          await storage.releaseWalletBalance(wallet.id, token, newBalance, currentBalanceStr);
-          const msg = transmitError instanceof Error ? transmitError.message : "Chain transmit failed";
           const code = transmitError instanceof TreasuryError ? transmitError.code : "TRANSMIT_ERROR";
-          return res.status(400).json({ message: msg, code });
+
+          // INSUFFICIENT_FUNDS: treasury lacks on-chain funds to relay this withdrawal right now.
+          // Keep the user's balance deducted and queue the transaction as "pending" so it can be
+          // retried automatically when the treasury is topped up.  Do NOT return an error to the
+          // user — their funds are safe and the withdrawal will be processed.
+          if (code === "INSUFFICIENT_FUNDS") {
+            status = "pending";
+            queued = true;
+          } else {
+            // Any other failure: restore the reserved balance atomically and surface the error.
+            await storage.releaseWalletBalance(wallet.id, token, newBalance, currentBalanceStr);
+            const msg = transmitError instanceof Error ? transmitError.message : "Chain transmit failed";
+            return res.status(400).json({ message: msg, code });
+          }
         }
-        // Phase 3 (success): balance already deducted — record the transaction
+        // Phase 3: balance already deducted — record the transaction (broadcast or pending)
         const transaction = await storage.createTransaction({
           walletId: wallet.id,
           type: "send",
@@ -1168,9 +1179,18 @@ STYLE:
           status,
           txHash,
           explorerUrl,
-          networkFee,
+          networkFee: queued ? "Queued — treasury funding required" : networkFee,
         });
-        return res.json({ transaction, newBalance, oiyeGasCovered: gasCoverage.covered, oiyeReserve: gasCoverage.reserve });
+        return res.json({
+          transaction,
+          newBalance,
+          oiyeGasCovered: gasCoverage.covered,
+          oiyeReserve: gasCoverage.reserve,
+          queued,
+          queuedMessage: queued
+            ? `Your ${token} withdrawal of ${amount} has been queued and will be broadcast once the treasury is funded. Your balance has been reserved.`
+            : undefined,
+        });
       }
 
       // For SKYNT (off-chain): atomically deduct balance and record transaction in one DB transaction

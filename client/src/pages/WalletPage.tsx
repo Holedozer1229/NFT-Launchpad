@@ -387,6 +387,7 @@ export default function WalletPage() {
   const [sendToken, setSendToken] = useState("SKYNT");
   const [sending, setSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
+  const [sendQueued, setSendQueued] = useState(false);
   const [sendError, setSendError] = useState("");
   const [lastSendReceipt, setLastSendReceipt] = useState<WalletTx | null>(null);
   const [copied, setCopied] = useState(false);
@@ -583,6 +584,7 @@ export default function WalletPage() {
     setSending(true);
     setSendError("");
     setSendSuccess(false);
+    setSendQueued(false);
     try {
       const res = await fetch(`/api/wallet/${activeWallet.id}/send`, {
         method: "POST",
@@ -594,6 +596,7 @@ export default function WalletPage() {
       if (res.ok) {
         haptic("transaction");
         setLastSendReceipt(data.transaction ?? null);
+        setSendQueued(!!data.queued);
         setSendSuccess(true);
         setSendTo("");
         setSendAmount("");
@@ -997,20 +1000,34 @@ export default function WalletPage() {
                   <div className="flex items-center gap-2 px-3 py-2 rounded-sm bg-neon-green/5 border border-neon-green/20 text-[10px] font-mono">
                     <span className="w-1.5 h-1.5 rounded-full bg-neon-green" />
                     <span className="text-neon-green">
-                      Signing with {externalProvider === "phantom" ? "👻 Phantom" : "🦊 MetaMask"}: {externalAddress?.slice(0, 6)}...{externalAddress?.slice(-4)}
+                      Signing with {externalProvider === "phantom" ? "Phantom" : "MetaMask"}: {externalAddress?.slice(0, 6)}...{externalAddress?.slice(-4)}
                     </span>
                   </div>
                 )}
 
                 {sendSuccess && lastSendReceipt && (
-                  <div className="p-4 bg-neon-green/5 border border-neon-green/30 rounded-sm space-y-3" data-testid="send-receipt">
+                  <div
+                    className={`p-4 rounded-sm space-y-3 ${sendQueued ? "bg-neon-orange/5 border border-neon-orange/30" : "bg-neon-green/5 border border-neon-green/30"}`}
+                    data-testid="send-receipt"
+                  >
                     <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-neon-green shrink-0" />
-                      <p className="text-xs font-heading text-neon-green uppercase tracking-wider">Transaction Broadcast</p>
+                      {sendQueued ? (
+                        <Clock className="w-4 h-4 text-neon-orange shrink-0" />
+                      ) : (
+                        <CheckCircle className="w-4 h-4 text-neon-green shrink-0" />
+                      )}
+                      <p className={`text-xs font-heading uppercase tracking-wider ${sendQueued ? "text-neon-orange" : "text-neon-green"}`}>
+                        {sendQueued ? "Withdrawal Queued" : "Transaction Broadcast"}
+                      </p>
                       <span className="ml-auto text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-neon-orange/10 text-neon-orange border border-neon-orange/20">
                         {lastSendReceipt.status}
                       </span>
                     </div>
+                    {sendQueued && (
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        Your withdrawal has been reserved and queued. It will be broadcast on-chain automatically once the treasury relay is funded. Your balance reflects the deduction.
+                      </p>
+                    )}
                     <div className="space-y-2 text-[11px] font-mono">
                       <div className="flex justify-between gap-2">
                         <span className="text-muted-foreground">Amount</span>
@@ -1024,14 +1041,17 @@ export default function WalletPage() {
                       </div>
                       {lastSendReceipt.networkFee && (
                         <div className="flex justify-between gap-2">
-                          <span className="text-muted-foreground">Est. Network Fee</span>
+                          <span className="text-muted-foreground">{sendQueued ? "Fee Status" : "Est. Network Fee"}</span>
                           <span className="text-neon-orange">
-                            {parseFloat(lastSendReceipt.networkFee).toFixed(8)} {lastSendReceipt.token === "ETH" ? "ETH" : lastSendReceipt.token === "STX" ? "STX" : ""}
+                            {sendQueued
+                              ? lastSendReceipt.networkFee
+                              : `${parseFloat(lastSendReceipt.networkFee).toFixed(8)} ${lastSendReceipt.token === "ETH" ? "ETH" : lastSendReceipt.token === "STX" ? "STX" : ""}`
+                            }
                           </span>
                         </div>
                       )}
                     </div>
-                    {lastSendReceipt.txHash && (
+                    {!sendQueued && lastSendReceipt.txHash && (
                       <div className="pt-2 border-t border-border/20 space-y-1.5">
                         <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Tx Hash</p>
                         <div className="flex items-center gap-2">
@@ -1063,7 +1083,7 @@ export default function WalletPage() {
                     )}
                     <button
                       data-testid="button-close-receipt"
-                      onClick={() => { setSendSuccess(false); setLastSendReceipt(null); }}
+                      onClick={() => { setSendSuccess(false); setSendQueued(false); setLastSendReceipt(null); }}
                       className="w-full py-1.5 text-[10px] font-heading uppercase tracking-wider text-muted-foreground hover:text-foreground border border-border/20 rounded-sm transition-colors"
                     >
                       Dismiss

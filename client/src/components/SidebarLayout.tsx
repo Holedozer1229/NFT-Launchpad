@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
-import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, Shield, ChevronLeft, ChevronRight, Menu, X, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Gift, UserCheck, Share2, Vote, Cpu, Fuel, Zap, Radio } from "lucide-react";
+import { Gem, LayoutDashboard, Sparkles, Image, BarChart3, Shield, ChevronLeft, ChevronRight, Menu, X, LogOut, User, TrendingUp, WalletCards, Brain, Gamepad2, Store, Flame, FlaskConical, Pickaxe, Power, PowerOff, Coins, Hash, ChevronUp, Orbit, ShieldCheck, Globe, Rocket, FileCode2, Vault, Gift, UserCheck, Share2, Vote, Cpu, Fuel, Zap, Radio, Wallet, Ghost, ArrowDownUp } from "lucide-react";
 import { useEngineStream } from "@/hooks/use-engine-stream";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -38,6 +38,8 @@ const navGroups = [
     label: "NETWORK",
     items: [
       { path: "/cross-chain", label: "Cross-Chain Portal", icon: Share2, adminOnly: false },
+      { path: "/bridge", label: "Bridge", icon: ArrowDownUp, adminOnly: false },
+      { path: "/wormhole", label: "ZK Wormhole", icon: Orbit, adminOnly: false },
       { path: "/governance", label: "Governance", icon: Vote, adminOnly: false },
       { path: "/p2p-network", label: "P2P Network", icon: Globe, adminOnly: false },
     ]
@@ -299,8 +301,10 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
           {isConnected ? (
             <div className={`${collapsed ? "" : "px-1"}`}>
               <div className="flex items-center gap-2">
-                <span className="shrink-0 relative">
-                  {connector?.name?.toLowerCase().includes("phantom") ? "👻" : "🦊"}
+                <span className="shrink-0 relative flex items-center justify-center w-5 h-5">
+                  {connector?.name?.toLowerCase().includes("phantom")
+                    ? <Ghost className="w-4 h-4 text-muted-foreground" />
+                    : <Wallet className="w-4 h-4 text-muted-foreground" />}
                   <span className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-neon-green border border-black" />
                 </span>
                 {!collapsed && (
@@ -324,7 +328,7 @@ export default function SidebarLayout({ children }: { children: ReactNode }) {
                 showBalance={false}
                 chainStatus="icon"
                 accountStatus={collapsed ? "avatar" : "address"}
-                label={collapsed ? "🔗" : "Connect Wallet"}
+                label={collapsed ? "" : "Connect Wallet"}
               />
             </div>
           )}
@@ -603,7 +607,7 @@ function PersistentMiner({ collapsed }: { collapsed: boolean }) {
       {!expanded && active && stats && (
         <div className="px-2.5 pb-2 text-[9px] font-mono text-neon-green truncate flex items-center gap-1">
           {stats.hashRate} H/s | {stats.totalSkyntEarned.toFixed(2)} SKYNT
-          {stats.streak > 0 && <span className="text-orange-500 ml-auto">🔥 {stats.streak}</span>}
+          {stats.streak > 0 && <span className="text-orange-500 ml-auto flex items-center gap-0.5"><Flame className="w-2.5 h-2.5 fill-current" />{stats.streak}</span>}
         </div>
       )}
     </div>

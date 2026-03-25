@@ -1,5 +1,5 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Wallet, ChevronDown, Copy, ExternalLink, LogOut, Check, Loader2, AlertTriangle, Coins, Zap, TrendingUp } from "lucide-react";
+import { Wallet, ChevronDown, Copy, ExternalLink, LogOut, Check, Loader2, AlertTriangle, Coins, Zap, TrendingUp, Fuel } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useBalance, useAccount } from "wagmi";
 import { SKYNT_CONTRACT_ADDRESS } from "@shared/schema";
@@ -225,7 +225,7 @@ export function ConnectWalletButton({
                     <div className="flex items-center gap-1.5 mb-1">
                       <Zap className="w-3 h-3 text-neon-cyan" />
                       <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-widest">OIYE Gas</span>
-                      <span className="ml-auto font-mono text-[9px] text-neon-green">ACTIVE ⛽</span>
+                      <span className="ml-auto font-mono text-[9px] text-neon-green flex items-center gap-0.5">ACTIVE <Fuel className="w-2.5 h-2.5 inline" /></span>
                     </div>
                     <p className="text-[9px] text-muted-foreground font-mono">Gas fees on all transactions are covered by the OIYE self-fund system.</p>
                   </div>
