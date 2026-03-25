@@ -192,7 +192,7 @@ contract SKYNTMining is ERC2771Context, Ownable, ReentrancyGuard {
             blockhash(block.number - 1),
             block.timestamp,
             challengeEpoch,
-            msg.sender  // entropy only — intentionally msg.sender not _msgSender()
+            _msgSender() // _msgSender() respects ERC2771 forwarder for gasless rotations
         ));
         lastChallengeBlock = block.number;
         challengeEpoch++;

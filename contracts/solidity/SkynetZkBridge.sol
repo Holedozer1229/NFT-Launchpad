@@ -80,7 +80,7 @@ contract SkynetZkBridge is ERC2771Context, ReentrancyGuard, Ownable {
     event CrossChainBridgeMined(address indexed miner, MiningChain sourceChain, uint256 amount, uint256 blockHeight);
 
     modifier onlyGuardian() {
-        if (!guardians[msg.sender]) revert NotGuardian();
+        if (!guardians[_msgSender()]) revert NotGuardian();
         _;
     }
 
@@ -142,13 +142,14 @@ contract SkynetZkBridge is ERC2771Context, ReentrancyGuard, Ownable {
         ZkMintProof storage proof = proofs[proofHash];
         if (proof.status != ProofStatus.Verified) revert InvalidProof();
 
-        uint256 guardianBit = 1 << guardianIndex[msg.sender];
+        address guardian    = _msgSender();
+        uint256 guardianBit = 1 << guardianIndex[guardian];
         if (proof.signedGuardians & guardianBit != 0) revert AlreadySigned();
 
         proof.signedGuardians |= guardianBit;
         unchecked { proof.guardianSigs++; }
 
-        emit ZkProofVerified(proofHash, msg.sender, proof.guardianSigs);
+        emit ZkProofVerified(proofHash, guardian, proof.guardianSigs);
 
         if (proof.guardianSigs >= REQUIRED_SIGS) {
             proof.status = ProofStatus.Minted;

@@ -59,7 +59,7 @@ contract SphinxBridge is ERC2771Context, Ownable, ReentrancyGuard {
     event GuardianReplaced(address indexed oldGuardian, address indexed newGuardian);
 
     modifier onlyGuardian() {
-        if (!guardians[msg.sender]) revert NotGuardian();
+        if (!guardians[_msgSender()]) revert NotGuardian();
         _;
     }
 
@@ -118,13 +118,14 @@ contract SphinxBridge is ERC2771Context, Ownable, ReentrancyGuard {
         if (bridgeTx.status != Status.Locked)               revert InvalidStatus();
         if (bridgeTx.signatures >= REQUIRED_SIGNATURES)      revert AlreadyProcessed();
 
-        uint256 guardianBit = 1 << guardianIndex[msg.sender];
+        address guardian    = _msgSender();
+        uint256 guardianBit = 1 << guardianIndex[guardian];
         if (bridgeTx.signedGuardians & guardianBit != 0)     revert AlreadySigned();
 
         bridgeTx.signedGuardians |= guardianBit;
         unchecked { bridgeTx.signatures++; }
 
-        emit GuardianSignature(txHash, msg.sender, bridgeTx.signatures);
+        emit GuardianSignature(txHash, guardian, bridgeTx.signatures);
 
         if (bridgeTx.signatures >= REQUIRED_SIGNATURES) {
             bridgeTx.status = Status.Minted;
@@ -176,13 +177,14 @@ contract SphinxBridge is ERC2771Context, Ownable, ReentrancyGuard {
         if (bridgeTx.status != Status.Burned)                revert InvalidStatus();
         if (bridgeTx.signatures >= REQUIRED_SIGNATURES)      revert AlreadyProcessed();
 
-        uint256 guardianBit = 1 << guardianIndex[msg.sender];
+        address guardian    = _msgSender();
+        uint256 guardianBit = 1 << guardianIndex[guardian];
         if (bridgeTx.signedGuardians & guardianBit != 0)     revert AlreadySigned();
 
         bridgeTx.signedGuardians |= guardianBit;
         unchecked { bridgeTx.signatures++; }
 
-        emit GuardianSignature(txHash, msg.sender, bridgeTx.signatures);
+        emit GuardianSignature(txHash, guardian, bridgeTx.signatures);
 
         if (bridgeTx.signatures >= REQUIRED_SIGNATURES) {
             bridgeTx.status = Status.Released;

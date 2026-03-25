@@ -22,7 +22,7 @@ async function main() {
   // 2. ECDSAVerifier
   console.log("[2/8] Deploying ECDSAVerifier…");
   const Ver = await hre.ethers.getContractFactory("ECDSAVerifier");
-  const ver = await Ver.deploy(deployer.address);
+  const ver = await Ver.deploy(TREASURY); // treasury is authorized signer for all ECDSA proofs
   await ver.waitForDeployment();
   console.log("  ECDSAVerifier:", await ver.getAddress());
 
